@@ -1,0 +1,29 @@
+version: '3.9'
+services:
+  signaling:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "58080:58080"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+
+  videos:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.videos
+    ports:
+      - "8090:8090"
+    volumes:
+      # Volumen persistente: los videos viven en el HOST en /srv/videos
+      # Estructura: /srv/videos/{screenId-guid}/*.mp4
+      # El servicio ahora también descarga/cacha videos en local.
+      - /srv/videos:/videos
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - VIDEOS_DIR=/videos
+      - VIDEO_PORT=8090
+      - REMOTE_VIDEO_SERVER_URL=https://videos.myplayad.com

@@ -1,0 +1,12 @@
+FROM node:20-alpine
+
+WORKDIR /usr/src/app
+
+COPY package.json package-lock.json* ./
+RUN npm install --production
+
+COPY video-server.js ./
+
+EXPOSE 8090
+
+CMD ["node", "video-server.js"]
