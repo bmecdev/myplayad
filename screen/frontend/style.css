@@ -27,7 +27,7 @@ body, html {
 }
 
 #video-player {
-    object-fit: cover;
+    object-fit: contain;
 }
 
 #game-frame {
