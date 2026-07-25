@@ -156,7 +156,12 @@ async function checkSchedule() {
                 if (item.type === 'game') {
                     if (!gamesMap[item.name]) gamesMap[item.name] = [];
                     const d = new Date(item.startDate);
-                    const timeString = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const now = new Date();
+                    let timeString = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    if (d.toDateString() !== now.toDateString()) {
+                        const dateString = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                        timeString = `${dateString}, ${timeString}`;
+                    }
                     if (!gamesMap[item.name].includes(timeString)) {
                         gamesMap[item.name].push(timeString);
                     }
