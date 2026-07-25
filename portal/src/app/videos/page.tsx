@@ -1,7 +1,5 @@
-'use client';
-
 import { useState, useEffect } from 'react';
-import { Film, Upload, Trash2, Monitor } from 'lucide-react';
+import { Film, Upload, Trash2, Monitor, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { uploadVideoAction } from './actions';
 
 type Video = {
@@ -26,7 +24,8 @@ export default function VideosPage() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [screenId, setScreenId] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadMessage, setUploadMessage] = useState('');
 
   const fetchData = async () => {
     const [vidRes, scrRes] = await Promise.all([
@@ -49,7 +48,8 @@ export default function VideosPage() {
     e.preventDefault();
     if (!file || !screenId || !title) return;
 
-    setUploading(true);
+    setUploadStatus('uploading');
+    setUploadMessage('Subiendo archivo... esto puede tardar un poco dependiendo del tamaño.');
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', title);
@@ -58,17 +58,25 @@ export default function VideosPage() {
     try {
       const res = await uploadVideoAction(formData);
       if (!res.success) {
-        alert(res.error || 'Error al subir video');
+        setUploadStatus('error');
+        setUploadMessage(res.error || 'Error desconocido al subir el video.');
       } else {
-        setIsModalOpen(false);
-        setFile(null);
-        setTitle('');
+        setUploadStatus('success');
+        setUploadMessage('¡Video subido y asignado correctamente!');
         fetchData();
+        
+        // Cierra el modal automáticamente después de 2 segundos de éxito
+        setTimeout(() => {
+          setIsModalOpen(false);
+          setFile(null);
+          setTitle('');
+          setUploadStatus('idle');
+          setUploadMessage('');
+        }, 2500);
       }
     } catch (error) {
-      alert('Error al subir video');
-    } finally {
-      setUploading(false);
+      setUploadStatus('error');
+      setUploadMessage('Hubo un error de conexión al subir el video.');
     }
   };
 
@@ -174,19 +182,44 @@ export default function VideosPage() {
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors"
-                  disabled={uploading}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors disabled:opacity-50"
+                  disabled={uploadStatus === 'uploading'}
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
-                  disabled={uploading || !file}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition-colors font-medium disabled:opacity-50"
+                  disabled={uploadStatus === 'uploading' || !file || uploadStatus === 'success'}
+                  className={`px-4 py-2 rounded-xl transition-colors font-medium flex items-center gap-2 disabled:opacity-50 ${
+                    uploadStatus === 'success' ? 'bg-green-600 text-white' : 
+                    uploadStatus === 'error' ? 'bg-red-600 text-white hover:bg-red-700' :
+                    'bg-purple-600 hover:bg-purple-700 text-white'
+                  }`}
                 >
-                  {uploading ? 'Subiendo...' : 'Subir Video'}
+                  {uploadStatus === 'uploading' && <Loader2 className="w-5 h-5 animate-spin" />}
+                  {uploadStatus === 'success' && <CheckCircle2 className="w-5 h-5" />}
+                  {uploadStatus === 'error' && <AlertCircle className="w-5 h-5" />}
+                  
+                  {uploadStatus === 'idle' && 'Subir Video'}
+                  {uploadStatus === 'uploading' && 'Subiendo...'}
+                  {uploadStatus === 'success' && 'Completado'}
+                  {uploadStatus === 'error' && 'Reintentar'}
                 </button>
               </div>
+              
+              {/* Feedback messages */}
+              {uploadStatus !== 'idle' && (
+                <div className={`mt-4 p-4 rounded-xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 ${
+                  uploadStatus === 'uploading' ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' :
+                  uploadStatus === 'success' ? 'bg-green-500/10 text-green-300 border border-green-500/20' :
+                  'bg-red-500/10 text-red-300 border border-red-500/20'
+                }`}>
+                  {uploadStatus === 'uploading' && <Loader2 className="w-5 h-5 animate-spin shrink-0 mt-0.5" />}
+                  {uploadStatus === 'success' && <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />}
+                  {uploadStatus === 'error' && <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />}
+                  <p>{uploadMessage}</p>
+                </div>
+              )}
             </form>
           </div>
         </div>
