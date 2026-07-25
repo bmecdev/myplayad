@@ -39,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }
     });
 
-    let responseData = { type: 'standby', url: null };
+    let responseData: { type: string; url: string | null } = { type: 'standby', url: null };
 
     if (currentSchedule) {
       if (currentSchedule.game) {
