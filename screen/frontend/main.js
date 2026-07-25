@@ -116,6 +116,26 @@ async function checkSchedule() {
         const res = await fetch(`${PORTAL_URL}/api/public/screens/${screenId}/current`);
         const data = await res.json();
 
+        // Render upcoming schedules first so they show in all states (including standby)
+        const upcomingContainer = document.getElementById('upcoming-schedules');
+        const upcomingList = document.getElementById('upcoming-list');
+        
+        if (data.upcoming && data.upcoming.length > 0) {
+            upcomingList.innerHTML = data.upcoming.map(item => {
+                const date = new Date(item.startDate);
+                const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `
+                    <li class="upcoming-item">
+                        <span class="item-name">${item.name}</span>
+                        <span class="item-time">${timeString}</span>
+                    </li>
+                `;
+            }).join('');
+            upcomingContainer.classList.remove('hidden');
+        } else {
+            upcomingContainer.classList.add('hidden');
+        }
+
         if (data.type === 'standby' || !data.type) {
             setActiveLayer('standby');
             currentUrl = '';
@@ -144,26 +164,6 @@ async function checkSchedule() {
                 layers.game.src = data.url;
             }
             setActiveLayer('game');
-        }
-
-        // Render upcoming schedules
-        const upcomingContainer = document.getElementById('upcoming-schedules');
-        const upcomingList = document.getElementById('upcoming-list');
-        
-        if (data.upcoming && data.upcoming.length > 0) {
-            upcomingList.innerHTML = data.upcoming.map(item => {
-                const date = new Date(item.startDate);
-                const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                return `
-                    <li class="upcoming-item">
-                        <span class="item-name">${item.name}</span>
-                        <span class="item-time">${timeString}</span>
-                    </li>
-                `;
-            }).join('');
-            upcomingContainer.classList.remove('hidden');
-        } else {
-            upcomingContainer.classList.add('hidden');
         }
 
     } catch (err) {
