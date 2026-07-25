@@ -35,10 +35,9 @@ async function syncLocalPlaylist() {
 function playCurrentVideo() {
     if (!videoPlaylist.length) return;
     if (videoIndex >= videoPlaylist.length) videoIndex = 0;
-    
     const filename = videoPlaylist[videoIndex];
     const localSrc = `/videos/${screenId}/${encodeURIComponent(filename)}`;
-    const remoteSrc = `https://videos.myplayad.com/${screenId}/${encodeURIComponent(filename)}`;
+    const remoteSrc = `https://videos.myplayad.com/videos/${screenId}/${encodeURIComponent(filename)}`;
     
     layers.video.src = localSrc;
     

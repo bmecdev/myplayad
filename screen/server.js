@@ -84,7 +84,7 @@ async function syncScreen(screenId) {
         }
         const listData = await listRes.json();
         const remoteVideos = (listData.videos || []).filter(isVideo).sort();
-        const remoteSet = new Set(remoteVideos);
+        const remoteSet = new Set(remoteVideos.map(v => path.basename(v)));
 
         const screenDir = path.join(VIDEOS_DIR, screenId);
         await fs.promises.mkdir(screenDir, { recursive: true });
