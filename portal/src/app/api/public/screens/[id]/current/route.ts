@@ -18,11 +18,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id: screenId } = await params;
     const now = new Date();
 
-    // Find the currently active schedule for this screen
-    // It must be active, start date in the past, and end date in the future (or null)
-    const currentSchedule = await prisma.schedule.findFirst({
+    // First try to find an active GAME schedule
+    let currentSchedule = await prisma.schedule.findFirst({
       where: {
         screenId,
+        gameId: { not: null },
         isActive: true,
         startDate: { lte: now },
         OR: [
@@ -31,13 +31,36 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         ]
       },
       orderBy: {
-        startDate: 'desc' // If multiple overlap, take the most recently started one
+        startDate: 'desc'
       },
       include: {
         game: true,
         video: true,
       }
     });
+
+    // If no active game, fall back to an active VIDEO schedule
+    if (!currentSchedule) {
+      currentSchedule = await prisma.schedule.findFirst({
+        where: {
+          screenId,
+          videoId: { not: null },
+          isActive: true,
+          startDate: { lte: now },
+          OR: [
+            { endDate: null },
+            { endDate: { gt: now } }
+          ]
+        },
+        orderBy: {
+          startDate: 'desc'
+        },
+        include: {
+          game: true,
+          video: true,
+        }
+      });
+    }
 
     const futureSchedules = await prisma.schedule.findMany({
       where: {
