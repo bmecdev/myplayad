@@ -32,7 +32,7 @@ type ScreenDetail = {
 export default function ScreenDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const screenId = params.id as string;
+  const screenId = params?.id as string;
   
   const [screen, setScreen] = useState<ScreenDetail | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
