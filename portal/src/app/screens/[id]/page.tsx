@@ -130,6 +130,13 @@ export default function ScreenDetailPage() {
     }
   };
 
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    if (confirm('¿Estás seguro de eliminar esta programación futura?')) {
+      await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+      fetchScreenData();
+    }
+  };
+
   const handleDeleteVideo = async (id: string) => {
     if (confirm('¿Estás seguro de borrar este video de esta pantalla?')) {
       await fetch(`/api/videos/${id}`, { method: 'DELETE' });
@@ -293,6 +300,13 @@ export default function ScreenDetailPage() {
                         <Calendar className="w-3 h-3" /> {new Date(schedule.startDate).toLocaleString()}
                       </p>
                     </div>
+                    <button 
+                      onClick={() => handleDeleteSchedule(schedule.id)}
+                      className="text-destructive/50 hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Eliminar Programación"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>
