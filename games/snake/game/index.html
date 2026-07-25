@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Retro Arcade</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Parte Superior: Consola Retro -->
+        <div class="console-bezel">
+            <div class="lcd-screen" id="main-screen">
+                <div class="scanlines"></div>
+                
+                <div class="game-header">
+                    <div class="header-left">
+                        <span id="player-nick">PLAYER: ----</span>
+                        <span id="score">SCORE: 000</span>
+                    </div>
+                    <div id="lives-container" style="color: var(--nokia-dark); font-size: 10px; font-weight: bold;">
+                        LIVES: <span id="lives-count">3</span>
+                    </div>
+                    <div class="header-right">
+                        <span id="high-score">HI: 000</span>
+                        <span id="room-id">ID: ----</span>
+                        <span id="ice-route" style="margin-left: 8px; font-size: 10px; font-weight: bold; color: #e3ff5a;">ICE: --</span>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="gameCanvas" width="200" height="160"></canvas>
+                </div>
+                
+                <!-- Mensaje de Fin de Juego -->
+                <div id="game-over-overlay" class="hidden">
+                    <div class="overlay-content">
+                        <h2 class="blink">GAME OVER</h2>
+                        <div id="ranking-container">
+                            <h3>HALL OF FAME</h3>
+                            <ul id="ranking-list"></ul>
+                        </div>
+                        <p class="instruction">CLICK TO RESTART</p>
+                    </div>
+                </div>
+
+                <!-- Overlay de Conexión -->
+                <div id="waiting-overlay">
+                    <div class="overlay-content">
+                        <h2 class="arcade-title">SNAKE<span>RETRO</span></h2>
+                        <p class="pulse-text">ESCANEA PARA JUGAR !!</p>
+                        <div class="qr-wrapper">
+                            <img id="qr-code-img" src="" alt="QR">
+                        </div>
+                        <p class="status-text">ESPERANDO CONTROL...</p>
+                    </div>
+                </div>
+
+            </div>
+            <div class="console-footer">
+                <div class="speaker-grille"></div>
+                <div class="model-number">CLASSIC-80S</div>
+                <div class="speaker-grille"></div>
+            </div>
+        </div>
+
+        <!-- Parte Inferior: Reproductor de Video -->
+        <div class="video-container">
+            <div class="video-bezel">
+                <video id="bgVideo" muted autoplay playsinline></video>
+                <!-- Nuevo overlay para el ranking entre videos -->
+                <div id="video-ranking-overlay" class="hidden">
+                    <div class="ranking-header">HALL OF FAME</div>
+                    <ul id="video-ranking-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+    <script src="video_loop.js"></script>
+</body>
+</html>

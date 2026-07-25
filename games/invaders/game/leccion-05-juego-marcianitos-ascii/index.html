@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marcianitos Retro ASCII</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="cabinet">
+      <section class="hero">
+        <p class="eyebrow">Arcade ASCII</p>
+        <h1>Marcianitos Retro</h1>
+        <p class="intro">
+          Un mini arcade con invasores animados por cuadros ASCII, escudos
+          destructibles, oleadas crecientes y brillo de monitor CRT.
+        </p>
+      </section>
+
+      <section class="hud" aria-label="Marcadores">
+        <article class="panel">
+          <span class="label">Puntaje</span>
+          <strong id="score">000000</strong>
+        </article>
+        <article class="panel">
+          <span class="label">Nivel</span>
+          <strong id="level">01</strong>
+        </article>
+        <article class="panel">
+          <span class="label">Vidas</span>
+          <strong id="lives">03</strong>
+        </article>
+        <article class="panel">
+          <span class="label">Record</span>
+          <strong id="highscore">000000</strong>
+        </article>
+      </section>
+
+      <section class="screen-shell" aria-label="Pantalla del juego">
+        <div class="bezel"></div>
+        <pre id="screen">Cargando consola ASCII...</pre>
+      </section>
+
+      <p id="status" class="status">
+        Flechas o A/D para moverte, espacio para disparar, P para pausar.
+      </p>
+
+      <section class="legend" aria-label="Controles">
+        <div class="legend-card">
+          <span class="legend-key">Mover</span>
+          <span class="legend-text">A / D o flechas</span>
+        </div>
+        <div class="legend-card">
+          <span class="legend-key">Disparo</span>
+          <span class="legend-text">Espacio</span>
+        </div>
+        <div class="legend-card">
+          <span class="legend-key">Pausa</span>
+          <span class="legend-text">P</span>
+        </div>
+        <div class="legend-card">
+          <span class="legend-key">Reiniciar</span>
+          <span class="legend-text">Enter</span>
+        </div>
+      </section>
+
+      <section class="touch-controls" aria-label="Controles tactiles">
+        <button type="button" data-control="left">Izquierda</button>
+        <button type="button" data-control="fire">Disparo</button>
+        <button type="button" data-control="right">Derecha</button>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

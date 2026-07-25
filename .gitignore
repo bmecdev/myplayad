@@ -34,3 +34,6 @@ Thumbs.db
 server/videos/
 screen/videos/
 /srv/videos/
+
+# Ignorar videos gigantes en los juegos
+games/**/*.mp4

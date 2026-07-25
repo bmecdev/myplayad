@@ -1,0 +1,316 @@
+:root {
+    --nokia-bg: #91aa12;
+    --nokia-dark: #171e04;
+    --bezel-color: #2c2c2c;
+    --metal-light: #444;
+}
+
+body {
+    background-color: #050505;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    max-height: 100vh;
+}
+
+/* Consola Bezel */
+.console-bezel {
+    background: linear-gradient(145deg, #333, #111);
+    padding: 15px 15px 5px 15px;
+    border-radius: 12px;
+    border: 4px solid #444;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 2px 5px rgba(255, 255, 255, 0.1);
+    position: relative;
+}
+
+.lcd-screen {
+    background-color: var(--nokia-bg);
+    width: 220px;
+    height: 220px;
+    padding: 10px;
+    border: 10px solid #000;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Efecto de Scanlines */
+.scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+            rgba(0, 0, 0, 0.05) 50%);
+    background-size: 100% 2px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--nokia-dark);
+    font-weight: bold;
+    margin-bottom: 2px;
+    border-bottom: 1px solid var(--nokia-dark);
+    padding-bottom: 2px;
+}
+
+.header-left,
+.header-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.canvas-wrapper {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    /* Marco eliminado del CSS */
+}
+
+#gameCanvas {
+    background-color: transparent;
+    display: block;
+}
+
+/* Overlays Retro */
+#game-over-overlay,
+#waiting-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--nokia-bg);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--nokia-dark);
+}
+
+.overlay-content {
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.arcade-title {
+    font-size: 22px;
+    margin: 0 0 10px 0;
+    font-weight: 900;
+    letter-spacing: -1px;
+}
+
+.arcade-title span {
+    font-weight: 300;
+}
+
+.qr-wrapper {
+    background: white;
+    padding: 5px;
+    display: inline-block;
+    border: 2px solid var(--nokia-dark);
+    margin: 5px 0;
+}
+
+#qr-code-img {
+    width: 70px;
+    height: 70px;
+    display: block;
+}
+
+.status-text {
+    font-size: 8px;
+    margin: 5px 0;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.pulse-text {
+    margin: 5px 0;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    animation: pulse 1.2s ease-in-out infinite;
+    display: inline-block;
+    color: var(--nokia-dark);
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.35);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Ranking Table Style */
+#ranking-container,
+#waiting-ranking-container {
+    margin-top: 5px;
+    width: 100%;
+}
+
+h3 {
+    font-size: 10px;
+    margin: 2px 0;
+    border-bottom: 1px solid var(--nokia-dark);
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 9px;
+}
+
+li {
+    white-space: pre;
+    text-align: left;
+}
+
+.blink {
+    animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+    50% {
+        opacity: 0;
+    }
+}
+
+.instruction {
+    font-size: 9px;
+    margin-top: 10px;
+}
+
+/* Footer de Consola */
+.console-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding: 0 5px;
+}
+
+.speaker-grille {
+    width: 30px;
+    height: 10px;
+    background-image: radial-gradient(#000 20%, transparent 20%);
+    background-size: 4px 4px;
+}
+
+.model-number {
+    font-size: 8px;
+    color: #666;
+    font-weight: bold;
+}
+
+/* Estilos de Video (Abajo) */
+.video-container {
+    width: 250px;
+    padding: 8px;
+    background: #1a1a1a;
+    border-radius: 8px;
+    border: 2px solid #333;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.video-bezel {
+    width: 100%;
+    aspect-ratio: 9/16;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    /* Para el overlay absoluto */
+}
+
+#video-ranking-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#video-ranking-overlay .ranking-header {
+    font-size: 24px;
+    color: var(--nokia-bg);
+    margin-bottom: 30px;
+    font-weight: 900;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--nokia-bg);
+}
+
+#video-ranking-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 90%;
+    color: white;
+    font-size: 14px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#video-ranking-list li {
+    padding: 10px 0;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    white-space: pre;
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hidden {
+    display: none !important;
+}
