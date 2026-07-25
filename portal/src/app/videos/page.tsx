@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Film, Upload, Trash2, Monitor } from 'lucide-react';
+import { uploadVideoAction } from './actions';
 
 type Video = {
   id: string;
@@ -55,14 +56,15 @@ export default function VideosPage() {
     formData.append('screenId', screenId);
 
     try {
-      await fetch('/api/videos', {
-        method: 'POST',
-        body: formData,
-      });
-      setIsModalOpen(false);
-      setFile(null);
-      setTitle('');
-      fetchData();
+      const res = await uploadVideoAction(formData);
+      if (!res.success) {
+        alert(res.error || 'Error al subir video');
+      } else {
+        setIsModalOpen(false);
+        setFile(null);
+        setTitle('');
+        fetchData();
+      }
     } catch (error) {
       alert('Error al subir video');
     } finally {
