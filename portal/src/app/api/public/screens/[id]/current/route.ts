@@ -45,7 +45,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (currentSchedule.game) {
         responseData = {
           type: 'game',
-          url: `https://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`
+          url: `http://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`
         };
       } else if (currentSchedule.video) {
         responseData = {
