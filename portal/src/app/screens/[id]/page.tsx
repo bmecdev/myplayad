@@ -206,7 +206,7 @@ export default function ScreenDetailPage() {
                     <h3 className="text-2xl font-bold text-green-400">{activeGameSchedule.game.name}</h3>
                     <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
                       <Calendar className="w-4 h-4" /> 
-                      Inicia: {new Date(activeGameSchedule.startDate).toLocaleString()}
+                      Inició: {new Date(activeGameSchedule.startDate).toLocaleString()}
                     </p>
                   </div>
                 </div>
