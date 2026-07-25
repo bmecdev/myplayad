@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Monitor, Plus, Trash2, Edit } from 'lucide-react';
+import mqtt from 'mqtt';
 
 type Screen = {
   id: string;
@@ -17,6 +18,7 @@ export default function ScreensPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', location: '', description: '' });
+  const [mqttStatuses, setMqttStatuses] = useState<Record<string, boolean>>({});
 
   const fetchScreens = async () => {
     const res = await fetch('/api/screens');
@@ -27,9 +29,30 @@ export default function ScreensPage() {
 
   useEffect(() => {
     fetchScreens();
-    // Auto-refresh screens to update online status
+    // Auto-refresh screens to update list (not needed for online status anymore, but good for new screens)
     const interval = setInterval(fetchScreens, 15000);
-    return () => clearInterval(interval);
+
+    // Conexión a MQTT
+    const client = mqtt.connect('wss://videos.myplayad.com/mqtt');
+    
+    client.on('connect', () => {
+      client.subscribe('screens/+/status');
+    });
+
+    client.on('message', (topic, message) => {
+      // topic: screens/123/status
+      const parts = topic.split('/');
+      if (parts.length === 3 && parts[0] === 'screens' && parts[2] === 'status') {
+        const screenId = parts[1];
+        const status = message.toString();
+        setMqttStatuses(prev => ({ ...prev, [screenId]: status === 'online' }));
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      client.end();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,7 +74,12 @@ export default function ScreensPage() {
     }
   };
 
-  const isOnline = (lastSeen?: string) => {
+  const isOnline = (screenId: string, lastSeen?: string) => {
+    // Si tenemos estado MQTT en tiempo real, ese manda
+    if (mqttStatuses[screenId] !== undefined) {
+      return mqttStatuses[screenId];
+    }
+    // Fallback a latido por base de datos (histórico)
     if (!lastSeen) return false;
     const diff = Date.now() - new Date(lastSeen).getTime();
     return diff < 120000; // 2 minutes
@@ -79,7 +107,7 @@ export default function ScreensPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {screens.map(screen => {
-            const online = isOnline(screen.lastSeen);
+            const online = isOnline(screen.id, screen.lastSeen);
             return (
               <div key={screen.id} className="glass-card rounded-2xl p-6 relative group overflow-hidden">
                 <div className={`absolute top-0 left-0 w-1 h-full ${online ? 'bg-gradient-to-b from-green-500 to-green-300' : 'bg-gradient-to-b from-red-500 to-red-300'}`}></div>

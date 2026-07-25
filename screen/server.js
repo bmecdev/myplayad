@@ -139,14 +139,34 @@ async function syncScreen(screenId) {
 
 // ─── Auto-Sync ───────────────────────────────────────────────────────────────
 
+const mqtt = require('mqtt');
+
 if (SCREEN_ID) {
-    // Heartbeat: Avisar al portal cada 30 segundos que la pantalla sigue viva
-    const HEARTBEAT_INTERVAL = 30 * 1000;
-    setInterval(() => {
-        const PORTAL_URL = process.env.PORTAL_URL || 'https://portal.myplayad.com';
-        fetch(`${PORTAL_URL}/api/public/screens/${SCREEN_ID}/heartbeat`, { method: 'POST' })
-            .catch(err => console.error('[heartbeat] error:', err.message));
-    }, HEARTBEAT_INTERVAL);
+    console.log('[mqtt] Conectando a MQTT...');
+    
+    // MQTT connection over WebSockets
+    // If REMOTE is https://videos.myplayad.com, MQTT will be wss://videos.myplayad.com/mqtt
+    const mqttUrl = REMOTE.replace(/^http/, 'ws') + '/mqtt';
+    
+    const client = mqtt.connect(mqttUrl, {
+        clientId: `screen_${SCREEN_ID}_${Math.random().toString(16).slice(2, 10)}`,
+        will: {
+            topic: `screens/${SCREEN_ID}/status`,
+            payload: 'offline',
+            qos: 1,
+            retain: true
+        }
+    });
+
+    client.on('connect', () => {
+        console.log('[mqtt] Conectado exitosamente al broker MQTT');
+        // Reportar como online con retain: true
+        client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
+    });
+
+    client.on('error', (err) => {
+        console.error('[mqtt] Error de conexión:', err.message);
+    });
 
     // Sincronizar automáticamente cada 5 minutos
     const SYNC_INTERVAL = 5 * 60 * 1000;
@@ -157,10 +177,6 @@ if (SCREEN_ID) {
     
     // Ejecutar una vez al inicio
     setTimeout(() => {
-        const PORTAL_URL = process.env.PORTAL_URL || 'https://portal.myplayad.com';
-        fetch(`${PORTAL_URL}/api/public/screens/${SCREEN_ID}/heartbeat`, { method: 'POST' })
-            .catch(err => console.error('[heartbeat] error:', err.message));
-            
         syncScreen(SCREEN_ID).catch(err => console.error('[auto-sync] error:', err.message));
     }, 2000);
 }
