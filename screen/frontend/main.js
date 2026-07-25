@@ -11,6 +11,60 @@ let currentType = 'standby';
 let currentUrl = '';
 let screenId = new URLSearchParams(window.location.search).get('screenId');
 
+let videoPlaylist = [];
+let videoIndex = 0;
+let playlistSyncInterval = null;
+
+async function syncLocalPlaylist() {
+    if (!screenId) return;
+    try {
+        const cacheRes = await fetch(`/api/cache/${screenId}`);
+        if (!cacheRes.ok) return;
+        const cacheData = await cacheRes.json();
+        videoPlaylist = cacheData.videos || [];
+        
+        if (currentType === 'video' && layers.video.paused && videoPlaylist.length > 0) {
+            playCurrentVideo();
+        }
+    } catch (e) {
+        console.warn('Error syncing playlist:', e);
+    }
+}
+
+function playCurrentVideo() {
+    if (!videoPlaylist.length) return;
+    if (videoIndex >= videoPlaylist.length) videoIndex = 0;
+    
+    const filename = videoPlaylist[videoIndex];
+    const localSrc = `/videos/${screenId}/${encodeURIComponent(filename)}`;
+    const remoteSrc = `https://videos.myplayad.com/${screenId}/${encodeURIComponent(filename)}`;
+    
+    layers.video.src = localSrc;
+    
+    layers.video.onerror = () => {
+        if (layers.video.src.includes(localSrc)) {
+            console.warn('Video local no encontrado, usando streaming remoto...');
+            layers.video.src = remoteSrc;
+            layers.video.load();
+            if (currentType === 'video') {
+                layers.video.play().catch(e => console.warn('Autoplay bloqueado:', e));
+            }
+        }
+    };
+    
+    layers.video.load();
+    if (currentType === 'video') {
+        layers.video.play().catch(e => console.warn('Autoplay bloqueado:', e));
+    }
+}
+
+layers.video.onended = () => {
+    if (currentType === 'video') {
+        videoIndex = (videoIndex + 1) % videoPlaylist.length;
+        playCurrentVideo();
+    }
+};
+
 async function initialize() {
     if (!screenId) {
         try {
@@ -69,38 +123,19 @@ async function checkSchedule() {
         }
 
         if (data.type === 'video') {
-            if (currentUrl !== data.url) {
-                currentUrl = data.url;
+            if (currentType !== 'video') {
+                setActiveLayer('video');
+                currentUrl = 'playlist';
                 
-                let localSrc = '';
-                try {
-                    const urlObj = new URL(data.url);
-                    localSrc = '/videos' + urlObj.pathname;
-                    layers.video.src = localSrc;
-                } catch(e) {
-                    layers.video.src = data.url;
+                await syncLocalPlaylist();
+                if (videoPlaylist.length > 0) {
+                    playCurrentVideo();
                 }
                 
-                // Fallback a streaming remoto si el archivo local no existe o aún se está descargando
-                layers.video.onerror = () => {
-                    if (layers.video.src.includes(localSrc)) {
-                        console.warn('Video local no encontrado, usando streaming remoto como fallback...');
-                        layers.video.src = data.url;
-                        layers.video.load();
-                        if (currentType === 'video') {
-                            layers.video.play().catch(e => console.warn('Autoplay bloqueado:', e));
-                        }
-                    }
-                };
-
-                layers.video.load();
-                
-                // Disparar sincronización inmediata al servidor local para que lo descargue en background
-                if (localSrc) {
-                    fetch(`/api/cache/${screenId}`).catch(e => console.warn('Auto-sync omitido (probablemente sin server local)', e));
+                if (!playlistSyncInterval) {
+                    playlistSyncInterval = setInterval(syncLocalPlaylist, 30000);
                 }
             }
-            setActiveLayer('video');
         }
 
         if (data.type === 'game') {
