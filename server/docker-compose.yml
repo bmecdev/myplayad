@@ -52,6 +52,7 @@ services:
       - NODE_ENV=production
     volumes:
       - /srv/videos:/srv/videos
+      - ../games:/srv/games
     ports:
       - "3000:3000"
     depends_on:
