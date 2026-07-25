@@ -91,8 +91,7 @@ export default function ScreenDetailPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        gameId: selectedGameId, 
-        startDate: startDate ? new Date(startDate).toISOString() : undefined 
+        gameId: selectedGameId
       })
     });
     
@@ -315,7 +314,7 @@ export default function ScreenDetailPage() {
       {isGameModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
-            <h2 className="text-2xl font-bold mb-4">Programar Juego</h2>
+            <h2 className="text-2xl font-bold mb-4">Cambiar Juego</h2>
             <form onSubmit={handleAssignGame} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Seleccionar Juego</label>
@@ -329,16 +328,6 @@ export default function ScreenDetailPage() {
                     <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Fecha de Inicio (Opcional)</label>
-                <input 
-                  type="datetime-local" 
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground mt-1">Si se deja vacío, iniciará inmediatamente.</p>
               </div>
               <div className="flex gap-3 justify-end mt-6">
                 <button 
