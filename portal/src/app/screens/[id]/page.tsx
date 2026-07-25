@@ -56,6 +56,12 @@ export default function ScreenDetailPage() {
   const [title, setTitle] = useState('');
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
+  
+  // Existing Video Assignment Modal State
+  const [isExistingVideoModalOpen, setIsExistingVideoModalOpen] = useState(false);
+  const [allVideos, setAllVideos] = useState<Video[]>([]);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
+  const [assigningVideos, setAssigningVideos] = useState(false);
 
   const fetchScreenData = async () => {
     try {
@@ -152,53 +158,95 @@ export default function ScreenDetailPage() {
     setUploadMessage('Subiendo archivo...');
     
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title);
+      formData.append('screenId', screenId);
+
       const videoServerUrl = process.env.NODE_ENV === 'development' 
         ? 'http://localhost:8090' 
         : 'https://videos.myplayad.com';
-        
+
       const uploadRes = await fetch(`${videoServerUrl}/api/upload/${screenId}`, {
         method: 'POST',
-        headers: {
-          'x-file-name': encodeURIComponent(file.name)
-        },
+        headers: { 'x-file-name': encodeURIComponent(file.name) },
         body: file,
       });
 
-      if (!uploadRes.ok) throw new Error('Error al subir el archivo al servidor de videos.');
+      if (!uploadRes.ok) throw new Error('Error subiendo al servidor de videos.');
       const uploadData = await uploadRes.json();
-      if (!uploadData.success) throw new Error(uploadData.error || 'Error al subir el video.');
+      if (!uploadData.success) throw new Error(uploadData.error || 'Error en servidor de videos');
 
       const response = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          screenId,
-          filename: uploadData.filename
-        }),
+        body: JSON.stringify({ title, screenId, filename: uploadData.filename }),
       });
       
       const res = await response.json();
       
       if (!response.ok || !res.success) {
-        setUploadStatus('error');
-        setUploadMessage(res.error || 'Error desconocido al subir el video.');
-      } else {
-        setUploadStatus('success');
-        setUploadMessage('¡Video subido correctamente!');
-        fetchScreenData();
-        
-        setTimeout(() => {
-          setIsVideoModalOpen(false);
-          setFile(null);
-          setTitle('');
-          setUploadStatus('idle');
-          setUploadMessage('');
-        }, 2000);
+        throw new Error(res.error || 'Error al guardar en base de datos');
       }
+
+      setUploadStatus('success');
+      setUploadMessage('¡Video subido con éxito!');
+      fetchScreenData();
+      
+      setTimeout(() => {
+        setIsVideoModalOpen(false);
+        setFile(null);
+        setTitle('');
+        setUploadStatus('idle');
+      }, 2000);
+
     } catch (error: any) {
       setUploadStatus('error');
-      setUploadMessage(error.message || 'Hubo un error al subir el video.');
+      setUploadMessage(error.message || 'Error desconocido.');
+    }
+  };
+
+  const openExistingVideoModal = async () => {
+    setIsExistingVideoModalOpen(true);
+    setSelectedVideoIds([]);
+    try {
+      const res = await fetch('/api/videos');
+      if (res.ok) {
+        const data = await res.json();
+        // Filter out videos that are already assigned to this screen
+        const existingIds = new Set(videos.map(v => v.id));
+        setAllVideos(data.filter((v: Video) => !existingIds.has(v.id)));
+      }
+    } catch (err) {
+      console.error('Error fetching videos:', err);
+    }
+  };
+
+  const handleAssignExistingVideos = async () => {
+    if (selectedVideoIds.length === 0) return;
+    setAssigningVideos(true);
+    try {
+      // Create schedules for each selected video
+      await Promise.all(
+        selectedVideoIds.map(videoId => 
+          fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              screenId,
+              videoId,
+              startDate: new Date().toISOString()
+            })
+          })
+        )
+      );
+      
+      setIsExistingVideoModalOpen(false);
+      fetchScreenData();
+    } catch (err) {
+      console.error('Error assigning videos:', err);
+    } finally {
+      setAssigningVideos(false);
     }
   };
 
@@ -320,12 +368,20 @@ export default function ScreenDetailPage() {
             <h2 className="text-xl font-bold flex items-center gap-2 text-purple-400">
               <Film className="w-6 h-6" /> Videos de esta Pantalla
             </h2>
-            <button 
-              onClick={() => setIsVideoModalOpen(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
-            >
-              <Upload className="w-4 h-4" /> Subir Video
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={openExistingVideoModal}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
+              >
+                <Monitor className="w-4 h-4" /> Seleccionar Existente
+              </button>
+              <button 
+                onClick={() => setIsVideoModalOpen(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
+              >
+                <Upload className="w-4 h-4" /> Subir Video
+              </button>
+            </div>
           </div>
           
           <div className="space-y-3">
@@ -510,6 +566,67 @@ export default function ScreenDetailPage() {
                 </div>
               )}
             </form>
+          </div>
+        </div>
+      )}
+      {/* Existing Video Assignment Modal */}
+      {isExistingVideoModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10 flex flex-col max-h-[80vh]">
+            <h2 className="text-2xl font-bold mb-4">Seleccionar Video Existente</h2>
+            
+            <div className="overflow-y-auto flex-1 space-y-2 mb-4 pr-2">
+              {allVideos.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  No hay videos disponibles o todos ya están asignados.
+                </div>
+              ) : (
+                allVideos.map(video => (
+                  <label key={video.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 border border-white/5 cursor-pointer transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-white/20 bg-black/40 text-purple-600 focus:ring-purple-500/50"
+                      checked={selectedVideoIds.includes(video.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedVideoIds([...selectedVideoIds, video.id]);
+                        } else {
+                          setSelectedVideoIds(selectedVideoIds.filter(id => id !== video.id));
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-black/40 rounded-lg flex items-center justify-center">
+                        <Film className="w-5 h-5 text-purple-500/50" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm">{video.title}</h4>
+                        <p className="text-xs text-muted-foreground">{new Date(video.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-white/10">
+              <button 
+                type="button" 
+                onClick={() => setIsExistingVideoModalOpen(false)}
+                className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors disabled:opacity-50"
+                disabled={assigningVideos}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleAssignExistingVideos}
+                disabled={assigningVideos || selectedVideoIds.length === 0}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                {assigningVideos && <Loader2 className="w-4 h-4 animate-spin" />}
+                Asignar {selectedVideoIds.length > 0 && `(${selectedVideoIds.length})`}
+              </button>
+            </div>
           </div>
         </div>
       )}

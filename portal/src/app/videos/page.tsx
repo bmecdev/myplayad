@@ -27,6 +27,12 @@ export default function VideosPage() {
   const [screenId, setScreenId] = useState('');
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
+  
+  // Assign screens modal state
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   const fetchData = async () => {
     const [vidRes, scrRes] = await Promise.all([
@@ -47,14 +53,16 @@ export default function VideosPage() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !screenId || !title) return;
+    if (!file || !title) return;
 
     setUploadStatus('uploading');
     setUploadMessage('Subiendo archivo... esto puede tardar un poco dependiendo del tamaño.');
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', title);
-    formData.append('screenId', screenId);
+    // If we want to use the same video server upload logic, we can pass "pool" or an empty screenId
+    const actualScreenId = (!screenId || screenId === 'none') ? 'pool' : screenId;
+    formData.append('screenId', actualScreenId);
 
     try {
       const videoServerUrl = process.env.NODE_ENV === 'development' 
@@ -124,6 +132,37 @@ export default function VideosPage() {
     }
   };
 
+  const openAssignModal = (video: Video) => {
+    setSelectedVideo(video);
+    // Extraer los IDs de las pantallas donde este video ya está asignado
+    const assignedScreenIds = video.schedules.map(s => s.screenId).filter(Boolean);
+    setSelectedScreenIds(assignedScreenIds);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignScreens = async () => {
+    if (!selectedVideo) return;
+    setIsAssigning(true);
+    try {
+      const res = await fetch(`/api/videos/${selectedVideo.id}/screens`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ screenIds: selectedScreenIds })
+      });
+      if (res.ok) {
+        setIsAssignModalOpen(false);
+        fetchData();
+      } else {
+        alert('Error al asignar pantallas');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error de conexión');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -159,9 +198,23 @@ export default function VideosPage() {
               <div className="p-4">
                 <h3 className="font-bold truncate" title={video.title}>{video.title}</h3>
                 <p className="text-xs text-muted-foreground truncate mt-1">{video.filename}</p>
-                <div className="mt-3 flex items-center gap-2 text-xs bg-purple-500/10 text-purple-300 w-max px-2 py-1 rounded">
-                  <Monitor className="w-3 h-3" />
-                  {video.schedules[0]?.screen?.name || 'Sin asignar'}
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs bg-purple-500/10 text-purple-300 w-max px-2 py-1 rounded">
+                    <Monitor className="w-3 h-3" />
+                    {video.schedules.length === 0 
+                      ? 'Sin asignar' 
+                      : video.schedules.length === 1 
+                        ? '1 Pantalla' 
+                        : `${video.schedules.length} Pantallas`
+                    }
+                  </div>
+                  <button 
+                    onClick={() => openAssignModal(video)}
+                    className="text-xs flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white px-2 py-1 rounded transition-colors"
+                    title="Gestionar Pantallas"
+                  >
+                    Asignar
+                  </button>
                 </div>
               </div>
             </div>
@@ -194,16 +247,15 @@ export default function VideosPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">Asignar a Pantalla Inicialmente</label>
                 <select 
-                  required
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                   value={screenId}
                   onChange={e => setScreenId(e.target.value)}
                 >
+                  <option value="none">Ninguna (Solo subir a la piscina)</option>
                   {screens.map(s => (
-                    <option key={s.id} value={s.id} className="bg-background">{s.name}</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-muted-foreground mt-1">El video se guardará en la carpeta de esta pantalla en el servidor.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Archivo MP4</label>
@@ -258,6 +310,67 @@ export default function VideosPage() {
                 </div>
               )}
             </form>
+          </div>
+        </div>
+      )}
+      {/* Assign Screens Modal */}
+      {isAssignModalOpen && selectedVideo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10 flex flex-col max-h-[80vh]">
+            <h2 className="text-2xl font-bold mb-2">Asignar a Pantallas</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Selecciona en qué pantallas se mostrará el video <strong>{selectedVideo.title}</strong>.
+            </p>
+            
+            <div className="overflow-y-auto flex-1 space-y-2 mb-4 pr-2">
+              {screens.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  No hay pantallas registradas.
+                </div>
+              ) : (
+                screens.map(screen => (
+                  <label key={screen.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 border border-white/5 cursor-pointer transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-white/20 bg-black/40 text-purple-600 focus:ring-purple-500/50"
+                      checked={selectedScreenIds.includes(screen.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedScreenIds([...selectedScreenIds, screen.id]);
+                        } else {
+                          setSelectedScreenIds(selectedScreenIds.filter(id => id !== screen.id));
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-black/40 rounded-lg flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-purple-500/50" />
+                      </div>
+                      <h4 className="font-bold text-sm">{screen.name}</h4>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-white/10">
+              <button 
+                type="button" 
+                onClick={() => setIsAssignModalOpen(false)}
+                className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors disabled:opacity-50"
+                disabled={isAssigning}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleAssignScreens}
+                disabled={isAssigning}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                {isAssigning && <Loader2 className="w-4 h-4 animate-spin" />}
+                Guardar Asignación
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { title, screenId, filename } = req.body;
 
-    if (!title || !screenId || !filename) {
+    if (!title || !filename) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -20,13 +20,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    await prisma.schedule.create({
-      data: {
-        screenId,
-        videoId: video.id,
-        startDate: new Date(),
-      }
-    });
+    if (screenId && screenId !== 'none') {
+      await prisma.schedule.create({
+        data: {
+          screenId,
+          videoId: video.id,
+          startDate: new Date(),
+        }
+      });
+    }
 
     return res.status(200).json({ success: true });
   } catch (err: any) {

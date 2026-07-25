@@ -128,7 +128,7 @@ const server = http.createServer((req, res) => {
     // POST /api/upload/:screenId  → recibe stream de video directamente
     if (req.method === 'POST' && parts[0] === 'api' && parts[1] === 'upload' && parts[2]) {
         const screenId = parts[2];
-        if (!GUID_RE.test(screenId)) {
+        if (screenId !== 'pool' && !GUID_RE.test(screenId)) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'screenId inválido' }));
             return;
@@ -137,7 +137,9 @@ const server = http.createServer((req, res) => {
         const encodedFilename = req.headers['x-file-name'] || 'video.mp4';
         const safeOriginalName = decodeURIComponent(encodedFilename).replace(/[^a-zA-Z0-9.-]/g, '_');
         const filename = `${Date.now()}-${safeOriginalName}`;
-        const targetDir = path.join(VIDEOS_DIR, screenId);
+        
+        // TODOS los videos subidos ahora van a la piscina
+        const targetDir = path.join(VIDEOS_DIR, 'pool');
 
         try {
             if (!fs.existsSync(targetDir)) {
