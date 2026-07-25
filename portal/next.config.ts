@@ -1,8 +1,5 @@
-import type { NextConfig } from "next";
-
-// @ts-ignore
-const nextConfig: NextConfig = {
-  serverExternalPackages: [],
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   serverActions: {
     bodySizeLimit: '500mb',
   },
