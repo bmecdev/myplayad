@@ -11,12 +11,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Missing gameId' }, { status: 400 });
     }
 
-    // First, deactivate any existing active game schedules for this screen
+    const now = new Date();
+    // First, deactivate any existing currently active game schedules for this screen
     await prisma.schedule.updateMany({
       where: {
         screenId,
         gameId: { not: null },
         isActive: true,
+        startDate: { lte: now },
+        OR: [
+          { endDate: null },
+          { endDate: { gt: now } }
+        ]
       },
       data: {
         isActive: false,
@@ -44,13 +50,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { id: screenId } = await params;
 
-    // To remove the game, we simply deactivate any game schedules for this screen.
-    // The current active schedule logic will fall back to the most recently started video schedule.
+    const now = new Date();
+    // To remove the game, we simply deactivate any CURRENTLY RUNNING game schedules for this screen.
+    // Future schedules will remain intact.
     await prisma.schedule.updateMany({
       where: {
         screenId,
         gameId: { not: null },
         isActive: true,
+        startDate: { lte: now },
+        OR: [
+          { endDate: null },
+          { endDate: { gt: now } }
+        ]
       },
       data: {
         isActive: false,
