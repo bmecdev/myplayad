@@ -69,7 +69,7 @@ export default function VideosPage() {
         ? 'http://localhost:8090' 
         : 'https://videos.myplayad.com';
         
-      const uploadRes = await fetch(`${videoServerUrl}/api/upload/${screenId}`, {
+      const uploadRes = await fetch(`${videoServerUrl}/api/upload/${actualScreenId}`, {
         method: 'POST',
         headers: {
           'x-file-name': encodeURIComponent(file.name)
