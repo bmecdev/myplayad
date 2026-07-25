@@ -8,6 +8,7 @@ type Screen = {
   name: string;
   location: string;
   description: string;
+  lastSeen?: string;
   createdAt: string;
 };
 
@@ -26,6 +27,9 @@ export default function ScreensPage() {
 
   useEffect(() => {
     fetchScreens();
+    // Auto-refresh screens to update online status
+    const interval = setInterval(fetchScreens, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,6 +49,12 @@ export default function ScreensPage() {
       await fetch(`/api/screens/${id}`, { method: 'DELETE' });
       fetchScreens();
     }
+  };
+
+  const isOnline = (lastSeen?: string) => {
+    if (!lastSeen) return false;
+    const diff = Date.now() - new Date(lastSeen).getTime();
+    return diff < 120000; // 2 minutes
   };
 
   return (
@@ -68,17 +78,24 @@ export default function ScreensPage() {
         <div className="text-center py-10">Cargando...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {screens.map(screen => (
-            <div key={screen.id} className="glass-card rounded-2xl p-6 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-primary to-accent"></div>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-bold">{screen.name}</h3>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    {screen.location}
-                  </p>
-                </div>
+          {screens.map(screen => {
+            const online = isOnline(screen.lastSeen);
+            return (
+              <div key={screen.id} className="glass-card rounded-2xl p-6 relative group overflow-hidden">
+                <div className={`absolute top-0 left-0 w-1 h-full ${online ? 'bg-gradient-to-b from-green-500 to-green-300' : 'bg-gradient-to-b from-red-500 to-red-300'}`}></div>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold flex items-center gap-2">
+                      {screen.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                      <span className={`flex items-center gap-1 font-medium ${online ? 'text-green-500' : 'text-red-500'}`}>
+                        <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-red-500'}`}></span>
+                        {online ? 'Online' : 'Offline'}
+                      </span>
+                      • {screen.location}
+                    </p>
+                  </div>
                 <button 
                   onClick={() => handleDelete(screen.id)}
                   className="text-destructive/70 hover:text-destructive transition-colors p-2 rounded-lg hover:bg-destructive/10"
@@ -91,7 +108,8 @@ export default function ScreensPage() {
                 ID: {screen.id}
               </div>
             </div>
-          ))}
+            );
+          })}
           {screens.length === 0 && (
             <div className="col-span-full text-center py-12 glass-card rounded-2xl border-dashed">
               <Monitor className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />

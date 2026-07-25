@@ -140,6 +140,13 @@ async function syncScreen(screenId) {
 // ─── Auto-Sync ───────────────────────────────────────────────────────────────
 
 if (SCREEN_ID) {
+    // Heartbeat: Avisar al portal cada 30 segundos que la pantalla sigue viva
+    const HEARTBEAT_INTERVAL = 30 * 1000;
+    setInterval(() => {
+        fetch(`${REMOTE}/api/public/screens/${SCREEN_ID}/heartbeat`, { method: 'POST' })
+            .catch(err => console.error('[heartbeat] error:', err.message));
+    }, HEARTBEAT_INTERVAL);
+
     // Sincronizar automáticamente cada 5 minutos
     const SYNC_INTERVAL = 5 * 60 * 1000;
     setInterval(() => {

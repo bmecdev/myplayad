@@ -71,17 +71,34 @@ async function checkSchedule() {
         if (data.type === 'video') {
             if (currentUrl !== data.url) {
                 currentUrl = data.url;
-                // Actually, the server.js caches videos locally. 
-                // So instead of fetching from videos.myplayad.com, we can fetch from localhost if we know the filename.
-                // data.url gives us the full url, let's extract the path
+                
+                let localSrc = '';
                 try {
                     const urlObj = new URL(data.url);
-                    // urlObj.pathname is like /bd02d2.../video.mp4
-                    layers.video.src = '/videos' + urlObj.pathname; 
+                    localSrc = '/videos' + urlObj.pathname;
+                    layers.video.src = localSrc;
                 } catch(e) {
-                    layers.video.src = data.url; // fallback to remote
+                    layers.video.src = data.url;
                 }
+                
+                // Fallback a streaming remoto si el archivo local no existe o aún se está descargando
+                layers.video.onerror = () => {
+                    if (layers.video.src.includes(localSrc)) {
+                        console.warn('Video local no encontrado, usando streaming remoto como fallback...');
+                        layers.video.src = data.url;
+                        layers.video.load();
+                        if (currentType === 'video') {
+                            layers.video.play().catch(e => console.warn('Autoplay bloqueado:', e));
+                        }
+                    }
+                };
+
                 layers.video.load();
+                
+                // Disparar sincronización inmediata al servidor local para que lo descargue en background
+                if (localSrc) {
+                    fetch(`/api/cache/${screenId}`).catch(e => console.warn('Auto-sync omitido (probablemente sin server local)', e));
+                }
             }
             setActiveLayer('video');
         }
