@@ -143,7 +143,8 @@ if (SCREEN_ID) {
     // Heartbeat: Avisar al portal cada 30 segundos que la pantalla sigue viva
     const HEARTBEAT_INTERVAL = 30 * 1000;
     setInterval(() => {
-        fetch(`${REMOTE}/api/public/screens/${SCREEN_ID}/heartbeat`, { method: 'POST' })
+        const PORTAL_URL = process.env.PORTAL_URL || 'https://portal.myplayad.com';
+        fetch(`${PORTAL_URL}/api/public/screens/${SCREEN_ID}/heartbeat`, { method: 'POST' })
             .catch(err => console.error('[heartbeat] error:', err.message));
     }, HEARTBEAT_INTERVAL);
 
@@ -156,6 +157,10 @@ if (SCREEN_ID) {
     
     // Ejecutar una vez al inicio
     setTimeout(() => {
+        const PORTAL_URL = process.env.PORTAL_URL || 'https://portal.myplayad.com';
+        fetch(`${PORTAL_URL}/api/public/screens/${SCREEN_ID}/heartbeat`, { method: 'POST' })
+            .catch(err => console.error('[heartbeat] error:', err.message));
+            
         syncScreen(SCREEN_ID).catch(err => console.error('[auto-sync] error:', err.message));
     }, 2000);
 }
