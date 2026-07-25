@@ -1,12 +1,12 @@
 :root {
-    --nokia-bg: #91aa12;
-    --nokia-dark: #171e04;
-    --bezel-color: #2c2c2c;
-    --metal-light: #444;
+    --nokia-bg: #60a5fa; /* Portal primary blue tinted for LCD */
+    --nokia-dark: #0f1115; /* Portal background for pixels */
+    --bezel-color: #1e293b; /* Portal secondary for bezel */
+    --metal-light: #334155; /* Portal border */
 }
 
 body {
-    background-color: #050505;
+    background: linear-gradient(135deg, #0f1115 0%, #1e293b 100%);
     display: flex;
     justify-content: center;
     align-items: center;
