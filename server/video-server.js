@@ -232,10 +232,11 @@ const server = http.createServer((req, res) => {
         if (!GUID_RE.test(screenId)) {
             res.writeHead(400); res.end('screenId inválido'); return;
         }
-        // TODOS los videos ahora están en la carpeta 'pool'
-        const filePath = path.join(VIDEOS_DIR, 'pool', filename);
-        fs.stat(filePath, (err, stat) => {
-            if (err) { res.writeHead(404); res.end('No encontrado'); return; }
+
+        const poolPath = path.join(VIDEOS_DIR, 'pool', filename);
+        const oldPath = path.join(VIDEOS_DIR, screenId, filename);
+
+        const serveFile = (filePath, stat) => {
             const ext = path.extname(filename).toLowerCase();
             const mime = MIME[ext] || 'application/octet-stream';
             const range = req.headers.range;
@@ -253,6 +254,21 @@ const server = http.createServer((req, res) => {
             } else {
                 res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': mime, 'Accept-Ranges': 'bytes' });
                 fs.createReadStream(filePath).pipe(res);
+            }
+        };
+
+        fs.stat(poolPath, (err, stat) => {
+            if (!err) {
+                serveFile(poolPath, stat);
+            } else {
+                // Fallback para videos antiguos que aún están en la carpeta original
+                fs.stat(oldPath, (err2, stat2) => {
+                    if (!err2) {
+                        serveFile(oldPath, stat2);
+                    } else {
+                        res.writeHead(404); res.end('No encontrado');
+                    }
+                });
             }
         });
         return;
