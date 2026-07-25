@@ -150,17 +150,36 @@ async function checkSchedule() {
         const upcomingList = document.getElementById('interstitial-list');
         
         if (data.upcoming && data.upcoming.length > 0) {
-            hasUpcoming = true;
-            upcomingList.innerHTML = data.upcoming.map(item => {
-                const date = new Date(item.startDate);
-                const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            // Group games by name to merge dates
+            const gamesMap = {};
+            data.upcoming.forEach(item => {
+                if (item.type === 'game') {
+                    if (!gamesMap[item.name]) gamesMap[item.name] = [];
+                    const d = new Date(item.startDate);
+                    const timeString = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    if (!gamesMap[item.name].includes(timeString)) {
+                        gamesMap[item.name].push(timeString);
+                    }
+                }
+            });
+
+            const gamesHtml = Object.keys(gamesMap).map(name => {
+                const times = gamesMap[name].join(' / ');
                 return `
-                    <li class="upcoming-item">
-                        <span class="item-name">${item.name}</span>
-                        <span class="item-time">${timeString}</span>
+                    <li class="upcoming-item" style="padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; font-size: 1.2rem;">
+                        <span class="item-name" style="color: #60a5fa; font-weight: bold;">${name}</span>
+                        <span class="item-time" style="color: #ccc;">${times}</span>
                     </li>
                 `;
             }).join('');
+
+            if (gamesHtml) {
+                hasUpcoming = true;
+                upcomingList.innerHTML = gamesHtml;
+            } else {
+                hasUpcoming = false;
+                upcomingList.innerHTML = '';
+            }
         } else {
             hasUpcoming = false;
             upcomingList.innerHTML = '';
