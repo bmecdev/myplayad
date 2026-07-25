@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Monitor, Plus, Trash2, Edit } from 'lucide-react';
+import Link from 'next/link';
+import { Monitor, Plus, Trash2, Edit, Settings } from 'lucide-react';
 import mqtt from 'mqtt';
 
 type Screen = {
@@ -124,12 +125,22 @@ export default function ScreensPage() {
                       • {screen.location}
                     </p>
                   </div>
-                <button 
-                  onClick={() => handleDelete(screen.id)}
-                  className="text-destructive/70 hover:text-destructive transition-colors p-2 rounded-lg hover:bg-destructive/10"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <Link 
+                    href={`/screens/${screen.id}`}
+                    className="text-primary/70 hover:text-primary transition-colors p-2 rounded-lg hover:bg-primary/10"
+                    title="Administrar"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </Link>
+                  <button 
+                    onClick={() => handleDelete(screen.id)}
+                    className="text-destructive/70 hover:text-destructive transition-colors p-2 rounded-lg hover:bg-destructive/10"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               <p className="text-sm text-gray-400 mb-4 h-10 overflow-hidden line-clamp-2">{screen.description}</p>
               <div className="text-xs text-muted-foreground bg-black/20 p-2 rounded-lg break-all">
