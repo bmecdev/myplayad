@@ -766,6 +766,9 @@ function endGame(message) {
     const videoOverlay = document.getElementById('video-ranking-overlay');
     if (videoOverlay) {
         videoOverlay.classList.remove('hidden');
+        if (typeof fetchAndShowUpcomingGames === 'function') {
+            fetchAndShowUpcomingGames();
+        }
         setTimeout(() => {
             if (!GameState.running) videoOverlay.classList.add('hidden');
         }, 5000);

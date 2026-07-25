@@ -19,6 +19,8 @@ async function fetchAndShowUpcomingGames() {
         const data = await res.json();
         const upcomingGamesContainer = document.getElementById('upcoming-games-container');
         const upcomingGamesList = document.getElementById('upcoming-games-list');
+        const gameOverUpcomingContainer = document.getElementById('game-over-upcoming-container');
+        const gameOverUpcomingList = document.getElementById('game-over-upcoming-list');
         
         if (data.upcoming && data.upcoming.length > 0) {
             // Group games by name to merge dates
@@ -49,13 +51,21 @@ async function fetchAndShowUpcomingGames() {
             }).join('');
 
             if (gamesHtml) {
-                upcomingGamesList.innerHTML = gamesHtml;
-                upcomingGamesContainer.style.display = 'block';
+                if (upcomingGamesList) {
+                    upcomingGamesList.innerHTML = gamesHtml;
+                    upcomingGamesContainer.style.display = 'block';
+                }
+                if (gameOverUpcomingList) {
+                    gameOverUpcomingList.innerHTML = gamesHtml;
+                    if (gameOverUpcomingContainer) gameOverUpcomingContainer.style.display = 'block';
+                }
             } else {
-                upcomingGamesContainer.style.display = 'none';
+                if (upcomingGamesContainer) upcomingGamesContainer.style.display = 'none';
+                if (gameOverUpcomingContainer) gameOverUpcomingContainer.style.display = 'none';
             }
         } else {
-            upcomingGamesContainer.style.display = 'none';
+            if (upcomingGamesContainer) upcomingGamesContainer.style.display = 'none';
+            if (gameOverUpcomingContainer) gameOverUpcomingContainer.style.display = 'none';
         }
     } catch (e) {
         console.warn('Error fetching upcoming games:', e);

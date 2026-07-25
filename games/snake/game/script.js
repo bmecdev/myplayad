@@ -617,6 +617,9 @@ function gameOver() {
     const videoOverlay = document.getElementById('video-ranking-overlay');
     if (videoOverlay) {
         videoOverlay.classList.remove('hidden');
+        if (typeof fetchAndShowUpcomingGames === 'function') {
+            fetchAndShowUpcomingGames();
+        }
         setTimeout(() => {
             if (!GameState.gameRunning) videoOverlay.classList.add('hidden');
         }, 5000);
