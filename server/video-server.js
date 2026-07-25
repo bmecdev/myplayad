@@ -117,12 +117,57 @@ async function syncScreenVideos(screenId) {
 
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'x-file-name, content-type');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-    if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+    if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405); res.end(); return; }
 
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const parts = url.pathname.split('/').filter(Boolean);
+
+    // POST /api/upload/:screenId  → recibe stream de video directamente
+    if (req.method === 'POST' && parts[0] === 'api' && parts[1] === 'upload' && parts[2]) {
+        const screenId = parts[2];
+        if (!GUID_RE.test(screenId)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'screenId inválido' }));
+            return;
+        }
+
+        const encodedFilename = req.headers['x-file-name'] || 'video.mp4';
+        const safeOriginalName = decodeURIComponent(encodedFilename).replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filename = `${Date.now()}-${safeOriginalName}`;
+        const targetDir = path.join(VIDEOS_DIR, screenId);
+
+        try {
+            if (!fs.existsSync(targetDir)) {
+                fs.mkdirSync(targetDir, { recursive: true });
+            }
+            const targetPath = path.join(targetDir, filename);
+            const writeStream = fs.createWriteStream(targetPath);
+
+            req.pipe(writeStream);
+
+            req.on('end', () => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, filename: `${screenId}/${filename}` }));
+            });
+
+            req.on('error', (err) => {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Error recibiendo archivo' }));
+            });
+            
+            writeStream.on('error', (err) => {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Error guardando archivo' }));
+            });
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+    }
 
     // GET /api/cache/:screenId  → sincroniza remoto -> local y devuelve playlist local
     if (parts[0] === 'api' && parts[1] === 'cache' && parts[2]) {

@@ -57,9 +57,39 @@ export default function VideosPage() {
     formData.append('screenId', screenId);
 
     try {
+      const videoServerUrl = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:8090' 
+        : 'https://videos.myplayad.com';
+        
+      const uploadRes = await fetch(`${videoServerUrl}/api/upload/${screenId}`, {
+        method: 'POST',
+        headers: {
+          'x-file-name': encodeURIComponent(file.name)
+        },
+        body: file, // Raw body to bypass Next.js middleware limits completely
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Error al subir el archivo al servidor de videos.');
+      }
+
+      const uploadData = await uploadRes.json();
+      
+      if (!uploadData.success) {
+        throw new Error(uploadData.error || 'Error al subir el video.');
+      }
+
+      // 2. Register in the database via Next.js API
       const response = await fetch('/api/upload', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          screenId,
+          filename: uploadData.filename
+        }),
       });
       
       const res = await response.json();
@@ -81,9 +111,9 @@ export default function VideosPage() {
           setUploadMessage('');
         }, 2500);
       }
-    } catch (error) {
+    } catch (error: any) {
       setUploadStatus('error');
-      setUploadMessage('Hubo un error de conexión al subir el video.');
+      setUploadMessage(error.message || 'Hubo un error de conexión al subir el video.');
     }
   };
 
