@@ -27,3 +27,32 @@ services:
       - VIDEOS_DIR=/videos
       - VIDEO_PORT=8090
       - REMOTE_VIDEO_SERVER_URL=https://videos.myplayad.com
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: myplayad
+    volumes:
+      - /srv/postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  portal:
+    build:
+      context: ../portal
+      dockerfile: Dockerfile
+    container_name: portal
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad?schema=public
+      - NODE_ENV=production
+    volumes:
+      - /srv/videos:/srv/videos
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres

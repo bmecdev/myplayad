@@ -24,24 +24,23 @@ jobs:
           target: "/var/www/myplayad/"
           strip_components: 0
 
-      - name: Copy Backend (server) via scp
+      - name: Copy Backend (server & portal) via scp
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "server/"
+          source: "server/,portal/"
           target: "/opt/myplayad/"
           strip_components: 0
 
-      - name: Restart Docker services
+      - name: Restart Backend Services
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            mkdir -p /opt/myplayad/server
             cd /opt/myplayad/server
             docker compose down || true
             docker compose up -d --build
