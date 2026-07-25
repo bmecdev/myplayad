@@ -13,7 +13,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     // Delete physical file
-    const filepath = path.join('/srv/videos', video.filename);
+    const filepath = path.join('/srv/videos/pool', video.filename.replace(/^pool\//, ''));
     if (fs.existsSync(filepath)) {
       fs.unlinkSync(filepath);
     }

@@ -196,7 +196,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // GET /api/videos/:screenId  →  lista de videos de esa pantalla
+    // GET /api/videos/:screenId  →  lista de videos de esa pantalla desde el portal
     if (parts[0] === 'api' && parts[1] === 'videos' && parts[2]) {
         const screenId = parts[2];
         if (!GUID_RE.test(screenId)) {
@@ -204,28 +204,34 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ error: 'screenId inválido' }));
             return;
         }
-        const folderPath = path.join(VIDEOS_DIR, screenId);
-        fs.readdir(folderPath, (err, files) => {
-            if (err) {
-                res.writeHead(404, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Carpeta no encontrada', videos: [] }));
-                return;
-            }
-            const videos = files.filter(f => /\.(mp4|webm|ogg)$/i.test(f)).sort();
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ screenId, videos }));
-        });
+        
+        // Consultar el Portal para obtener la lista de videos de la pantalla
+        const portalUrl = process.env.PORTAL_URL || 'http://portal:3000';
+        fetch(`${portalUrl}/api/public/screens/${screenId}/videos`)
+            .then(portalRes => portalRes.json())
+            .then(data => {
+                const videos = data.videos || [];
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ screenId, videos }));
+            })
+            .catch(err => {
+                console.error(`Error fetching videos for screen ${screenId} from portal:`, err);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Error interno obteniendo videos', videos: [] }));
+            });
+        
         return;
     }
 
-    // GET /videos/:screenId/:filename  →  stream del archivo
+    // GET /videos/:screenId/:filename  →  stream del archivo (ignora screenId y usa pool)
     if (parts[0] === 'videos' && parts[1] && parts[2]) {
         const screenId = parts[1];
         const filename = path.basename(parts[2]); // basename evita path traversal
         if (!GUID_RE.test(screenId)) {
             res.writeHead(400); res.end('screenId inválido'); return;
         }
-        const filePath = path.join(VIDEOS_DIR, screenId, filename);
+        // TODOS los videos ahora están en la carpeta 'pool'
+        const filePath = path.join(VIDEOS_DIR, 'pool', filename);
         fs.stat(filePath, (err, stat) => {
             if (err) { res.writeHead(404); res.end('No encontrado'); return; }
             const ext = path.extname(filename).toLowerCase();

@@ -33,19 +33,19 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const filename = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
     
-    // Create directory for screen if it doesn't exist
-    const screenDir = path.join('/srv/videos', screenId);
-    if (!fs.existsSync(screenDir)) {
-      fs.mkdirSync(screenDir, { recursive: true });
+    // Create pool directory if it doesn't exist
+    const poolDir = path.join('/srv/videos', 'pool');
+    if (!fs.existsSync(poolDir)) {
+      fs.mkdirSync(poolDir, { recursive: true });
     }
 
-    const filepath = path.join(screenDir, filename);
+    const filepath = path.join(poolDir, filename);
     fs.writeFileSync(filepath, buffer);
 
     const video = await prisma.video.create({
       data: {
         title,
-        filename: `${screenId}/${filename}`, // Store relative path
+        filename, // Just the filename
       },
     });
 
