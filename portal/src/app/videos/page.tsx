@@ -173,7 +173,14 @@ export default function VideosPage() {
           <p className="text-muted-foreground mt-2">Sube y gestiona videos publicitarios.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setTitle('');
+            setFile(null);
+            setScreenId('none');
+            setUploadStatus('idle');
+            setUploadMessage('');
+            setIsModalOpen(true);
+          }}
           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-[0_0_15px_rgba(147,51,234,0.3)]"
         >
           <Upload className="w-5 h-5" /> Subir Video
