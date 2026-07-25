@@ -39,22 +39,52 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }
     });
 
-    let responseData: { type: string; url: string | null } = { type: 'standby', url: null };
+    const futureSchedules = await prisma.schedule.findMany({
+      where: {
+        screenId,
+        isActive: true,
+        startDate: { gt: now }
+      },
+      orderBy: {
+        startDate: 'asc'
+      },
+      take: 5,
+      include: {
+        game: true,
+        video: true,
+      }
+    });
+
+    const upcoming = futureSchedules.map(schedule => {
+      let type = 'standby';
+      let name = '';
+      if (schedule.game) {
+        type = 'game';
+        name = schedule.game.title;
+      } else if (schedule.video) {
+        type = 'video';
+        name = schedule.video.title;
+      }
+      return {
+        type,
+        name,
+        startDate: schedule.startDate,
+      };
+    }).filter(s => s.type !== 'standby');
+
+    let responseData: { type: string; url: string | null; upcoming: any[] } = { 
+      type: 'standby', 
+      url: null,
+      upcoming
+    };
 
     if (currentSchedule) {
       if (currentSchedule.game) {
-        responseData = {
-          type: 'game',
-          url: `http://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`
-        };
+        responseData.type = 'game';
+        responseData.url = `http://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`;
       } else if (currentSchedule.video) {
-        responseData = {
-          type: 'video',
-          // Assuming videos are served via https://videos.myplayad.com/ as a static file server mapped to /srv/videos
-          // Wait, Nginx on videos.myplayad.com maps to /srv/videos ? Let's check how videos is exposed.
-          // Earlier, I set REMOTE_VIDEO_SERVER_URL=https://videos.myplayad.com. So yes.
-          url: `https://videos.myplayad.com/${currentSchedule.video.filename}`
-        };
+        responseData.type = 'video';
+        responseData.url = `https://videos.myplayad.com/${currentSchedule.video.filename}`;
       }
     }
 
