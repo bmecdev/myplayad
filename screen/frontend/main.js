@@ -11,9 +11,26 @@ let currentType = 'standby';
 let currentUrl = '';
 let screenId = new URLSearchParams(window.location.search).get('screenId');
 
-if (!screenId) {
-    // If not provided, fallback to asking the user or showing an error
-    layers.standby.innerHTML = '<div style="color:red; font-size:2rem;">Falta ?screenId en la URL</div>';
+async function initialize() {
+    if (!screenId) {
+        try {
+            const res = await fetch('/api/config');
+            const config = await res.json();
+            if (config.screenId) {
+                screenId = config.screenId;
+            }
+        } catch (e) {
+            console.warn('Could not fetch config:', e);
+        }
+    }
+
+    if (!screenId) {
+        layers.standby.innerHTML = '<div style="color:red; font-size:2rem; text-align:center;">Falta SCREEN_ID<br><small>Configura la variable de entorno o usa ?screenId=</small></div>';
+        return;
+    }
+
+    checkSchedule();
+    setInterval(checkSchedule, POLL_INTERVAL);
 }
 
 function setActiveLayer(type) {
@@ -82,8 +99,5 @@ async function checkSchedule() {
     }
 }
 
-// Initial check
-if (screenId) {
-    checkSchedule();
-    setInterval(checkSchedule, POLL_INTERVAL);
-}
+// Boot
+initialize();

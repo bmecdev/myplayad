@@ -33,11 +33,17 @@ const { pipeline } = require('stream/promises');
 const REMOTE = (process.env.REMOTE_VIDEO_SERVER_URL || '').replace(/\/$/, '');
 const VIDEOS_DIR = path.resolve(process.env.VIDEOS_DIR || path.join(__dirname, 'videos'));
 const PORT = parseInt(process.env.PORT || '8090', 10);
+const SCREEN_ID = process.env.SCREEN_ID;
 
 if (!REMOTE) {
     console.error('[ERROR] Debes definir la variable de entorno REMOTE_VIDEO_SERVER_URL');
     console.error('        Ejemplo: REMOTE_VIDEO_SERVER_URL=https://videos.myplayad.com node server.js');
     process.exit(1);
+}
+
+if (!SCREEN_ID) {
+    console.warn('[WARN] No se ha definido la variable de entorno SCREEN_ID.');
+    console.warn('       El frontend dependerá del parámetro ?screenId=... en la URL.');
 }
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
@@ -131,6 +137,22 @@ async function syncScreen(screenId) {
     }
 }
 
+// ─── Auto-Sync ───────────────────────────────────────────────────────────────
+
+if (SCREEN_ID) {
+    // Sincronizar automáticamente cada 5 minutos
+    const SYNC_INTERVAL = 5 * 60 * 1000;
+    setInterval(() => {
+        console.log(`[auto-sync] Iniciando sincronización en segundo plano para ${SCREEN_ID}...`);
+        syncScreen(SCREEN_ID).catch(err => console.error('[auto-sync] error:', err.message));
+    }, SYNC_INTERVAL);
+    
+    // Ejecutar una vez al inicio
+    setTimeout(() => {
+        syncScreen(SCREEN_ID).catch(err => console.error('[auto-sync] error:', err.message));
+    }, 2000);
+}
+
 // ─── HTTP Server ─────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -142,6 +164,14 @@ const server = http.createServer((req, res) => {
 
     const url   = new URL(req.url, `http://localhost:${PORT}`);
     const parts = url.pathname.split('/').filter(Boolean);
+
+    // GET /api/config
+    // Devuelve la configuración inicial al frontend
+    if (parts[0] === 'api' && parts[1] === 'config') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ screenId: SCREEN_ID || null }));
+        return;
+    }
 
     // GET /api/cache/:screenId
     // Sincroniza contra el remoto y devuelve la playlist local actualizada.
@@ -244,6 +274,7 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log(`[screen-server] escuchando en http://localhost:${PORT}`);
     console.log(`[screen-server] videos dir:    ${VIDEOS_DIR}`);
     console.log(`[screen-server] remote source: ${REMOTE}`);
+    console.log(`[screen-server] screen ID:     ${SCREEN_ID || 'No definido (usar URL param)'}`);
 });
 
 server.on('error', err => {
