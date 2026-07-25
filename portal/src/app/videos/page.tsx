@@ -206,7 +206,10 @@ export default function VideosPage() {
                 <h3 className="font-bold truncate" title={video.title}>{video.title}</h3>
                 <p className="text-xs text-muted-foreground truncate mt-1">{video.filename}</p>
                 <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs bg-purple-500/10 text-purple-300 w-max px-2 py-1 rounded">
+                  <div 
+                    className="flex items-center gap-1.5 text-xs bg-purple-500/10 text-purple-300 w-max px-2 py-1 rounded cursor-help"
+                    title={video.schedules.length > 0 ? video.schedules.map((s: any) => s.screen?.name).filter(Boolean).join('\n') : 'No está asignado a ninguna pantalla'}
+                  >
                     <Monitor className="w-3 h-3" />
                     {video.schedules.length === 0 
                       ? 'Sin asignar' 
