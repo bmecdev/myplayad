@@ -24,7 +24,7 @@ export default function VideosPage() {
   
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const [screenId, setScreenId] = useState('');
+  const [screenId, setScreenId] = useState('none');
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
   
@@ -43,7 +43,7 @@ export default function VideosPage() {
     const scrData = await scrRes.json();
     setVideos(vidData);
     setScreens(scrData);
-    if (scrData.length > 0) setScreenId(scrData[0].id);
+    setScreenId('none');
     setLoading(false);
   };
 
