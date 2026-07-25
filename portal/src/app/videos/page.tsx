@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Film, Upload, Trash2, Monitor, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { uploadVideoAction } from './actions';
 
 type Video = {
   id: string;
@@ -58,8 +57,14 @@ export default function VideosPage() {
     formData.append('screenId', screenId);
 
     try {
-      const res = await uploadVideoAction(formData);
-      if (!res.success) {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const res = await response.json();
+      
+      if (!response.ok || !res.success) {
         setUploadStatus('error');
         setUploadMessage(res.error || 'Error desconocido al subir el video.');
       } else {
@@ -67,7 +72,7 @@ export default function VideosPage() {
         setUploadMessage('¡Video subido y asignado correctamente!');
         fetchData();
         
-        // Cierra el modal automáticamente después de 2 segundos de éxito
+        // Cierra el modal automáticamente después de 2.5 segundos de éxito
         setTimeout(() => {
           setIsModalOpen(false);
           setFile(null);
