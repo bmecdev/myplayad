@@ -10,6 +10,54 @@ let currentVideoIndex = 0;
 const playbackBaseUrl = CONFIG.LOCAL_VIDEO_SERVER_URL;
 const SYNC_INTERVAL_MS = 30000;
 
+async function fetchAndShowUpcomingGames() {
+    if (!screenId) return;
+    try {
+        const portalUrl = 'https://portal.myplayad.com';
+        const res = await fetch(`${portalUrl}/api/public/screens/${screenId}/current`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const upcomingGamesContainer = document.getElementById('upcoming-games-container');
+        const upcomingGamesList = document.getElementById('upcoming-games-list');
+        
+        if (data.upcoming && data.upcoming.length > 0) {
+            // Group games by name to merge dates
+            const gamesMap = {};
+            data.upcoming.forEach(item => {
+                if (item.type === 'game') {
+                    if (!gamesMap[item.name]) gamesMap[item.name] = [];
+                    const d = new Date(item.startDate);
+                    // Format: 10:30 PM
+                    const timeString = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    // Only add if not already in the list
+                    if (!gamesMap[item.name].includes(timeString)) {
+                        gamesMap[item.name].push(timeString);
+                    }
+                }
+            });
+
+            const gamesHtml = Object.keys(gamesMap).map(name => {
+                const times = gamesMap[name].join(' / ');
+                return `<li style="padding: 8px 0; border-bottom: 1px solid #333; display: flex; justify-content: space-between;">
+                    <span style="color: var(--nokia-bg); font-weight: bold;">${name}</span>
+                    <span style="color: #ccc;">${times}</span>
+                </li>`;
+            }).join('');
+
+            if (gamesHtml) {
+                upcomingGamesList.innerHTML = gamesHtml;
+                upcomingGamesContainer.style.display = 'block';
+            } else {
+                upcomingGamesContainer.style.display = 'none';
+            }
+        } else {
+            upcomingGamesContainer.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('Error fetching upcoming games:', e);
+    }
+}
+
 function buildVideoUrl(filename) {
     return `${playbackBaseUrl}/videos/${screenId}/${encodeURIComponent(filename)}`;
 }
@@ -25,7 +73,10 @@ function playVideo(index) {
 }
 
 function playNextVideo() {
-    if (videoRankingOverlay) videoRankingOverlay.classList.remove('hidden');
+    if (videoRankingOverlay) {
+        videoRankingOverlay.classList.remove('hidden');
+        fetchAndShowUpcomingGames();
+    }
     setTimeout(() => playVideo(currentVideoIndex + 1), 5000);
 }
 
