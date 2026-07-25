@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Edit, Settings } from 'lucide-react';
+import { Monitor, Plus, Trash2, Edit, Settings, Lightbulb } from 'lucide-react';
 import mqtt from 'mqtt';
 
 type Screen = {
@@ -75,6 +75,14 @@ export default function ScreensPage() {
     }
   };
 
+  const handleIdentify = async (id: string) => {
+    try {
+      await fetch(`/api/screens/${id}/identify`, { method: 'POST' });
+    } catch (error) {
+      console.error('Failed to identify screen', error);
+    }
+  };
+
   const isOnline = (screenId: string, lastSeen?: string) => {
     // Si tenemos estado MQTT en tiempo real, ese manda
     if (mqttStatuses[screenId] !== undefined) {
@@ -126,6 +134,13 @@ export default function ScreensPage() {
                     </p>
                   </div>
                 <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => handleIdentify(screen.id)}
+                    className="text-green-500/70 hover:text-green-500 transition-colors p-2 rounded-lg hover:bg-green-500/10"
+                    title="Identificar Pantalla"
+                  >
+                    <Lightbulb className="w-5 h-5" />
+                  </button>
                   <Link 
                     href={`/screens/${screen.id}`}
                     className="text-primary/70 hover:text-primary transition-colors p-2 rounded-lg hover:bg-primary/10"

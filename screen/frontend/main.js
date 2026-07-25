@@ -110,6 +110,9 @@ async function initialize() {
             if (currentType === 'video') {
                 syncLocalPlaylist();
             }
+        } else if (event.data === 'identify') {
+            console.log('[SSE] Recibida alerta de identificación');
+            showIdentifyIndicator();
         }
     };
     eventSource.onerror = (err) => {
@@ -227,3 +230,17 @@ async function checkSchedule() {
 
 // Boot
 initialize();
+
+let identifyTimeout = null;
+function showIdentifyIndicator() {
+    const indicator = document.getElementById('identify-indicator');
+    if (indicator) {
+        indicator.classList.remove('hidden');
+        if (identifyTimeout) {
+            clearTimeout(identifyTimeout);
+        }
+        identifyTimeout = setTimeout(() => {
+            indicator.classList.add('hidden');
+        }, 5000);
+    }
+}

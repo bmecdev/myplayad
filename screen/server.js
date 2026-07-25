@@ -162,8 +162,9 @@ if (SCREEN_ID) {
         console.log('[mqtt] Conectado exitosamente al broker MQTT');
         // Reportar como online con retain: true
         client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
-        // Suscribirse al topic de sincronización
+        // Suscribirse al topic de sincronización e identificar
         client.subscribe(`screens/${SCREEN_ID}/sync`, { qos: 1 });
+        client.subscribe(`screens/${SCREEN_ID}/identify`, { qos: 1 });
     });
 
     client.on('message', (topic, message) => {
@@ -175,6 +176,11 @@ if (SCREEN_ID) {
             });
             // Opcionalmente forzar una sincronización local inmediata también
             syncScreen(SCREEN_ID).catch(err => console.error('[sync] error on alert:', err.message));
+        } else if (topic === `screens/${SCREEN_ID}/identify`) {
+            console.log('[mqtt] Recibida alerta de identificación del portal');
+            sseClients.forEach(client => {
+                client.write(`data: identify\n\n`);
+            });
         }
     });
 

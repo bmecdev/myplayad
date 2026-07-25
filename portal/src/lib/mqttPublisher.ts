@@ -28,3 +28,27 @@ export async function publishSyncEvent(screenId: string) {
     console.error('[MQTT Publisher] Failed to publish:', err);
   }
 }
+
+export async function publishIdentifyEvent(screenId: string) {
+  try {
+    if (!mqttClient) {
+      const mqttUrl = process.env.MQTT_URL || 'wss://videos.myplayad.com/mqtt';
+      mqttClient = mqtt.connect(mqttUrl, {
+        reconnectPeriod: 5000,
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error('[MQTT Publisher] Error:', err);
+      });
+    }
+
+    if (mqttClient.connected) {
+      mqttClient.publish(`screens/${screenId}/identify`, JSON.stringify({ timestamp: Date.now() }));
+      console.log(`[MQTT Publisher] Published identify event for screen ${screenId}`);
+    } else {
+      mqttClient.publish(`screens/${screenId}/identify`, JSON.stringify({ timestamp: Date.now() }));
+    }
+  } catch (err) {
+    console.error('[MQTT Publisher] Failed to publish identify:', err);
+  }
+}
