@@ -60,7 +60,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       let name = '';
       if (schedule.game) {
         type = 'game';
-        name = schedule.game.title;
+        name = schedule.game.name;
       } else if (schedule.video) {
         type = 'video';
         name = schedule.video.title;
