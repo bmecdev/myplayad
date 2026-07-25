@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Film, Upload, Trash2, Monitor, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { uploadVideoAction } from './actions';

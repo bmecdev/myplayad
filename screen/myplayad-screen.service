@@ -11,6 +11,7 @@ WorkingDirectory=/home/pi/myPlayAd/screen
 Environment="REMOTE_VIDEO_SERVER_URL=https://videos.myplayad.com"
 Environment="VIDEOS_DIR=/home/pi/myPlayAd/screen/videos"
 Environment="PORT=8090"
+Environment="SCREEN_ID=bc502bba-859c-461c-a795-f6e4bf2d4931"
 ExecStart=/usr/bin/node /home/pi/myPlayAd/screen/server.js
 Restart=always
 RestartSec=5
