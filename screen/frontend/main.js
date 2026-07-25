@@ -99,6 +99,22 @@ async function initialize() {
 
     checkSchedule();
     setInterval(checkSchedule, POLL_INTERVAL);
+
+    // Conectar a SSE para notificaciones en tiempo real desde el servidor local
+    const eventSource = new EventSource('/api/sync-stream');
+    eventSource.onmessage = (event) => {
+        if (event.data === 'sync') {
+            console.log('[SSE] Recibida alerta de sincronización en tiempo real');
+            // Forzar actualización inmediata
+            checkSchedule();
+            if (currentType === 'video') {
+                syncLocalPlaylist();
+            }
+        }
+    };
+    eventSource.onerror = (err) => {
+        console.warn('[SSE] EventSource error', err);
+    };
 }
 
 function setActiveLayer(type) {

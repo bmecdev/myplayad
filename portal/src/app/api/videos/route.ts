@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
+import { publishSyncEvent } from '@/lib/mqttPublisher';
 
 export async function GET() {
   try {
@@ -50,14 +51,17 @@ export async function POST(request: Request) {
     });
 
     // Automatically create a schedule assigning this video to the screen
-    await prisma.schedule.create({
-      data: {
-        screenId,
-        videoId: video.id,
-        startDate: new Date(),
-        // isActive: true by default
-      }
-    });
+    if (screenId !== 'none') {
+      await prisma.schedule.create({
+        data: {
+          screenId,
+          videoId: video.id,
+          startDate: new Date(),
+          // isActive: true by default
+        }
+      });
+      await publishSyncEvent(screenId);
+    }
 
     return NextResponse.json(video, { status: 201 });
   } catch (error: any) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { publishSyncEvent } from '@/lib/mqttPublisher';
 
 export async function GET() {
   try {
@@ -31,7 +32,15 @@ export async function POST(request: Request) {
         endDate: endDate ? new Date(endDate) : null,
         isActive: isActive !== undefined ? isActive : true
       },
+      include: {
+        game: true,
+        video: true,
+        screen: true
+      }
     });
+
+    // Notify screen
+    await publishSyncEvent(screenId);
 
     return NextResponse.json(schedule, { status: 201 });
   } catch (error) {

@@ -162,6 +162,20 @@ if (SCREEN_ID) {
         console.log('[mqtt] Conectado exitosamente al broker MQTT');
         // Reportar como online con retain: true
         client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
+        // Suscribirse al topic de sincronización
+        client.subscribe(`screens/${SCREEN_ID}/sync`, { qos: 1 });
+    });
+
+    client.on('message', (topic, message) => {
+        if (topic === `screens/${SCREEN_ID}/sync`) {
+            console.log('[mqtt] Recibida alerta de sincronización del portal');
+            // Broadcast a los clientes SSE conectados
+            sseClients.forEach(client => {
+                client.write(`data: sync\n\n`);
+            });
+            // Opcionalmente forzar una sincronización local inmediata también
+            syncScreen(SCREEN_ID).catch(err => console.error('[sync] error on alert:', err.message));
+        }
     });
 
     client.on('error', (err) => {
@@ -181,6 +195,10 @@ if (SCREEN_ID) {
     }, 2000);
 }
 
+// ─── SSE (Server-Sent Events) para el Frontend ───────────────────────────────
+const sseClients = new Set();
+
+
 // ─── HTTP Server ─────────────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -198,6 +216,29 @@ const server = http.createServer((req, res) => {
     if (parts[0] === 'api' && parts[1] === 'config') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ screenId: SCREEN_ID || null }));
+        return;
+    }
+
+    // GET /api/sync-stream
+    // Server-Sent Events endpoint for real-time notifications
+    if (parts[0] === 'api' && parts[1] === 'sync-stream') {
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*'
+        });
+        
+        // Enviar evento de conexión inicial (keep-alive)
+        res.write(': connected\n\n');
+        
+        sseClients.add(res);
+        console.log(`[sse] Cliente conectado (Total: ${sseClients.size})`);
+        
+        req.on('close', () => {
+            sseClients.delete(res);
+            console.log(`[sse] Cliente desconectado (Total: ${sseClients.size})`);
+        });
         return;
     }
 
