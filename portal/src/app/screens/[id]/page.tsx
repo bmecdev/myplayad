@@ -44,8 +44,11 @@ export default function ScreenDetailPage() {
   
   // Game Assignment Modal State
   const [isGameModalOpen, setIsGameModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedGameId, setSelectedGameId] = useState('');
-  const [startDate, setStartDate] = useState('');
+  const [scheduleStartDate, setScheduleStartDate] = useState('');
+
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   
   // Video Upload Modal State
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -96,6 +99,25 @@ export default function ScreenDetailPage() {
     });
     
     setIsGameModalOpen(false);
+    fetchScreenData();
+  };
+
+  const handleScheduleGame = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGameId || !scheduleStartDate) return;
+
+    await fetch(`/api/schedules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        screenId,
+        gameId: selectedGameId,
+        startDate: new Date(scheduleStartDate).toISOString(),
+        isActive: true
+      })
+    });
+    
+    setIsScheduleModalOpen(false);
     fetchScreenData();
   };
 
@@ -221,6 +243,12 @@ export default function ScreenDetailPage() {
                     Cambiar Juego
                   </button>
                   <button 
+                    onClick={() => setIsScheduleModalOpen(true)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm"
+                  >
+                    Programar Juego
+                  </button>
+                  <button 
                     onClick={handleRemoveGame}
                     className="bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-xl transition-colors font-medium text-sm"
                   >
@@ -232,12 +260,20 @@ export default function ScreenDetailPage() {
               <div className="text-center py-6">
                 <Gamepad2 className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-30" />
                 <p className="text-muted-foreground mb-4">No hay ningún juego programado. La pantalla mostrará un ciclo de videos continuo.</p>
-                <button 
-                  onClick={() => setIsGameModalOpen(true)}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm inline-flex items-center gap-2"
-                >
-                  <Gamepad2 className="w-4 h-4" /> Asignar Juego
-                </button>
+                <div className="flex gap-3 justify-center">
+                  <button 
+                    onClick={() => setIsGameModalOpen(true)}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm inline-flex items-center gap-2"
+                  >
+                    <Gamepad2 className="w-4 h-4" /> Asignar Juego
+                  </button>
+                  <button 
+                    onClick={() => setIsScheduleModalOpen(true)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm inline-flex items-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4" /> Programar Juego
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -342,6 +378,55 @@ export default function ScreenDetailPage() {
                   className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium"
                 >
                   Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Game Modal */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <h2 className="text-2xl font-bold mb-4">Programar Juego</h2>
+            <form onSubmit={handleScheduleGame} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Seleccionar Juego</label>
+                <select 
+                  required
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  value={selectedGameId}
+                  onChange={e => setSelectedGameId(e.target.value)}
+                >
+                  {games.map(g => (
+                    <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Fecha de Inicio</label>
+                <input 
+                  required
+                  type="datetime-local" 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  value={scheduleStartDate}
+                  onChange={e => setScheduleStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3 justify-end mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                >
+                  Programar
                 </button>
               </div>
             </form>

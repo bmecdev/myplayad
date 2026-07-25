@@ -9,7 +9,6 @@ const menuItems = [
   { name: 'Pantallas', href: '/screens', icon: Monitor },
   { name: 'Juegos', href: '/games', icon: Gamepad2 },
   { name: 'Videos', href: '/videos', icon: Film },
-  { name: 'Programación', href: '/schedules', icon: Calendar },
 ];
 
 export default function Sidebar() {
