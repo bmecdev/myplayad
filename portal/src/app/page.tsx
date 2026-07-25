@@ -5,18 +5,16 @@ import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
 export default async function Dashboard() {
-  const [screensCount, gamesCount, videosCount, schedulesCount] = await Promise.all([
+  const [screensCount, gamesCount, videosCount] = await Promise.all([
     prisma.screen.count(),
     prisma.game.count(),
     prisma.video.count(),
-    prisma.schedule.count(),
   ]);
 
   const stats = [
     { name: 'Pantallas', value: screensCount, icon: Monitor, color: 'text-blue-500', bg: 'bg-blue-500/10', href: '/screens' },
     { name: 'Juegos', value: gamesCount, icon: Gamepad2, color: 'text-green-500', bg: 'bg-green-500/10', href: '/games' },
     { name: 'Videos', value: videosCount, icon: Film, color: 'text-purple-500', bg: 'bg-purple-500/10', href: '/videos' },
-    { name: 'Programaciones', value: schedulesCount, icon: Calendar, color: 'text-orange-500', bg: 'bg-orange-500/10', href: '/schedules' },
   ];
 
   return (
