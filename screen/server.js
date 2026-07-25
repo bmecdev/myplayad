@@ -220,6 +220,23 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // Serve frontend files (index.html, style.css, main.js)
+    if (parts.length === 0 || parts[0] === 'index.html' || parts[0] === 'style.css' || parts[0] === 'main.js') {
+        const file = parts.length === 0 ? 'index.html' : parts[0];
+        const filePath = path.join(__dirname, 'frontend', file);
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404);
+                res.end('Not found');
+                return;
+            }
+            const mimeType = file.endsWith('.css') ? 'text/css' : file.endsWith('.js') ? 'application/javascript' : 'text/html';
+            res.writeHead(200, { 'Content-Type': mimeType });
+            res.end(data);
+        });
+        return;
+    }
+
     res.writeHead(404); res.end('Not found');
 });
 
