@@ -33,8 +33,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const activeGameSchedule = screen.schedules.find(s => 
       s.gameId && 
       s.isActive && 
-      (!s.endDate || s.endDate > now)
+      (!s.endDate || s.endDate > now) &&
+      s.startDate <= now
     );
+
+    // Find upcoming game schedules
+    const upcomingSchedules = screen.schedules.filter(s =>
+      s.gameId &&
+      s.isActive &&
+      s.startDate > now
+    ).sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
     return NextResponse.json({
       screen: {
@@ -45,7 +53,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         lastSeen: screen.lastSeen,
       },
       videos,
-      activeGameSchedule: activeGameSchedule || null
+      activeGameSchedule: activeGameSchedule || null,
+      upcomingSchedules
     });
   } catch (error) {
     console.error('Error fetching screen details:', error);

@@ -37,6 +37,7 @@ export default function ScreenDetailPage() {
   const [screen, setScreen] = useState<ScreenDetail | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [activeGameSchedule, setActiveGameSchedule] = useState<Schedule | null>(null);
+  const [upcomingSchedules, setUpcomingSchedules] = useState<Schedule[]>([]);
   const [games, setGames] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -64,6 +65,7 @@ export default function ScreenDetailPage() {
       setScreen(data.screen);
       setVideos(data.videos);
       setActiveGameSchedule(data.activeGameSchedule);
+      setUpcomingSchedules(data.upcomingSchedules || []);
       
       const gamesRes = await fetch('/api/games');
       const gamesData = await gamesRes.json();
@@ -240,6 +242,27 @@ export default function ScreenDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Upcoming Schedules */}
+          {upcomingSchedules.length > 0 && (
+            <div className="mt-6 space-y-4">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-slate-300">
+                <Calendar className="w-5 h-5" /> Próximos Juegos
+              </h3>
+              <div className="space-y-3">
+                {upcomingSchedules.map(schedule => (
+                  <div key={schedule.id} className="glass-card rounded-xl p-4 flex items-center justify-between group border border-white/5">
+                    <div>
+                      <h4 className="font-bold text-slate-200">{schedule.game?.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> {new Date(schedule.startDate).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Videos Management Section */}

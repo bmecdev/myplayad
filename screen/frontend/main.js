@@ -4,7 +4,8 @@ const POLL_INTERVAL = 10000; // 10 seconds
 const layers = {
     standby: document.getElementById('standby'),
     video: document.getElementById('video-player'),
-    game: document.getElementById('game-frame')
+    game: document.getElementById('game-frame'),
+    interstitial: document.getElementById('interstitial')
 };
 
 let currentType = 'standby';
@@ -58,10 +59,24 @@ function playCurrentVideo() {
     }
 }
 
+let hasUpcoming = false;
+
 layers.video.onended = () => {
     if (currentType === 'video') {
         videoIndex = (videoIndex + 1) % videoPlaylist.length;
-        playCurrentVideo();
+        
+        if (hasUpcoming) {
+            setActiveLayer('interstitial');
+            setTimeout(() => {
+                // Return to video after 10 seconds
+                if (currentType === 'interstitial') {
+                    setActiveLayer('video');
+                    playCurrentVideo();
+                }
+            }, 10000);
+        } else {
+            playCurrentVideo();
+        }
     }
 };
 
@@ -116,11 +131,11 @@ async function checkSchedule() {
         const res = await fetch(`${PORTAL_URL}/api/public/screens/${screenId}/current`);
         const data = await res.json();
 
-        // Render upcoming schedules first so they show in all states (including standby)
-        const upcomingContainer = document.getElementById('upcoming-schedules');
-        const upcomingList = document.getElementById('upcoming-list');
+        // Render upcoming schedules in interstitial layer
+        const upcomingList = document.getElementById('interstitial-list');
         
         if (data.upcoming && data.upcoming.length > 0) {
+            hasUpcoming = true;
             upcomingList.innerHTML = data.upcoming.map(item => {
                 const date = new Date(item.startDate);
                 const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -131,9 +146,9 @@ async function checkSchedule() {
                     </li>
                 `;
             }).join('');
-            upcomingContainer.classList.remove('hidden');
         } else {
-            upcomingContainer.classList.add('hidden');
+            hasUpcoming = false;
+            upcomingList.innerHTML = '';
         }
 
         if (data.type === 'standby' || !data.type) {
@@ -143,7 +158,7 @@ async function checkSchedule() {
         }
 
         if (data.type === 'video') {
-            if (currentType !== 'video') {
+            if (currentType !== 'video' && currentType !== 'interstitial') {
                 setActiveLayer('video');
                 currentUrl = 'playlist';
                 
