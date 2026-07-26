@@ -42,14 +42,14 @@ const GameState = {
         x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 5,
         dx: 0,
-        speed: 200
+        speed: 1200
     },
     ball: {
         x: CANVAS_WIDTH / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 10,
         dx: 0,
         dy: 0,
-        speed: 120,
+        speed: 350,
         launched: false
     },
     bricks: [],
@@ -366,7 +366,9 @@ function handleJoystickInput(input) {
 
     if (input.x !== undefined) {
         // Trackpad gives x between -1 and 1
-        GameState.paddle.dx = input.x * GameState.paddle.speed;
+        // Apply an exponential curve for better precision at low speeds and high responsiveness at high speeds
+        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.5);
+        GameState.paddle.dx = expX * GameState.paddle.speed;
     }
 }
 
