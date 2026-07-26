@@ -175,8 +175,10 @@ async function startWebRTC() {
         console.warn('DataChannel cerrado');
         status.textContent = 'Desconectado del juego';
         status.style.color = 'orange';
-        container.style.display = 'none';
-        roomSelection.style.display = 'block';
+        if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+            container.style.display = 'none';
+            roomSelection.style.display = 'block';
+        }
     };
 
     pc.onicecandidate = (event) => {
@@ -195,8 +197,10 @@ async function startWebRTC() {
             console.warn(`Conexión WebRTC: ${state}`);
             status.textContent = 'Desconectado del juego';
             status.style.color = 'orange';
-            container.style.display = 'none';
-            roomSelection.style.display = 'block';
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                container.style.display = 'none';
+                roomSelection.style.display = 'block';
+            }
         }
     };
 
