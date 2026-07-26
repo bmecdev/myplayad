@@ -579,8 +579,8 @@ function updateUI() {
 }
 
 function updateQrCode() {
-    let controllerUrl = CONFIG.CONTROLLER_URL;
-    if (CONFIG.CONTROLLER_URL === 'https://MY_DOMAIN/games/arkanoid/control') {
+    let controllerUrl = CONFIG.CONTROL_URL;
+    if (CONFIG.CONTROL_URL === 'https://MY_DOMAIN/games/arkanoid/control') {
         const protocol = window.location.protocol;
         const host = window.location.host;
         controllerUrl = `${protocol}//${host}/games/arkanoid/control`;
