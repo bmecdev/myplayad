@@ -578,16 +578,18 @@ function updateUI() {
     livesCountElement.textContent = GameState.lives;
 }
 
+function getControlUrl() {
+    const baseUrl = CONFIG.CONTROL_URL || 'https://controllers.myplayad.com/arkanoid';
+    return baseUrl.includes('://')
+        ? `${baseUrl}?room=${GameState.roomId}`
+        : `${window.location.protocol}//${baseUrl}?room=${GameState.roomId}`;
+}
+
 function updateQrCode() {
-    let controllerUrl = CONFIG.CONTROL_URL;
-    if (CONFIG.CONTROL_URL === 'https://MY_DOMAIN/games/arkanoid/control') {
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        controllerUrl = `${protocol}//${host}/games/arkanoid/control`;
+    const controlUrl = getControlUrl();
+    if (qrCodeImg) {
+        qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(controlUrl)}&margin=10`;
     }
-    
-    const qrUrl = `${controllerUrl}?room=${GameState.roomId}`;
-    qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}&margin=10`;
 }
 
 // API Functions
