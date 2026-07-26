@@ -5,7 +5,9 @@ import path from 'path';
 
 export async function GET() {
   try {
-    const gamesDir = '/srv/games';
+    const prodGamesDir = '/srv/games';
+    const localGamesDir = path.join(process.cwd(), '../games');
+    const gamesDir = fs.existsSync(prodGamesDir) ? prodGamesDir : localGamesDir;
     let availableSlugs: string[] = [];
     
     if (fs.existsSync(gamesDir)) {
@@ -13,7 +15,7 @@ export async function GET() {
         .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('.'))
         .map(dirent => dirent.name);
     } else {
-      console.warn(`Games directory not found at ${gamesDir}`);
+      console.warn(`Games directory not found at ${prodGamesDir} or ${localGamesDir}`);
     }
 
     // Auto-sync: upsert every game folder found

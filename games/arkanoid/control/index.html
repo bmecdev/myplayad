@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arkanoid Control</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="status">Conectando...</div>
+    
+    <div id="room-selection" class="welcome-container">
+        <div class="header-logo">
+            <div class="snake-icon"></div>
+            <h1>ARKANOID<span>RETRO</span></h1>
+        </div>
+        
+        <div class="input-group">
+            <p class="welcome-text">¡Bienvenido! Ingresa tu Nickname para empezar a jugar.</p>
+            <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10">
+            <input type="text" id="room-input" style="display: none;">
+            <button id="connect-btn">EMPEZAR A JUGAR</button>
+        </div>
+        
+        <p class="footer-hint">Desliza horizontalmente para mover la paleta.</p>
+    </div>
+
+    <div id="thanks-screen" class="thanks-container" style="display: none;">
+        <div class="header-logo">
+            <h1>¡GRACIAS!</h1>
+        </div>
+        <p>Tu partida ha finalizado.</p>
+        <p class="small">Vuelve a escanear el código QR para jugar de nuevo.</p>
+    </div>
+
+    <div class="joystick-container" id="joystick-container" style="display: none;">
+        <div class="trackpad-container" id="trackpad-container">
+            <div class="trackpad-track">
+                <div class="trackpad-indicator" id="trackpad-indicator"></div>
+            </div>
+        </div>
+        <button id="fire-btn" class="fire-button">LANZAR / ACCIÓN</button>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

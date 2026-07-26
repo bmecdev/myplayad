@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arkanoid Retro Arcade</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Parte Superior: Consola Retro -->
+        <div class="console-bezel">
+            <div class="lcd-screen" id="main-screen">
+                <div class="scanlines"></div>
+                
+                <div class="game-header">
+                    <div class="header-left">
+                        <span id="player-nick">PLAYER: ----</span>
+                        <span id="score">SCORE: 000</span>
+                    </div>
+                    <div id="lives-container" style="color: var(--primary); font-size: 10px; font-weight: bold;">
+                        LIVES: <span id="lives-count">3</span>
+                    </div>
+                    <div class="header-right">
+                        <span id="high-score">HI: 000</span>
+                        <span id="room-id">ID: ----</span>
+                        <span id="ice-route" style="margin-left: 8px; font-size: 10px; font-weight: bold; color: var(--accent);">ICE: --</span>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="gameCanvas" width="200" height="160"></canvas>
+                </div>
+                
+                <!-- Mensaje de Fin de Juego -->
+                <div id="game-over-overlay" class="hidden">
+                    <div class="overlay-content">
+                        <h2 class="blink">GAME OVER</h2>
+                        <div id="ranking-container">
+                            <h3>HALL OF FAME</h3>
+                            <ul id="ranking-list"></ul>
+                        </div>
+                        <div id="game-over-upcoming-container" style="display: none; width: 100%; margin-top: 20px;">
+                            <h3 style="font-size: 16px; margin-bottom: 10px; color: var(--accent);">PRÓXIMOS JUEGOS</h3>
+                            <ul id="game-over-upcoming-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; margin-left: auto; margin-right: auto;"></ul>
+                        </div>
+                        <p class="instruction">CLICK TO RESTART</p>
+                    </div>
+                </div>
+
+                <!-- Overlay de Conexión -->
+                <div id="waiting-overlay">
+                    <div class="overlay-content">
+                        <h2 class="arcade-title">ARKANOID<span>RETRO</span></h2>
+                        <p class="pulse-text">ESCANEA PARA JUGAR !!</p>
+                        <div class="qr-wrapper">
+                            <img id="qr-code-img" src="" alt="QR">
+                        </div>
+                        <p class="status-text">ESPERANDO CONTROL...</p>
+                    </div>
+                </div>
+
+            </div>
+            <div class="console-footer">
+                <div class="speaker-grille"></div>
+                <div class="model-number">ARKANOID-X9</div>
+                <div class="speaker-grille"></div>
+            </div>
+        </div>
+
+        <!-- Parte Inferior: Reproductor de Video -->
+        <div class="video-container">
+            <div class="video-bezel">
+                <video id="bgVideo" muted autoplay playsinline></video>
+                <!-- Nuevo overlay para el ranking entre videos -->
+                <div id="video-ranking-overlay" class="hidden">
+                    <div class="ranking-header">HALL OF FAME</div>
+                    <ul id="video-ranking-list"></ul>
+                    <div id="upcoming-games-container" style="display: none; width: 100%; margin-top: 20px;">
+                        <div class="ranking-header" style="font-size: 18px; margin-bottom: 15px;">PRÓXIMOS JUEGOS</div>
+                        <ul id="upcoming-games-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; font-family: 'Courier New', Courier, monospace; margin-left: auto; margin-right: auto;"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+    <script src="video_loop.js"></script>
+</body>
+</html>
