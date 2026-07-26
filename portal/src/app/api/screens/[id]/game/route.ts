@@ -5,7 +5,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id: screenId } = await params;
     const body = await request.json();
-    const { gameId, startDate } = body;
+    const { gameId, startDate, endDate } = body;
 
     if (!gameId) {
       return NextResponse.json({ error: 'Missing gameId' }, { status: 400 });
@@ -35,6 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         screenId,
         gameId,
         startDate: startDate ? new Date(startDate) : new Date(),
+        endDate: endDate ? new Date(endDate) : null,
         isActive: true,
       }
     });
