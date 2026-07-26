@@ -353,7 +353,7 @@ async function handleOffer(data) {
 }
 
 function handleJoystickInput(input) {
-    if (input.action === 'fire' || input.type === 'fire') {
+    if (input.fire) {
         if (!GameState.ball.launched && GameState.running && !GameState.gameOver) {
             GameState.ball.launched = true;
             GameState.ball.dx = (Math.random() > 0.5 ? 1 : -1) * GameState.ball.speed;
