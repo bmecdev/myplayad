@@ -49,7 +49,7 @@ const GameState = {
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 10,
         dx: 0,
         dy: 0,
-        speed: 350,
+        speed: 150,
         launched: false
     },
     bricks: [],
