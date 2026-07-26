@@ -205,11 +205,12 @@ function resetSignalingReconnect() {
 function connectSignalingServer() {
     if (socket && socket.readyState === WebSocket.OPEN) return;
 
-    let signalingUrl = CONFIG.SIGNALING_URL;
-    if (CONFIG.SIGNALING_URL === 'wss://MY_DOMAIN/ws') {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        signalingUrl = `${protocol}//${window.location.host}/ws`;
-    }
+    const serverIp = CONFIG.SIGNALING_SERVER_IP || window.location.hostname;
+    const serverPort = CONFIG.SIGNALING_SERVER_PORT || '8080';
+    const serverUrl = CONFIG.SIGNALING_SERVER_URL || `${serverIp}:${serverPort}`;
+    const signalingUrl = serverUrl.startsWith('ws://') || serverUrl.startsWith('wss://')
+        ? serverUrl
+        : `wss://${serverUrl}`;
 
     resetSignalingReconnect();
     updateQrCode();
