@@ -18,6 +18,7 @@ type Schedule = {
   videoId?: string;
   game?: any;
   startDate: string;
+  endDate?: string | null;
   isActive: boolean;
 };
 
