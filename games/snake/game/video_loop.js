@@ -81,6 +81,7 @@ function playVideo(index) {
     currentVideoIndex = index % playlist.length;
     if (videoRankingOverlay) videoRankingOverlay.classList.add('hidden');
     videoPlayer.src = buildVideoUrl(playlist[currentVideoIndex]);
+    videoPlayer.muted = true;
     videoPlayer.play().catch(() => {
         console.log('Autoplay bloqueado. Haz clic en la página para iniciar.');
     });

@@ -54,6 +54,7 @@ function playCurrentVideo() {
     
     layers.video.load();
     if (currentType === 'video') {
+        layers.video.muted = true;
         layers.video.play().catch(e => console.warn('Autoplay bloqueado:', e));
     }
 }
@@ -136,6 +137,7 @@ function setActiveLayer(type) {
     
     // Play video if we navigate to it
     if (type === 'video') {
+        layers.video.muted = true;
         layers.video.play().catch(e => console.warn('Autoplay blocked:', e));
     }
     
