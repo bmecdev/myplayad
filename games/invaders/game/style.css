@@ -322,11 +322,11 @@ li {
 
 #video-ranking-overlay .ranking-header {
     font-size: 24px;
-    color: var(--bg-deep);
+    color: var(--phosphor);
     margin-bottom: 30px;
     font-weight: 900;
     text-transform: uppercase;
-    border-bottom: 2px solid var(--bg-deep);
+    border-bottom: 2px solid var(--phosphor);
 }
 
 #video-ranking-list {
@@ -334,14 +334,14 @@ li {
     padding: 0;
     margin: 0;
     width: 90%;
-    color: white;
+    color: var(--phosphor);
     font-size: 14px;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: var(--font-retro, 'Courier New', Courier, monospace);
 }
 
 #video-ranking-list li {
     padding: 10px 0;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--phosphor-dim, rgba(61, 255, 138, 0.3));
     display: flex;
     justify-content: space-between;
     white-space: pre;
