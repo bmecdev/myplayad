@@ -18,7 +18,7 @@ const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 160;
 const COLS = CANVAS_WIDTH / GRID_SIZE;
 const ROWS = CANVAS_HEIGHT / GRID_SIZE;
-const NOKIA_DARK = '#171e04';
+const MATRIX_GREEN = '#3dff8a';
 
 // Game state encapsulation
 const GameState = {
@@ -570,7 +570,7 @@ function updateLivesDisplay() {
 function draw() {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    ctx.strokeStyle = NOKIA_DARK;
+    ctx.strokeStyle = MATRIX_GREEN;
     ctx.lineWidth = 2;
     ctx.strokeRect(GRID_SIZE/2, GRID_SIZE/2, CANVAS_WIDTH - GRID_SIZE, CANVAS_HEIGHT - GRID_SIZE);
 
@@ -579,7 +579,7 @@ function draw() {
     }
 
     GameState.snake.forEach((segment, index) => {
-        ctx.fillStyle = NOKIA_DARK;
+        ctx.fillStyle = MATRIX_GREEN;
         ctx.fillRect(segment.x * GRID_SIZE + 1, segment.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
         
         if (index === 0) {
@@ -592,7 +592,7 @@ function draw() {
         }
     });
 
-    ctx.fillStyle = NOKIA_DARK;
+    ctx.fillStyle = MATRIX_GREEN;
     ctx.fillRect(GameState.food.x * GRID_SIZE + 2, GameState.food.y * GRID_SIZE + 2, GRID_SIZE - 4, GRID_SIZE - 4);
 }
 
