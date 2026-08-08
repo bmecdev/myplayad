@@ -1,14 +1,15 @@
 :root {
-    --nokia-bg: #91aa12;
-    --nokia-dark: #171e04;
-    --primary: #4CAF50;
-    --secondary: #388E3C;
+    --bg-deep: #0a0f0d;
+    --primary: #3dff8a;
+    --primary-dark: #1f7d49;
+    --text: #eafff2;
+    --accent: #ffb703;
 }
 
 body {
-    background-color: #121212;
-    color: white;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-deep);
+    color: var(--text);
+    font-family: 'VT323', monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -41,10 +42,11 @@ body {
 }
 
 .header-logo h1 {
-    font-size: 32px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 20px;
     margin: 0;
     color: var(--primary);
-    font-weight: 900;
+    text-shadow: 0 0 8px var(--primary);
     letter-spacing: -1px;
 }
 
@@ -68,12 +70,13 @@ body {
 }
 
 #nickname-input {
-    background: #2a2a2a;
-    border: 2px solid #444;
+    background: #0e1a13;
+    border: 2px solid #2b4536;
     border-radius: 12px;
     padding: 15px;
-    color: white;
-    font-size: 18px;
+    color: var(--text);
+    font-family: 'VT323', monospace;
+    font-size: 22px;
     text-align: center;
     outline: none;
     transition: border-color 0.3s;
@@ -166,14 +169,14 @@ body {
 .trackpad-indicator {
     width: 40px;
     height: 80px;
-    background: linear-gradient(90deg, #4CAF50, #66BB6A);
+    background: var(--primary-dark);
     border-radius: 12px;
     position: absolute;
     left: 50%;
     top: 60%;
     transform: translate(-50%, -50%);
-    box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
-    border: 2px solid #81C784;
+    box-shadow: 0 6px 16px rgba(61, 255, 138, 0.3);
+    border: 2px solid var(--primary);
     transition: box-shadow 0.1s;
     cursor: pointer;
     pointer-events: none;

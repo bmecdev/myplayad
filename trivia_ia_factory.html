@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>ADEVAQ TRIVIA // AI FACTORY</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0a0f0d;
+    --panel:#101a15;
+    --panel-edge:#1f3327;
+    --phosphor:#3dff8a;
+    --phosphor-dim:#1f7d49;
+    --amber:#ffb703;
+    --danger:#ff4d6d;
+    --text-dim:#7fae94;
+    --white:#eafff2;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg-deep);
+    color:var(--white);
+    font-family:'VT323', monospace;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    overflow-x:hidden;
+  }
+  .cabinet{
+    width:100%;
+    max-width:640px;
+    background:linear-gradient(180deg,#161f1a,#0d1512);
+    border:4px solid #2b4536;
+    border-radius:18px;
+    padding:14px;
+    box-shadow:
+      0 0 0 2px #060a08,
+      0 20px 60px rgba(0,0,0,.6),
+      inset 0 0 40px rgba(61,255,138,.04);
+    position:relative;
+  }
+  .cabinet::before{
+    content:"● ● ●";
+    display:block;
+    text-align:right;
+    color:#2b4536;
+    font-family:'Press Start 2P', monospace;
+    font-size:8px;
+    letter-spacing:6px;
+    padding:0 6px 8px;
+  }
+  .screen{
+    background:radial-gradient(ellipse at 50% 0%, #0e1a13 0%, #060b08 100%);
+    border:3px solid #060a08;
+    border-radius:8px;
+    padding:22px 18px;
+    position:relative;
+    min-height:420px;
+    overflow:hidden;
+  }
+  .screen::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,.18) 3px
+    );
+    pointer-events:none;
+    animation:flicker 6s infinite;
+  }
+  @keyframes flicker{
+    0%,97%,100%{opacity:1;}
+    98%{opacity:.85;}
+  }
+  .pixel-title{
+    font-family:'Press Start 2P', monospace;
+    color:var(--phosphor);
+    text-shadow:0 0 6px var(--phosphor), 0 0 18px rgba(61,255,138,.4);
+    letter-spacing:1px;
+  }
+  .crt-line{color:var(--phosphor); text-shadow:0 0 4px rgba(61,255,138,.5);}
+  .dim{color:var(--text-dim);}
+
+  /* BOOT SCREEN */
+  #boot{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    height:376px;
+    font-size:19px;
+    line-height:1.5;
+  }
+  #bootLog{white-space:pre-wrap;}
+  .cursor{
+    display:inline-block;
+    width:9px; height:16px;
+    background:var(--phosphor);
+    vertical-align:middle;
+    animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink{50%{opacity:0;}}
+
+  /* START SCREEN */
+  #start{display:none; text-align:center; padding-top:18px;}
+  #start h1{
+    font-family:'Press Start 2P', monospace;
+    font-size:22px;
+    color:var(--phosphor);
+    text-shadow:0 0 8px var(--phosphor);
+    margin:10px 0 6px;
+    line-height:1.6;
+  }
+  #start .subtitle{color:var(--amber); font-size:16px; margin-bottom:22px;}
+  #start .src{color:var(--text-dim); font-size:15px; margin-bottom:28px;}
+  .btn{
+    font-family:'Press Start 2P', monospace;
+    background:var(--phosphor-dim);
+    color:#03150a;
+    border:none;
+    padding:14px 22px;
+    font-size:13px;
+    cursor:pointer;
+    box-shadow:0 4px 0 #0c3d21, 0 0 20px rgba(61,255,138,.3);
+    transition:transform .05s;
+  }
+  .btn:hover{background:var(--phosphor);}
+  .btn:active{transform:translateY(4px); box-shadow:0 0 0 #0c3d21;}
+  .btn.secondary{background:#3a2a10; color:var(--amber); box-shadow:0 4px 0 #1f1608;}
+  .btn.secondary:hover{background:#4a3614;}
+  .blink-hint{
+    font-family:'Press Start 2P', monospace;
+    font-size:10px;
+    color:var(--text-dim);
+    margin-top:26px;
+    animation:blink 1.2s steps(1) infinite;
+  }
+
+  /* HUD */
+  #game{display:none;}
+  .hud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:15px;
+    margin-bottom:10px;
+    font-family:'Press Start 2P', monospace;
+    font-size:10px;
+  }
+  .hud .lives{letter-spacing:3px; color:var(--danger); text-shadow:0 0 6px var(--danger);}
+  .hud .score{color:var(--amber); text-shadow:0 0 6px var(--amber);}
+  .hud .round{color:var(--text-dim);}
+
+  .timerbar-wrap{
+    height:12px;
+    background:#0c1712;
+    border:2px solid #1f3327;
+    margin-bottom:16px;
+  }
+  .timerbar{
+    height:100%;
+    width:100%;
+    background:repeating-linear-gradient(90deg, var(--phosphor) 0 6px, #0c1712 6px 8px);
+    transition:width linear;
+  }
+  .timerbar.warn{background:repeating-linear-gradient(90deg, var(--amber) 0 6px, #0c1712 6px 8px);}
+  .timerbar.danger{background:repeating-linear-gradient(90deg, var(--danger) 0 6px, #0c1712 6px 8px);}
+
+  .qbox{
+    min-height:96px;
+    font-size:19px;
+    line-height:1.4;
+    color:var(--white);
+    margin-bottom:16px;
+    padding:6px 2px;
+  }
+
+  .answers{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  @media (max-width:420px){ .answers{grid-template-columns:1fr;} }
+  .ans{
+    font-family:'VT323', monospace;
+    font-size:17px;
+    text-align:left;
+    background:#0e1a15;
+    border:2px solid #2b4536;
+    color:var(--white);
+    padding:12px 10px;
+    cursor:pointer;
+    transition:background .1s, border-color .1s;
+  }
+  .ans:hover{border-color:var(--phosphor);}
+  .ans.correct{background:var(--phosphor-dim); border-color:var(--phosphor); color:#04170a;}
+  .ans.wrong{background:#3a0d17; border-color:var(--danger); color:var(--white);}
+  .ans[disabled]{cursor:default;}
+
+  .feedback{
+    height:22px;
+    font-family:'Press Start 2P', monospace;
+    font-size:11px;
+    margin-top:14px;
+    text-align:center;
+  }
+  .feedback.good{color:var(--phosphor); text-shadow:0 0 8px var(--phosphor);}
+  .feedback.bad{color:var(--danger); text-shadow:0 0 8px var(--danger);}
+
+  /* GAME OVER */
+  #over{display:none; text-align:center; padding-top:26px;}
+  #over h1{
+    font-family:'Press Start 2P', monospace;
+    color:var(--danger);
+    text-shadow:0 0 10px var(--danger);
+    font-size:20px;
+    margin-bottom:22px;
+  }
+  #over .stat{font-size:19px; margin:6px 0;}
+  #over .stat b{color:var(--amber);}
+  #over .newhigh{
+    font-family:'Press Start 2P', monospace;
+    font-size:11px;
+    color:var(--phosphor);
+    margin:14px 0;
+    text-shadow:0 0 8px var(--phosphor);
+  }
+  .btnrow{display:flex; gap:10px; justify-content:center; margin-top:24px; flex-wrap:wrap;}
+  footer{
+    text-align:center;
+    color:#284034;
+    font-size:12px;
+    margin-top:10px;
+    font-family:'VT323', monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="cabinet">
+  <div class="screen">
+
+    <!-- BOOT -->
+    <div id="boot">
+      <div id="bootLog"></div>
+    </div>
+
+    <!-- START -->
+    <div id="start">
+      <div class="pixel-title" style="font-size:11px;">ADEVAQ SYSTEM</div>
+      <h1>AI FACTORY<br>TRIVIA</h1>
+      <div class="subtitle">// arcade knowledge check</div>
+      <div class="src">Fuente: DG-GT-09 IA Factory V1</div>
+      <button class="btn" id="startBtn">START</button>
+      <div class="blink-hint">3 VIDAS · 20 RONDAS · 15s POR PREGUNTA</div>
+    </div>
+
+    <!-- GAME -->
+    <div id="game">
+      <div class="hud">
+        <div class="lives" id="lives">♥ ♥ ♥</div>
+        <div class="round" id="round">RONDA 01/20</div>
+        <div class="score" id="score">SCORE 0000</div>
+      </div>
+      <div class="timerbar-wrap"><div class="timerbar" id="timerbar"></div></div>
+      <div class="qbox crt-line" id="qtext"></div>
+      <div class="answers" id="answers"></div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="over">
+      <h1>GAME OVER</h1>
+      <div class="stat">Puntaje final: <b id="finalScore">0</b></div>
+      <div class="stat">Racha máxima: <b id="finalCombo">0</b></div>
+      <div class="stat dim">Mejor puntaje: <b id="highScore">0</b></div>
+      <div class="newhigh" id="newHighMsg" style="display:none;">¡NUEVO RÉCORD!</div>
+      <div class="btnrow">
+        <button class="btn" id="retryBtn">REINTENTAR</button>
+        <button class="btn secondary" id="menuBtn">MENÚ</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ---------- PREGUNTAS (basadas en DG-GT-09 IA Factory V1) ---------- */
+const QUESTIONS = [
+  {q:"¿Cuál es el objetivo principal de la AI Factory según el documento?",
+   a:["Vender licencias de software","Centralizar, estandarizar y evolucionar capacidades de IA","Contratar especialistas en IA","Reemplazar al equipo de QA"], c:1},
+  {q:"AdevaQ (Adeva V1) ejecuta su interfaz de orquestación sobre...",
+   a:["Gemini CLI","Slack","Jenkins","Zoom"], c:0},
+  {q:"¿Qué base de datos vectorial se prefiere en producción con alta consistencia transaccional (ACID)?",
+   a:["MongoDB","Redis","PostgreSQL con pgvector","ChromaDB siempre"], c:2},
+  {q:"¿Qué herramienta se usa para modelar el flujo de un agente como un grafo y mejorar la explicabilidad?",
+   a:["LangGraph","Excel","Figma","Postman"], c:0},
+  {q:"¿Cuántas capas fundamentales componen la arquitectura de AdevaQ V1?",
+   a:["2","3","4","6"], c:2},
+  {q:"Las 4 capas de AdevaQ V1 son:",
+   a:["Skills, MCP Servers, Contextos y Hooks","Frontend, Backend, DB y API","Login, Dashboard, Reportes y Logs","Jira, Trello, Slack y GitHub"], c:0},
+  {q:"¿Qué protocolo permite a los agentes interactuar con herramientas externas de forma segura y estandarizada?",
+   a:["HTTP simple","FTP","MCP (Model Context Protocol)","SOAP"], c:2},
+  {q:"En Adeva V2, ¿cómo se llama el motor basado en grafos que reduce el consumo de tokens?",
+   a:["Prompt Engine","Decision Engine","Token Saver","Cache Layer"], c:1},
+  {q:"¿Qué herramienta de automatización se integra vía MCP para generar scripts E2E con Page Object Model?",
+   a:["Selenium clásico","Playwright","Cypress","Appium"], c:1},
+  {q:"¿Cuál es la Fase 1 del Roadmap estratégico de Adeva?",
+   a:["Plataforma Empresarial","AI Factory","Consolidación del Agente","Agent Ecosystem"], c:2},
+  {q:"¿Cuál es la fase final del roadmap estratégico de Adeva?",
+   a:["Plataforma Modular","Infraestructura Estratégica (Agent Ecosystem)","Validación Externa","Escalamiento"], c:1},
+  {q:"¿Cómo se calcula el KPI 'Costo por Solicitud'?",
+   a:["Tokens de salida / Tokens de entrada","Costo Total Infraestructura IA / Número total de solicitudes","Latencia / Requests","Clientes con IA / Total clientes"], c:1},
+  {q:"Además del Few-Shot, ¿qué estrategia se usa para mitigar alucinaciones cuando la info debe venir de una base de conocimiento?",
+   a:["Fine-tuning masivo","RAG (Generación Aumentada por Recuperación)","Aumentar la temperatura","Ignorar el contexto"], c:1},
+  {q:"En la estrategia de 'Cliente Interno', ¿cuál es la primera fase?",
+   a:["Escalamiento","Validación Externa","Diagnóstico Interno","Productización"], c:2},
+  {q:"¿Qué tipo de LLM se reserva explícitamente para proyectos con residencia estricta de datos?",
+   a:["Self-hosted LLMs","Solo APIs públicas","Modelos de código cerrado sin excepción","Ninguno, siempre se usa la nube"], c:0},
+  {q:"¿Qué framework de aplicación de escritorio usa Adeva V2 para ejecución local?",
+   a:["Electron","Flutter","Qt",".NET MAUI"], c:0},
+  {q:"En la Estrategia Comercial, ¿cuál es el modelo híbrido de ingresos propuesto?",
+   a:["Solo consultoría","Desarrollo a la medida + productos SaaS","Solo venta de hardware","Publicidad"], c:1},
+  {q:"¿Qué mide el KPI 'Nivel de Trazabilidad'?",
+   a:["La velocidad de internet","El % de solicitudes con registro completo para auditoría","El número de empleados","El tamaño del dataset"], c:1},
+  {q:"¿Cómo se llama el servidor MCP especializado mencionado para pruebas funcionales en dispositivos móviles?",
+   a:["Maestro","Appium Cloud","MobileMCP","QA-Bot"], c:0},
+  {q:"¿En qué mes y año se creó el documento DG-GT-09 IA Factory V1?",
+   a:["Enero 2026","Marzo 2026","Julio 2026","Diciembre 2025"], c:1},
+];
+
+/* ---------- ESTADO ---------- */
+let idx=0, score=0, lives=3, combo=0, maxCombo=0, timer, timeLeft, ROUND_TIME=15;
+const TOTAL = QUESTIONS.length;
+const HS_KEY = "adevaq_trivia_highscore";
+
+/* ---------- AUDIO (beeps simples) ---------- */
+let actx;
+function beep(freq, dur, type='square', vol=0.05){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol;
+    o.connect(g); g.connect(actx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.stop(actx.currentTime + dur);
+  }catch(e){}
+}
+const sfx = {
+  correct: ()=>{ beep(880,0.08); setTimeout(()=>beep(1320,0.12),80); },
+  wrong: ()=>{ beep(160,0.25,'sawtooth',0.06); },
+  tick: ()=>beep(600,0.03,'square',0.02),
+  select: ()=>beep(440,0.05),
+  start: ()=>{ beep(660,0.08); setTimeout(()=>beep(880,0.08),90); setTimeout(()=>beep(1100,0.12),180); },
+  over: ()=>{ beep(300,0.15,'sawtooth',0.05); setTimeout(()=>beep(220,0.2,'sawtooth',0.05),150); setTimeout(()=>beep(150,0.3,'sawtooth',0.05),300); }
+};
+
+/* ---------- BOOT SEQUENCE ---------- */
+const bootLines = [
+  "> INICIANDO ADEVAQ TERMINAL...",
+  "> CARGANDO CONTEXTO: DG-GT-09 IA FACTORY V1",
+  "> MONTANDO SKILLS... OK",
+  "> CONECTANDO MCP SERVERS... OK",
+  "> SISTEMA LISTO."
+];
+function typeBoot(){
+  const el = document.getElementById('bootLog');
+  let full = "";
+  let li = 0;
+  function nextLine(){
+    if(li >= bootLines.length){
+      el.innerHTML = full + '<span class="cursor"></span>';
+      setTimeout(()=>{
+        document.getElementById('boot').style.display='none';
+        document.getElementById('start').style.display='block';
+      }, 500);
+      return;
+    }
+    const line = bootLines[li];
+    let ci = 0;
+    function typeChar(){
+      if(ci <= line.length){
+        el.innerHTML = full + line.slice(0,ci) + '<span class="cursor"></span>';
+        ci++;
+        setTimeout(typeChar, 14);
+      } else {
+        full += line + "\n";
+        li++;
+        setTimeout(nextLine, 220);
+      }
+    }
+    typeChar();
+  }
+  nextLine();
+}
+typeBoot();
+
+/* ---------- NAVEGACIÓN ---------- */
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  sfx.start();
+  document.getElementById('start').style.display='none';
+  document.getElementById('game').style.display='block';
+  idx=0; score=0; lives=3; combo=0; maxCombo=0;
+  nextQuestion();
+});
+document.getElementById('retryBtn').addEventListener('click', ()=>{
+  document.getElementById('over').style.display='none';
+  document.getElementById('game').style.display='block';
+  idx=0; score=0; lives=3; combo=0; maxCombo=0;
+  nextQuestion();
+});
+document.getElementById('menuBtn').addEventListener('click', ()=>{
+  document.getElementById('over').style.display='none';
+  document.getElementById('start').style.display='block';
+});
+
+/* ---------- LÓGICA DEL JUEGO ---------- */
+function updateHud(){
+  document.getElementById('lives').textContent = "♥ ".repeat(lives).trim() || "—";
+  document.getElementById('score').textContent = "SCORE " + String(score).padStart(4,'0');
+  document.getElementById('round').textContent = "RONDA " + String(idx+1).padStart(2,'0') + "/" + TOTAL;
+}
+
+function nextQuestion(){
+  if(idx >= TOTAL || lives <= 0){ return gameOver(); }
+  updateHud();
+  const item = QUESTIONS[idx];
+  document.getElementById('qtext').textContent = item.q;
+  document.getElementById('feedback').textContent = "";
+  document.getElementById('feedback').className = "feedback";
+
+  const order = [0,1,2,3];
+  const box = document.getElementById('answers');
+  box.innerHTML = "";
+  order.forEach(i=>{
+    const btn = document.createElement('button');
+    btn.className = "ans";
+    btn.textContent = item.a[i];
+    btn.addEventListener('click', ()=>answer(i, item.c, btn));
+    box.appendChild(btn);
+  });
+
+  timeLeft = ROUND_TIME;
+  runTimer();
+}
+
+function runTimer(){
+  clearInterval(timer);
+  const bar = document.getElementById('timerbar');
+  bar.style.transition = "none";
+  bar.style.width = "100%";
+  bar.className = "timerbar";
+  requestAnimationFrame(()=>{ bar.style.transition = "width 1s linear"; });
+
+  timer = setInterval(()=>{
+    timeLeft--;
+    const pct = Math.max(0,(timeLeft/ROUND_TIME)*100);
+    bar.style.width = pct + "%";
+    if(pct < 50 && pct >= 20) bar.className = "timerbar warn";
+    if(pct < 20) bar.className = "timerbar danger";
+    if(timeLeft <= 3 && timeLeft > 0) sfx.tick();
+    if(timeLeft <= 0){
+      clearInterval(timer);
+      lockAnswers();
+      revealCorrect(-1);
+      registerWrong();
+    }
+  }, 1000);
+}
+
+function lockAnswers(){
+  document.querySelectorAll('.ans').forEach(b=>b.disabled = true);
+}
+
+function revealCorrect(chosenIdx){
+  const item = QUESTIONS[idx];
+  document.querySelectorAll('.ans').forEach((b,i)=>{
+    if(i === item.c) b.classList.add('correct');
+    else if(i === chosenIdx) b.classList.add('wrong');
+  });
+}
+
+function answer(i, correct, btn){
+  clearInterval(timer);
+  lockAnswers();
+  sfx.select();
+  revealCorrect(i);
+  if(i === correct){ registerCorrect(); }
+  else{ registerWrong(); }
+}
+
+function registerCorrect(){
+  combo++;
+  maxCombo = Math.max(maxCombo, combo);
+  const gained = 10 + Math.min(combo-1,5)*2;
+  score += gained;
+  sfx.correct();
+  const fb = document.getElementById('feedback');
+  fb.textContent = "¡CORRECTO! +" + gained + (combo>1 ? "  x"+combo+" COMBO" : "");
+  fb.className = "feedback good";
+  updateHud();
+  setTimeout(()=>{ idx++; nextQuestion(); }, 950);
+}
+
+function registerWrong(){
+  combo = 0;
+  lives--;
+  sfx.wrong();
+  const fb = document.getElementById('feedback');
+  fb.textContent = lives > 0 ? "INCORRECTO — VIDA PERDIDA" : "SIN VIDAS";
+  fb.className = "feedback bad";
+  updateHud();
+  setTimeout(()=>{ idx++; nextQuestion(); }, 1100);
+}
+
+function gameOver(){
+  clearInterval(timer);
+  document.getElementById('game').style.display='none';
+  document.getElementById('over').style.display='block';
+  sfx.over();
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('finalCombo').textContent = maxCombo;
+
+  let hs = 0;
+  try{ hs = parseInt(localStorage.getItem(HS_KEY) || "0", 10); }catch(e){}
+  const newHighMsg = document.getElementById('newHighMsg');
+  if(score > hs){
+    try{ localStorage.setItem(HS_KEY, String(score)); }catch(e){}
+    hs = score;
+    newHighMsg.style.display = "block";
+  } else {
+    newHighMsg.style.display = "none";
+  }
+  document.getElementById('highScore').textContent = hs;
+}
+</script>
+
+</body>
+</html>
