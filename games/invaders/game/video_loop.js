@@ -140,12 +140,26 @@ function applyPlaylist(nextPlaylist) {
     playVideo(0);
 }
 
-async function syncLocalCache() {
-    const cacheRes = await fetch(`${playbackBaseUrl}/api/cache/${screenId}`);
-    if (!cacheRes.ok) throw new Error(`HTTP ${cacheRes.status}`);
-    const cacheData = await cacheRes.json();
-    applyPlaylist(cacheData.videos || []);
-    return cacheData;
+function syncLocalCache() {
+    return new Promise((resolve, reject) => {
+        // Fallback timeout in case parent doesn't respond
+        const timeout = setTimeout(() => reject(new Error('Timeout esperando respuesta de cache del parent')), 5000);
+        
+        const handler = (event) => {
+            if (event.data && event.data.type === 'LOCAL_CACHE_RESPONSE') {
+                window.removeEventListener('message', handler);
+                clearTimeout(timeout);
+                const cacheData = event.data.data;
+                applyPlaylist(cacheData.videos || []);
+                resolve(cacheData);
+            }
+        };
+        
+        window.addEventListener('message', handler);
+        
+        // Solicitar al frame padre (screen) que haga el fetch para evitar problemas de CORS/Mixed Content
+        window.parent.postMessage({ type: 'FETCH_LOCAL_CACHE', screenId }, '*');
+    });
 }
 
 // Cargar la lista de videos del servidor y arrancar

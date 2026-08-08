@@ -274,3 +274,25 @@ function showIdentifyIndicator() {
         }, 5000);
     }
 }
+
+// Escuchar peticiones de cache de los juegos en iframe (para evitar bloqueos CORS y Mixed Content de Safari/Chrome)
+window.addEventListener('message', async (event) => {
+    if (event.data && event.data.type === 'FETCH_LOCAL_CACHE') {
+        const sId = event.data.screenId || screenId;
+        if (!sId) return;
+        try {
+            const cacheRes = await fetch(`/api/cache/${sId}`);
+            if (cacheRes.ok) {
+                const cacheData = await cacheRes.json();
+                if (layers.game && layers.game.contentWindow) {
+                    layers.game.contentWindow.postMessage({
+                        type: 'LOCAL_CACHE_RESPONSE',
+                        data: cacheData
+                    }, '*');
+                }
+            }
+        } catch (e) {
+            console.warn('[screen] Error obteniendo cache para iframe:', e);
+        }
+    }
+});
