@@ -335,8 +335,8 @@ li {
     margin: 0;
     width: 90%;
     color: var(--phosphor);
-    font-size: 14px;
-    font-family: var(--font-retro, 'Courier New', Courier, monospace);
+    font-size: 24px;
+    font-family: 'VT323', monospace;
 }
 
 #video-ranking-list li {
