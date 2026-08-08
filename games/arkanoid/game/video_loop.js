@@ -80,10 +80,27 @@ function playVideo(index) {
     if (!playlist.length) return;
     currentVideoIndex = index % playlist.length;
     if (videoRankingOverlay) videoRankingOverlay.classList.add('hidden');
+    
+    videoPlayer.muted = true;
+    videoPlayer.defaultMuted = true;
+    videoPlayer.setAttribute('muted', 'true');
+    videoPlayer.setAttribute('playsinline', 'true');
+    videoPlayer.setAttribute('autoplay', 'true');
+    
     videoPlayer.src = buildVideoUrl(playlist[currentVideoIndex]);
-    videoPlayer.play().catch(() => {
-        console.log('Autoplay bloqueado. Haz clic en la página para iniciar.');
-    });
+    videoPlayer.load();
+
+    const playPromise = videoPlayer.play();
+    if (playPromise !== undefined) {
+        playPromise.catch(err => {
+            console.log('Autoplay bloqueado en bgVideo:', err);
+            // Safari fallback: try again after a brief timeout
+            setTimeout(() => {
+                videoPlayer.muted = true;
+                videoPlayer.play().catch(e => console.log('Re-intento fallido', e));
+            }, 150);
+        });
+    }
 }
 
 function playNextVideo() {

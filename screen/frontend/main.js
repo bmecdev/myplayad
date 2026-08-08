@@ -52,10 +52,24 @@ function playCurrentVideo() {
         }
     };
     
+    layers.video.muted = true;
+    layers.video.defaultMuted = true;
+    layers.video.setAttribute('muted', 'true');
+    layers.video.setAttribute('playsinline', 'true');
+    layers.video.setAttribute('autoplay', 'true');
+    
     layers.video.load();
     if (currentType === 'video') {
-        layers.video.muted = true;
-        layers.video.play().catch(e => console.warn('Autoplay bloqueado:', e));
+        const playPromise = layers.video.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(e => {
+                console.warn('Autoplay bloqueado:', e);
+                setTimeout(() => {
+                    layers.video.muted = true;
+                    layers.video.play().catch(err => console.log('Re-intento fallido', err));
+                }, 150);
+            });
+        }
     }
 }
 
@@ -138,7 +152,21 @@ function setActiveLayer(type) {
     // Play video if we navigate to it
     if (type === 'video') {
         layers.video.muted = true;
-        layers.video.play().catch(e => console.warn('Autoplay blocked:', e));
+        layers.video.defaultMuted = true;
+        layers.video.setAttribute('muted', 'true');
+        layers.video.setAttribute('playsinline', 'true');
+        layers.video.setAttribute('autoplay', 'true');
+        
+        const playPromise = layers.video.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(e => {
+                console.warn('Autoplay blocked:', e);
+                setTimeout(() => {
+                    layers.video.muted = true;
+                    layers.video.play().catch(err => console.log('Re-intento fallido', err));
+                }, 150);
+            });
+        }
     }
     
     currentType = type;
