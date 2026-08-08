@@ -104,7 +104,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (currentSchedule) {
       if (currentSchedule.game) {
         responseData.type = 'game';
-        responseData.url = `http://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`;
+        responseData.url = `https://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`;
       } else if (currentSchedule.video) {
         responseData.type = 'video';
         responseData.url = `https://videos.myplayad.com/${currentSchedule.video.filename}`;
