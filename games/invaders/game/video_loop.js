@@ -86,6 +86,7 @@ function playVideo(index) {
     videoPlayer.setAttribute('muted', 'true');
     videoPlayer.setAttribute('playsinline', 'true');
     videoPlayer.setAttribute('autoplay', 'true');
+    videoPlayer.setAttribute('crossorigin', 'anonymous');
     
     videoPlayer.src = buildVideoUrl(playlist[currentVideoIndex]);
     videoPlayer.load();

@@ -211,7 +211,7 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Private-Network', 'true');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Request-Private-Network');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Request-Private-Network, Range, Accept-Ranges');
 
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     if (req.method !== 'GET')    { res.writeHead(405); res.end('Method Not Allowed'); return; }
@@ -312,14 +312,18 @@ const server = http.createServer((req, res) => {
                     'Content-Range':  `bytes ${start}-${end}/${stat.size}`,
                     'Accept-Ranges':  'bytes',
                     'Content-Length': chunk,
-                    'Content-Type':   mime
+                    'Content-Type':   mime,
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Private-Network': 'true'
                 });
                 fs.createReadStream(filePath, { start, end }).pipe(res);
             } else {
                 res.writeHead(200, {
                     'Content-Length': stat.size,
                     'Content-Type':   mime,
-                    'Accept-Ranges':  'bytes'
+                    'Accept-Ranges':  'bytes',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Private-Network': 'true'
                 });
                 fs.createReadStream(filePath).pipe(res);
             }
