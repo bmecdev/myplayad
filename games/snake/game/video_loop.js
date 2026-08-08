@@ -72,6 +72,32 @@ async function fetchAndShowUpcomingGames() {
     }
 }
 
+let activeBlobUrl = null;
+
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'VIDEO_BLOB_RESPONSE') {
+        const { buffer, mime } = event.data;
+        if (activeBlobUrl) {
+            URL.revokeObjectURL(activeBlobUrl);
+        }
+        const blob = new Blob([buffer], { type: mime });
+        activeBlobUrl = URL.createObjectURL(blob);
+        videoPlayer.src = activeBlobUrl;
+        videoPlayer.load();
+
+        const playPromise = videoPlayer.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(err => {
+                console.log('Autoplay bloqueado en bgVideo:', err);
+                setTimeout(() => {
+                    videoPlayer.muted = true;
+                    videoPlayer.play().catch(e => console.log('Re-intento fallido', e));
+                }, 150);
+            });
+        }
+    }
+});
+
 function buildVideoUrl(filename) {
     return `${playbackBaseUrl}/videos/${screenId}/${encodeURIComponent(filename)}`;
 }
@@ -87,20 +113,13 @@ function playVideo(index) {
     videoPlayer.setAttribute('playsinline', 'true');
     videoPlayer.setAttribute('autoplay', 'true');
     
-    videoPlayer.src = buildVideoUrl(playlist[currentVideoIndex]);
-    videoPlayer.load();
-
-    const playPromise = videoPlayer.play();
-    if (playPromise !== undefined) {
-        playPromise.catch(err => {
-            console.log('Autoplay bloqueado en bgVideo:', err);
-            // Safari fallback: try again after a brief timeout
-            setTimeout(() => {
-                videoPlayer.muted = true;
-                videoPlayer.play().catch(e => console.log('Re-intento fallido', e));
-            }, 150);
-        });
-    }
+    // Pedimos el video al padre en lugar de asignarlo directamente para evitar
+    // bloqueos de Mixed Content y Private Network Access
+    window.parent.postMessage({
+        type: 'FETCH_VIDEO_BLOB',
+        filename: playlist[currentVideoIndex],
+        screenId: screenId
+    }, '*');
 }
 
 function playNextVideo() {

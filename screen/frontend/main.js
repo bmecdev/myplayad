@@ -294,5 +294,24 @@ window.addEventListener('message', async (event) => {
         } catch (e) {
             console.warn('[screen] Error obteniendo cache para iframe:', e);
         }
+    } else if (event.data && event.data.type === 'FETCH_VIDEO_BLOB') {
+        const { screenId: sId, filename } = event.data;
+        if (!sId || !filename) return;
+        try {
+            const res = await fetch(`/videos/${sId}/${encodeURIComponent(filename)}`);
+            if (res.ok) {
+                const buffer = await res.arrayBuffer();
+                if (layers.game && layers.game.contentWindow) {
+                    layers.game.contentWindow.postMessage({
+                        type: 'VIDEO_BLOB_RESPONSE',
+                        filename: filename,
+                        buffer: buffer,
+                        mime: res.headers.get('Content-Type') || 'video/mp4'
+                    }, '*', [buffer]); // Transfer the buffer for performance
+                }
+            }
+        } catch (e) {
+            console.warn('[screen] Error obteniendo video blob para iframe:', e);
+        }
     }
 });
