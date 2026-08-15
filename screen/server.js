@@ -27,6 +27,9 @@ const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 // ─── Configuración ───────────────────────────────────────────────────────────
 
@@ -34,6 +37,9 @@ const REMOTE = (process.env.REMOTE_VIDEO_SERVER_URL || '').replace(/\/$/, '');
 const VIDEOS_DIR = path.resolve(process.env.VIDEOS_DIR || path.join(__dirname, 'videos'));
 const PORT = parseInt(process.env.PORT || '8090', 10);
 const SCREEN_ID = process.env.SCREEN_ID;
+
+// Tamaño del buffer para lectura de videos. Por defecto 2MB. Puedes cambiar este valor para ajustarlo a tus necesidades.
+const VIDEO_BUFFER_SIZE = 10 * 1024 * 1024;
 
 if (!REMOTE) {
     console.error('[ERROR] Debes definir la variable de entorno REMOTE_VIDEO_SERVER_URL');
@@ -94,13 +100,13 @@ async function syncScreen(screenId) {
         for (const filename of remoteVideos) {
             const safe = path.basename(filename);
             const dest = path.join(screenDir, safe);
-            const tmp  = `${dest}.part`;
+            const tmp = `${dest}.part`;
 
             // Si ya existe, saltar
             try {
                 await fs.promises.access(dest, fs.constants.F_OK);
                 continue;
-            } catch (_) {}
+            } catch (_) { }
 
             console.log(`[sync][${screenId}] descargando: ${safe}`);
             const fileRes = await fetch(`${REMOTE}/videos/${screenId}/${encodeURIComponent(safe)}`);
@@ -109,7 +115,19 @@ async function syncScreen(screenId) {
                 continue;
             }
             await pipeline(Readable.fromWeb(fileRes.body), fs.createWriteStream(tmp));
-            await fs.promises.rename(tmp, dest);
+            
+            console.log(`[sync][${screenId}] escalando a 720p: ${safe}`);
+            try {
+                const tmpConverted = `${dest}.converted.part`;
+                await execPromise(`ffmpeg -y -i "${tmp}" -vf "scale=720:1280" -r 30 -c:v libx264 -preset ultrafast -crf 28 -c:a copy -f mp4 "${tmpConverted}"`);
+                await fs.promises.rename(tmpConverted, dest);
+                await fs.promises.unlink(tmp).catch(() => {});
+                console.log(`[sync][${screenId}] transcodificación exitosa: ${safe}`);
+            } catch (err) {
+                console.error(`[sync][${screenId}] error en ffmpeg para ${safe}:`, err.message);
+                // Fallback a renombrar el original si falla ffmpeg
+                await fs.promises.rename(tmp, dest);
+            }
             downloaded += 1;
         }
 
@@ -143,11 +161,11 @@ const mqtt = require('mqtt');
 
 if (SCREEN_ID) {
     console.log('[mqtt] Conectando a MQTT...');
-    
+
     // MQTT connection over WebSockets
     // If REMOTE is https://videos.myplayad.com, MQTT will be wss://videos.myplayad.com/mqtt
     const mqttUrl = REMOTE.replace(/^http/, 'ws') + '/mqtt';
-    
+
     const client = mqtt.connect(mqttUrl, {
         clientId: `screen_${SCREEN_ID}_${Math.random().toString(16).slice(2, 10)}`,
         will: {
@@ -194,7 +212,7 @@ if (SCREEN_ID) {
         console.log(`[auto-sync] Iniciando sincronización en segundo plano para ${SCREEN_ID}...`);
         syncScreen(SCREEN_ID).catch(err => console.error('[auto-sync] error:', err.message));
     }, SYNC_INTERVAL);
-    
+
     // Ejecutar una vez al inicio
     setTimeout(() => {
         syncScreen(SCREEN_ID).catch(err => console.error('[auto-sync] error:', err.message));
@@ -214,9 +232,9 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Request-Private-Network, Range, Accept-Ranges');
 
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-    if (req.method !== 'GET')    { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    if (req.method !== 'GET') { res.writeHead(405); res.end('Method Not Allowed'); return; }
 
-    const url   = new URL(req.url, `http://localhost:${PORT}`);
+    const url = new URL(req.url, `http://localhost:${PORT}`);
     const parts = url.pathname.split('/').filter(Boolean);
 
     // GET /api/config
@@ -236,13 +254,13 @@ const server = http.createServer((req, res) => {
             'Connection': 'keep-alive',
             'Access-Control-Allow-Origin': '*'
         });
-        
+
         // Enviar evento de conexión inicial (keep-alive)
         res.write(': connected\n\n');
-        
+
         sseClients.add(res);
         console.log(`[sse] Cliente conectado (Total: ${sseClients.size})`);
-        
+
         req.on('close', () => {
             sseClients.delete(res);
             console.log(`[sse] Cliente desconectado (Total: ${sseClients.size})`);
@@ -300,32 +318,34 @@ const server = http.createServer((req, res) => {
         fs.stat(filePath, (err, stat) => {
             if (err) { res.writeHead(404); res.end('No encontrado'); return; }
 
-            const mime  = MIME[path.extname(filename).toLowerCase()] || 'application/octet-stream';
+            const mime = MIME[path.extname(filename).toLowerCase()] || 'application/octet-stream';
             const range = req.headers.range;
 
             if (range) {
                 const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
                 const start = parseInt(startStr, 10);
-                const end   = endStr ? parseInt(endStr, 10) : stat.size - 1;
+                const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
                 const chunk = end - start + 1;
                 res.writeHead(206, {
-                    'Content-Range':  `bytes ${start}-${end}/${stat.size}`,
-                    'Accept-Ranges':  'bytes',
+                    'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+                    'Accept-Ranges': 'bytes',
                     'Content-Length': chunk,
-                    'Content-Type':   mime,
+                    'Content-Type': mime,
+                    'Cache-Control': 'public, max-age=31536000',
                     'Access-Control-Allow-Origin': '*',
                     'Access-Control-Allow-Private-Network': 'true'
                 });
-                fs.createReadStream(filePath, { start, end }).pipe(res);
+                fs.createReadStream(filePath, { start, end, highWaterMark: VIDEO_BUFFER_SIZE }).pipe(res);
             } else {
                 res.writeHead(200, {
                     'Content-Length': stat.size,
-                    'Content-Type':   mime,
-                    'Accept-Ranges':  'bytes',
+                    'Content-Type': mime,
+                    'Cache-Control': 'public, max-age=31536000',
+                    'Accept-Ranges': 'bytes',
                     'Access-Control-Allow-Origin': '*',
                     'Access-Control-Allow-Private-Network': 'true'
                 });
-                fs.createReadStream(filePath).pipe(res);
+                fs.createReadStream(filePath, { highWaterMark: VIDEO_BUFFER_SIZE }).pipe(res);
             }
         });
         return;
