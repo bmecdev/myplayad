@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google" content="notranslate">
+    <title>MyPlayAd Screen</title>
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+    <div id="standby" class="layer active">
+        <div class="logo">MyPlayAd</div>
+        <div class="spinner"></div>
+    </div>
+    <video id="video-player" class="layer" muted autoplay playsinline preload="auto"></video>
+    
+    <iframe id="game-frame" class="layer" frameborder="0"></iframe>
+
+    <div id="interstitial" class="layer">
+        <div class="interstitial-content">
+            <h2 class="interstitial-title">Próximos Juegos</h2>
+            <ul id="interstitial-list"></ul>
+        </div>
+    </div>
+
+    <div id="identify-indicator" class="identify-indicator hidden"></div>
+
+    <script src="main.js?v=4"></script>
+</body>
+</html>

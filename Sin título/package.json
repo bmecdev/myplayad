@@ -1,0 +1,15 @@
+{
+  "name": "myplayad-screen-server",
+  "version": "1.0.0",
+  "description": "Servidor local de cache de videos para pantallas MyPlayAd",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mqtt": "^5.15.2"
+  }
+}
