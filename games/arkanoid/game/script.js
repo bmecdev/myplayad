@@ -725,3 +725,18 @@ setInterval(fetchRanking, 30000);
 setInterval(fetchUpcomingSchedules, 60000);
 requestAnimationFrame(gameLoop);
 connectSignalingServer();
+
+// Auto-scale to fit browser window
+function autoScale() {
+    const container = document.querySelector('.container');
+    if (!container) return;
+    container.style.transform = 'none';
+    const rect = container.getBoundingClientRect();
+    const padding = 40; 
+    const scaleX = window.innerWidth / (rect.width + padding);
+    const scaleY = window.innerHeight / (rect.height + padding);
+    const scale = Math.min(scaleX, scaleY);
+    container.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', autoScale);
+setTimeout(autoScale, 100);
