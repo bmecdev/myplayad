@@ -33,7 +33,7 @@ body {
     transform-origin: center center;
 }
 
-@media (orientation: landscape) and (max-height: 800px) {
+@media (orientation: landscape) {
     .container {
         flex-direction: row;
     }
@@ -135,6 +135,8 @@ body {
 #gameCanvas {
     background-color: transparent;
     display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }
 
 /* Overlays Retro */

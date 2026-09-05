@@ -1034,17 +1034,48 @@ draw();
 requestAnimationFrame(loop);
 connectSignaling();
 
-// Auto-scale to fit browser window
+// Auto-scale to fit browser window with high responsiveness
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
+
+    // Reset transform to measure base untransformed dimensions
     container.style.transform = 'none';
     const rect = container.getBoundingClientRect();
-    const padding = 40; 
-    const scaleX = window.innerWidth / (rect.width + padding);
-    const scaleY = window.innerHeight / (rect.height + padding);
-    const scale = Math.min(scaleX, scaleY);
+    if (!rect.width || !rect.height) return;
+
+    const availableW = window.innerWidth || document.documentElement.clientWidth;
+    const availableH = window.innerHeight || document.documentElement.clientHeight;
+    if (!availableW || !availableH) return;
+
+    const padding = 20;
+    const scaleX = (availableW - padding) / rect.width;
+    const scaleY = (availableH - padding) / rect.height;
+    const scale = Math.max(0.1, Math.min(scaleX, scaleY));
+
     container.style.transform = `scale(${scale})`;
 }
+
+// Multi-stage event bindings to ensure accurate dimensions
 window.addEventListener('resize', autoScale);
-setTimeout(autoScale, 100);
+window.addEventListener('load', autoScale);
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(autoScale);
+}
+
+// Observe document body changes
+if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => autoScale());
+    ro.observe(document.body);
+}
+
+// Listen for explicit RESCALE message from screen parent frame
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'RESCALE') {
+        autoScale();
+    }
+});
+
+// Periodic retries after mount to handle dynamic layout shifts (images, QR, videos)
+[0, 50, 150, 300, 600, 1200].forEach(delay => setTimeout(autoScale, delay));
+

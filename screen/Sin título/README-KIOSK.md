@@ -2,11 +2,20 @@
 
 Este documento detalla todos los pasos y configuraciones implementadas en esta Raspberry Pi 5 para convertirla en un reproductor de cartelería digital autónomo a prueba de fallos. El sistema utiliza **labwc** (el compositor Wayland por defecto en RPi OS Bookworm).
 
-## 1. Rotación y Resolución Permanente de Pantalla (Hotplug-safe)
-Para que la pantalla se mantenga en orientación vertical (90 grados) y a una resolución fija predecible, usamos el demonio `kanshi`.
-Este archivo de configuración **se genera dinámicamente** en cada arranque basado en los valores de la memoria MicroSD.
+## 1. Rotación Vertical Permanente e Indestructible (Kernel KMS / Hotplug-safe)
+En la Raspberry Pi 5 (Wayland/labwc), para que la pantalla **arranque vertical y nunca regrese a horizontal** al desconectar el cable HDMI o cambiar de TV:
 
-## 2. Lectura Automática del SCREEN_ID y SCREEN_RESOLUTION
+1. **A nivel de Kernel Linux (`/boot/firmware/cmdline.txt`):**
+   Se agrega al final de la línea:
+   ```text
+   video=HDMI-A-1:1920x1080@60,rotate=90
+   ```
+   *(O `rotate=270` según la orientación física del televisor).*
+
+2. **A nivel de Entorno Gráfico (`kanshi` + `wlr-randr`):**
+   El demonio `kanshi` y la utilidad `wlr-randr` mantienen la rotación vertical dinámica en Wayland sin forzar resoluciones fijas que puedan fallar con televisores 4K o 1080p.
+
+## 2. Lectura Automática de Variables desde la MicroSD
 Para permitir la configuración en masa cambiando la memoria MicroSD, añadimos identificadores al final del archivo de hardware base de la Raspberry Pi.
 
 **Archivo:** `/boot/firmware/config.txt`
@@ -15,13 +24,17 @@ Se añade al final:
 # MyPlayAd Config
 SCREEN_ID=bc502bba-859c-461c-a795-f6e4bf2d4931
 
-# Opciones de Resolucion de Pantalla:
+# Orientación de la Pantalla:
+# SCREEN_ROTATE=90   (Vertical estándar)
+# SCREEN_ROTATE=270  (Vertical invertido)
+# SCREEN_ROTATE=0    (Horizontal estándar)
+SCREEN_ROTATE=90
+
+# Opciones de Resolución de Pantalla (opcional, por defecto toma la nativa de la TV):
 # SCREEN_RESOLUTION=1920x1080 (1080p Full HD)
+# SCREEN_RESOLUTION=3840x2160 (4K UHD)
 # SCREEN_RESOLUTION=1280x720  (720p HD)
-# SCREEN_RESOLUTION=1024x576  (16:9 Panoramico)
-# SCREEN_RESOLUTION=1024x768  (4:3 XGA)
-# SCREEN_RESOLUTION=800x600   (4:3 SVGA)
-SCREEN_RESOLUTION=854x480
+SCREEN_RESOLUTION=1920x1080
 ```
 *El script de arranque de Wayland lee este archivo para obtener las variables sin ejecutarlo.*
 

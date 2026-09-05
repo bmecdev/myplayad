@@ -169,6 +169,15 @@ function setActiveLayer(type) {
         }
     }
     
+    // Send rescale trigger to game frame when switching to game layer
+    if (type === 'game' && layers.game && layers.game.contentWindow) {
+        try {
+            layers.game.contentWindow.postMessage({ type: 'RESCALE' }, '*');
+        } catch (e) {
+            console.warn('Could not post RESCALE message:', e);
+        }
+    }
+
     currentType = type;
 }
 

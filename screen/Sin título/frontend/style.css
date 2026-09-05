@@ -54,9 +54,9 @@ body, html {
 }
 
 .logo {
-    font-size: 3rem;
+    font-size: clamp(2.5rem, 5vw, 6rem);
     font-weight: bold;
-    margin-bottom: 2rem;
+    margin-bottom: clamp(1.5rem, 3vh, 3rem);
     background: linear-gradient(to right, #3b82f6, #8b5cf6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -64,9 +64,9 @@ body, html {
 }
 
 .spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid rgba(255,255,255,0.1);
+    width: clamp(40px, 6vw, 90px);
+    height: clamp(40px, 6vw, 90px);
+    border: clamp(3px, 0.4vw, 6px) solid rgba(255,255,255,0.1);
     border-radius: 50%;
     border-top-color: #3b82f6;
     animation: spin 1s ease-in-out infinite;
@@ -88,21 +88,21 @@ body, html {
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 24px;
-    padding: 3rem;
-    width: 80%;
-    max-width: 800px;
+    border-radius: clamp(16px, 2.5vw, 32px);
+    padding: clamp(1.5rem, 4vw, 4rem);
+    width: 90%;
+    max-width: min(92vw, 1400px);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     text-align: center;
 }
 
 .interstitial-title {
-    font-size: 3rem;
+    font-size: clamp(2rem, 4.5vw, 4.5rem);
     font-weight: 800;
-    margin-bottom: 2rem;
+    margin-bottom: clamp(1.5rem, 3vh, 3rem);
     margin-top: 0;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     background: linear-gradient(to right, #60a5fa, #c084fc);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -115,7 +115,7 @@ body, html {
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: clamp(1rem, 2vh, 2rem);
 }
 
 .upcoming-item {
@@ -123,8 +123,8 @@ body, html {
     justify-content: space-between;
     align-items: center;
     background: rgba(255, 255, 255, 0.05);
-    padding: 1.5rem 2rem;
-    border-radius: 16px;
+    padding: clamp(1rem, 2vw, 2.5rem) clamp(1.2rem, 2.5vw, 3rem);
+    border-radius: clamp(12px, 1.8vw, 24px);
     border: 1px solid rgba(255,255,255,0.05);
     transition: transform 0.2s ease;
 }
@@ -138,23 +138,23 @@ body, html {
     font-weight: 700;
     color: #fff;
     background: #3b82f6;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-size: 1.25rem;
+    padding: clamp(0.4rem, 1vw, 1rem) clamp(0.8rem, 1.5vw, 1.8rem);
+    border-radius: clamp(6px, 1vw, 12px);
+    font-size: clamp(1.1rem, 2.2vw, 2.2rem);
     box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);
 }
 
 .upcoming-item .item-name {
-    font-size: 1.5rem;
+    font-size: clamp(1.3rem, 2.6vw, 2.8rem);
     font-weight: 600;
 }
 
 .identify-indicator {
     position: absolute;
-    top: 2rem;
-    right: 2rem;
-    width: 60px;
-    height: 60px;
+    top: clamp(1.5rem, 3vw, 3rem);
+    right: clamp(1.5rem, 3vw, 3rem);
+    width: clamp(40px, 5vw, 80px);
+    height: clamp(40px, 5vw, 80px);
     background-color: #22c55e;
     border-radius: 50%;
     z-index: 9999;
