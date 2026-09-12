@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OutRun Controller</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div id="status">Conectando...</div>
+    
+    <!-- Pantalla de Bienvenida y Nickname -->
+    <div id="room-selection" class="welcome-container">
+        <div class="header-logo">
+            <div class="car-icon">🏎️</div>
+            <h1>OUTRUN<span>RETRO</span></h1>
+        </div>
+        
+        <div class="input-group">
+            <p class="welcome-text">¡Bienvenido Piloto! Ingresa tu Nickname para acelerar en la autopista.</p>
+            <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters">
+            <input type="text" id="room-input" style="display: none;">
+            <button id="connect-btn">ARRANCAR MOTOR</button>
+        </div>
+        
+        <p class="footer-hint">Gira con el volante o botones y acelera con el pedal de GAS.</p>
+    </div>
+
+    <!-- Pantalla de Fin de Partida / Agradecimiento -->
+    <div id="thanks-screen" class="thanks-container" style="display: none;">
+        <div class="header-logo">
+            <h1>¡FIN DE LA CARRERA!</h1>
+        </div>
+        <p id="thanks-result-text">Tu tiempo se ha agotado.</p>
+        <p class="small">Vuelve a escanear el código QR en pantalla para correr de nuevo.</p>
+    </div>
+
+    <!-- Interfaz de Cabina / Mando Móvil de Conducción -->
+    <div class="controller-container" id="controller-container" style="display: none;">
+        <div class="dashboard-header">
+            <div class="driver-info">
+                <span id="display-driver">PILOTO: ----</span>
+            </div>
+            <div class="hud-status">
+                <span id="connection-badge">CONECTADO</span>
+            </div>
+        </div>
+
+        <!-- Zona de Dirección (Volante y Flechas Táctiles) -->
+        <div class="steering-section">
+            <div class="trackpad-container" id="steer-trackpad">
+                <div class="trackpad-track">
+                    <span class="steer-label-left">◄ IZQ</span>
+                    <div class="trackpad-indicator" id="steer-indicator"></div>
+                    <span class="steer-label-right">DER ►</span>
+                </div>
+            </div>
+
+            <div class="digital-arrows">
+                <button id="btn-left" class="arrow-btn">◄</button>
+                <button id="btn-turbo" class="turbo-btn">TURBO</button>
+                <button id="btn-right" class="arrow-btn">►</button>
+            </div>
+        </div>
+
+        <!-- Zona de Pedales de Conducción -->
+        <div class="pedals-section">
+            <button id="btn-brake" class="pedal-btn pedal-brake">
+                <span class="pedal-ribs"></span>
+                <span class="pedal-label">FRENO</span>
+            </button>
+            <button id="btn-gas" class="pedal-btn pedal-gas">
+                <span class="pedal-ribs"></span>
+                <span class="pedal-label">GAS</span>
+            </button>
+        </div>
+    </div>
+
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+</body>
+</html>
+

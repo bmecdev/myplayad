@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OutRun Retro Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div class="container">
+        <!-- Consola Retro Arcade Superior -->
+        <div class="console-bezel">
+            <div class="lcd-screen" id="main-screen">
+                <div class="scanlines"></div>
+                
+                <div class="game-header">
+                    <div class="header-left">
+                        <span id="player-nick">DRIVER: ----</span>
+                        <span id="score">SCORE: 00000</span>
+                    </div>
+                    <div class="header-center">
+                        <div id="time-container"><span id="time-label">TIME</span> <span id="time-count">60</span></div>
+                        <div id="speed-container"><span id="speed-count">0</span> <span id="speed-unit">KM/H</span></div>
+                    </div>
+                    <div class="header-right">
+                        <span id="high-score">HI: 00000</span>
+                        <div class="room-ice-row">
+                            <span id="room-id">ID: ----</span>
+                            <span id="ice-route">ICE: --</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="gameCanvas" width="200" height="160"></canvas>
+                </div>
+                
+                <!-- Mensaje de Fin de Juego -->
+                <div id="game-over-overlay" class="hidden">
+                    <div class="overlay-content">
+                        <h2 class="blink" id="game-over-title">TIME OUT</h2>
+                        <div id="final-stats-container">
+                            <p id="final-score-text">FINAL SCORE: 00000</p>
+                            <p id="checkpoints-cleared-text">CHECKPOINTS: 0</p>
+                        </div>
+                        <div id="ranking-container">
+                            <h3>HALL OF FAME</h3>
+                            <ul id="ranking-list"></ul>
+                        </div>
+                        <div id="game-over-upcoming-container" style="display: none; width: 100%; margin-top: 15px;">
+                            <h3 style="font-size: 14px; margin-bottom: 8px; color: var(--amber);">PRÓXIMOS JUEGOS</h3>
+                            <ul id="game-over-upcoming-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; margin-left: auto; margin-right: auto;"></ul>
+                        </div>
+                        <p class="instruction">ESCANEA EL QR PARA CORRER DE NUEVO</p>
+                    </div>
+                </div>
+
+                <!-- Overlay de Conexión / Espera -->
+                <div id="waiting-overlay">
+                    <div class="overlay-content">
+                        <h2 class="arcade-title">OUTRUN<span>RETRO</span></h2>
+                        <p class="pulse-text">¡ESCANEA PARA CONDUCIR!</p>
+                        <div class="qr-wrapper">
+                            <img id="qr-code-img" src="" alt="QR">
+                        </div>
+                        <p class="status-text">ESPERANDO PILOTO...</p>
+                        <div class="arcade-features">
+                            <span>TURBO SPEED</span> • <span>TIME ATTACK</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="console-footer">
+                <div class="speaker-grille"></div>
+                <div class="model-number">TURBO-OUTRUN-86</div>
+                <div class="speaker-grille"></div>
+            </div>
+        </div>
+
+        <!-- Reproductor de Video Publicitario -->
+        <div class="video-container">
+            <div class="video-bezel">
+                <video id="bgVideo" muted autoplay playsinline></video>
+                <div id="video-ranking-overlay" class="hidden">
+                    <div class="ranking-header">HALL OF FAME</div>
+                    <ul id="video-ranking-list"></ul>
+                    <div id="upcoming-games-container" style="display: none; width: 100%; margin-top: 20px;">
+                        <div class="ranking-header" style="font-size: 18px; margin-bottom: 15px;">PRÓXIMOS JUEGOS</div>
+                        <ul id="upcoming-games-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; font-family: 'Courier New', Courier, monospace; margin-left: auto; margin-right: auto;"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+    <script src="video_loop.js?v=1"></script>
+</body>
+</html>
+
