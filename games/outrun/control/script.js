@@ -263,6 +263,7 @@ if (steerTrackpad) {
     steerTrackpad.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         activeTrackpadPointer = e.pointerId;
+        try { steerTrackpad.setPointerCapture(e.pointerId); } catch (err) {}
         updateTrackpadRect();
         handleTrackpadMove(e.clientX);
     });
@@ -302,28 +303,34 @@ function handleTrackpadMove(clientX) {
     sendInputData();
 }
 
-// Botones Digitales de Flechas (◄ y ►)
+// Botones Digitales con Captura de Puntero (evita soltado accidental)
 function bindButton(element, onDown, onUp, vibrateMs = 15) {
     if (!element) return;
-    element.addEventListener('pointerdown', (e) => {
+    let isDown = false;
+
+    const start = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (isDown) return;
+        isDown = true;
+        try { element.setPointerCapture(e.pointerId); } catch (err) {}
         element.classList.add('active');
         vibrate(vibrateMs);
         onDown();
         sendInputData(true);
-    });
+    };
 
-    const release = (e) => {
-        e.preventDefault();
+    const stop = (e) => {
+        if (!isDown) return;
+        isDown = false;
         element.classList.remove('active');
         onUp();
         sendInputData(true);
     };
 
-    element.addEventListener('pointerup', release);
-    element.addEventListener('pointercancel', release);
-    element.addEventListener('pointerleave', release);
+    element.addEventListener('pointerdown', start);
+    element.addEventListener('pointerup', stop);
+    element.addEventListener('pointercancel', stop);
 }
 
 // Flecha Izquierda
@@ -355,7 +362,7 @@ bindButton(btnTurbo, () => {
     currentInput.turbo = false;
 }, 30);
 
-// Pedal de Gas (Acelerador)
+// Pedal de Gas (Acelerador) - Con captura permanente mientras se presiona
 bindButton(btnGas, () => {
     currentInput.gas = true;
 }, () => {
@@ -369,10 +376,9 @@ bindButton(btnBrake, () => {
     currentInput.brake = false;
 }, 25);
 
-// Bucle de Envío Continuo (~60fps) para fluidéz analógica
+// Bucle de Envío Continuo (~60fps)
 setInterval(() => {
     if (dataChannel && dataChannel.readyState === 'open') {
         sendInputData();
     }
 }, SEND_INTERVAL);
-

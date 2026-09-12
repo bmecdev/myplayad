@@ -25,9 +25,9 @@ const CANVAS_HEIGHT = 160;
 // Constantes de carretera y perspectiva pseudo-3D
 const ROAD_WIDTH = 1800;
 const SEGMENT_LENGTH = 200;
-const CAMERA_HEIGHT = 900;
+const CAMERA_HEIGHT = 850;
 const CAMERA_DEPTH = 0.84;
-const DRAW_DISTANCE = 75;
+const DRAW_DISTANCE = 80;
 const LANES = 3;
 
 // Audio Arcade Sintetizado (Web Audio API)
@@ -46,7 +46,6 @@ class ArcadeAudio {
             if (!AudioContext) return;
             this.ctx = new AudioContext();
             
-            // Oscilador de motor
             this.engineOsc = this.ctx.createOscillator();
             this.engineGain = this.ctx.createGain();
             this.engineOsc.type = 'sawtooth';
@@ -55,7 +54,7 @@ class ArcadeAudio {
             
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(280, this.ctx.currentTime);
+            filter.frequency.setValueAtTime(320, this.ctx.currentTime);
 
             this.engineOsc.connect(filter);
             filter.connect(this.engineGain);
@@ -64,7 +63,7 @@ class ArcadeAudio {
             
             this.initialized = true;
         } catch (e) {
-            console.warn('Audio no soportado o bloqueado:', e);
+            console.warn('Audio no inicializado:', e);
         }
     }
 
@@ -72,8 +71,8 @@ class ArcadeAudio {
         if (!this.initialized || !this.ctx) return;
         if (this.ctx.state === 'suspended') this.ctx.resume();
         const ratio = Math.max(0, Math.min(1, speed / maxSpeed));
-        const freq = 45 + (ratio * 200);
-        const gain = 0.015 + (ratio * 0.045);
+        const freq = 48 + (ratio * 220);
+        const gain = 0.02 + (ratio * 0.05);
         this.engineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
         this.engineGain.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.05);
     }
@@ -89,13 +88,13 @@ class ArcadeAudio {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(700 + Math.random() * 200, this.ctx.currentTime);
+            osc.frequency.setValueAtTime(650 + Math.random() * 200, this.ctx.currentTime);
             gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
             osc.start();
-            osc.stop(this.ctx.currentTime + 0.12);
+            osc.stop(this.ctx.currentTime + 0.15);
         } catch (e) {}
     }
 
@@ -105,9 +104,9 @@ class ArcadeAudio {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'square';
-            osc.frequency.setValueAtTime(120, this.ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.35);
-            gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+            osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(35, this.ctx.currentTime + 0.35);
+            gain.gain.setValueAtTime(0.14, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -124,7 +123,7 @@ class ArcadeAudio {
             const gain = this.ctx.createGain();
             osc.type = 'square';
             osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.09);
-            gain.gain.setValueAtTime(0.06, this.ctx.currentTime + idx * 0.09);
+            gain.gain.setValueAtTime(0.07, this.ctx.currentTime + idx * 0.09);
             gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.09 + 0.14);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -139,13 +138,13 @@ class ArcadeAudio {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(987.77, this.ctx.currentTime);
-            gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+            osc.frequency.setValueAtTime(1100, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
             osc.start();
-            osc.stop(this.ctx.currentTime + 0.1);
+            osc.stop(this.ctx.currentTime + 0.12);
         } catch (e) {}
     }
 
@@ -156,7 +155,7 @@ class ArcadeAudio {
             const gain = this.ctx.createGain();
             osc.type = 'square';
             osc.frequency.setValueAtTime(880, this.ctx.currentTime);
-            gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -238,15 +237,15 @@ const GameState = {
     speed: 0,             // Velocidad actual en px/segundo
     maxSpeed: 12000,      // Velocidad máxima estándar (~240 KM/H)
     turboSpeed: 14500,    // Velocidad con Turbo activado (~290 KM/H)
-    accel: 5200,          // Aceleración
-    braking: 9000,        // Fuerza de frenado
-    decel: 2500,          // Desaceleración por inercia
-    offRoadDecel: 7500,   // Desaceleración fuera de pista (pasto)
-    centrifugal: 0.28,    // Fuerza centrífuga en curvas
+    accel: 6800,          // Aceleración rápida y reactiva
+    braking: 10500,       // Frenado con pedal
+    decel: 800,           // Desaceleración suave al soltar gas (no frena de golpe)
+    offRoadDecel: 4200,   // Resistencia en pasto/arena (no frena a 0)
+    centrifugal: 0.22,    // Fuerza centrífuga en curvas
     skyOffset: 0,         // Parallax del cielo
     shakeAmount: 0,       // Efecto temblor por choque o offroad
 
-    // Controles recibidos del teléfono
+    // Controles (soporta móvil WebRTC y teclado de escritorio)
     input: {
         steer: 0,         // -1 a +1
         gas: false,
@@ -254,7 +253,7 @@ const GameState = {
         turbo: false
     },
 
-    // Notificaciones en pantalla (Checkpoint, Turbo, etc.)
+    // Notificaciones en pantalla
     banner: {
         text: '',
         subtext: '',
@@ -279,15 +278,15 @@ function buildTrack() {
         const stage = STAGES[stageIndex];
         const isCheckpoint = (i > 0 && i % GameState.stageLengthSegments === 0);
 
-        // Curvas procedurales
+        // Curvas progresivas y divertidas
         let curve = 0;
         const segInStage = i % GameState.stageLengthSegments;
-        if (segInStage > 50 && segInStage < 160) curve = 2.2;
-        else if (segInStage > 200 && segInStage < 310) curve = -2.4;
-        else if (segInStage > 360 && segInStage < 440) curve = 1.8;
+        if (segInStage > 60 && segInStage < 160) curve = 1.8;
+        else if (segInStage > 220 && segInStage < 320) curve = -2.0;
+        else if (segInStage > 380 && segInStage < 460) curve = 1.6;
 
         // Desniveles / Colinas suaves
-        const hill = Math.sin(i / 30) * 800;
+        const hill = Math.sin(i / 28) * 750;
 
         // Color alternado
         const alt = Math.floor(i / 3) % 2 === 0;
@@ -296,12 +295,11 @@ function buildTrack() {
         let sprite = null;
         if (isCheckpoint) {
             sprite = { type: 'checkpoint_arch', offset: 0 };
-        } else if (i % 8 === 0) {
-            const side = (Math.floor(i / 8) % 2 === 0) ? -1.6 : 1.6;
+        } else if (i % 6 === 0) {
+            const side = (Math.floor(i / 6) % 2 === 0) ? -1.7 : 1.7;
             sprite = {
                 type: stage.spriteTheme,
-                offset: side + (Math.random() * 0.4 - 0.2),
-                variant: Math.floor(Math.random() * 3)
+                offset: side + (Math.random() * 0.3 - 0.15)
             };
         }
 
@@ -309,6 +307,7 @@ function buildTrack() {
             index: i,
             stageIndex: stageIndex,
             isCheckpoint: isCheckpoint,
+            cleared: false,
             p1: { world: { x: 0, y: hill, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
             p2: { world: { x: 0, y: hill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
             curve: curve,
@@ -326,24 +325,32 @@ function buildTrack() {
     spawnTraffic();
 }
 
-// Generación de Tráfico Rival
+// Generación de Tráfico Rival (50 coches competidores activos)
 function spawnTraffic() {
     GameState.cars = [];
-    const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck'];
-    const count = 36;
+    const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
+    const count = 50;
 
     for (let i = 0; i < count; i++) {
-        const segIndex = 40 + Math.floor(Math.random() * (GameState.segments.length - 80));
-        const laneOffset = [-0.6, 0, 0.6][Math.floor(Math.random() * 3)];
-        const type = carTypes[Math.floor(Math.random() * carTypes.length)];
-        const baseSpeed = type === 'white_truck' ? 4500 : (type === 'yellow_cab' ? 6200 : 7500);
+        // Distribuir a lo largo de toda la pista
+        const zPos = 1500 + (i * (GameState.trackLength / count)) + (Math.random() * 800);
+        const laneOffset = [-0.6, 0, 0.6][i % 3];
+        const type = carTypes[i % carTypes.length];
+        
+        let baseSpeed = 6500;
+        if (type === 'white_truck') baseSpeed = 4800;
+        else if (type === 'yellow_cab') baseSpeed = 6200;
+        else if (type === 'blue_coupe') baseSpeed = 7400;
+        else if (type === 'green_gt') baseSpeed = 8500;
+        else if (type === 'purple_muscle') baseSpeed = 8000;
 
         GameState.cars.push({
             type: type,
-            segmentIndex: segIndex,
-            z: segIndex * SEGMENT_LENGTH,
+            z: zPos % GameState.trackLength,
             offset: laneOffset,
-            speed: baseSpeed + (Math.random() * 800),
+            targetOffset: laneOffset,
+            laneChangeTimer: 2 + Math.random() * 4,
+            speed: baseSpeed + (Math.random() * 600 - 300),
             passed: false
         });
     }
@@ -360,6 +367,29 @@ function project3D(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roa
     p.screen.y = Math.round((height / 2) - (p.screen.scale * p.camera.y * height / 2));
     p.screen.w = Math.round(p.screen.scale * roadWidth * width / 2);
 }
+
+// Soporte para Controles de Teclado (Pruebas directas en navegador)
+window.addEventListener('keydown', (e) => {
+    audio.init();
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') GameState.input.gas = true;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') GameState.input.brake = true;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') GameState.input.steer = -1.0;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') GameState.input.steer = 1.0;
+    if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') GameState.input.turbo = true;
+    
+    // Auto-iniciar juego al presionar tecla si está esperando
+    if (!GameState.running && !GameState.gameOver) {
+        startGame();
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') GameState.input.gas = false;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') GameState.input.brake = false;
+    if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && GameState.input.steer < 0) GameState.input.steer = 0;
+    if ((e.code === 'ArrowRight' || e.code === 'KeyD') && GameState.input.steer > 0) GameState.input.steer = 0;
+    if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') GameState.input.turbo = false;
+});
 
 // WebRTC Host & Señalización
 const peerConnections = new Map();
@@ -464,7 +494,7 @@ function connectSignalingServer() {
         }));
     };
 
-    currentSocket.onerror = (e) => console.error('WebSocket signaling error:', e);
+    currentSocket.onerror = (e) => console.error('Signaling error:', e);
 
     currentSocket.onclose = () => {
         if (socket !== currentSocket) return;
@@ -487,7 +517,7 @@ function connectSignalingServer() {
                 handleControllerDisconnect(data.playerId);
             }
         } catch (e) {
-            console.error('Signaling msg error:', e);
+            console.error('Signaling parse error:', e);
         }
     };
 }
@@ -566,14 +596,6 @@ function handleMobileInput(input) {
     if (input.gas !== undefined) GameState.input.gas = !!input.gas;
     if (input.brake !== undefined) GameState.input.brake = !!input.brake;
     if (input.turbo !== undefined) GameState.input.turbo = !!input.turbo;
-
-    // Soporte para formato de un solo objeto de eventos
-    if (input.action === 'GAS_ON') GameState.input.gas = true;
-    if (input.action === 'GAS_OFF') GameState.input.gas = false;
-    if (input.action === 'BRAKE_ON') GameState.input.brake = true;
-    if (input.action === 'BRAKE_OFF') GameState.input.brake = false;
-    if (input.action === 'TURBO_ON') GameState.input.turbo = true;
-    if (input.action === 'TURBO_OFF') GameState.input.turbo = false;
 }
 
 function notifyGameOver() {
@@ -588,7 +610,7 @@ function notifyGameOver() {
     });
 }
 
-function showBanner(text, subtext = '', color = '#ffb703', duration = 2.4) {
+function showBanner(text, subtext = '', color = '#ffb703', duration = 2.0) {
     GameState.banner.text = text;
     GameState.banner.subtext = subtext;
     GameState.banner.color = color;
@@ -610,7 +632,7 @@ function startGame() {
 
     buildTrack();
     updateHUD();
-    showBanner('STAGE 1', STAGES[0].name, '#3dff8a', 2.0);
+    showBanner('STAGE 1', STAGES[0].name, '#3dff8a', 2.2);
 
     gameOverOverlay.classList.add('hidden');
     waitingOverlay.classList.add('hidden');
@@ -679,7 +701,7 @@ function update(dt) {
 
     // Aceleración y Frenado
     const topSpeed = GameState.input.turbo ? GameState.turboSpeed : GameState.maxSpeed;
-    const isOffRoad = Math.abs(GameState.playerX) > 1.0;
+    const isOffRoad = Math.abs(GameState.playerX) > 1.05;
 
     if (GameState.input.gas) {
         GameState.speed += GameState.accel * dt;
@@ -687,16 +709,19 @@ function update(dt) {
         GameState.speed -= GameState.braking * dt;
         if (GameState.speed > 3000) audio.playTireScreech();
     } else {
+        // Desaceleración suave por inercia
         GameState.speed -= GameState.decel * dt;
     }
 
-    // Penalización por salir de la pista (pasto/arena)
+    // En pasto/arena desacelera pero NO frena a 0, permite conducir a ~90 KM/H
     if (isOffRoad) {
-        GameState.speed -= GameState.offRoadDecel * dt;
-        GameState.shakeAmount = 2.5;
-        if (GameState.speed > 2000 && Math.random() < 0.2) audio.playTireScreech();
+        if (GameState.speed > 4500) {
+            GameState.speed -= GameState.offRoadDecel * dt;
+        }
+        GameState.shakeAmount = 2.2;
+        if (GameState.speed > 2500 && Math.random() < 0.15) audio.playTireScreech();
     } else {
-        GameState.shakeAmount = Math.max(0, GameState.shakeAmount - dt * 5);
+        GameState.shakeAmount = Math.max(0, GameState.shakeAmount - dt * 6);
     }
 
     // Límites de velocidad
@@ -720,7 +745,7 @@ function update(dt) {
     if (currentSegment.isCheckpoint && !currentSegment.cleared) {
         currentSegment.cleared = true;
         GameState.checkpointsCleared++;
-        GameState.timeLeft += 30; // +30s de bono!
+        GameState.timeLeft += 30; // +30 segundos de tiempo extendido
         GameState.score += 5000;
         audio.playCheckpoint();
         showBanner('EXTENDED TIME!', '+30 SECONDS!', '#3dff8a', 2.8);
@@ -728,7 +753,7 @@ function update(dt) {
 
     // Dirección (volante) y Fuerza centrífuga en curvas
     const speedRatio = GameState.speed / GameState.maxSpeed;
-    GameState.playerX += GameState.input.steer * 2.2 * speedRatio * dt;
+    GameState.playerX += GameState.input.steer * 2.4 * speedRatio * dt;
     GameState.playerX -= currentSegment.curve * speedRatio * GameState.centrifugal * dt;
     GameState.playerX = Math.max(-2.2, Math.min(2.2, GameState.playerX));
 
@@ -741,33 +766,58 @@ function update(dt) {
         GameState.highScore = GameState.score;
     }
 
-    // Actualización del Tráfico Rival
+    // Actualización de Tráfico Rival y Competidores
     GameState.cars.forEach(car => {
         car.z += car.speed * dt;
         if (car.z >= GameState.trackLength) car.z -= GameState.trackLength;
 
-        // Detección de rebase (Pass bonus)
-        const relZ = car.z - GameState.playerZ;
-        if (relZ < -50 && !car.passed) {
+        // IA: cambio de carril ocasional
+        car.laneChangeTimer -= dt;
+        if (car.laneChangeTimer <= 0) {
+            car.laneChangeTimer = 3 + Math.random() * 5;
+            if (Math.random() < 0.35) {
+                const lanes = [-0.6, 0, 0.6];
+                car.targetOffset = lanes[Math.floor(Math.random() * lanes.length)];
+            }
+        }
+        if (car.targetOffset !== undefined) {
+            car.offset += (car.targetOffset - car.offset) * 1.6 * dt;
+        }
+
+        // Distancia relativa con respecto al jugador
+        let relZ = car.z - GameState.playerZ;
+        if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
+        if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
+
+        // Detección de rebase (Pass bonus de +500 PTS)
+        if (relZ < -30 && relZ > -300 && !car.passed) {
             car.passed = true;
             GameState.score += 500;
             audio.playPassBonus();
-            showBanner('PASS BONUS!', '+500 PTS', '#ffb703', 1.0);
-        } else if (relZ > 200) {
+            showBanner('OVERTAKE!', '+500 PTS', '#ffb703', 1.0);
+        } else if (relZ > 200 || relZ < -450) {
             car.passed = false;
         }
 
-        // Detección de colisión frontal o lateral
-        const distZ = Math.abs(car.z - GameState.playerZ);
-        if (distZ < 120) {
+        // Colisión frontal/lateral: SOLO si está en el MISMO carril (distX < 0.32)
+        if (Math.abs(relZ) < 65) {
             const distX = Math.abs(car.offset - GameState.playerX);
-            if (distX < 0.65) {
-                // Choque!
-                GameState.speed = Math.min(GameState.speed, 1200);
+            if (distX < 0.32) {
+                // Choque real
+                GameState.speed = Math.min(GameState.speed, 2500); // 50 KM/H
                 GameState.shakeAmount = 6;
                 audio.playCrash();
-                showBanner('CRASH!', '-SPEED', '#ff4d6d', 1.2);
-                car.speed = Math.max(1000, car.speed - 2000);
+                showBanner('CRASH!', 'WATCH OUT!', '#ff4d6d', 1.4);
+                
+                // Efecto de empuje mutuo
+                car.speed = Math.max(2000, car.speed - 1500);
+                if (GameState.playerX > car.offset) {
+                    GameState.playerX += 0.15;
+                    car.offset -= 0.15;
+                } else {
+                    GameState.playerX -= 0.15;
+                    car.offset += 0.15;
+                }
             }
         }
     });
@@ -791,7 +841,7 @@ function draw() {
     // Sol / Luna retro
     ctx.fillStyle = stage.sunColor;
     ctx.beginPath();
-    ctx.arc(CANVAS_WIDTH * 0.7, 30, 16, 0, Math.PI * 2);
+    ctx.arc(CANVAS_WIDTH * 0.72, 28, 16, 0, Math.PI * 2);
     ctx.fill();
 
     // Montañas lejanas en silueta
@@ -818,13 +868,12 @@ function draw() {
         ctx.translate(shakeX, shakeY);
     }
 
-    // 2. Renderizado de Segmentos de Carretera (Pseudo-3D de fondo hacia el frente)
+    // 2. Renderizado de Carretera Pseudo-3D
     const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
     const cameraX = GameState.playerX * ROAD_WIDTH;
     const cameraZ = GameState.playerZ;
     let cameraY = CAMERA_HEIGHT;
 
-    // Suavizado vertical con la pendiente actual
     const currentSeg = GameState.segments[baseSegmentIndex % GameState.segments.length];
     if (currentSeg) cameraY += currentSeg.p1.world.y;
 
@@ -861,7 +910,7 @@ function draw() {
             seg.color.curb
         );
 
-        // Pista / Asfalto
+        // Asfalto
         drawTrapezoid(
             seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.y,
             seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
@@ -870,7 +919,7 @@ function draw() {
             seg.color.road
         );
 
-        // Líneas divisoras de carril
+        // Líneas divisoras
         if (seg.color.lane !== 'transparent') {
             const laneW1 = seg.p1.screen.w * 0.03;
             const laneW2 = seg.p2.screen.w * 0.03;
@@ -890,28 +939,63 @@ function draw() {
         maxY = seg.p2.screen.y;
     }
 
-    // 3. Renderizado de Sprites (Árboles, Tráfico) de atrás hacia adelante
-    for (let n = DRAW_DISTANCE - 1; n >= 0; n--) {
+    // 3. Renderizado de Objetos (Árboles y Tráfico Rival) ordenados por profundidad Z
+    const drawables = [];
+
+    // Agregar sprites de carretera
+    for (let n = 0; n < DRAW_DISTANCE; n++) {
         const seg = GameState.segments[(baseSegmentIndex + n) % GameState.segments.length];
-        const loopWrap = ((baseSegmentIndex + n) >= GameState.segments.length) ? GameState.trackLength : 0;
-
-        // Sprites de Escenario
-        if (seg.sprite) {
-            const spriteX = seg.p1.screen.x + (seg.p1.screen.scale * seg.sprite.offset * ROAD_WIDTH * CANVAS_WIDTH / 2);
-            const spriteY = seg.p1.screen.y;
-            drawWorldSprite(seg.sprite.type, spriteX, spriteY, seg.p1.screen.scale);
+        if (seg.sprite && seg.p1.screen.scale > 0) {
+            drawables.push({
+                kind: 'sprite',
+                relZ: (n + 1) * SEGMENT_LENGTH,
+                sprite: seg.sprite,
+                screenX: seg.p1.screen.x + (seg.p1.screen.scale * seg.sprite.offset * ROAD_WIDTH * CANVAS_WIDTH / 2),
+                screenY: seg.p1.screen.y,
+                scale: seg.p1.screen.scale
+            });
         }
-
-        // Tráfico rival en este tramo
-        GameState.cars.forEach(car => {
-            const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH);
-            if (carSegIndex % GameState.segments.length === seg.index) {
-                const carScreenX = seg.p1.screen.x + (seg.p1.screen.scale * car.offset * ROAD_WIDTH * CANVAS_WIDTH / 2);
-                const carScreenY = seg.p1.screen.y;
-                drawRivalCar(car.type, carScreenX, carScreenY, seg.p1.screen.scale);
-            }
-        });
     }
+
+    // Agregar coches competidores en el rango visible delante del jugador
+    GameState.cars.forEach(car => {
+        let relZ = car.z - GameState.playerZ;
+        if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
+        if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
+
+        if (relZ > 25 && relZ < DRAW_DISTANCE * SEGMENT_LENGTH) {
+            const carScale = CAMERA_DEPTH / relZ;
+            const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH) % GameState.segments.length;
+            const carSeg = GameState.segments[carSegIndex];
+            const hillY = carSeg ? carSeg.p1.world.y : 0;
+
+            const carScreenX = Math.round((CANVAS_WIDTH / 2) + (carScale * (car.offset * ROAD_WIDTH - cameraX) * CANVAS_WIDTH / 2));
+            const carScreenY = Math.round((CANVAS_HEIGHT / 2) - (carScale * (hillY - cameraY) * CANVAS_HEIGHT / 2));
+            const carW = Math.max(4, Math.round(carScale * 75000));
+            const carH = Math.round(carW * 0.55);
+
+            drawables.push({
+                kind: 'car',
+                relZ: relZ,
+                car: car,
+                screenX: carScreenX,
+                screenY: carScreenY,
+                w: carW,
+                h: carH
+            });
+        }
+    });
+
+    // Ordenar de más lejano a más cercano (Z descendente)
+    drawables.sort((a, b) => b.relZ - a.relZ);
+
+    drawables.forEach(item => {
+        if (item.kind === 'sprite') {
+            drawWorldSprite(item.sprite.type, item.screenX, item.screenY, item.scale);
+        } else if (item.kind === 'car') {
+            drawRivalCar(item.car.type, item.screenX, item.screenY, item.w, item.h);
+        }
+    });
 
     // 4. Coche del Jugador (Iconic Red Convertible en primer plano)
     drawPlayerCar();
@@ -945,20 +1029,24 @@ function drawTrapezoid(x1, y1, x2, y2, x3, y3, x4, y4, color) {
 
 // Sprites de Árboles, Palmeras, Cactus y Arcos
 function drawWorldSprite(type, x, y, scale) {
-    const size = Math.round(scale * 1600);
+    const size = Math.round(scale * 95000);
     if (size < 2) return;
 
     ctx.save();
     ctx.translate(x, y);
 
     if (type === 'palm') {
-        // Tronco
+        // Tronco con textura
         ctx.fillStyle = '#8e5b32';
         ctx.fillRect(-size * 0.05, -size, size * 0.1, size);
-        // Hojas
+        // Corona de palmera
         ctx.fillStyle = '#10ac84';
         ctx.beginPath();
         ctx.arc(0, -size, size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1dd1a1';
+        ctx.beginPath();
+        ctx.arc(0, -size * 1.05, size * 0.22, 0, Math.PI * 2);
         ctx.fill();
     } else if (type === 'cactus') {
         ctx.fillStyle = '#218c74';
@@ -974,14 +1062,14 @@ function drawWorldSprite(type, x, y, scale) {
         ctx.fillRect(-size * 0.15, -size * 0.9, size * 0.3, size * 0.1);
     } else if (type === 'checkpoint_arch') {
         // Gran arco de meta
-        const archW = size * 1.8;
-        const archH = size * 1.2;
+        const archW = Math.max(20, size * 1.6);
+        const archH = Math.max(16, size * 1.1);
         ctx.fillStyle = '#ffb703';
         ctx.fillRect(-archW / 2, -archH, 4, archH);
         ctx.fillRect(archW / 2 - 4, -archH, 4, archH);
         ctx.fillRect(-archW / 2, -archH, archW, 8);
         ctx.fillStyle = '#ff4d6d';
-        ctx.font = `${Math.max(4, Math.floor(size * 0.15))}px "Press Start 2P"`;
+        ctx.font = `${Math.max(4, Math.floor(size * 0.14))}px "Press Start 2P"`;
         ctx.textAlign = 'center';
         ctx.fillText('CHECKPOINT', 0, -archH + 7);
     }
@@ -989,36 +1077,48 @@ function drawWorldSprite(type, x, y, scale) {
     ctx.restore();
 }
 
-// Coche Rival Renderizado Pixel-Art
-function drawRivalCar(type, x, y, scale) {
-    const w = Math.round(scale * 1200);
-    const h = Math.round(w * 0.55);
+// Coche Rival Renderizado Pixel-Art con Sombras y Detalles Claros
+function drawRivalCar(type, x, y, w, h) {
     if (w < 3) return;
 
     ctx.save();
     ctx.translate(x - w / 2, y - h);
 
+    // Sombra del coche en el asfalto
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillRect(-w * 0.05, h * 0.85, w * 1.1, h * 0.2);
+
     let bodyColor = '#0984e3'; // blue coupe
     if (type === 'yellow_cab') bodyColor = '#f1c40f';
-    if (type === 'white_truck') bodyColor = '#ecf0f1';
+    else if (type === 'white_truck') bodyColor = '#f5f6fa';
+    else if (type === 'green_gt') bodyColor = '#2ecc71';
+    else if (type === 'purple_muscle') bodyColor = '#9b59b6';
 
-    // Ruedas
+    // Neumáticos
     ctx.fillStyle = '#111';
-    ctx.fillRect(0, h * 0.65, w * 0.18, h * 0.35);
-    ctx.fillRect(w * 0.82, h * 0.65, w * 0.18, h * 0.35);
+    ctx.fillRect(0, h * 0.6, w * 0.2, h * 0.4);
+    ctx.fillRect(w * 0.8, h * 0.6, w * 0.2, h * 0.4);
 
-    // Carrocería
+    // Carrocería principal
     ctx.fillStyle = bodyColor;
-    ctx.fillRect(w * 0.08, h * 0.25, w * 0.84, h * 0.55);
+    ctx.fillRect(w * 0.06, h * 0.24, w * 0.88, h * 0.56);
 
-    // Techo / Cabina
-    ctx.fillStyle = '#2d3436';
-    ctx.fillRect(w * 0.2, 0, w * 0.6, h * 0.35);
+    // Cabina / Ventanas
+    ctx.fillStyle = '#1e272e';
+    ctx.fillRect(w * 0.18, 0, w * 0.64, h * 0.35);
 
-    // Luces traseras
-    ctx.fillStyle = '#e74c3c';
-    ctx.fillRect(w * 0.12, h * 0.45, w * 0.15, h * 0.18);
-    ctx.fillRect(w * 0.73, h * 0.45, w * 0.15, h * 0.18);
+    // Brillo en el parabrisas
+    ctx.fillStyle = '#74b9ff';
+    ctx.fillRect(w * 0.22, h * 0.06, w * 0.56, h * 0.14);
+
+    // Luces traseras rojas
+    ctx.fillStyle = '#ff3838';
+    ctx.fillRect(w * 0.1, h * 0.44, w * 0.18, h * 0.2);
+    ctx.fillRect(w * 0.72, h * 0.44, w * 0.18, h * 0.2);
+
+    // Parachoques / Matrícula
+    ctx.fillStyle = '#2f3542';
+    ctx.fillRect(w * 0.35, h * 0.55, w * 0.3, h * 0.15);
 
     ctx.restore();
 }
@@ -1031,10 +1131,14 @@ function drawPlayerCar() {
     const carY = CANVAS_HEIGHT - carH - 6;
 
     const steer = GameState.input.steer;
-    const tilt = Math.round(steer * 3); // Inclinación en curvas
+    const tilt = Math.round(steer * 3); // Inclinación de carrocería en curvas
 
     ctx.save();
     ctx.translate(carX, carY);
+
+    // Sombra del coche del jugador
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(-2 + tilt, carH - 3, carW + 4, 5);
 
     // Neumáticos anchos
     ctx.fillStyle = '#111';
@@ -1047,31 +1151,30 @@ function drawPlayerCar() {
     ctx.roundRect(0 + tilt, 6, carW, carH - 8, 3);
     ctx.fill();
 
-    // Franja de paragolpes y alerón
+    // Alerón trasero y detalles
     ctx.fillStyle = '#b71540';
     ctx.fillRect(2 + tilt, 4, carW - 4, 3);
 
-    // Parabrisas y Cabina Descapotable
+    // Parabrisas
     ctx.fillStyle = '#74b9ff';
     ctx.fillRect(6 + tilt, 1, carW - 12, 5);
 
-    // Piloto y Copiloto (pelo ondeando)
     // Piloto (gorra azul)
     ctx.fillStyle = '#0984e3';
     ctx.fillRect(11 + tilt, 0, 5, 4);
-    // Copiloto rubia (pelo amarillo ondeando con el viento)
+    // Copiloto rubia (pelo amarillo ondeando)
     ctx.fillStyle = '#ffeaa7';
     ctx.fillRect(25 + tilt + (Math.sin(Date.now() / 60) * 1.5), -1, 7, 5);
 
-    // Luces traseras (se encienden en rojo brillante al frenar)
+    // Luces traseras (brillan intensamente al frenar)
     const isBraking = GameState.input.brake;
     ctx.fillStyle = isBraking ? '#ff3838' : '#e17055';
     ctx.fillRect(3 + tilt, 9, 7, 4);
     ctx.fillRect(carW - 10 + tilt, 9, 7, 4);
 
-    // Patente / Matrícula
+    // Matrícula
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(carW / 2 - 6 + tilt, 11, 12, 4);
+    ctx.fillRect(carW / 2 - 7 + tilt, 11, 14, 4);
     ctx.fillStyle = '#000000';
     ctx.font = '3px monospace';
     ctx.textAlign = 'center';
@@ -1140,7 +1243,7 @@ function fetchRanking() {
         renderList(rankingList);
         renderList(videoRankingList);
     } catch (e) {
-        console.warn('Error fetching ranking:', e);
+        console.warn('Error ranking:', e);
     }
 }
 
@@ -1210,4 +1313,3 @@ fetchRanking();
 setInterval(fetchRanking, 30000);
 requestAnimationFrame(gameLoop);
 connectSignalingServer();
-
