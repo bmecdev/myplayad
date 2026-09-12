@@ -46,3 +46,4 @@ Todo nuevo juego debe replicar fielmente la arquitectura, paleta de colores CRT,
 ## 🛠️ Convenciones de Desarrollo
 * Mantener la integridad de los comentarios y estándares de código existentes.
 * Probar la responsividad en orientaciones horizontal (16:9) y vertical (9:16) en resoluciones 1080p y 4K.
+

@@ -177,3 +177,4 @@ Todos los juegos deben compartir la misma estética arcade retro CRT:
 1. Verificar que no haya errores de sintaxis en `game/script.js` y `control/script.js`.
 2. Probar que los estilos sean responsivos tanto en formato horizontal (16:9) como vertical (9:16).
 3. Asegurar que las rutas de video (`video_loop.js`) funcionen sin romper si no hay conexión a internet (modo fallback offline).
+

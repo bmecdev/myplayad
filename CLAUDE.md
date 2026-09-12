@@ -20,3 +20,4 @@ Al recibir el comando `/game`:
 - `screen/`: Servidor de pantalla local y reproductor kiosco para Raspberry Pi 5.
 - `server/`: Servidor de señalización WebSockets y WebRTC TURN.
 - `referencia/`: Carpeta para referencias de nuevos juegos.
+

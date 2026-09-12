@@ -13,3 +13,4 @@ Coloca en esta carpeta cualquier archivo, imagen, documento, spritesheet, mockup
 ---
 
 El agente leerá automáticamente todo lo que agregues en esta carpeta al ejecutar el comando `/game`.
+

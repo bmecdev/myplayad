@@ -32,3 +32,4 @@ Genera todos los archivos necesarios:
 - `games/<slug>/control/style.css`
 - `games/<slug>/control/script.js`
 - `games/<slug>/control/config.js`
+
