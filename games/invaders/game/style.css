@@ -63,7 +63,8 @@ body {
     background: radial-gradient(ellipse at 50% 0%, #0e1a13 0%, #060b08 100%);
     width: 240px;
     height: 240px;
-    padding: 10px;
+    min-height: 240px;
+    padding: 6px 8px;
     border: 3px solid #060a08;
     border-radius: 8px;
     position: relative;
@@ -108,19 +109,46 @@ body {
 .game-header {
     display: flex;
     justify-content: space-between;
-    font-size: 8px;
+    align-items: center;
+    font-size: 7px;
     color: var(--phosphor);
     font-family: 'Press Start 2P', monospace;
     margin-bottom: 2px;
-    border-bottom: 1px solid var(--phosphor);
+    border-bottom: 1px solid var(--phosphor-dim, #1f7d49);
     padding-bottom: 2px;
+    gap: 4px;
 }
 
-.header-left,
-.header-right {
+.header-left {
     display: flex;
     flex-direction: column;
     gap: 1px;
+}
+
+#lives-container {
+    color: var(--phosphor);
+    font-size: 8px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.room-ice-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+#ice-route {
+    font-size: 7px;
+    color: var(--amber);
+    font-weight: bold;
 }
 
 .audio-toggle-btn {
@@ -135,7 +163,6 @@ body {
     text-transform: uppercase;
     transition: all 0.2s ease;
     outline: none;
-    margin-top: 2px;
 }
 
 .audio-toggle-btn.muted {
@@ -160,7 +187,7 @@ body {
     align-items: center;
     justify-content: center;
     border: none;
-    /* Marco eliminado del CSS */
+    padding: 0;
 }
 
 #gameCanvas {
@@ -168,6 +195,8 @@ body {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    width: 200px;
+    height: 160px;
 }
 
 /* Overlays Retro */
