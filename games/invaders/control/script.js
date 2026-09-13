@@ -42,6 +42,117 @@ function getIceConfig() {
 
 const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+// Audio Móvil Sintetizado (Web Audio API para Smartphone)
+class MobileInvadersAudio {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.enabled) return;
+        if (this.ctx) {
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+            this.masterGain.connect(this.ctx.destination);
+        } catch (e) {}
+    }
+
+    play(sound) {
+        if (!this.ctx || !this.enabled) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const t = this.ctx.currentTime;
+        try {
+            if (sound === 'laser') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(920, t);
+                osc.frequency.linearRampToValueAtTime(140, t + 0.12);
+                gain.gain.setValueAtTime(0.26, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.12);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.12);
+            } else if (sound === 'alienKilled') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, t);
+                osc.frequency.linearRampToValueAtTime(35, t + 0.2);
+                gain.gain.setValueAtTime(0.32, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.2);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.2);
+            } else if (sound === 'shieldHit') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, t);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.06);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.06);
+            } else if (sound === 'playerExplode') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(110, t);
+                osc.frequency.linearRampToValueAtTime(25, t + 0.4);
+                gain.gain.setValueAtTime(0.35, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.4);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.4);
+            } else if (sound === 'waveClear') {
+                [392, 523.25, 659.25, 783.99].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(f, t + i * 0.08);
+                    gain.gain.setValueAtTime(0.22, t + i * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.08 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.08);
+                    osc.stop(t + i * 0.08 + 0.13);
+                });
+            } else if (sound === 'gameover') {
+                [330, 293.66, 261.63, 196].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, t + i * 0.16);
+                    gain.gain.setValueAtTime(0.25, t + i * 0.16);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.16 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.16);
+                    osc.stop(t + i * 0.16 + 0.22);
+                });
+            }
+        } catch (e) {}
+    }
+}
+const mobileAudio = new MobileInvadersAudio();
+['touchstart', 'pointerdown', 'click'].forEach(evt => {
+    window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
+});
+
 let tapStartTime = 0;
 let lastSendTime = 0;
 const SEND_INTERVAL = 16;
@@ -167,6 +278,8 @@ async function startWebRTC() {
             const data = JSON.parse(event.data);
             if (data.type === 'game_over') {
                 showThanks(data.score);
+            } else if (data.type === 'sfx') {
+                mobileAudio.play(data.sound);
             }
         } catch (err) {}
     };
@@ -333,6 +446,7 @@ if (fireBtn) {
     fireBtn.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         fireActive = true;
+        mobileAudio.play('laser');
         if (dataChannel && dataChannel.readyState === 'open') {
             dataChannel.send(JSON.stringify({ fire: true }));
         }

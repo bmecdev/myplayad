@@ -165,6 +165,37 @@ body {
     color: var(--amber);
 }
 
+.audio-toggle-btn {
+    background: #0a140f;
+    border: 1px solid var(--phosphor);
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    outline: none;
+    z-index: 10;
+}
+
+.audio-toggle-btn.muted {
+    border-color: var(--amber);
+    color: var(--amber);
+    animation: audioBlinker 1.2s infinite;
+}
+
+.audio-toggle-btn:hover {
+    background: var(--phosphor);
+    color: var(--bg-deep);
+}
+
+@keyframes audioBlinker {
+    0%, 100% { opacity: 1; box-shadow: 0 0 3px var(--amber); }
+    50% { opacity: 0.5; box-shadow: none; }
+}
+
 .canvas-wrapper {
     flex-grow: 1;
     display: flex;

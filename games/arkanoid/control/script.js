@@ -42,6 +42,118 @@ function getIceConfig() {
 
 const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+// Audio Móvil Sintetizado (Web Audio API para Smartphone)
+class MobileArkanoidAudio {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.enabled) return;
+        if (this.ctx) {
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+            this.masterGain.connect(this.ctx.destination);
+        } catch (e) {}
+    }
+
+    play(sound, param) {
+        if (!this.ctx || !this.enabled) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const t = this.ctx.currentTime;
+        try {
+            if (sound === 'paddle') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, t);
+                osc.frequency.linearRampToValueAtTime(880, t + 0.08);
+                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.08);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.08);
+            } else if (sound === 'brick') {
+                const freqs = [880, 784, 659, 587, 523];
+                const freq = freqs[param] || 660;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(freq, t);
+                osc.frequency.linearRampToValueAtTime(freq * 1.5, t + 0.07);
+                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.07);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.07);
+            } else if (sound === 'launch' || sound === 'fire') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, t);
+                osc.frequency.linearRampToValueAtTime(960, t + 0.12);
+                gain.gain.setValueAtTime(0.22, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.12);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.12);
+            } else if (sound === 'wall') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(280, t);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.06);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.06);
+            } else if (sound === 'lifeLost') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(320, t);
+                osc.frequency.linearRampToValueAtTime(90, t + 0.3);
+                gain.gain.setValueAtTime(0.3, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.3);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.3);
+            } else if (sound === 'gameover') {
+                [440, 370, 311, 261].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, t + i * 0.14);
+                    gain.gain.setValueAtTime(0.22, t + i * 0.14);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.14 + 0.18);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.14);
+                    osc.stop(t + i * 0.14 + 0.2);
+                });
+            }
+        } catch (e) {}
+    }
+}
+const mobileAudio = new MobileArkanoidAudio();
+['touchstart', 'pointerdown', 'click'].forEach(evt => {
+    window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
+});
+
 let tapStartTime = 0;
 let lastSendTime = 0;
 const SEND_INTERVAL = 16;
@@ -167,6 +279,8 @@ async function startWebRTC() {
             const data = JSON.parse(event.data);
             if (data.type === 'game_over') {
                 showThanks(data.score);
+            } else if (data.type === 'sfx') {
+                mobileAudio.play(data.sound, data.param);
             }
         } catch (err) {}
     };
@@ -333,6 +447,7 @@ if (fireBtn) {
     fireBtn.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         fireActive = true;
+        mobileAudio.play('launch');
         if (dataChannel && dataChannel.readyState === 'open') {
             dataChannel.send(JSON.stringify({ fire: true }));
         }

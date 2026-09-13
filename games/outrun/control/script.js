@@ -41,6 +41,140 @@ function vibrate(ms = 20) {
     }
 }
 
+// Audio Arcade Móvil Sintetizado (Web Audio API para Smartphones)
+class MobileOutRunAudio {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.engineOsc = null;
+        this.engineGain = null;
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.enabled) return;
+        if (this.ctx) {
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+            this.masterGain.connect(this.ctx.destination);
+
+            this.engineOsc = this.ctx.createOscillator();
+            this.engineGain = this.ctx.createGain();
+            this.engineOsc.type = 'sawtooth';
+            this.engineOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
+            this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(320, this.ctx.currentTime);
+
+            this.engineOsc.connect(filter);
+            filter.connect(this.engineGain);
+            this.engineGain.connect(this.masterGain);
+            this.engineOsc.start();
+        } catch (e) {}
+    }
+
+    setGas(active, turbo = false) {
+        if (!this.ctx || !this.engineGain || !this.enabled) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const targetFreq = turbo ? 300 : (active ? 200 : 55);
+        const targetGain = active ? (turbo ? 0.22 : 0.14) : 0.03;
+        const t = this.ctx.currentTime;
+        this.engineOsc.frequency.setTargetAtTime(targetFreq, t, 0.08);
+        this.engineGain.gain.setTargetAtTime(targetGain, t, 0.08);
+    }
+
+    playScreech() {
+        if (!this.ctx || !this.enabled) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(750, t);
+            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.16);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.16);
+        } catch (e) {}
+    }
+
+    play(sound) {
+        if (!this.ctx || !this.enabled) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const t = this.ctx.currentTime;
+        try {
+            if (sound === 'pass') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1046.50, t);
+                osc.frequency.setValueAtTime(1318.51, t + 0.06);
+                gain.gain.setValueAtTime(0.22, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.16);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.16);
+            } else if (sound === 'checkpoint') {
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(f, t + i * 0.07);
+                    gain.gain.setValueAtTime(0.2, t + i * 0.07);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.07 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.07);
+                    osc.stop(t + i * 0.07 + 0.13);
+                });
+            } else if (sound === 'crash') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.linearRampToValueAtTime(35, t + 0.35);
+                gain.gain.setValueAtTime(0.35, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.35);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.35);
+            } else if (sound === 'gameover') {
+                [440, 370, 311, 246.94].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, t + i * 0.14);
+                    gain.gain.setValueAtTime(0.22, t + i * 0.14);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.14 + 0.18);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.14);
+                    osc.stop(t + i * 0.14 + 0.2);
+                });
+            }
+        } catch (e) {}
+    }
+}
+const mobileAudio = new MobileOutRunAudio();
+
+['touchstart', 'pointerdown', 'click'].forEach(evt => {
+    window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
+});
+
 // Configuración ICE con TURN
 function getIceConfig() {
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -184,6 +318,8 @@ async function startWebRTC() {
             const data = JSON.parse(event.data);
             if (data.type === 'game_over') {
                 showThanks(data.score, data.checkpoints);
+            } else if (data.type === 'sfx') {
+                mobileAudio.play(data.sound, data.param);
             }
         } catch (err) {}
     };
@@ -358,20 +494,25 @@ bindButton(btnRight, () => {
 // Turbo
 bindButton(btnTurbo, () => {
     currentInput.turbo = true;
+    if (currentInput.gas) mobileAudio.setGas(true, true);
 }, () => {
     currentInput.turbo = false;
+    if (currentInput.gas) mobileAudio.setGas(true, false);
 }, 30);
 
 // Pedal de Gas (Acelerador) - Con captura permanente mientras se presiona
 bindButton(btnGas, () => {
     currentInput.gas = true;
+    mobileAudio.setGas(true, currentInput.turbo);
 }, () => {
     currentInput.gas = false;
+    mobileAudio.setGas(false, false);
 }, 25);
 
 // Pedal de Freno
 bindButton(btnBrake, () => {
     currentInput.brake = true;
+    mobileAudio.playScreech();
 }, () => {
     currentInput.brake = false;
 }, 25);

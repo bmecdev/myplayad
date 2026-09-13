@@ -44,6 +44,105 @@ function getIceConfig() {
 
 const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+// Audio Móvil Sintetizado (Web Audio API para Smartphone)
+class MobileSnakeAudio {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.enabled) return;
+        if (this.ctx) {
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+            this.masterGain.connect(this.ctx.destination);
+        } catch (e) {}
+    }
+
+    play(sound) {
+        if (!this.ctx || !this.enabled) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const t = this.ctx.currentTime;
+        try {
+            if (sound === 'eat') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, t);
+                osc.frequency.linearRampToValueAtTime(783.99, t + 0.08);
+                gain.gain.setValueAtTime(0.28, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.08);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.08);
+            } else if (sound === 'turn') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(420, t);
+                gain.gain.setValueAtTime(0.18, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.03);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.03);
+            } else if (sound === 'die') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(260, t);
+                osc.frequency.linearRampToValueAtTime(55, t + 0.35);
+                gain.gain.setValueAtTime(0.32, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.35);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.35);
+            } else if (sound === 'start') {
+                [392, 523.25, 659.25].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(f, t + i * 0.08);
+                    gain.gain.setValueAtTime(0.22, t + i * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.08 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.08);
+                    osc.stop(t + i * 0.08 + 0.13);
+                });
+            } else if (sound === 'gameover') {
+                [392, 329.63, 261.63, 196].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, t + i * 0.14);
+                    gain.gain.setValueAtTime(0.24, t + i * 0.14);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.14 + 0.18);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.14);
+                    osc.stop(t + i * 0.14 + 0.2);
+                });
+            }
+        } catch (e) {}
+    }
+}
+const mobileAudio = new MobileSnakeAudio();
+['touchstart', 'pointerdown', 'click'].forEach(evt => {
+    window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
+});
+
 window.addEventListener('load', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
@@ -165,6 +264,8 @@ async function startWebRTC() {
             const data = JSON.parse(event.data);
             if (data.type === 'game_over') {
                 showThanks(data.score);
+            } else if (data.type === 'sfx') {
+                mobileAudio.play(data.sound);
             }
         } catch (err) {}
     };
@@ -248,6 +349,7 @@ container.addEventListener('pointerdown', (e) => {
     startX = e.clientX;
     startY = e.clientY;
     container.setPointerCapture(e.pointerId);
+    mobileAudio.play('turn');
 });
 
 window.addEventListener('pointermove', (e) => {
