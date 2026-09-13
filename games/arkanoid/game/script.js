@@ -12,6 +12,182 @@ const videoRankingList = document.getElementById('video-ranking-list');
 const qrCodeImg = document.getElementById('qr-code-img');
 const iceRouteElement = document.getElementById('ice-route');
 
+// Retro Arcade Web Audio API Synthesizer
+class ArkanoidAudio {
+    constructor() {
+        this.ctx = null;
+        this.initialized = false;
+    }
+
+    init() {
+        if (this.initialized) {
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.initialized = true;
+        } catch (e) {
+            console.warn('Audio no soportado:', e);
+        }
+    }
+
+    _ensureCtx() {
+        if (!this.initialized) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+    }
+
+    playPaddle() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.08);
+        } catch (e) {}
+    }
+
+    playWall() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(260, ctx.currentTime);
+            gain.gain.setValueAtTime(0.05, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.05);
+        } catch (e) {}
+    }
+
+    playBrick(row) {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const freqs = [880, 784, 659, 587, 523];
+            const freq = freqs[row] || 600;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(freq * 1.5, ctx.currentTime + 0.07);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.07);
+        } catch (e) {}
+    }
+
+    playLaunch() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(320, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(960, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.06, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.12);
+        } catch (e) {}
+    }
+
+    playLifeLost() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(320, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.35);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch (e) {}
+    }
+
+    playLevelClear() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [523.25, 659.25, 783.99, 987.77, 1046.50];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+            gain.gain.setValueAtTime(0.07, ctx.currentTime + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.12);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.08);
+            osc.stop(ctx.currentTime + idx * 0.08 + 0.13);
+        });
+    }
+
+    playStart() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.07);
+            gain.gain.setValueAtTime(0.06, ctx.currentTime + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.07 + 0.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.07);
+            osc.stop(ctx.currentTime + idx * 0.07 + 0.11);
+        });
+    }
+
+    playGameOver() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [440, 370, 311, 261];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.14);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime + idx * 0.14);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.14 + 0.18);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.14);
+            osc.stop(ctx.currentTime + idx * 0.14 + 0.2);
+        });
+    }
+}
+const audio = new ArkanoidAudio();
+['click', 'keydown', 'touchstart'].forEach(e => window.addEventListener(e, () => audio.init(), { once: true }));
+
 // Configuration
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 160;
@@ -358,6 +534,7 @@ function handleJoystickInput(input) {
             GameState.ball.launched = true;
             GameState.ball.dx = (Math.random() > 0.5 ? 1 : -1) * GameState.ball.speed;
             GameState.ball.dy = -GameState.ball.speed;
+            audio.playLaunch();
         } else if (GameState.gameOver) {
             // Cannot restart from fire, must re-scan
         }
@@ -389,6 +566,7 @@ function resetBall() {
 }
 
 function resetGame() {
+    audio.playStart();
     GameState.score = 0;
     GameState.lives = 3;
     GameState.gameOver = false;
@@ -420,17 +598,21 @@ function update(dt) {
         if (GameState.ball.x + BALL_RADIUS > CANVAS_WIDTH) {
             GameState.ball.x = CANVAS_WIDTH - BALL_RADIUS;
             GameState.ball.dx = -GameState.ball.dx;
+            audio.playWall();
         } else if (GameState.ball.x - BALL_RADIUS < 0) {
             GameState.ball.x = BALL_RADIUS;
             GameState.ball.dx = -GameState.ball.dx;
+            audio.playWall();
         }
 
         if (GameState.ball.y - BALL_RADIUS < 0) {
             GameState.ball.y = BALL_RADIUS;
             GameState.ball.dy = -GameState.ball.dy;
+            audio.playWall();
         } else if (GameState.ball.y + BALL_RADIUS > CANVAS_HEIGHT) {
             // Lost life
             GameState.lives--;
+            audio.playLifeLost();
             if (GameState.lives <= 0) {
                 endGame();
             } else {
@@ -449,6 +631,7 @@ function update(dt) {
             // Change angle based on hit position
             let hitPoint = GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2);
             GameState.ball.dx = (hitPoint / (PADDLE_WIDTH / 2)) * GameState.ball.speed;
+            audio.playPaddle();
         }
 
         // Brick collision
@@ -465,6 +648,7 @@ function update(dt) {
                         b.status = 0;
                         GameState.score += (BRICK_ROW_COUNT - r) * 10;
                         if (GameState.score > GameState.highScore) GameState.highScore = GameState.score;
+                        audio.playBrick(r);
                         updateUI();
                         checkWin();
                     }
@@ -485,6 +669,7 @@ function checkWin() {
         }
     }
     if (allDestroyed) {
+        audio.playLevelClear();
         initBricks();
         resetBall();
         GameState.ball.speed += 20; // Increase speed for next level
@@ -546,6 +731,7 @@ function gameLoop(timestamp) {
 }
 
 function endGame() {
+    audio.playGameOver();
     GameState.gameOver = true;
     GameState.running = false;
     gameOverOverlay.classList.remove('hidden');
@@ -770,4 +956,21 @@ window.addEventListener('message', (event) => {
 
 // Periodic retries after mount to handle dynamic layout shifts (images, QR, videos)
 [0, 50, 150, 300, 600, 1200].forEach(delay => setTimeout(autoScale, delay));
+
+// Controles de teclado para pruebas en navegador
+window.addEventListener('keydown', (e) => {
+    audio.init();
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') GameState.paddle.dx = -GameState.paddle.speed;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') GameState.paddle.dx = GameState.paddle.speed;
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        if (!GameState.running && !GameState.gameOver) resetGame();
+        else handleJoystickInput({ fire: true });
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && GameState.paddle.dx < 0) GameState.paddle.dx = 0;
+    if ((e.code === 'ArrowRight' || e.code === 'KeyD') && GameState.paddle.dx > 0) GameState.paddle.dx = 0;
+});
+
 

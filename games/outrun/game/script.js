@@ -163,6 +163,76 @@ class ArcadeAudio {
             osc.stop(this.ctx.currentTime + 0.08);
         } catch (e) {}
     }
+
+    playStartTune() {
+        if (!this.initialized || !this.ctx) return;
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+            gain.gain.setValueAtTime(0.06, this.ctx.currentTime + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.08 + 0.12);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.08);
+            osc.stop(this.ctx.currentTime + idx * 0.08 + 0.13);
+        });
+    }
+
+    playGameOver() {
+        if (!this.initialized || !this.ctx) return;
+        const notes = [440, 370, 311, 261];
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.15);
+            gain.gain.setValueAtTime(0.08, this.ctx.currentTime + idx * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.15 + 0.2);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.15);
+            osc.stop(this.ctx.currentTime + idx * 0.15 + 0.22);
+        });
+    }
+
+    playBGM() {
+        if (!this.initialized || !this.ctx) return;
+        if (this.bgmTimer) return;
+        // Línea de bajo retro estilo synthwave arcade (D2, D2, F2, G2, A2, G2, F2, E2)
+        const bassNotes = [73.42, 73.42, 87.31, 98.00, 110.00, 98.00, 87.31, 82.41];
+        let step = 0;
+        this.bgmTimer = setInterval(() => {
+            if (!GameState.running || GameState.gameOver) {
+                this.stopBGM();
+                return;
+            }
+            try {
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const note = bassNotes[step % bassNotes.length];
+                step++;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(note, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.028, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            } catch (e) {}
+        }, 220);
+    }
+
+    stopBGM() {
+        if (this.bgmTimer) {
+            clearInterval(this.bgmTimer);
+            this.bgmTimer = null;
+        }
+    }
 }
 
 const audio = new ArcadeAudio();
@@ -619,6 +689,8 @@ function showBanner(text, subtext = '', color = '#ffb703', duration = 2.0) {
 
 function startGame() {
     audio.init();
+    audio.playStartTune();
+    audio.playBGM();
     GameState.score = 0;
     GameState.timeLeft = 60;
     GameState.checkpointsCleared = 0;
@@ -641,7 +713,9 @@ function startGame() {
 function endGame() {
     GameState.gameOver = true;
     GameState.running = false;
+    audio.stopBGM();
     audio.stopEngine();
+    audio.playGameOver();
 
     const finalScore = Math.floor(GameState.score);
     if (finalScoreText) finalScoreText.textContent = `FINAL SCORE: ${finalScore.toString().padStart(5, '0')}`;

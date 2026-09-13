@@ -12,6 +12,183 @@ const videoRankingList = document.getElementById('video-ranking-list');
 const qrCodeImg = document.getElementById('qr-code-img');
 const iceRouteElement = document.getElementById('ice-route');
 
+// Retro Arcade Space Invaders Web Audio API Synthesizer
+class InvadersAudio {
+    constructor() {
+        this.ctx = null;
+        this.initialized = false;
+        this.stepIdx = 0;
+    }
+
+    init() {
+        if (this.initialized) {
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.initialized = true;
+        } catch (e) {
+            console.warn('Audio no soportado:', e);
+        }
+    }
+
+    _ensureCtx() {
+        if (!this.initialized) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+    }
+
+    playLaser() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.12);
+        } catch (e) {}
+    }
+
+    playInvaderStep() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const freqs = [65.4, 61.7, 58.3, 55.0];
+            const freq = freqs[this.stepIdx % 4];
+            this.stepIdx++;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.09, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.06);
+        } catch (e) {}
+    }
+
+    playAlienExplosion() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(160, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.18);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.18);
+        } catch (e) {}
+    }
+
+    playShieldHit() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(320, ctx.currentTime);
+            gain.gain.setValueAtTime(0.04, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.04);
+        } catch (e) {}
+    }
+
+    playAlienShot() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(350, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.04, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.08);
+        } catch (e) {}
+    }
+
+    playPlayerExplosion() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(25, ctx.currentTime + 0.45);
+            gain.gain.setValueAtTime(0.16, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.45);
+        } catch (e) {}
+    }
+
+    playWaveClear() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [392, 523.25, 659.25, 783.99];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+            gain.gain.setValueAtTime(0.07, ctx.currentTime + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.12);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.08);
+            osc.stop(ctx.currentTime + idx * 0.08 + 0.13);
+        });
+    }
+
+    playGameOver() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [330, 293.66, 261.63, 196];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.16);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime + idx * 0.16);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.16 + 0.2);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.16);
+            osc.stop(ctx.currentTime + idx * 0.16 + 0.22);
+        });
+    }
+}
+const audio = new InvadersAudio();
+['click', 'keydown', 'touchstart'].forEach(e => window.addEventListener(e, () => audio.init(), { once: true }));
+
 // Configuration
 const GRID_SIZE = 10;
 const CANVAS_WIDTH = 200;
@@ -592,6 +769,7 @@ function handlePlayerInput(dt) {
     }
 
     if (GameState.fireRequested && GameState.fireCooldown <= 0) {
+        audio.playLaser();
         GameState.bullets.push({
             x: Math.round(GameState.player.x + GameState.player.width / 2) - 1,
             y: GameState.player.y - 6,
@@ -627,6 +805,7 @@ function updateAliens(dt) {
             GameState.wave += 1;
             resetRoundPositions();
             createWave(GameState.wave);
+            audio.playWaveClear();
             updateHud();
         }
         return;
@@ -640,6 +819,7 @@ function updateAliens(dt) {
     if (GameState.alienStepTimer >= stepInterval) {
         GameState.alienStepTimer = 0;
         GameState.frameFlip = !GameState.frameFlip;
+        audio.playInvaderStep();
 
         const leftMost = Math.min(...aliveAliens.map((alien) => alien.x));
         const rightMost = Math.max(...aliveAliens.map((alien) => alien.x + ALIEN_WIDTH));
@@ -687,6 +867,7 @@ function fireAlienBullet(aliveAliens) {
     if (shooters.length === 0) return;
 
     const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+    audio.playAlienShot();
     GameState.alienBullets.push({
         x: Math.round(shooter.x + ALIEN_WIDTH / 2) - 1,
         y: shooter.y + ALIEN_HEIGHT + 2,
@@ -711,6 +892,7 @@ function damageShieldAt(x, y, width = 1, height = 1) {
 
             if (intersects) {
                 shield.cells.delete(cellKey);
+                audio.playShieldHit();
                 return true;
             }
         }
@@ -730,6 +912,7 @@ function bulletHitsAlien(bullet, alien) {
 function loseLife(message) {
     if (GameState.gameOver) return;
 
+    audio.playPlayerExplosion();
     GameState.lives -= 1;
     updateHud();
 
@@ -744,6 +927,7 @@ function loseLife(message) {
 }
 
 function endGame(message) {
+    audio.playGameOver();
     GameState.running = false;
     GameState.gameOver = true;
     GameState.paused = false;
@@ -788,6 +972,7 @@ function resolveCollisions() {
             if (bulletHitsAlien(bullet, alien)) {
                 alien.alive = false;
                 consumed = true;
+                audio.playAlienExplosion();
                 const alienType = ALIEN_TYPES[alien.typeIndex];
                 GameState.score += alienType.points;
                 addExplosion(alien.x + ALIEN_WIDTH / 2, alien.y + ALIEN_HEIGHT / 2);

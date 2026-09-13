@@ -12,6 +12,126 @@ const videoRankingList = document.getElementById('video-ranking-list');
 const qrCodeImg = document.getElementById('qr-code-img');
 const iceRouteElement = document.getElementById('ice-route');
 
+// Retro Arcade Snake Web Audio API Synthesizer
+class SnakeAudio {
+    constructor() {
+        this.ctx = null;
+        this.initialized = false;
+    }
+
+    init() {
+        if (this.initialized) {
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            this.ctx = new AudioContext();
+            this.initialized = true;
+        } catch (e) {
+            console.warn('Audio no soportado:', e);
+        }
+    }
+
+    _ensureCtx() {
+        if (!this.initialized) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+    }
+
+    playEat() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.09, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.08);
+        } catch (e) {}
+    }
+
+    playTurn() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(380, ctx.currentTime);
+            gain.gain.setValueAtTime(0.025, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.02);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.02);
+        } catch (e) {}
+    }
+
+    playDie() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        try {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(260, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(65, ctx.currentTime + 0.35);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch (e) {}
+    }
+
+    playStart() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [392, 523.25, 659.25];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.07);
+            gain.gain.setValueAtTime(0.06, ctx.currentTime + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.07 + 0.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.07);
+            osc.stop(ctx.currentTime + idx * 0.07 + 0.11);
+        });
+    }
+
+    playGameOver() {
+        const ctx = this._ensureCtx();
+        if (!ctx) return;
+        const notes = [392, 329.63, 261.63, 196];
+        notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.15);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime + idx * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.15 + 0.18);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + idx * 0.15);
+            osc.stop(ctx.currentTime + idx * 0.15 + 0.2);
+        });
+    }
+}
+const audio = new SnakeAudio();
+['click', 'keydown', 'touchstart'].forEach(e => window.addEventListener(e, () => audio.init(), { once: true }));
+
 // Configuration
 const GRID_SIZE = 10;
 const CANVAS_WIDTH = 200;
@@ -494,6 +614,9 @@ function placeFood() {
 }
 
 function moveSnake() {
+    if (GameState.dx !== GameState.nextDx || GameState.dy !== GameState.nextDy) {
+        audio.playTurn();
+    }
     GameState.dx = GameState.nextDx;
     GameState.dy = GameState.nextDy;
 
@@ -514,6 +637,7 @@ function moveSnake() {
     GameState.snake.unshift(head);
 
     if (head.x === GameState.food.x && head.y === GameState.food.y) {
+        audio.playEat();
         GameState.score += 10;
         updateScore();
         placeFood();
@@ -536,6 +660,7 @@ function update(time) {
 }
 
 function loseLife() {
+    audio.playDie();
     GameState.lives--;
     updateLivesDisplay();
     GameState.gameRunning = false; 
@@ -601,6 +726,7 @@ function updateScore() {
 }
 
 function gameOver() {
+    audio.playGameOver();
     GameState.gameRunning = false;
     saveRanking(GameState.score, GameState.currentNickname);
     
@@ -632,6 +758,7 @@ function startGame() {
     if (GameState.isRespawning || GameState.gameRunning) return;
 
     if (!GameState.gameRunning) {
+        audio.playStart();
         if (window.resetTimeout) clearTimeout(window.resetTimeout);
         
         GameState.lives = 3;
