@@ -430,6 +430,61 @@ const GameState = {
     cars: []
 };
 
+function getTrackCurve(i) {
+    const segInStage = i % GameState.stageLengthSegments;
+    const stageIndex = Math.floor(i / GameState.stageLengthSegments) % STAGES.length;
+
+    if (stageIndex === 0) {
+        // COCONUT BEACH (Curvas fluidas costeras)
+        if (segInStage >= 40 && segInStage < 140) {
+            // Curva suave a la derecha
+            return Math.sin(((segInStage - 40) / 100) * Math.PI) * 3.4;
+        }
+        if (segInStage >= 190 && segInStage < 300) {
+            // Curva amplia a la izquierda
+            return -Math.sin(((segInStage - 190) / 110) * Math.PI) * 3.8;
+        }
+        if (segInStage >= 340 && segInStage < 450) {
+            // Chicane en S (derecha - izquierda)
+            return Math.sin(((segInStage - 340) / 110) * Math.PI * 2) * 3.2;
+        }
+    } else if (stageIndex === 1) {
+        // DESERT DUNES (Curvas cerradas entre dunas)
+        if (segInStage >= 40 && segInStage < 150) {
+            return -Math.sin(((segInStage - 40) / 110) * Math.PI) * 4.2;
+        }
+        if (segInStage >= 200 && segInStage < 320) {
+            return Math.sin(((segInStage - 200) / 120) * Math.PI) * 4.0;
+        }
+        if (segInStage >= 360 && segInStage < 460) {
+            return Math.sin(((segInStage - 360) / 100) * Math.PI * 2) * 3.8;
+        }
+    } else {
+        // NEON METROPOLIS (Curvas técnicas de ciudad)
+        if (segInStage >= 40 && segInStage < 140) {
+            return Math.sin(((segInStage - 40) / 100) * Math.PI) * 4.2;
+        }
+        if (segInStage >= 180 && segInStage < 300) {
+            return -Math.sin(((segInStage - 180) / 120) * Math.PI) * 4.6;
+        }
+        if (segInStage >= 350 && segInStage < 460) {
+            return Math.sin(((segInStage - 350) / 110) * Math.PI * 2) * 4.4;
+        }
+    }
+    return 0;
+}
+
+function getTrackHill(i) {
+    const stageIndex = Math.floor(i / GameState.stageLengthSegments) % STAGES.length;
+    if (stageIndex === 0) {
+        return Math.sin(i / 28) * 600;
+    } else if (stageIndex === 1) {
+        return Math.sin(i / 20) * 1050 + Math.cos(i / 38) * 400;
+    } else {
+        return Math.sin(i / 32) * 750;
+    }
+}
+
 // Inicialización de la Carretera Pseudo-3D
 function buildTrack() {
     GameState.segments = [];
@@ -440,15 +495,9 @@ function buildTrack() {
         const stage = STAGES[stageIndex];
         const isCheckpoint = (i > 0 && i % GameState.stageLengthSegments === 0);
 
-        // Curvas progresivas y divertidas
-        let curve = 0;
-        const segInStage = i % GameState.stageLengthSegments;
-        if (segInStage > 60 && segInStage < 160) curve = 1.8;
-        else if (segInStage > 220 && segInStage < 320) curve = -2.0;
-        else if (segInStage > 380 && segInStage < 460) curve = 1.6;
-
-        // Desniveles / Colinas suaves
-        const hill = Math.sin(i / 28) * 750;
+        const curve = getTrackCurve(i);
+        const hill = getTrackHill(i);
+        const nextHill = getTrackHill(i + 1);
 
         // Color alternado
         const alt = Math.floor(i / 3) % 2 === 0;
@@ -471,7 +520,7 @@ function buildTrack() {
             isCheckpoint: isCheckpoint,
             cleared: false,
             p1: { world: { x: 0, y: hill, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
-            p2: { world: { x: 0, y: hill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
+            p2: { world: { x: 0, y: nextHill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
             curve: curve,
             color: {
                 grass: alt ? stage.grassLight : stage.grassDark,
@@ -1036,21 +1085,29 @@ function draw() {
 
     // 2. Renderizado de Carretera Pseudo-3D
     const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+    const baseSegment = GameState.segments[baseSegmentIndex % GameState.segments.length];
+    const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
     const cameraX = GameState.playerX * ROAD_WIDTH;
     const cameraZ = GameState.playerZ;
     let cameraY = CAMERA_HEIGHT;
 
-    const currentSeg = GameState.segments[baseSegmentIndex % GameState.segments.length];
-    if (currentSeg) cameraY += currentSeg.p1.world.y;
+    if (baseSegment) cameraY += baseSegment.p1.world.y;
 
     let maxY = CANVAS_HEIGHT;
+    let dx = -(baseSegment ? (baseSegment.curve * basePercent) : 0);
+    let x = 0;
 
     for (let n = 0; n < DRAW_DISTANCE; n++) {
         const seg = GameState.segments[(baseSegmentIndex + n) % GameState.segments.length];
         const loopWrap = ((baseSegmentIndex + n) >= GameState.segments.length) ? GameState.trackLength : 0;
 
-        project3D(seg.p1, cameraX, cameraY, cameraZ - loopWrap, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
-        project3D(seg.p2, cameraX, cameraY, cameraZ - loopWrap, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+        project3D(seg.p1, cameraX - x, cameraY, cameraZ - loopWrap, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+        project3D(seg.p2, cameraX - x - dx, cameraY, cameraZ - loopWrap, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+
+        x = x + dx;
+        dx = dx + (seg.curve || 0);
+
+        seg.clip = maxY;
 
         if (seg.p1.camera.z <= CAMERA_DEPTH || seg.p2.screen.y >= maxY) continue;
 
@@ -1111,12 +1168,12 @@ function draw() {
     // Agregar sprites de carretera
     for (let n = 0; n < DRAW_DISTANCE; n++) {
         const seg = GameState.segments[(baseSegmentIndex + n) % GameState.segments.length];
-        if (seg.sprite && seg.p1.screen.scale > 0) {
+        if (seg.sprite && seg.p1.screen.scale > 0 && seg.p1.camera.z > CAMERA_DEPTH) {
             drawables.push({
                 kind: 'sprite',
                 relZ: (n + 1) * SEGMENT_LENGTH,
                 sprite: seg.sprite,
-                screenX: seg.p1.screen.x + (seg.p1.screen.scale * seg.sprite.offset * ROAD_WIDTH * CANVAS_WIDTH / 2),
+                screenX: Math.round(seg.p1.screen.x + (seg.sprite.offset * seg.p1.screen.w)),
                 screenY: seg.p1.screen.y,
                 scale: seg.p1.screen.scale
             });
@@ -1129,14 +1186,20 @@ function draw() {
         if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
         if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
 
-        if (relZ > 25 && relZ < DRAW_DISTANCE * SEGMENT_LENGTH) {
-            const carScale = CAMERA_DEPTH / relZ;
+        if (relZ > 20 && relZ < (DRAW_DISTANCE - 2) * SEGMENT_LENGTH) {
             const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH) % GameState.segments.length;
             const carSeg = GameState.segments[carSegIndex];
-            const hillY = carSeg ? carSeg.p1.world.y : 0;
+            if (!carSeg || !carSeg.p1.screen || !carSeg.p2.screen || !carSeg.p1.screen.scale) return;
 
-            const carScreenX = Math.round((CANVAS_WIDTH / 2) + (carScale * (car.offset * ROAD_WIDTH - cameraX) * CANVAS_WIDTH / 2));
-            const carScreenY = Math.round((CANVAS_HEIGHT / 2) - (carScale * (hillY - cameraY) * CANVAS_HEIGHT / 2));
+            const carPercent = (car.z % SEGMENT_LENGTH) / SEGMENT_LENGTH;
+            const carScale = carSeg.p1.screen.scale + (carSeg.p2.screen.scale - carSeg.p1.screen.scale) * carPercent;
+            if (carScale <= 0) return;
+
+            const roadCenterX = carSeg.p1.screen.x + (carSeg.p2.screen.x - carSeg.p1.screen.x) * carPercent;
+            const roadW = carSeg.p1.screen.w + (carSeg.p2.screen.w - carSeg.p1.screen.w) * carPercent;
+            const screenX = Math.round(roadCenterX + (car.offset * roadW));
+            const screenY = Math.round(carSeg.p1.screen.y + (carSeg.p2.screen.y - carSeg.p1.screen.y) * carPercent);
+
             const carW = Math.max(4, Math.round(carScale * 75000));
             const carH = Math.round(carW * 0.55);
 
@@ -1144,8 +1207,8 @@ function draw() {
                 kind: 'car',
                 relZ: relZ,
                 car: car,
-                screenX: carScreenX,
-                screenY: carScreenY,
+                screenX: screenX,
+                screenY: screenY,
                 w: carW,
                 h: carH
             });
@@ -1297,7 +1360,10 @@ function drawPlayerCar() {
     const carY = CANVAS_HEIGHT - carH - 6;
 
     const steer = GameState.input.steer;
-    const tilt = Math.round(steer * 3); // Inclinación de carrocería en curvas
+    const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+    const currentSeg = GameState.segments[baseSegmentIndex % GameState.segments.length];
+    const curveTilt = currentSeg ? (currentSeg.curve * 0.35) : 0;
+    const tilt = Math.max(-4, Math.min(4, Math.round((steer + curveTilt) * 2.5))); // Inclinación de carrocería en curvas
 
     ctx.save();
     ctx.translate(carX, carY);
