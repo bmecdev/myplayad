@@ -72,17 +72,38 @@ class ArcadeAudio {
     }
 
     resume() {
-        if (this.ctx && this.ctx.state === 'suspended') {
+        if (!this.ctx) {
+            this.init();
+            return;
+        }
+        if (this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => this.updateUI()).catch(() => {});
-        } else if (this.ctx && this.ctx.state === 'running') {
+        } else if (this.ctx.state === 'running') {
             this.updateUI();
         }
+    }
+
+    toggleMute() {
+        this.init();
+        if (!this.ctx) return;
+        this.resume();
+        this.isMuted = !this.isMuted;
+        if (this.masterGain) {
+            this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.5, this.ctx.currentTime);
+        }
+        if (!this.isMuted && GameState.running && !this.bgmTimer) {
+            this.startMusic();
+        }
+        this.updateUI();
     }
 
     updateUI() {
         const btn = document.getElementById('audio-toggle-btn');
         if (!btn) return;
-        if (this.ctx && this.ctx.state === 'running') {
+        if (this.isMuted) {
+            btn.textContent = '🔇 AUDIO: OFF';
+            btn.classList.add('muted');
+        } else if (this.ctx && this.ctx.state === 'running') {
             btn.textContent = '🔊 AUDIO: ON';
             btn.classList.remove('muted');
         } else {
@@ -260,41 +281,233 @@ class ArcadeAudio {
         broadcastSFX('gameover');
     }
 
-    playBGM() {
+    startMusic() {
+        this.init();
         if (!this.ctx) return;
         this.resume();
-        if (this.bgmTimer) return;
-        const bassNotes = [73.42, 73.42, 87.31, 98.00, 110.00, 98.00, 87.31, 82.41];
+        this.stopMusic();
+
+        if (!this.musicGain) {
+            this.musicGain = this.ctx.createGain();
+            this.musicGain.gain.setValueAtTime(0.32, this.ctx.currentTime);
+            this.musicGain.connect(this.masterGain);
+        }
+
+        // 130 BPM tempo -> 16th note step = (60 / 130) / 4 = ~0.1154 seconds
         let step = 0;
+
+        // OutRun "Magical Sunshine" Chiptune Lead Theme (32 steps = 2 bars)
+        const leadNotes = {
+            0: 440.00,  // A4
+            2: 587.33,  // D5
+            4: 698.46,  // F5
+            6: 880.00,  // A5
+            8: 783.99,  // G5
+            10: 698.46, // F5
+            12: 659.25, // E5
+            14: 587.33, // D5
+            16: 659.25, // E5
+            18: 783.99, // G5
+            20: 1046.50,// C6
+            22: 987.77, // B5
+            24: 880.00, // A5
+            26: 783.99, // G5
+            28: 698.46, // F5
+            30: 659.25  // E5
+        };
+
+        // Funky Bassline (sawtooth filtered): Dm, G, C, Am
+        const bassNotes = [
+            146.83, 146.83, 174.61, 146.83,
+            146.83, 220.00, 196.00, 174.61,
+            196.00, 196.00, 246.94, 196.00,
+            196.00, 220.00, 196.00, 164.81,
+            130.81, 130.81, 164.81, 130.81,
+            130.81, 196.00, 174.61, 164.81,
+            220.00, 220.00, 261.63, 220.00,
+            220.00, 246.94, 220.00, 196.00
+        ];
+
+        // Chiptune Arp (triangle wave):
+        const arpNotes = [
+            293.66, 349.23, 440.00, 523.25,
+            293.66, 349.23, 440.00, 587.33,
+            392.00, 493.88, 587.33, 698.46,
+            392.00, 493.88, 587.33, 783.99,
+            261.63, 329.63, 392.00, 493.88,
+            261.63, 329.63, 392.00, 523.25,
+            440.00, 523.25, 659.25, 783.99,
+            440.00, 523.25, 659.25, 880.00
+        ];
+
         this.bgmTimer = setInterval(() => {
             if (!GameState.running || GameState.gameOver) {
-                this.stopBGM();
+                this.stopMusic();
                 return;
             }
-            if (!this.ctx) return;
+            if (!this.ctx || this.ctx.state !== 'running') {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+                return;
+            }
+            const t = this.ctx.currentTime;
+            const s = step % 32;
+            step++;
+
             try {
-                const note = bassNotes[step % bassNotes.length];
-                step++;
-                const t = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(note, t);
-                gain.gain.setValueAtTime(0.18, t);
-                gain.gain.linearRampToValueAtTime(0.0001, t + 0.19);
-                osc.connect(gain);
-                gain.connect(this.masterGain);
-                osc.start(t);
-                osc.stop(t + 0.2);
+                // 1. Kick Drum (Steps 0, 8, 16, 24)
+                if (s % 8 === 0) {
+                    const kickOsc = this.ctx.createOscillator();
+                    const kickGain = this.ctx.createGain();
+                    kickOsc.type = 'sine';
+                    kickOsc.frequency.setValueAtTime(140, t);
+                    kickOsc.frequency.exponentialRampToValueAtTime(38, t + 0.08);
+                    kickGain.gain.setValueAtTime(0.24, t);
+                    kickGain.gain.linearRampToValueAtTime(0.0001, t + 0.09);
+                    kickOsc.connect(kickGain);
+                    kickGain.connect(this.musicGain);
+                    kickOsc.start(t);
+                    kickOsc.stop(t + 0.09);
+                }
+
+                // 2. Snare Drum (Steps 4, 12, 20, 28)
+                if (s % 8 === 4) {
+                    const bufferSize = Math.floor(this.ctx.sampleRate * 0.06);
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const snareFilter = this.ctx.createBiquadFilter();
+                    snareFilter.type = 'highpass';
+                    snareFilter.frequency.setValueAtTime(1000, t);
+                    const snareGain = this.ctx.createGain();
+                    snareGain.gain.setValueAtTime(0.14, t);
+                    snareGain.gain.linearRampToValueAtTime(0.0001, t + 0.06);
+                    noise.connect(snareFilter);
+                    snareFilter.connect(snareGain);
+                    snareGain.connect(this.musicGain);
+                    noise.start(t);
+                    noise.stop(t + 0.065);
+                }
+
+                // 3. Hi-Hat (Steps 2, 6, 10, 14, 18, 22, 26, 30)
+                if (s % 4 === 2) {
+                    const bufferSize = Math.floor(this.ctx.sampleRate * 0.02);
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const hatFilter = this.ctx.createBiquadFilter();
+                    hatFilter.type = 'highpass';
+                    hatFilter.frequency.setValueAtTime(6500, t);
+                    const hatGain = this.ctx.createGain();
+                    hatGain.gain.setValueAtTime(0.05, t);
+                    hatGain.gain.linearRampToValueAtTime(0.0001, t + 0.02);
+                    noise.connect(hatFilter);
+                    hatFilter.connect(hatGain);
+                    hatGain.connect(this.musicGain);
+                    noise.start(t);
+                    noise.stop(t + 0.022);
+                }
+
+                // 4. Bassline (Every 16th note)
+                const bFreq = bassNotes[s];
+                if (bFreq) {
+                    const bassOsc = this.ctx.createOscillator();
+                    const bassFilter = this.ctx.createBiquadFilter();
+                    const bGain = this.ctx.createGain();
+                    bassOsc.type = 'sawtooth';
+                    bassOsc.frequency.setValueAtTime(bFreq, t);
+                    bassFilter.type = 'lowpass';
+                    bassFilter.frequency.setValueAtTime(500, t);
+                    bGain.gain.setValueAtTime(0.15, t);
+                    bGain.gain.linearRampToValueAtTime(0.0001, t + 0.10);
+                    bassOsc.connect(bassFilter);
+                    bassFilter.connect(bGain);
+                    bGain.connect(this.musicGain);
+                    bassOsc.start(t);
+                    bassOsc.stop(t + 0.105);
+                }
+
+                // 5. Arp Countermelody (Every 16th note)
+                const aFreq = arpNotes[s];
+                if (aFreq) {
+                    const aOsc = this.ctx.createOscillator();
+                    const aGain = this.ctx.createGain();
+                    aOsc.type = 'triangle';
+                    aOsc.frequency.setValueAtTime(aFreq, t);
+                    aGain.gain.setValueAtTime(0.08, t);
+                    aGain.gain.linearRampToValueAtTime(0.0001, t + 0.09);
+                    aOsc.connect(aGain);
+                    aGain.connect(this.musicGain);
+                    aOsc.start(t);
+                    aOsc.stop(t + 0.095);
+                }
+
+                // 6. Lead Melody
+                if (leadNotes[s]) {
+                    const mFreq = leadNotes[s];
+                    const mOsc = this.ctx.createOscillator();
+                    const mGain = this.ctx.createGain();
+                    mOsc.type = 'square';
+                    mOsc.frequency.setValueAtTime(mFreq, t);
+                    mGain.gain.setValueAtTime(0.12, t);
+                    mGain.gain.linearRampToValueAtTime(0.0001, t + 0.18);
+                    mOsc.connect(mGain);
+                    mGain.connect(this.musicGain);
+                    mOsc.start(t);
+                    mOsc.stop(t + 0.19);
+                }
             } catch (e) {}
-        }, 210);
+        }, 115);
     }
 
-    stopBGM() {
+    stopMusic() {
         if (this.bgmTimer) {
             clearInterval(this.bgmTimer);
             this.bgmTimer = null;
         }
+    }
+
+    playBGM() {
+        this.startMusic();
+    }
+
+    stopBGM() {
+        this.stopMusic();
+    }
+
+    playVictory() {
+        if (!this.ctx) return;
+        this.stopMusic();
+        this.resume();
+        const t = this.ctx.currentTime;
+        const notes = [
+            { f: 523.25, d: 0.12 }, // C5
+            { f: 659.25, d: 0.12 }, // E5
+            { f: 783.99, d: 0.12 }, // G5
+            { f: 1046.50, d: 0.28 },// C6
+            { f: 880.00, d: 0.14 }, // A5
+            { f: 1046.50, d: 0.50 } // C6 final
+        ];
+        let offset = 0;
+        notes.forEach(n => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(n.f, t + offset);
+            gain.gain.setValueAtTime(0.28, t + offset);
+            gain.gain.linearRampToValueAtTime(0.0001, t + offset + n.d);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t + offset);
+            osc.stop(t + offset + n.d + 0.05);
+            offset += n.d;
+        });
+        broadcastSFX('victory');
     }
 }
 
@@ -322,60 +535,316 @@ window.addEventListener('DOMContentLoaded', () => {
     if (audioToggleBtn) {
         audioToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!audio.ctx) audio.init();
-            else audio.resume();
-            audio.playBeep();
+            audio.toggleMute();
+            if (!audio.isMuted) audio.playBeep();
         });
     }
 });
 
-// Estructura y Paletas de las Etapas
-const STAGES = [
-    {
-        name: 'COCONUT BEACH',
-        skyTop: '#ff4d6d',
-        skyBottom: '#ffb703',
-        sunColor: '#ffe66d',
-        seaColor: '#0a3d62',
-        mountains: '#2f3640',
-        grassLight: '#1b8a47',
-        grassDark: '#136e37',
-        curbLight: '#ffffff',
-        curbDark: '#d63031',
-        roadLight: '#444444',
-        roadDark: '#3b3b3b',
-        spriteTheme: 'palm'
-    },
-    {
-        name: 'DESERT DUNES',
-        skyTop: '#d35400',
-        skyBottom: '#f39c12',
-        sunColor: '#fff275',
-        seaColor: '#a04000',
-        mountains: '#6e2c00',
-        grassLight: '#c28b38',
-        grassDark: '#ab772a',
-        curbLight: '#ffffff',
-        curbDark: '#e67e22',
-        roadLight: '#48443e',
-        roadDark: '#3d3a35',
-        spriteTheme: 'cactus'
-    },
-    {
-        name: 'NEON METROPOLIS',
-        skyTop: '#2c003e',
-        skyBottom: '#511845',
-        sunColor: '#ff007f',
-        seaColor: '#120129',
-        mountains: '#1c0a35',
-        grassLight: '#0f1b29',
-        grassDark: '#08101a',
-        curbLight: '#00f3ff',
-        curbDark: '#ff00ea',
-        roadLight: '#262933',
-        roadDark: '#1e2029',
-        spriteTheme: 'city'
-    }
+// Estructura Piramidal de Rutas de OutRun (1986): 5 Etapas y 5 Metas (A, B, C, D, E)
+const STAGE_SEGMENTS = 400;
+
+const ROUTE_TREE = [
+    // Tier 0 (Etapa 1 - Inicio)
+    [
+        {
+            id: 'coconut_beach',
+            name: 'COCONUT BEACH',
+            goalLetter: null,
+            skyTop: '#ff4d6d',
+            skyBottom: '#ffb703',
+            sunColor: '#ffe66d',
+            seaColor: '#0a3d62',
+            mountains: '#2f3640',
+            grassLight: '#1b8a47',
+            grassDark: '#136e37',
+            curbLight: '#ffffff',
+            curbDark: '#d63031',
+            roadLight: '#444444',
+            roadDark: '#3b3b3b',
+            spriteTheme: 'palm',
+            curves: (s) => (s > 40 && s < 140 ? 3.0 : (s > 190 && s < 290 ? -3.4 : 0)),
+            hills: (s) => Math.sin(s / 28) * 550
+        }
+    ],
+    // Tier 1 (Etapa 2 - 2 rutas)
+    [
+        {
+            id: 'desert_dunes',
+            name: 'DESERT DUNES',
+            goalLetter: null,
+            skyTop: '#d35400',
+            skyBottom: '#f39c12',
+            sunColor: '#fff275',
+            seaColor: '#a04000',
+            mountains: '#6e2c00',
+            grassLight: '#c28b38',
+            grassDark: '#ab772a',
+            curbLight: '#ffffff',
+            curbDark: '#e67e22',
+            roadLight: '#48443e',
+            roadDark: '#3d3a35',
+            spriteTheme: 'cactus',
+            curves: (s) => (s > 40 && s < 150 ? -3.8 : (s > 200 && s < 310 ? 3.6 : 0)),
+            hills: (s) => Math.sin(s / 20) * 850 + Math.cos(s / 38) * 350
+        },
+        {
+            id: 'alpine_valley',
+            name: 'ALPINE VALLEY',
+            goalLetter: null,
+            skyTop: '#0984e3',
+            skyBottom: '#74b9ff',
+            sunColor: '#ffffff',
+            seaColor: '#2d3436',
+            mountains: '#636e72',
+            grassLight: '#2ed573',
+            grassDark: '#26af61',
+            curbLight: '#ffffff',
+            curbDark: '#ff4757',
+            roadLight: '#474747',
+            roadDark: '#383838',
+            spriteTheme: 'pine',
+            curves: (s) => (s > 50 && s < 150 ? 3.5 : (s > 210 && s < 320 ? -3.6 : 0)),
+            hills: (s) => Math.sin(s / 22) * 950 + Math.cos(s / 40) * 400
+        }
+    ],
+    // Tier 2 (Etapa 3 - 3 rutas)
+    [
+        {
+            id: 'ancient_ruins',
+            name: 'ANCIENT RUINS',
+            goalLetter: null,
+            skyTop: '#e17055',
+            skyBottom: '#fdcb6e',
+            sunColor: '#ffeaa7',
+            seaColor: '#d63031',
+            mountains: '#b2bec3',
+            grassLight: '#b8a07e',
+            grassDark: '#998365',
+            curbLight: '#ffeaa7',
+            curbDark: '#d63031',
+            roadLight: '#534e4a',
+            roadDark: '#44403c',
+            spriteTheme: 'column',
+            curves: (s) => (s > 40 && s < 140 ? -4.0 : (s > 200 && s < 310 ? 3.8 : 0)),
+            hills: (s) => Math.sin(s / 26) * 650
+        },
+        {
+            id: 'devils_canyon',
+            name: "DEVIL'S CANYON",
+            goalLetter: null,
+            skyTop: '#c0392b',
+            skyBottom: '#e67e22',
+            sunColor: '#f1c40f',
+            seaColor: '#962d22',
+            mountains: '#78281f',
+            grassLight: '#a04000',
+            grassDark: '#873600',
+            curbLight: '#f39c12',
+            curbDark: '#c0392b',
+            roadLight: '#423735',
+            roadDark: '#352c2a',
+            spriteTheme: 'rock',
+            curves: (s) => (s > 40 && s < 140 ? 4.2 : (s > 200 && s < 310 ? -4.0 : 0)),
+            hills: (s) => Math.sin(s / 18) * 1100
+        },
+        {
+            id: 'winding_vineyards',
+            name: 'WINDING VINEYARDS',
+            goalLetter: null,
+            skyTop: '#6c5ce7',
+            skyBottom: '#a29bfe',
+            sunColor: '#ffeaa7',
+            seaColor: '#4834d4',
+            mountains: '#2d3436',
+            grassLight: '#6ab04c',
+            grassDark: '#487e31',
+            curbLight: '#ffffff',
+            curbDark: '#6c5ce7',
+            roadLight: '#3d444a',
+            roadDark: '#32373c',
+            spriteTheme: 'pine',
+            curves: (s) => (s > 50 && s < 150 ? -3.5 : (s > 210 && s < 320 ? 3.7 : 0)),
+            hills: (s) => Math.sin(s / 30) * 750
+        }
+    ],
+    // Tier 3 (Etapa 4 - 4 rutas)
+    [
+        {
+            id: 'autobahn_highway',
+            name: 'AUTOBAHN HIGHWAY',
+            goalLetter: null,
+            skyTop: '#2d3436',
+            skyBottom: '#636e72',
+            sunColor: '#dfe6e9',
+            seaColor: '#1e272e',
+            mountains: '#2f3542',
+            grassLight: '#57606f',
+            grassDark: '#2f3542',
+            curbLight: '#ffa502',
+            curbDark: '#ff4757',
+            roadLight: '#333333',
+            roadDark: '#262626',
+            spriteTheme: 'city',
+            curves: (s) => (s > 50 && s < 150 ? 3.4 : (s > 220 && s < 320 ? -3.2 : 0)),
+            hills: (s) => Math.sin(s / 35) * 550
+        },
+        {
+            id: 'seaside_blvd',
+            name: 'SEASIDE BOULEVARD',
+            goalLetter: null,
+            skyTop: '#ff7675',
+            skyBottom: '#fdcb6e',
+            sunColor: '#ffeaa7',
+            seaColor: '#0984e3',
+            mountains: '#2d3436',
+            grassLight: '#00b894',
+            grassDark: '#009475',
+            curbLight: '#ffffff',
+            curbDark: '#d63031',
+            roadLight: '#444444',
+            roadDark: '#383838',
+            spriteTheme: 'palm',
+            curves: (s) => (s > 40 && s < 140 ? -4.2 : (s > 200 && s < 310 ? 4.0 : 0)),
+            hills: (s) => Math.sin(s / 25) * 750
+        },
+        {
+            id: 'windmill_valley',
+            name: 'WINDMILL VALLEY',
+            goalLetter: null,
+            skyTop: '#00cec9',
+            skyBottom: '#81ecec',
+            sunColor: '#ffeaa7',
+            seaColor: '#0984e3',
+            mountains: '#636e72',
+            grassLight: '#2ecc71',
+            grassDark: '#27ae60',
+            curbLight: '#ffffff',
+            curbDark: '#e74c3c',
+            roadLight: '#4a4d45',
+            roadDark: '#3d4039',
+            spriteTheme: 'windmill',
+            curves: (s) => (s > 50 && s < 150 ? 3.8 : (s > 220 && s < 330 ? -3.9 : 0)),
+            hills: (s) => Math.sin(s / 28) * 850
+        },
+        {
+            id: 'neon_metropolis',
+            name: 'NEON METROPOLIS',
+            goalLetter: null,
+            skyTop: '#2c003e',
+            skyBottom: '#511845',
+            sunColor: '#ff007f',
+            seaColor: '#120129',
+            mountains: '#1c0a35',
+            grassLight: '#0f1b29',
+            grassDark: '#08101a',
+            curbLight: '#00f3ff',
+            curbDark: '#ff00ea',
+            roadLight: '#262933',
+            roadDark: '#1e2029',
+            spriteTheme: 'city',
+            curves: (s) => (s > 40 && s < 150 ? -4.6 : (s > 200 && s < 320 ? 4.5 : 0)),
+            hills: (s) => Math.sin(s / 22) * 900
+        }
+    ],
+    // Tier 4 (Etapa 5 - LAS 5 METAS: A, B, C, D, E)
+    [
+        {
+            id: 'goal_a',
+            name: 'PACIFIC PALISADES',
+            goalLetter: 'A',
+            skyTop: '#ff7979',
+            skyBottom: '#f9ca24',
+            sunColor: '#ffffff',
+            seaColor: '#22a6b3',
+            mountains: '#30336b',
+            grassLight: '#badc58',
+            grassDark: '#6ab04c',
+            curbLight: '#ffffff',
+            curbDark: '#eb4d4b',
+            roadLight: '#535c68',
+            roadDark: '#303952',
+            spriteTheme: 'palm',
+            curves: (s) => (s > 40 && s < 150 ? 3.2 : 0),
+            hills: (s) => Math.sin(s / 32) * 500
+        },
+        {
+            id: 'goal_b',
+            name: 'IMPERIAL GARDENS',
+            goalLetter: 'B',
+            skyTop: '#ff9ff3',
+            skyBottom: '#feca57',
+            sunColor: '#fff200',
+            seaColor: '#54a0ff',
+            mountains: '#5f27cd',
+            grassLight: '#1dd1a1',
+            grassDark: '#10ac84',
+            curbLight: '#ffffff',
+            curbDark: '#ff6b6b',
+            roadLight: '#576574',
+            roadDark: '#222f3e',
+            spriteTheme: 'column',
+            curves: (s) => (s > 40 && s < 150 ? -3.6 : 0),
+            hills: (s) => Math.sin(s / 28) * 650
+        },
+        {
+            id: 'goal_c',
+            name: 'CRYSTAL LAKE',
+            goalLetter: 'C',
+            skyTop: '#48dbfb',
+            skyBottom: '#0abde3',
+            sunColor: '#ffffff',
+            seaColor: '#006266',
+            mountains: '#2c3a47',
+            grassLight: '#2ed573',
+            grassDark: '#26af61',
+            curbLight: '#ffffff',
+            curbDark: '#ee5253',
+            roadLight: '#474747',
+            roadDark: '#383838',
+            spriteTheme: 'pine',
+            curves: (s) => (s > 50 && s < 160 ? 3.8 : -3.5),
+            hills: (s) => Math.sin(s / 24) * 800
+        },
+        {
+            id: 'goal_d',
+            name: 'NEO TOKYO SKYWAY',
+            goalLetter: 'D',
+            skyTop: '#341f97',
+            skyBottom: '#5f27cd',
+            sunColor: '#ff007f',
+            seaColor: '#10ac84',
+            mountains: '#222f3e',
+            grassLight: '#1e272e',
+            grassDark: '#0a0d10',
+            curbLight: '#00d2d3',
+            curbDark: '#ff9f43',
+            roadLight: '#2d3436',
+            roadDark: '#1e272e',
+            spriteTheme: 'city',
+            curves: (s) => (s > 40 && s < 140 ? -4.4 : 4.2),
+            hills: (s) => Math.sin(s / 20) * 950
+        },
+        {
+            id: 'goal_e',
+            name: 'SUNSET HORIZON',
+            goalLetter: 'E',
+            skyTop: '#ee5253',
+            skyBottom: '#ff9f43',
+            sunColor: '#feca57',
+            seaColor: '#833471',
+            mountains: '#2c2c54',
+            grassLight: '#d35400',
+            grassDark: '#ba4a00',
+            curbLight: '#f1c40f',
+            curbDark: '#c0392b',
+            roadLight: '#3d3d3d',
+            roadDark: '#2d2d2d',
+            spriteTheme: 'palm',
+            curves: (s) => (s > 40 && s < 150 ? 4.8 : -4.6),
+            hills: (s) => Math.sin(s / 22) * 900
+        }
+    ]
 ];
 
 // Estado General del Juego
@@ -384,7 +853,12 @@ const GameState = {
     highScore: 0,
     timeLeft: 60,
     checkpointsCleared: 0,
-    currentStageIndex: 0,
+    currentTier: 0,            // 0 = Coconut Beach, 1 = Tier 2, ..., 4 = Tier 5 (Goals A-E)
+    currentRouteIndex: 0,       // Índice en el tier actual
+    routePath: [{ tier: 0, index: 0 }],
+    currentStage: null,
+    gameWon: false,
+    stageCleared: false,
     running: false,
     gameOver: false,
     paused: false,
@@ -426,87 +900,45 @@ const GameState = {
     // Pista y Tráfico
     segments: [],
     trackLength: 0,
-    stageLengthSegments: 500,
     cars: []
 };
 
-function getTrackCurve(i) {
-    const segInStage = i % GameState.stageLengthSegments;
-    const stageIndex = Math.floor(i / GameState.stageLengthSegments) % STAGES.length;
-
-    if (stageIndex === 0) {
-        // COCONUT BEACH (Curvas fluidas costeras)
-        if (segInStage >= 40 && segInStage < 140) {
-            // Curva suave a la derecha
-            return Math.sin(((segInStage - 40) / 100) * Math.PI) * 3.4;
-        }
-        if (segInStage >= 190 && segInStage < 300) {
-            // Curva amplia a la izquierda
-            return -Math.sin(((segInStage - 190) / 110) * Math.PI) * 3.8;
-        }
-        if (segInStage >= 340 && segInStage < 450) {
-            // Chicane en S (derecha - izquierda)
-            return Math.sin(((segInStage - 340) / 110) * Math.PI * 2) * 3.2;
-        }
-    } else if (stageIndex === 1) {
-        // DESERT DUNES (Curvas cerradas entre dunas)
-        if (segInStage >= 40 && segInStage < 150) {
-            return -Math.sin(((segInStage - 40) / 110) * Math.PI) * 4.2;
-        }
-        if (segInStage >= 200 && segInStage < 320) {
-            return Math.sin(((segInStage - 200) / 120) * Math.PI) * 4.0;
-        }
-        if (segInStage >= 360 && segInStage < 460) {
-            return Math.sin(((segInStage - 360) / 100) * Math.PI * 2) * 3.8;
-        }
-    } else {
-        // NEON METROPOLIS (Curvas técnicas de ciudad)
-        if (segInStage >= 40 && segInStage < 140) {
-            return Math.sin(((segInStage - 40) / 100) * Math.PI) * 4.2;
-        }
-        if (segInStage >= 180 && segInStage < 300) {
-            return -Math.sin(((segInStage - 180) / 120) * Math.PI) * 4.6;
-        }
-        if (segInStage >= 350 && segInStage < 460) {
-            return Math.sin(((segInStage - 350) / 110) * Math.PI * 2) * 4.4;
-        }
-    }
-    return 0;
-}
-
-function getTrackHill(i) {
-    const stageIndex = Math.floor(i / GameState.stageLengthSegments) % STAGES.length;
-    if (stageIndex === 0) {
-        return Math.sin(i / 28) * 600;
-    } else if (stageIndex === 1) {
-        return Math.sin(i / 20) * 1050 + Math.cos(i / 38) * 400;
-    } else {
-        return Math.sin(i / 32) * 750;
-    }
-}
-
-// Inicialización de la Carretera Pseudo-3D
-function buildTrack() {
+// Construcción de la Pista de la Etapa Seleccionada
+function buildStageTrack(tier = 0, routeIndex = 0) {
+    const stage = ROUTE_TREE[tier][routeIndex];
+    GameState.currentStage = stage;
+    GameState.currentTier = tier;
+    GameState.currentRouteIndex = routeIndex;
     GameState.segments = [];
-    const totalSegments = GameState.stageLengthSegments * STAGES.length;
+    GameState.stageCleared = false;
 
-    for (let i = 0; i < totalSegments; i++) {
-        const stageIndex = Math.floor(i / GameState.stageLengthSegments) % STAGES.length;
-        const stage = STAGES[stageIndex];
-        const isCheckpoint = (i > 0 && i % GameState.stageLengthSegments === 0);
+    const leftNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex] : null;
+    const rightNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex + 1] : null;
 
-        const curve = getTrackCurve(i);
-        const hill = getTrackHill(i);
-        const nextHill = getTrackHill(i + 1);
-
-        // Color alternado
+    for (let i = 0; i < STAGE_SEGMENTS; i++) {
+        const isCheckpoint = (i === STAGE_SEGMENTS - 10);
         const alt = Math.floor(i / 3) % 2 === 0;
 
-        // Sprites a los lados de la pista (árboles, rocas, carteles)
+        const curve = stage.curves(i);
+        const hill = stage.hills(i);
+        const nextHill = stage.hills(i + 1);
+
         let sprite = null;
         if (isCheckpoint) {
-            sprite = { type: 'checkpoint_arch', offset: 0 };
-        } else if (i % 6 === 0) {
+            if (tier === 4) {
+                sprite = { type: 'finish_arch', offset: 0, goalLetter: stage.goalLetter };
+            } else {
+                sprite = { type: 'checkpoint_arch', offset: 0 };
+            }
+        } else if (tier < 4 && i >= 315 && i < 385) {
+            if (i === 325 || i === 345 || i === 365) {
+                sprite = { type: 'fork_sign_left', offset: -1.7, label: `◄ ${leftNext.name}` };
+            } else if (i === 326 || i === 346 || i === 366) {
+                sprite = { type: 'fork_sign_right', offset: 1.7, label: `${rightNext.name} ►` };
+            } else if (i === 335 || i === 355) {
+                sprite = { type: 'median_sign', offset: 0 };
+            }
+        } else if (i % 6 === 0 && i < 310) {
             const side = (Math.floor(i / 6) % 2 === 0) ? -1.7 : 1.7;
             sprite = {
                 type: stage.spriteTheme,
@@ -516,9 +948,10 @@ function buildTrack() {
 
         GameState.segments.push({
             index: i,
-            stageIndex: stageIndex,
+            stage: stage,
+            tier: tier,
+            routeIndex: routeIndex,
             isCheckpoint: isCheckpoint,
-            cleared: false,
             p1: { world: { x: 0, y: hill, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
             p2: { world: { x: 0, y: nextHill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
             curve: curve,
@@ -526,7 +959,7 @@ function buildTrack() {
                 grass: alt ? stage.grassLight : stage.grassDark,
                 curb: alt ? stage.curbLight : stage.curbDark,
                 road: alt ? stage.roadLight : stage.roadDark,
-                lane: alt ? '#ffffff' : 'transparent'
+                lane: (i >= 320 && i <= 385 && tier < 4) ? '#ffeaa7' : (alt ? '#ffffff' : 'transparent')
             },
             sprite: sprite
         });
@@ -534,6 +967,10 @@ function buildTrack() {
 
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
     spawnTraffic();
+}
+
+function buildTrack() {
+    buildStageTrack(GameState.currentTier || 0, GameState.currentRouteIndex || 0);
 }
 
 // Generación de Tráfico Rival (50 coches competidores activos)
@@ -809,13 +1246,15 @@ function handleMobileInput(input) {
     if (input.turbo !== undefined) GameState.input.turbo = !!input.turbo;
 }
 
-function notifyGameOver() {
+function notifyGameOver(won = false, goal = null) {
     dataChannels.forEach(channel => {
         if (channel.readyState === 'open') {
             channel.send(JSON.stringify({
                 type: 'game_over',
                 score: Math.floor(GameState.score),
-                checkpoints: GameState.checkpointsCleared
+                checkpoints: GameState.checkpointsCleared,
+                won: !!won,
+                goal: goal
             }));
         }
     });
@@ -831,11 +1270,15 @@ function showBanner(text, subtext = '', color = '#ffb703', duration = 2.0) {
 function startGame() {
     audio.init();
     audio.playStartTune();
-    audio.playBGM();
+    audio.startMusic();
     GameState.score = 0;
     GameState.timeLeft = 60;
     GameState.checkpointsCleared = 0;
-    GameState.currentStageIndex = 0;
+    GameState.currentTier = 0;
+    GameState.currentRouteIndex = 0;
+    GameState.routePath = [{ tier: 0, index: 0 }];
+    GameState.gameWon = false;
+    GameState.stageCleared = false;
     GameState.playerX = 0;
     GameState.playerZ = 0;
     GameState.speed = 0;
@@ -843,27 +1286,29 @@ function startGame() {
     GameState.running = true;
     GameState.lastWarningSecond = -1;
 
-    buildTrack();
+    buildStageTrack(0, 0);
     updateHUD();
-    showBanner('STAGE 1', STAGES[0].name, '#3dff8a', 2.2);
+    const stage0 = ROUTE_TREE[0][0];
+    showBanner('STAGE 1', stage0.name, '#3dff8a', 2.5);
 
     gameOverOverlay.classList.add('hidden');
     waitingOverlay.classList.add('hidden');
 }
 
-function endGame() {
+function endGame(won = false, goal = null) {
     GameState.gameOver = true;
     GameState.running = false;
     audio.stopBGM();
     audio.stopEngine();
-    audio.playGameOver();
+    if (!won) {
+        audio.playGameOver();
+    }
 
     const finalScore = Math.floor(GameState.score);
     if (finalScoreText) finalScoreText.textContent = `FINAL SCORE: ${finalScore.toString().padStart(5, '0')}`;
     if (checkpointsClearedText) checkpointsClearedText.textContent = `CHECKPOINTS: ${GameState.checkpointsCleared}`;
 
-    gameOverOverlay.classList.remove('hidden');
-    notifyGameOver();
+    notifyGameOver(won, goal);
     submitScore(GameState.currentNickname, finalScore);
 
     dataChannels.forEach(ch => ch.close());
@@ -871,22 +1316,31 @@ function endGame() {
     dataChannels.clear();
     peerConnections.clear();
 
-    setTimeout(() => {
-        gameOverOverlay.classList.add('hidden');
-        waitingOverlay.classList.remove('hidden');
-        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-        if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
-        updateQrCode();
+    // Vuelve inmediatamente a la pantalla de espera con el QR y se queda allí
+    gameOverOverlay.classList.add('hidden');
+    waitingOverlay.classList.remove('hidden');
 
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-                type: 'register',
-                role: 'host',
-                roomId: GameState.roomId,
-                maxPlayers: CONFIG.MAX_PLAYERS || 1
-            }));
-        }
-    }, 15000);
+    GameState.currentNickname = 'DRIVER';
+    if (playerNickElement) playerNickElement.textContent = 'DRIVER: ----';
+    GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+    if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
+    updateQrCode();
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'register',
+            role: 'host',
+            roomId: GameState.roomId,
+            maxPlayers: CONFIG.MAX_PLAYERS || 1
+        }));
+    }
+
+    // Reset de pista a Stage 1 inicial para que la pantalla de fondo muestre Coconut Beach
+    buildStageTrack(0, 0);
+    GameState.playerZ = 0;
+    GameState.playerX = 0;
+    GameState.speed = 0;
+    updateHUD();
 }
 
 // Bucle de Física y Actualización
@@ -946,6 +1400,9 @@ function update(dt) {
     audio.updateEngine(GameState.speed, GameState.turboSpeed);
 
     // Movimiento Z
+    if (GameState.gameWon) {
+        GameState.speed = Math.max(1200, GameState.speed - 3200 * dt);
+    }
     GameState.playerZ += GameState.speed * dt;
     if (GameState.playerZ >= GameState.trackLength) {
         GameState.playerZ -= GameState.trackLength;
@@ -954,16 +1411,53 @@ function update(dt) {
     // Posición del segmento actual
     const currentSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH) % GameState.segments.length;
     const currentSegment = GameState.segments[currentSegmentIndex];
-    GameState.currentStageIndex = currentSegment.stageIndex;
+    if (!currentSegment) return;
+    GameState.currentStage = currentSegment.stage || GameState.currentStage;
 
-    // Checkpoint Crossing
-    if (currentSegment.isCheckpoint && !currentSegment.cleared) {
+    // Checkpoint Crossing & Bifurcación en 5 Metas
+    if (currentSegment.isCheckpoint && !currentSegment.cleared && !GameState.stageCleared) {
         currentSegment.cleared = true;
+        GameState.stageCleared = true;
         GameState.checkpointsCleared++;
-        GameState.timeLeft += 30; // +30 segundos de tiempo extendido
-        GameState.score += 5000;
-        audio.playCheckpoint();
-        showBanner('EXTENDED TIME!', '+30 SECONDS!', '#3dff8a', 2.8);
+
+        if (GameState.currentTier < 4) {
+            // Bifurcación: Izquierda (playerX < 0) o Derecha (playerX >= 0)
+            const choice = (GameState.playerX < 0) ? 0 : 1;
+            const nextRouteIndex = GameState.currentRouteIndex + choice;
+            const nextTier = GameState.currentTier + 1;
+
+            GameState.currentTier = nextTier;
+            GameState.currentRouteIndex = nextRouteIndex;
+            GameState.routePath.push({ tier: nextTier, index: nextRouteIndex });
+
+            GameState.timeLeft += 30; // +30 segundos
+            GameState.score += 5000;
+            audio.playCheckpoint();
+
+            const nextStage = ROUTE_TREE[nextTier][nextRouteIndex];
+            const sideText = (choice === 0) ? '◄ LEFT FORK' : 'RIGHT FORK ►';
+            showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +30s EXTENDED!`, '#3dff8a', 3.0);
+
+            // Reconstruir pista de la nueva etapa seleccionada y reiniciar posición Z
+            buildStageTrack(nextTier, nextRouteIndex);
+            GameState.playerZ = 0;
+        } else {
+            // TIER 4: ¡META ALCANZADA! (GOALS A, B, C, D, E)
+            GameState.gameWon = true;
+            const goalLetter = GameState.currentStage?.goalLetter || ['A', 'B', 'C', 'D', 'E'][GameState.currentRouteIndex] || 'A';
+            
+            // Bonificación por tiempo y meta alcanzada
+            const timeBonus = Math.floor(GameState.timeLeft) * 1000;
+            const goalBonus = 25000;
+            GameState.score += (timeBonus + goalBonus);
+            
+            audio.playVictory();
+            showBanner(`¡GOAL ${goalLetter} CLEARED!`, `COURSE CLEAR! +${timeBonus + goalBonus} PTS`, '#ffeaa7', 3.5);
+
+            setTimeout(() => {
+                endGame(true, goalLetter);
+            }, 3500);
+        }
     }
 
     // Dirección (volante) y Fuerza centrífuga en curvas
@@ -1044,7 +1538,7 @@ function update(dt) {
 function draw() {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    const stage = STAGES[GameState.currentStageIndex] || STAGES[0];
+    const stage = GameState.currentStage || ROUTE_TREE[0][0];
 
     // 1. Cielo Gradiente y Horizonte Parallax
     const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT / 2);
@@ -1073,11 +1567,9 @@ function draw() {
     ctx.closePath();
     ctx.fill();
 
-    if (GameState.gameOver) return;
-
     // Efecto temblor de pantalla (Camera shake)
     ctx.save();
-    if (GameState.shakeAmount > 0) {
+    if (GameState.running && GameState.shakeAmount > 0) {
         const shakeX = (Math.random() - 0.5) * GameState.shakeAmount;
         const shakeY = (Math.random() - 0.5) * GameState.shakeAmount;
         ctx.translate(shakeX, shakeY);
@@ -1220,7 +1712,7 @@ function draw() {
 
     drawables.forEach(item => {
         if (item.kind === 'sprite') {
-            drawWorldSprite(item.sprite.type, item.screenX, item.screenY, item.scale);
+            drawWorldSprite(item.sprite, item.screenX, item.screenY, item.scale);
         } else if (item.kind === 'car') {
             drawRivalCar(item.car.type, item.screenX, item.screenY, item.w, item.h);
         }
@@ -1229,7 +1721,10 @@ function draw() {
     // 4. Coche del Jugador (Iconic Red Convertible en primer plano)
     drawPlayerCar();
 
-    // 5. Banner de Checkpoint / Alertas en Pantalla
+    // 5. Minimapa de Rutas (Bifurcación en 5 Metas de OutRun)
+    drawCourseMap();
+
+    // 6. Banner de Checkpoint / Alertas en Pantalla
     if (GameState.banner.timer > 0) {
         ctx.textAlign = 'center';
         ctx.font = '8px "Press Start 2P", monospace';
@@ -1256,8 +1751,121 @@ function drawTrapezoid(x1, y1, x2, y2, x3, y3, x4, y4, color) {
     ctx.fill();
 }
 
-// Sprites de Árboles, Palmeras, Cactus y Arcos
-function drawWorldSprite(type, x, y, scale) {
+// Minimapa de Rutas (Pirámide de 5 Metas A, B, C, D, E de OutRun 1986)
+function drawCourseMap() {
+    const mapW = 66;
+    const mapH = 34;
+    const mapX = 4;
+    const mapY = 4;
+
+    ctx.save();
+    // Marco retro translúcido
+    ctx.fillStyle = 'rgba(10, 15, 13, 0.78)';
+    ctx.fillRect(mapX, mapY, mapW, mapH);
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mapX, mapY, mapW, mapH);
+
+    // Título
+    ctx.fillStyle = '#3dff8a';
+    ctx.font = '4px "Press Start 2P", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('COURSE', mapX + 3, mapY + 6);
+
+    const centerX = mapX + (mapW / 2);
+    const startY = mapY + 11;
+    const tierStepY = 5.2;
+    const nodeSpacingX = 9.5;
+
+    const getNodePos = (t, i) => {
+        const tierW = t * nodeSpacingX;
+        const x = centerX - (tierW / 2) + (i * nodeSpacingX);
+        const y = startY + (t * tierStepY);
+        return { x, y };
+    };
+
+    // 1. Líneas de conexión
+    for (let t = 0; t < 4; t++) {
+        for (let i = 0; i <= t; i++) {
+            const from = getNodePos(t, i);
+            const toLeft = getNodePos(t + 1, i);
+            const toRight = getNodePos(t + 1, i + 1);
+
+            const currPath = GameState.routePath[t]?.index;
+            const nextPath = GameState.routePath[t + 1]?.index;
+            const isTakenLeft = (currPath === i && nextPath === i);
+            const isTakenRight = (currPath === i && nextPath === i + 1);
+
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y);
+            ctx.lineTo(toLeft.x, toLeft.y);
+            ctx.strokeStyle = isTakenLeft ? '#ffb703' : 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = isTakenLeft ? 1.5 : 0.8;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y);
+            ctx.lineTo(toRight.x, toRight.y);
+            ctx.strokeStyle = isTakenRight ? '#ffb703' : 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = isTakenRight ? 1.5 : 0.8;
+            ctx.stroke();
+        }
+    }
+
+    // 2. Nodos del árbol
+    const pulse = (Math.sin(Date.now() / 160) + 1) / 2;
+
+    for (let t = 0; t < 5; t++) {
+        for (let i = 0; i <= t; i++) {
+            const pos = getNodePos(t, i);
+            const isCurrent = (GameState.currentTier === t && GameState.currentRouteIndex === i);
+            const isVisited = GameState.routePath.some(p => p.tier === t && p.index === i);
+
+            if (t === 4) {
+                // Nivel 5: Metas A, B, C, D, E
+                const goalLetter = ['A', 'B', 'C', 'D', 'E'][i];
+                ctx.font = '4px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                if (isCurrent && GameState.gameWon) {
+                    ctx.fillStyle = '#ffeaa7';
+                    ctx.fillText(goalLetter, pos.x, pos.y);
+                } else if (isCurrent) {
+                    ctx.fillStyle = `rgb(${Math.round(61 + pulse * 100)}, 255, ${Math.round(138 + pulse * 100)})`;
+                    ctx.fillText(goalLetter, pos.x, pos.y);
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                    ctx.fillText(goalLetter, pos.x, pos.y);
+                }
+            } else {
+                ctx.beginPath();
+                if (isCurrent) {
+                    ctx.arc(pos.x, pos.y, 2.2 + pulse * 0.8, 0, Math.PI * 2);
+                    ctx.fillStyle = '#3dff8a';
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                } else if (isVisited) {
+                    ctx.arc(pos.x, pos.y, 1.8, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffb703';
+                    ctx.fill();
+                } else {
+                    ctx.arc(pos.x, pos.y, 1.3, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                    ctx.fill();
+                }
+            }
+        }
+    }
+
+    ctx.restore();
+}
+
+// Sprites de Escenarios, Palmeras, Cactus, Rocas, Columnas, Molinos, Carteles de Ruta y Arcos
+function drawWorldSprite(spriteObj, x, y, scale) {
+    const type = (typeof spriteObj === 'string') ? spriteObj : spriteObj.type;
     const size = Math.round(scale * 95000);
     if (size < 2) return;
 
@@ -1283,24 +1891,177 @@ function drawWorldSprite(type, x, y, scale) {
         ctx.fillRect(-size * 0.22, -size * 0.5, size * 0.44, size * 0.1);
         ctx.fillRect(-size * 0.22, -size * 0.65, size * 0.08, size * 0.18);
         ctx.fillRect(size * 0.14, -size * 0.65, size * 0.08, size * 0.18);
+    } else if (type === 'pine') {
+        // Tronco
+        ctx.fillStyle = '#5c3d2e';
+        ctx.fillRect(-size * 0.04, -size * 0.2, size * 0.08, size * 0.2);
+        // Capas de pino
+        const drawPineTier = (tierY, w, h, col) => {
+            ctx.fillStyle = col;
+            ctx.beginPath();
+            ctx.moveTo(-w / 2, tierY);
+            ctx.lineTo(0, tierY - h);
+            ctx.lineTo(w / 2, tierY);
+            ctx.closePath();
+            ctx.fill();
+        };
+        drawPineTier(-size * 0.15, size * 0.45, size * 0.35, '#1b4332');
+        drawPineTier(-size * 0.38, size * 0.35, size * 0.32, '#2d6a4f');
+        drawPineTier(-size * 0.60, size * 0.25, size * 0.30, '#40916c');
+        // Nieve en la punta
+        ctx.fillStyle = '#f8f9fa';
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.08, -size * 0.78);
+        ctx.lineTo(0, -size * 0.90);
+        ctx.lineTo(size * 0.08, -size * 0.78);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'rock') {
+        ctx.fillStyle = '#8d4925';
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.3, 0);
+        ctx.lineTo(-size * 0.25, -size * 0.4);
+        ctx.lineTo(-size * 0.05, -size * 0.6);
+        ctx.lineTo(size * 0.2, -size * 0.55);
+        ctx.lineTo(size * 0.35, -size * 0.25);
+        ctx.lineTo(size * 0.3, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#5a2d16';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(size * 0.2, -size * 0.55);
+        ctx.lineTo(size * 0.35, -size * 0.25);
+        ctx.lineTo(size * 0.3, 0);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'column') {
+        const colW = size * 0.18;
+        const colH = size * 0.85;
+        ctx.fillStyle = '#dcdde1';
+        ctx.fillRect(-colW * 0.75, -size * 0.1, colW * 1.5, size * 0.1);
+        ctx.fillStyle = '#f5f6fa';
+        ctx.fillRect(-colW / 2, -colH, colW, colH - size * 0.1);
+        ctx.fillStyle = '#ced6e0';
+        ctx.fillRect(-colW * 0.15, -colH, colW * 0.3, colH - size * 0.1);
+        ctx.fillStyle = '#f5f6fa';
+        ctx.fillRect(-colW * 0.8, -colH - size * 0.08, colW * 1.6, size * 0.08);
+    } else if (type === 'windmill') {
+        const baseW = size * 0.28;
+        const bodyH = size * 0.75;
+        ctx.fillStyle = '#f5f6fa';
+        ctx.beginPath();
+        ctx.moveTo(-baseW / 2, 0);
+        ctx.lineTo(-baseW * 0.35, -bodyH);
+        ctx.lineTo(baseW * 0.35, -bodyH);
+        ctx.lineTo(baseW / 2, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#e17055';
+        ctx.beginPath();
+        ctx.moveTo(-baseW * 0.4, -bodyH);
+        ctx.lineTo(0, -bodyH - size * 0.18);
+        ctx.lineTo(baseW * 0.4, -bodyH);
+        ctx.closePath();
+        ctx.fill();
+        const angle = (Date.now() / 300) % (Math.PI * 2);
+        ctx.save();
+        ctx.translate(0, -bodyH + size * 0.05);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#dfe6e9';
+        for (let b = 0; b < 4; b++) {
+            ctx.rotate(Math.PI / 2);
+            ctx.fillRect(-size * 0.03, 0, size * 0.06, size * 0.45);
+        }
+        ctx.restore();
     } else if (type === 'city') {
-        // Poste de luz neón
         ctx.fillStyle = '#00f3ff';
         ctx.fillRect(-size * 0.03, -size * 0.9, size * 0.06, size * 0.9);
         ctx.fillStyle = '#ff00ea';
         ctx.fillRect(-size * 0.15, -size * 0.9, size * 0.3, size * 0.1);
+    } else if (type === 'fork_sign_left') {
+        const signW = Math.max(30, size * 1.1);
+        const signH = Math.max(14, size * 0.45);
+        ctx.fillStyle = '#718093';
+        ctx.fillRect(-3, -signH, 6, signH);
+        ctx.fillStyle = '#10ac84';
+        ctx.fillRect(-signW / 2, -signH - signH * 0.85, signW, signH * 0.85);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-signW / 2, -signH - signH * 0.85, signW, signH * 0.85);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.max(4, Math.floor(size * 0.08))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = (spriteObj.label || '◄ ROUTE').substring(0, 15);
+        ctx.fillText(label, 0, -signH - signH * 0.42);
+    } else if (type === 'fork_sign_right') {
+        const signW = Math.max(30, size * 1.1);
+        const signH = Math.max(14, size * 0.45);
+        ctx.fillStyle = '#718093';
+        ctx.fillRect(-3, -signH, 6, signH);
+        ctx.fillStyle = '#10ac84';
+        ctx.fillRect(-signW / 2, -signH - signH * 0.85, signW, signH * 0.85);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-signW / 2, -signH - signH * 0.85, signW, signH * 0.85);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.max(4, Math.floor(size * 0.08))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = (spriteObj.label || 'ROUTE ►').substring(0, 15);
+        ctx.fillText(label, 0, -signH - signH * 0.42);
+    } else if (type === 'median_sign') {
+        const signS = Math.max(12, size * 0.35);
+        ctx.fillStyle = '#2f3640';
+        ctx.fillRect(-2, -signS * 1.6, 4, signS * 1.6);
+        ctx.save();
+        ctx.translate(0, -signS * 1.6);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fillRect(-signS / 2, -signS / 2, signS, signS);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(-signS / 2, -signS / 2, signS, signS);
+        ctx.restore();
+        ctx.fillStyle = '#000000';
+        ctx.font = `${Math.max(4, Math.floor(size * 0.09))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('◄►', 0, -signS * 1.6);
     } else if (type === 'checkpoint_arch') {
-        // Gran arco de meta
-        const archW = Math.max(20, size * 1.6);
-        const archH = Math.max(16, size * 1.1);
+        const archW = Math.max(26, size * 1.7);
+        const archH = Math.max(18, size * 1.15);
         ctx.fillStyle = '#ffb703';
         ctx.fillRect(-archW / 2, -archH, 4, archH);
         ctx.fillRect(archW / 2 - 4, -archH, 4, archH);
-        ctx.fillRect(-archW / 2, -archH, archW, 8);
+        ctx.fillRect(-archW / 2, -archH, archW, 9);
         ctx.fillStyle = '#ff4d6d';
-        ctx.font = `${Math.max(4, Math.floor(size * 0.14))}px "Press Start 2P"`;
+        ctx.font = `${Math.max(4, Math.floor(size * 0.12))}px "Press Start 2P"`;
         ctx.textAlign = 'center';
-        ctx.fillText('CHECKPOINT', 0, -archH + 7);
+        ctx.textBaseline = 'middle';
+        ctx.fillText('CHECKPOINT', 0, -archH + 5);
+    } else if (type === 'finish_arch') {
+        const archW = Math.max(34, size * 2.0);
+        const archH = Math.max(22, size * 1.3);
+        const colW = 5;
+        for (let yPos = 0; yPos < archH; yPos += 5) {
+            const isWhite = (Math.floor(yPos / 5) % 2 === 0);
+            ctx.fillStyle = isWhite ? '#ffffff' : '#111111';
+            ctx.fillRect(-archW / 2, -archH + yPos, colW, 5);
+            ctx.fillRect(archW / 2 - colW, -archH + yPos, colW, 5);
+        }
+        ctx.fillStyle = '#ffb703';
+        ctx.fillRect(-archW / 2, -archH, archW, 11);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-archW / 2, -archH, archW, 11);
+        const letter = spriteObj.goalLetter || 'GOAL';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.max(4, Math.floor(size * 0.11))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`★ GOAL ${letter} ★`, 0, -archH + 6);
     }
 
     ctx.restore();

@@ -317,7 +317,7 @@ async function startWebRTC() {
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'game_over') {
-                showThanks(data.score, data.checkpoints);
+                showThanks(data.score, data.checkpoints, data.won, data.goal);
             } else if (data.type === 'sfx') {
                 mobileAudio.play(data.sound, data.param);
             }
@@ -363,22 +363,30 @@ function sendInputData(immediate = false) {
     }
 }
 
-function showThanks(finalScore = 0, checkpoints = 0) {
+function showThanks(finalScore = 0, checkpoints = 0, won = false, goal = null) {
     controllerContainer.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'block';
 
+    const headerTitle = thanksScreen.querySelector('h2');
+    if (headerTitle) {
+        headerTitle.textContent = won ? '¡VICTORIA!' : '¡CARRERA TERMINADA!';
+        headerTitle.style.color = won ? 'var(--accent)' : 'var(--primary)';
+    }
+
     if (thanksResultText) {
+        const goalBadge = (won && goal) ? `<div style="color: var(--accent); font-size: 20px; margin: 8px 0; font-weight: bold;">★ META ${goal} ALCANZADA ★</div>` : '';
         thanksResultText.innerHTML = `
-            ¡Gran carrera, <span style="color: var(--primary);">${nickname}</span>!<br><br>
+            ${won ? '¡Felicidades,' : 'Gran carrera,'} <span style="color: var(--primary);">${nickname}</span>!<br>
+            ${goalBadge}
             PUNTAJE FINAL:<br>
-            <span style="font-size: 38px; color: white; font-weight: 900; display: block; margin: 10px 0; font-family: 'Press Start 2P', monospace;">${finalScore.toString().padStart(5, '0')}</span>
+            <span style="font-size: 34px; color: white; font-weight: 900; display: block; margin: 10px 0; font-family: 'Press Start 2P', monospace;">${finalScore.toString().padStart(5, '0')}</span>
             CHECKPOINTS SUPERADOS: <strong style="color: var(--accent);">${checkpoints}</strong>
         `;
     }
 
-    status.textContent = 'CARRERA COMPLETADA';
-    vibrate([40, 60, 40]);
+    status.textContent = won ? 'CURSO COMPLETADO' : 'CARRERA COMPLETADA';
+    vibrate(won ? [80, 50, 80, 50, 150] : [40, 60, 40]);
 
     if (dataChannel) dataChannel.close();
     if (pc) pc.close();
