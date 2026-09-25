@@ -367,6 +367,9 @@ Antes de ejecutar `git push`:
    - ¿Se activa la pantalla de Game Over y se puede reiniciar?
 4. **Solo cuando el juego sea 100% divertido y estable con teclado**, proceder al push a Staging.
 
+> [!TIP]
+> Puedes ejecutar en cualquier momento el comando **/test** para iniciar el protocolo guiado interactivo de pruebas con teclado, verificación en Staging con el móvil y retroalimentación constante en el chat.
+
 ---
 
 ## 🧪 Fase 7: Despliegue en Staging y Verificación Móvil en Vivo

@@ -131,15 +131,19 @@ async function syncScreen(screenId) {
             downloaded += 1;
         }
 
-        // 3. Eliminar los que ya no están en el remoto
+        // 3. Eliminar los que ya no están en el remoto (a menos que se indique preservar)
         let removed = 0;
-        const localFiles = await fs.promises.readdir(screenDir).catch(() => []);
-        for (const filename of localFiles) {
-            if (!isVideo(filename)) continue;
-            if (remoteSet.has(filename)) continue;
-            await fs.promises.unlink(path.join(screenDir, filename));
-            console.log(`[sync][${screenId}] eliminado: ${filename}`);
-            removed += 1;
+        if (process.env.PRESERVE_LOCAL_VIDEOS !== 'true') {
+            const localFiles = await fs.promises.readdir(screenDir).catch(() => []);
+            for (const filename of localFiles) {
+                if (!isVideo(filename)) continue;
+                if (remoteSet.has(filename)) continue;
+                await fs.promises.unlink(path.join(screenDir, filename));
+                console.log(`[sync][${screenId}] eliminado: ${filename}`);
+                removed += 1;
+            }
+        } else {
+            console.log(`[sync][${screenId}] PRESERVE_LOCAL_VIDEOS activo: conservando videos locales`);
         }
 
         // 4. Devolver lista local (debe coincidir con remota tras sync)
@@ -347,6 +351,36 @@ const server = http.createServer((req, res) => {
                 });
                 fs.createReadStream(filePath, { highWaterMark: VIDEO_BUFFER_SIZE }).pipe(res);
             }
+        });
+        return;
+    }
+
+    // Serve local game files (e.g. /games/snake/ or /games/snake/index.html, /games/snake/style.css, etc.)
+    if (parts[0] === 'games' && parts[1]) {
+        const slug = parts[1];
+        const subPath = parts.slice(2).join('/') || 'index.html';
+        const gamesRoot = path.resolve(__dirname, '..', 'games');
+        const filePath = path.resolve(gamesRoot, slug, 'game', subPath);
+        
+        // Prevent path traversal
+        if (!filePath.startsWith(gamesRoot)) {
+            res.writeHead(403); res.end('Forbidden'); return;
+        }
+
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404); res.end('Game file not found'); return;
+            }
+            const ext = path.extname(filePath).toLowerCase();
+            const mimeType = ext === '.css' ? 'text/css' :
+                             ext === '.js' ? 'application/javascript' :
+                             ext === '.html' ? 'text/html' :
+                             ext === '.png' ? 'image/png' :
+                             ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+                             ext === '.svg' ? 'image/svg+xml' :
+                             ext === '.json' ? 'application/json' : 'application/octet-stream';
+            res.writeHead(200, { 'Content-Type': mimeType });
+            res.end(data);
         });
         return;
     }

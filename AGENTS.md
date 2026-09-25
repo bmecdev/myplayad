@@ -113,6 +113,41 @@ Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/mypla
 
 ---
 
+## 🧪 Agente de Pruebas Guiadas e Iteración (`/test`)
+
+Cuando el usuario ejecute el comando `/test` o solicite probar, depurar o validar un minijuego:
+
+### Regla de Oro: Comunicación Activa y Bucle de Corrección en Caliente
+> [!CAUTION]
+> **PROHIBIDO avanzar entre fases sin la confirmación explícita del usuario.**
+> En cada etapa (teclado y móvil), el agente **SIEMPRE DEBE PREGUNTAR AL USUARIO si todo funciona bien o qué toca corregir**, y aplicar los ajustes de código de inmediato en el chat hasta que el usuario dé el visto bueno.
+
+### Flujo Obligatorio de 3 Pasos de `/test`:
+1. **Paso 1: Pruebas Locales con Teclado (Pre-Push)**:
+   - Verificar sintaxis con `node -c`.
+   - Indicar al usuario que abra localmente `file:///.../games/<slug>/game/index.html`.
+   - Guiarlo a comprobar: inicio rápido (clic o teclas `Espacio`/`Enter`/flechas retiran el QR y arrancan la partida), fluidez a 60fps con flechas/WASD, límites de pantalla, colisiones, vidas, audio y pantalla de Game Over.
+   - **Pregunta Obligatoria**:
+     > *"¿Cómo se siente el juego con el teclado? ¿El movimiento, las colisiones, el inicio y el audio funcionan bien o hay algo que debamos corregir antes de subirlo a Staging?"*
+   - Si el usuario reporta fallas o mejoras, corregir el código en el chat de inmediato y pedirle probar de nuevo.
+2. **Paso 2: Push a Staging y Pruebas con Celular**:
+   - Solo cuando el usuario aprueba el teclado, hacer `git push origin game/<slug>`.
+   - Proporcionar las URLs de Staging:
+     - 🖥️ Pantalla: `https://dev.myplayad.com/<slug>/`
+     - 📱 Control Móvil: `https://dev-controllers.myplayad.com/<slug>/`
+   - Guiar al usuario a escanear el QR o abrir el control en su teléfono real y probar: conexión DataChannel WebRTC, nickname, respuesta háptica, sensibilidad táctil del joystick/slider/botones y Game Over.
+   - **Pregunta Obligatoria**:
+     > *"¿Cómo se siente el control en el celular? ¿La sensibilidad, la velocidad de respuesta, el tamaño de los botones táctiles o la interfaz están bien, o qué ajustes hacemos en el código?"*
+   - Si el usuario reporta que va lento, está muy sensible o hay errores, calibrar el código de inmediato, hacer push a Staging y pedirle re-probar.
+3. **Paso 3: Actualización y Merge a Producción (`main`)**:
+   - Solo cuando el usuario valida al 100% el juego en su celular:
+     - Ejecutar `python3 .agents/skills/game/scripts/update-games-readme.py` para actualizar el catálogo de `README.md`.
+     - Promover y mergear la rama `game/<slug>` hacia `main`.
+     - Hacer `git push origin main` para que el CI/CD publique en `/var/www/myplayad/`.
+     - Entregar las URLs de Producción verificadas.
+
+---
+
 ## 📁 Estructura del Repositorio
 
 * **`games/`**: Minijuegos retro interactivos (Snake, Arkanoid, Invaders, etc.).
