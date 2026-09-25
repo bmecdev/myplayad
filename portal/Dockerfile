@@ -9,6 +9,7 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 RUN npm ci
 # Generate Prisma Client
 RUN npx prisma generate
