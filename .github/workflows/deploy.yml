@@ -57,3 +57,4 @@ jobs:
           script: |
             cd /opt/myplayad/server
             docker compose up -d --build --remove-orphans
+            docker compose logs --tail=50 portal

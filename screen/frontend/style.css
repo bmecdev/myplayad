@@ -166,3 +166,51 @@ body, html {
     opacity: 0;
     pointer-events: none;
 }
+
+/* Barra de control para pruebas y desarrollo */
+.dev-toolbar {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 10000;
+    display: flex;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.85);
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(10px);
+    opacity: 0.45;
+    transition: opacity 0.25s ease, transform 0.2s ease;
+}
+
+.dev-toolbar:hover {
+    opacity: 1;
+    transform: translateY(2px);
+}
+
+.dev-btn {
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer !important;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    user-select: none;
+}
+
+.dev-btn:hover {
+    background: #3b82f6;
+    color: #fff;
+    transform: scale(1.04);
+}
+
+.dev-btn.active {
+    background: #10b981;
+    color: #042f2e;
+    border-color: #34d399;
+}

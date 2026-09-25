@@ -20,15 +20,30 @@ async function syncLocalPlaylist() {
     if (!screenId) return;
     try {
         const cacheRes = await fetch(`/api/cache/${screenId}`);
-        if (!cacheRes.ok) return;
-        const cacheData = await cacheRes.json();
-        videoPlaylist = cacheData.videos || [];
-        
-        if (currentType === 'video' && layers.video.paused && videoPlaylist.length > 0) {
-            playCurrentVideo();
+        if (cacheRes.ok) {
+            const cacheData = await cacheRes.json();
+            if (cacheData.videos && cacheData.videos.length > 0) {
+                videoPlaylist = cacheData.videos;
+            }
         }
     } catch (e) {
-        console.warn('Error syncing playlist:', e);
+        console.warn('Error syncing playlist via cache:', e);
+    }
+
+    if (!videoPlaylist.length) {
+        try {
+            const localRes = await fetch(`/api/videos/${screenId}`);
+            if (localRes.ok) {
+                const localData = await localRes.json();
+                if (localData.videos && localData.videos.length > 0) {
+                    videoPlaylist = localData.videos;
+                }
+            }
+        } catch (_) {}
+    }
+    
+    if (currentType === 'video' && layers.video.paused && videoPlaylist.length > 0) {
+        playCurrentVideo();
     }
 }
 
@@ -75,14 +90,60 @@ function playCurrentVideo() {
 
 let hasUpcoming = false;
 
+let gameRotationTimer = null;
+
+function getTargetGameUrl(slug) {
+    const s = slug || new URLSearchParams(window.location.search).get('game') || 'snake';
+    return `/games/${s}/?screenId=${screenId || ''}`;
+}
+
+function switchToGame(slug) {
+    if (gameRotationTimer) {
+        clearTimeout(gameRotationTimer);
+        gameRotationTimer = null;
+    }
+    const targetUrl = getTargetGameUrl(slug);
+    if (currentUrl !== targetUrl) {
+        currentUrl = targetUrl;
+        layers.game.src = targetUrl;
+    }
+    setActiveLayer('game');
+
+    // Si el usuario no forzó permanentemente el juego en la URL (?game=...), rotar a video tras 45s
+    const isForced = new URLSearchParams(window.location.search).has('game');
+    if (!isForced) {
+        gameRotationTimer = setTimeout(() => {
+            if (currentType === 'game') {
+                switchToVideo();
+            }
+        }, 45000);
+    }
+}
+
+function switchToVideo() {
+    if (gameRotationTimer) {
+        clearTimeout(gameRotationTimer);
+        gameRotationTimer = null;
+    }
+    setActiveLayer('video');
+    currentUrl = 'playlist';
+    playCurrentVideo();
+}
+
 layers.video.onended = () => {
     if (currentType === 'video') {
-        videoIndex = (videoIndex + 1) % videoPlaylist.length;
+        videoIndex = videoIndex + 1;
+        
+        // Al terminar el ciclo de todos los videos, rotar al juego arcade
+        if (videoIndex >= videoPlaylist.length) {
+            videoIndex = 0;
+            switchToGame();
+            return;
+        }
         
         if (hasUpcoming) {
             setActiveLayer('interstitial');
             setTimeout(() => {
-                // Return to video after 10 seconds
                 if (currentType === 'interstitial') {
                     setActiveLayer('video');
                     playCurrentVideo();
@@ -112,6 +173,39 @@ async function initialize() {
         return;
     }
 
+    // Configurar botones de cambio rápido de modo
+    const btnVideo = document.getElementById('btn-switch-video');
+    const btnGame = document.getElementById('btn-switch-game');
+    if (btnVideo) btnVideo.onclick = () => switchToVideo();
+    if (btnGame) btnGame.onclick = () => switchToGame();
+
+    // Atajos de teclado para desarrolladores y pruebas:
+    // 'G': Cambiar a Juego
+    // 'V': Cambiar a Video
+    // 'Espacio': Alternar
+    window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'g' || e.key === 'G') {
+            switchToGame();
+        } else if (e.key === 'v' || e.key === 'V') {
+            switchToVideo();
+        } else if (e.code === 'Space') {
+            if (currentType === 'game') switchToVideo();
+            else switchToGame();
+        }
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const forcedGame = urlParams.get('game');
+    const forcedType = urlParams.get('type');
+
+    if (forcedGame || forcedType === 'game') {
+        switchToGame(forcedGame);
+    } else {
+        // Iniciar videos locales inmediatamente
+        checkAndPlayLocalFallback();
+    }
+
     checkSchedule();
     setInterval(checkSchedule, POLL_INTERVAL);
 
@@ -120,7 +214,6 @@ async function initialize() {
     eventSource.onmessage = (event) => {
         if (event.data === 'sync') {
             console.log('[SSE] Recibida alerta de sincronización en tiempo real');
-            // Forzar actualización inmediata
             checkSchedule();
             if (currentType === 'video') {
                 syncLocalPlaylist();
@@ -143,6 +236,14 @@ function setActiveLayer(type) {
     
     // Activate target
     layers[type].classList.add('active');
+
+    // Actualizar botones de la barra de control
+    const btnVideo = document.getElementById('btn-switch-video');
+    const btnGame = document.getElementById('btn-switch-game');
+    if (btnVideo && btnGame) {
+        btnVideo.classList.toggle('active', type === 'video');
+        btnGame.classList.toggle('active', type === 'game');
+    }
     
     // Pause video if we are navigating away
     if (type !== 'video' && currentType === 'video') {
@@ -181,18 +282,62 @@ function setActiveLayer(type) {
     currentType = type;
 }
 
+async function checkAndPlayLocalFallback() {
+    if (!screenId) return false;
+    // Si ya estamos mostrando el juego intencionalmente, no interrumpirlo
+    if (currentType === 'game') return false;
+
+    try {
+        const res = await fetch(`/api/videos/${screenId}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.videos && data.videos.length > 0) {
+                videoPlaylist = data.videos;
+                if (currentType !== 'video' && currentType !== 'interstitial' && currentType !== 'game') {
+                    setActiveLayer('video');
+                    currentUrl = 'local-playlist';
+                    playCurrentVideo();
+                }
+                if (!playlistSyncInterval) {
+                    playlistSyncInterval = setInterval(syncLocalPlaylist, 30000);
+                }
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn('Fallback local error:', e);
+    }
+    return false;
+}
+
 async function checkSchedule() {
     if (!screenId) return;
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const forcedGame = urlParams.get('game');
+    const forcedType = urlParams.get('type');
+
+    if (forcedGame || forcedType === 'game') {
+        switchToGame(forcedGame);
+        return;
+    }
+
+    if (forcedType === 'video') {
+        switchToVideo();
+        return;
+    }
+
     try {
         const res = await fetch(`${PORTAL_URL}/api/public/screens/${screenId}/current`);
+        if (!res.ok) {
+            throw new Error(`Portal respondió status ${res.status}`);
+        }
         const data = await res.json();
 
         // Render upcoming schedules in interstitial layer
         const upcomingList = document.getElementById('interstitial-list');
         
         if (data.upcoming && data.upcoming.length > 0) {
-            // Group games by name to merge dates
             const gamesMap = {};
             data.upcoming.forEach(item => {
                 if (item.type === 'game') {
@@ -233,21 +378,20 @@ async function checkSchedule() {
         }
 
         if (data.type === 'standby' || !data.type) {
-            setActiveLayer('standby');
-            currentUrl = '';
+            if (currentType !== 'game' && currentType !== 'video') {
+                const hasLocalVideos = await checkAndPlayLocalFallback();
+                if (!hasLocalVideos) {
+                    setActiveLayer('standby');
+                    currentUrl = '';
+                }
+            }
             return;
         }
 
         if (data.type === 'video') {
             if (currentType !== 'video' && currentType !== 'interstitial') {
-                setActiveLayer('video');
-                currentUrl = 'playlist';
-                
+                switchToVideo();
                 await syncLocalPlaylist();
-                if (videoPlaylist.length > 0) {
-                    playCurrentVideo();
-                }
-                
                 if (!playlistSyncInterval) {
                     playlistSyncInterval = setInterval(syncLocalPlaylist, 30000);
                 }
@@ -255,15 +399,23 @@ async function checkSchedule() {
         }
 
         if (data.type === 'game') {
-            if (currentUrl !== data.url) {
-                currentUrl = data.url;
-                layers.game.src = data.url;
+            const gameUrl = data.url || getTargetGameUrl('snake');
+            if (currentUrl !== gameUrl) {
+                currentUrl = gameUrl;
+                layers.game.src = gameUrl;
             }
             setActiveLayer('game');
         }
 
     } catch (err) {
-        console.error('Error fetching schedule:', err);
+        // En modo offline / portal con error:
+        if (currentType !== 'video' && currentType !== 'game') {
+            const hasLocalVideos = await checkAndPlayLocalFallback();
+            if (!hasLocalVideos) {
+                setActiveLayer('standby');
+                currentUrl = '';
+            }
+        }
     }
 }
 

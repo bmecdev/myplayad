@@ -16,7 +16,8 @@ export async function GET() {
     });
     return NextResponse.json(screens);
   } catch (error) {
-    return NextResponse.json({ error: 'Error fetching screens' }, { status: 500 });
+    const details = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Error fetching screens', details }, { status: 500 });
   }
 }
 

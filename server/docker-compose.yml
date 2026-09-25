@@ -41,6 +41,19 @@ services:
     ports:
       - "5432:5432"
 
+  prisma-db-push:
+    build:
+      context: ../portal
+      dockerfile: Dockerfile
+      target: deps
+    container_name: prisma-db-push
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad?schema=public
+    command: npx prisma db push --skip-generate
+    depends_on:
+      - postgres
+
   portal:
     build:
       context: ../portal
@@ -57,6 +70,7 @@ services:
       - "3000:3000"
     depends_on:
       - postgres
+      - prisma-db-push
 
   mosquitto:
     image: eclipse-mosquitto:2
