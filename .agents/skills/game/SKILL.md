@@ -16,11 +16,13 @@ flowchart TD
     A[Inicio: Comando /game] --> B[Fase 1: Entrevista y Detección de Referencias]
     B --> C{¿Hay archivos en /referencia?}
     C -- Sí --> D[Inspeccionar y analizar archivos de referencia]
-    C -- No --> E[Formular propuesta y mecánicas de juego]
+    C -- No --> E[Definir concepto y slug del juego]
     D --> E
-    E --> F[Fase 2: Generación del Juego games/<slug>/game/]
-    F --> G[Fase 3: Generación del Controlador Móvil games/<slug>/control/]
-    G --> H[Fase 4: Verificación, Escalado y Registro]
+    E --> F[Fase 2: Aislamiento en Rama Git game/<slug>]
+    F --> G[Fase 3: Generación del Juego games/<slug>/game/]
+    G --> H[Fase 4: Generación del Controlador games/<slug>/control/]
+    H --> I[Fase 5: Despliegue Automático en Staging y Pruebas Reales]
+    I --> J[Fase 6: Pull Request y Promoción a Producción Main]
 ```
 
 ---
@@ -39,7 +41,28 @@ Al activarse con `/game`, el agente debe interactuar con el usuario para definir
 
 ---
 
-## 🏗️ Fase 2: Estructura de Archivos Estándar
+## 🌿 Fase 2: Aislamiento Obligatorio en Rama Git (`game/<slug>`)
+
+> [!CAUTION]
+> **PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
+> Commitear en `main` dispara el despliegue automático a producción (`/var/www/myplayad/`).
+> Todo nuevo juego o cambio debe desarrollarse en su rama aislada `game/<slug>`.
+
+**Acción Obligatoria antes de crear archivos**:
+El agente debe ejecutar el script de inicialización de rama o crearlo con Git:
+```bash
+# Usar el script del skill:
+./.agents/skills/game/scripts/start-game-branch.sh <slug>
+
+# O directamente:
+git checkout main && git pull origin main
+git checkout -b game/<slug>
+```
+Comprobar siempre con `git branch --show-current` que la rama activa empiece con `game/`.
+
+---
+
+## 🏗️ Fase 3: Estructura de Archivos Estándar
 
 Cada nuevo juego debe crearse dentro del directorio `games/<slug>/` con la siguiente estructura idéntica a Arkanoid:
 
@@ -61,7 +84,7 @@ games/<slug>/
 
 ---
 
-## 🎨 Fase 3: Estándares Visuales y de Estilo
+## 🎨 Fase 4: Estándares Visuales y de Estilo
 
 Todos los juegos deben compartir la misma estética arcade retro CRT:
 
@@ -132,12 +155,15 @@ Todos los juegos deben compartir la misma estética arcade retro CRT:
 
 ---
 
-## 📡 Fase 4: Protocolo de Comunicación WebRTC y Señalización
+## 📡 Fase 5: Protocolo de Comunicación WebRTC y Señalización
+
+### ⚠️ Regla de Oro de Señalización (`server/server.js`):
+El servidor de señalización WebSockets enruta respuestas del Host al Controller buscando **`data.playerId`**. Si el Host responde con `to: data.from` o no incluye `playerId`, el mensaje se descarta y el teléfono jamás conectará.
 
 ### 1. Pantalla (`game/script.js` - Host):
-1. Genera un código de sala aleatorio de 4 caracteres: `GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase()`.
-2. Conecta al WebSocket de señalización (`wss://signaling.myplayad.com` o local):
+1. **Generación de Sala y Registro**:
    ```javascript
+   GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
    socket.send(JSON.stringify({
        type: 'register',
        role: 'host',
@@ -145,36 +171,172 @@ Todos los juegos deben compartir la misma estética arcade retro CRT:
        maxPlayers: CONFIG.MAX_PLAYERS || 1
    }));
    ```
-3. Genera el código QR dinámico apuntando al controlador móvil:
+2. **Detección Dinámica de URL para QR (`config.js`)**:
    ```javascript
-   const controlUrl = `https://controllers.myplayad.com/<slug>?room=${GameState.roomId}`;
-   qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(controlUrl)}&margin=10`;
+   const isDevHost = typeof window !== 'undefined' && (
+       window.location.hostname.includes('dev') || 
+       window.location.hostname.includes('staging') || 
+       window.location.hostname.includes('test')
+   );
+   const CONTROL_URL = isDevHost 
+       ? 'https://dev-controllers.myplayad.com/<slug>' 
+       : 'https://controllers.myplayad.com/<slug>';
    ```
-4. Recibe ofertas WebRTC (`offer`), responde con `answer`, intercambia `ice-candidates` y crea el `RTCDataChannel`.
-5. Escucha eventos desde el móvil:
-   * `{ type: 'join', nickname: '...' }` -> Inicia la partida.
-   * `{ type: 'input', action: 'MOVE', x: ..., y: ... }` -> Movimiento analógico / digital.
-   * `{ type: 'action', action: 'BUTTON_A' }` -> Disparo, salto o acción principal.
-6. Al finalizar la partida (`endGame`):
-   * Notifica al móvil `{ type: 'game_over', score: ... }`.
-   * Envía la puntuación al ranking local/portal vía `submitScore(nickname, score)`.
-   * Muestra el overlay de Hall of Fame durante 15 segundos y regenera el QR automáticamente.
+3. **Manejo de Oferta (`handleOffer`) con `playerId`**:
+   ```javascript
+   async function handleOffer(data) {
+       const { playerId, type, sdp } = data;
+       const targetPlayerId = playerId || 'controller';
+       const rtcConfig = (window.GAME_CONFIG && window.GAME_CONFIG.getIceConfig) 
+           ? window.GAME_CONFIG.getIceConfig() 
+           : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+       const pc = new RTCPeerConnection(rtcConfig);
+       peerConnections.set(targetPlayerId, pc);
+
+       pc.onicecandidate = (e) => {
+           if (e.candidate && socket?.readyState === WebSocket.OPEN) {
+               socket.send(JSON.stringify({
+                   type: 'candidate',
+                   candidate: e.candidate,
+                   roomId: GameState.roomId,
+                   playerId: targetPlayerId // OBLIGATORIO
+               }));
+           }
+       };
+
+       pc.ondatachannel = (e) => {
+           const dc = e.channel;
+           dataChannels.set(targetPlayerId, dc);
+           setupDataChannel(dc, targetPlayerId);
+       };
+
+       await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+       const answer = await pc.createAnswer();
+       await pc.setLocalDescription(answer);
+
+       socket.send(JSON.stringify({
+           type: 'answer',
+           sdp: answer.sdp,
+           roomId: GameState.roomId,
+           playerId: targetPlayerId // OBLIGATORIO
+       }));
+   }
+   ```
+4. **Ciclo de Vida de DataChannel y Desconexiones**:
+   ```javascript
+   function setupDataChannel(channel, playerId) {
+       channel.onopen = () => {
+           waitingOverlay.classList.add('hidden');
+       };
+       channel.onmessage = (e) => {
+           try {
+               const msg = JSON.parse(e.data);
+               if (msg.type === 'join' || msg.type === 'nickname') {
+                   GameState.currentNickname = (msg.nickname || msg.value || 'PILOT').toUpperCase().substring(0, 10);
+                   if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname}`;
+                   startNewGame();
+               }
+               // Procesar x, y, fire, acciones...
+           } catch (err) {}
+       };
+       channel.onclose = () => handleControllerDisconnect(playerId);
+   }
+
+   function handleControllerDisconnect(playerId) {
+       const pc = peerConnections.get(playerId);
+       if (pc) pc.close();
+       peerConnections.delete(playerId);
+       dataChannels.delete(playerId);
+       if (peerConnections.size === 0 && !GameState.gameOver && GameState.running) {
+           waitingOverlay.classList.remove('hidden');
+           GameState.running = false;
+       }
+   }
+   ```
+5. **Al finalizar la partida (`endGame`)**:
+   * Notificar al móvil: `dataChannels.forEach(ch => ch.send(JSON.stringify({ type: 'game_over', score: GameState.score })));`.
+   * Enviar puntuación a ranking local/portal vía `submitScore(nickname, score)`.
+   * Mostrar overlay Hall of Fame durante 15s y luego regenerar sala con `resetSignalingAndRoom()`.
 
 ### 2. Controlador Móvil (`control/script.js` - Controller):
-1. Lee el `?room=XXXX` de la URL.
-2. Pide el Nickname al usuario y conecta al WebSocket:
+1. **Lectura de URL y Estado Inicial**:
+   * Al cargar con `?room=XXXX`, asignar `roomInput.value` y enfocar `nicknameInput`.
+   * Mostrar estado `"INGRESA TU NICKNAME"` (NO mostrar `"Conectando..."` antes de pulsar el botón).
+2. **Conexión WebSocket al pulsar "EMPEZAR A JUGAR"**:
    ```javascript
    socket.send(JSON.stringify({ type: 'register', role: 'controller', roomId: roomId }));
    ```
-3. Establece la conexión P2P WebRTC con la pantalla y abre el `dataChannel`.
-4. Captura toques táctiles con `touchAction: none` y envía eventos con frecuencia de ~60fps (16ms throttle).
-5. Proporciona vibración táctil háptica (`navigator.vibrate(20)`).
-6. Al recibir `game_over`, oculta los controles y muestra la pantalla de agradecimiento.
+3. **Creación de DataChannel Fiable**:
+   * `pc.createDataChannel('control', { ordered: false });`
+   * **PROHIBIDO usar `maxRetransmits: 0`**, ya que hace que los paquetes iniciales de `join` se pierdan en redes móviles.
+4. **Envío de Handshake en `dataChannel.onopen`**:
+   ```javascript
+   dataChannel.onopen = () => {
+       status.textContent = 'LISTO';
+       roomSelection.style.display = 'none';
+       container.style.display = 'flex';
+       dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+   };
+   ```
+5. **Captura Táctil y Háptica**:
+   * `touchAction: none` en el contenedor táctil.
+   * Enviar coordenadas throttled a ~60fps (16ms).
+   * Vibración háptica en botones de acción (`navigator.vibrate(15)`).
+6. **Fin de Partida**:
+   * Al recibir `{ type: 'game_over', score }`, mostrar pantalla de agradecimiento y cerrar conexiones limpiamente.
 
 ---
 
-## 🧪 Fase 5: Verificación y Pruebas
-1. Verificar que no haya errores de sintaxis en `game/script.js` y `control/script.js`.
-2. Probar que los estilos sean responsivos tanto en formato horizontal (16:9) como vertical (9:16).
-3. Asegurar que las rutas de video (`video_loop.js`) funcionen sin romper si no hay conexión a internet (modo fallback offline).
+## 🧪 Fase 6: Despliegue en Staging y Verificación Móvil en Vivo
+
+Una vez implementado el juego en la rama `game/<slug>`:
+1. **Comprobar la rama activa**:
+   ```bash
+   git branch --show-current # Debe ser game/<slug>
+   ```
+2. **Commit y Push a Staging**:
+   ```bash
+   git add games/<slug>/
+   git commit -m "feat(game): implementar minijuego <slug> con webrtc y control táctil"
+   git push origin game/<slug>
+   ```
+3. **Verificación de CI/CD**:
+   - El push activa automáticamente `.github/workflows/deploy-staging.yml`.
+   - Esperar a que el workflow termine en GitHub Actions (`gh run list --limit 1`).
+4. **Prueba en Dispositivo Móvil Real**:
+   - Abrir la pantalla del juego en el navegador o TV: `https://dev.myplayad.com/<slug>/`
+   - Escanear el código QR con el móvil (debe apuntar a `https://dev-controllers.myplayad.com/<slug>/?room=XXXX`).
+   - Introducir Nickname y pulsar "EMPEZAR A JUGAR".
+   - Probar:
+     - Apertura inmediata de DataChannel y desaparición del overlay QR.
+     - Sensibilidad y respuesta háptica de los controles táctiles.
+     - Audio sintetizado Web Audio API en móvil y pantalla.
+     - Ciclo completo de juego: vidas, game over, registro en ranking y reinicio.
+
+---
+
+## 🚀 Fase 7: Pull Request y Promoción a Producción (`main`)
+
+Solo cuando el usuario y el desarrollador hayan verificado el juego en Staging:
+1. **Crear Pull Request**:
+   ```bash
+   # Opción A (script automático):
+   ./.agents/skills/game/scripts/promote-to-main.sh <slug>
+
+   # Opción B (gh cli):
+   gh pr create --base main --head game/<slug> \
+       --title "feat(game): nuevo minijuego <slug>" \
+       --body "Minijuego probado y verificado en Staging (dev.myplayad.com y dev-controllers.myplayad.com)."
+   ```
+2. **Merge a Producción**:
+   - Tras la aprobación del usuario:
+     ```bash
+     gh pr merge --merge --delete-branch
+     ```
+   - Al mergear en `main`, el workflow `.github/workflows/deploy.yml` publicará el juego automáticamente en la infraestructura de producción (`/var/www/myplayad/`).
+3. **Sincronización Local**:
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
 
