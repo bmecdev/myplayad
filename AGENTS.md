@@ -58,6 +58,36 @@ Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Con
 * **Estado del Controlador Móvil**:
   * Al cargar con `?room=XXXX`, mostrar `"INGRESA TU NICKNAME"` (no `"Conectando..."` antes de que el usuario pulse el botón de jugar).
 
+### 4. Flujo Git y CI/CD Obligatorio para Juegos (`game/<slug>`)
+**PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
+Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/myplayad/`). Para garantizar que todo juego se pruebe antes en dispositivos móviles reales sobre el VPS:
+
+1. **Aislamiento Inicial en Rama Dedicada**:
+   - **ANTES** de escribir código para un juego nuevo o refactorizar uno existente, cambiar a su rama:
+     ```bash
+     # Usar el script del skill o comando git:
+     ./.agents/skills/game/scripts/start-game-branch.sh <slug>
+     # O manualmente:
+     git checkout main && git pull origin main
+     git checkout -b game/<slug>
+     ```
+   - Verificar siempre que `git branch --show-current` sea `game/<slug>`.
+2. **Despliegue Continuo a Staging**:
+   - Cada `git push origin game/<slug>` activa automáticamente el workflow `.github/workflows/deploy-staging.yml`.
+   - Se despliega de forma segura en `/var/www/myplayad-staging/`.
+   - URLs de prueba inmediata en móvil y pantalla:
+     - 📺 Pantalla: `https://dev.myplayad.com/<slug>/`
+     - 📱 Control Móvil: `https://dev-controllers.myplayad.com/<slug>/`
+3. **Promoción a Producción (PR y Merge)**:
+   - Solo cuando el juego esté 100% probado en Staging:
+     ```bash
+     # Usar el script de promoción:
+     ./.agents/skills/game/scripts/promote-to-main.sh <slug>
+     # O crear PR manualmente:
+     gh pr create --base main --head game/<slug> --title "feat(game): agregar minijuego <slug>" --body "..."
+     ```
+   - Al aprobar y mergear el PR a `main`, el workflow `.github/workflows/deploy.yml` lo publicará automáticamente en producción.
+
 ---
 
 ## 📁 Estructura del Repositorio

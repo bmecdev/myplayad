@@ -16,11 +16,13 @@ flowchart TD
     A[Inicio: Comando /game] --> B[Fase 1: Entrevista y Detección de Referencias]
     B --> C{¿Hay archivos en /referencia?}
     C -- Sí --> D[Inspeccionar y analizar archivos de referencia]
-    C -- No --> E[Formular propuesta y mecánicas de juego]
+    C -- No --> E[Definir concepto y slug del juego]
     D --> E
-    E --> F[Fase 2: Generación del Juego games/<slug>/game/]
-    F --> G[Fase 3: Generación del Controlador Móvil games/<slug>/control/]
-    G --> H[Fase 4: Verificación, Escalado y Registro]
+    E --> F[Fase 2: Aislamiento en Rama Git game/<slug>]
+    F --> G[Fase 3: Generación del Juego games/<slug>/game/]
+    G --> H[Fase 4: Generación del Controlador games/<slug>/control/]
+    H --> I[Fase 5: Despliegue Automático en Staging y Pruebas Reales]
+    I --> J[Fase 6: Pull Request y Promoción a Producción Main]
 ```
 
 ---
@@ -39,7 +41,28 @@ Al activarse con `/game`, el agente debe interactuar con el usuario para definir
 
 ---
 
-## 🏗️ Fase 2: Estructura de Archivos Estándar
+## 🌿 Fase 2: Aislamiento Obligatorio en Rama Git (`game/<slug>`)
+
+> [!CAUTION]
+> **PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
+> Commitear en `main` dispara el despliegue automático a producción (`/var/www/myplayad/`).
+> Todo nuevo juego o cambio debe desarrollarse en su rama aislada `game/<slug>`.
+
+**Acción Obligatoria antes de crear archivos**:
+El agente debe ejecutar el script de inicialización de rama o crearlo con Git:
+```bash
+# Usar el script del skill:
+./.agents/skills/game/scripts/start-game-branch.sh <slug>
+
+# O directamente:
+git checkout main && git pull origin main
+git checkout -b game/<slug>
+```
+Comprobar siempre con `git branch --show-current` que la rama activa empiece con `game/`.
+
+---
+
+## 🏗️ Fase 3: Estructura de Archivos Estándar
 
 Cada nuevo juego debe crearse dentro del directorio `games/<slug>/` con la siguiente estructura idéntica a Arkanoid:
 
@@ -61,7 +84,7 @@ games/<slug>/
 
 ---
 
-## 🎨 Fase 3: Estándares Visuales y de Estilo
+## 🎨 Fase 4: Estándares Visuales y de Estilo
 
 Todos los juegos deben compartir la misma estética arcade retro CRT:
 
@@ -132,7 +155,7 @@ Todos los juegos deben compartir la misma estética arcade retro CRT:
 
 ---
 
-## 📡 Fase 4: Protocolo de Comunicación WebRTC y Señalización
+## 📡 Fase 5: Protocolo de Comunicación WebRTC y Señalización
 
 ### ⚠️ Regla de Oro de Señalización (`server/server.js`):
 El servidor de señalización WebSockets enruta respuestas del Host al Controller buscando **`data.playerId`**. Si el Host responde con `to: data.from` o no incluye `playerId`, el mensaje se descarta y el teléfono jamás conectará.
@@ -264,8 +287,56 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
 
 ---
 
-## 🧪 Fase 5: Verificación y Pruebas
-1. Verificar que no haya errores de sintaxis en `game/script.js` y `control/script.js`.
-2. Probar que los estilos sean responsivos tanto en formato horizontal (16:9) como vertical (9:16).
-3. Asegurar que las rutas de video (`video_loop.js`) funcionen sin romper si no hay conexión a internet (modo fallback offline).
+## 🧪 Fase 6: Despliegue en Staging y Verificación Móvil en Vivo
+
+Una vez implementado el juego en la rama `game/<slug>`:
+1. **Comprobar la rama activa**:
+   ```bash
+   git branch --show-current # Debe ser game/<slug>
+   ```
+2. **Commit y Push a Staging**:
+   ```bash
+   git add games/<slug>/
+   git commit -m "feat(game): implementar minijuego <slug> con webrtc y control táctil"
+   git push origin game/<slug>
+   ```
+3. **Verificación de CI/CD**:
+   - El push activa automáticamente `.github/workflows/deploy-staging.yml`.
+   - Esperar a que el workflow termine en GitHub Actions (`gh run list --limit 1`).
+4. **Prueba en Dispositivo Móvil Real**:
+   - Abrir la pantalla del juego en el navegador o TV: `https://dev.myplayad.com/<slug>/`
+   - Escanear el código QR con el móvil (debe apuntar a `https://dev-controllers.myplayad.com/<slug>/?room=XXXX`).
+   - Introducir Nickname y pulsar "EMPEZAR A JUGAR".
+   - Probar:
+     - Apertura inmediata de DataChannel y desaparición del overlay QR.
+     - Sensibilidad y respuesta háptica de los controles táctiles.
+     - Audio sintetizado Web Audio API en móvil y pantalla.
+     - Ciclo completo de juego: vidas, game over, registro en ranking y reinicio.
+
+---
+
+## 🚀 Fase 7: Pull Request y Promoción a Producción (`main`)
+
+Solo cuando el usuario y el desarrollador hayan verificado el juego en Staging:
+1. **Crear Pull Request**:
+   ```bash
+   # Opción A (script automático):
+   ./.agents/skills/game/scripts/promote-to-main.sh <slug>
+
+   # Opción B (gh cli):
+   gh pr create --base main --head game/<slug> \
+       --title "feat(game): nuevo minijuego <slug>" \
+       --body "Minijuego probado y verificado en Staging (dev.myplayad.com y dev-controllers.myplayad.com)."
+   ```
+2. **Merge a Producción**:
+   - Tras la aprobación del usuario:
+     ```bash
+     gh pr merge --merge --delete-branch
+     ```
+   - Al mergear en `main`, el workflow `.github/workflows/deploy.yml` publicará el juego automáticamente en la infraestructura de producción (`/var/www/myplayad/`).
+3. **Sincronización Local**:
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
 
