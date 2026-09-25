@@ -212,6 +212,7 @@ body {
     justify-content: center;
     text-align: center;
     color: var(--phosphor);
+    cursor: pointer;
 }
 
 .overlay-content {
