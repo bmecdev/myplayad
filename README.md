@@ -11,6 +11,20 @@ El proyecto está dividido en tres componentes principales:
 3. **`games/` (Static HTML/JS):** Los juegos retro interactivos. Tienen dos vistas: la del juego (que carga la pantalla) y el control (que carga el usuario en su móvil escaneando un código QR).
 
 ---
+## 🕹️ Catálogo de Minijuegos Disponibles en Producción
+
+<!-- GAMES_CATALOG_START -->
+Actualmente la rama principal (`main`) cuenta con **5 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
+
+| Juego | Género | Mecánica & Descripción | Controles Móviles / Teclado | Producción | Staging (Dev) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **🧱 Arkanoid**<br>`arkanoid` | Breakout / Arcade | Clásico rompe-bloques con paleta deflectora, física de rebote balístico y potenciadores. | Deslizador táctil horizontal / Flechas y teclas A-D | 🖥️ [Pantalla](https://myplayad.com/arkanoid/)<br>📱 [Control](https://controllers.myplayad.com/arkanoid/) | 🖥️ [Pantalla](https://dev.myplayad.com/arkanoid/)<br>📱 [Control](https://dev-controllers.myplayad.com/arkanoid/) |
+| **🚀 Galaga**<br>`galaga` | Space Shooter | Shooter espacial clásico contra escuadrones de insectoides alienígenas en formación dinámica. | Deslizador horizontal y botón de disparo táctil / Flechas y Espacio | 🖥️ [Pantalla](https://myplayad.com/galaga/)<br>📱 [Control](https://controllers.myplayad.com/galaga/) | 🖥️ [Pantalla](https://dev.myplayad.com/galaga/)<br>📱 [Control](https://dev-controllers.myplayad.com/galaga/) |
+| **👾 Space Invaders**<br>`invaders` | Fixed Shooter | Defensa de la Tierra contra oleadas alienígenas descendentes con búnkeres de protección destructibles. | Botones de dirección y disparo láser táctil / Flechas y Espacio | 🖥️ [Pantalla](https://myplayad.com/invaders/)<br>📱 [Control](https://controllers.myplayad.com/invaders/) | 🖥️ [Pantalla](https://dev.myplayad.com/invaders/)<br>📱 [Control](https://dev-controllers.myplayad.com/invaders/) |
+| **🏎️ OutRun**<br>`outrun` | Arcade Racing | Carrera retro a alta velocidad con bifurcaciones de ruta hacia 5 metas distintas (A-E) y reloj contrarreloj. | Volante digital, acelerador y freno táctil / Flechas o WASD | 🖥️ [Pantalla](https://myplayad.com/outrun/)<br>📱 [Control](https://controllers.myplayad.com/outrun/) | 🖥️ [Pantalla](https://dev.myplayad.com/outrun/)<br>📱 [Control](https://dev-controllers.myplayad.com/outrun/) |
+| **🐍 Snake**<br>`snake` | Arcade Retro | La serpiente retro clásica que crece al devorar píldoras, evitando colisiones con bordes y su propio cuerpo. | D-Pad direccional y gestos táctiles de deslizamiento (Swipe) / Flechas del teclado | 🖥️ [Pantalla](https://myplayad.com/snake/)<br>📱 [Control](https://controllers.myplayad.com/snake/) | 🖥️ [Pantalla](https://dev.myplayad.com/snake/)<br>📱 [Control](https://dev-controllers.myplayad.com/snake/) |
+<!-- GAMES_CATALOG_END -->
+
 
 ## 🚀 Flujo de Ramas y CI/CD (Staging -> Producción)
 
@@ -94,10 +108,14 @@ flowchart TD
      ```bash
      gh pr merge <PR_URL> --merge --delete-branch
      ```
-   - Al mergear en `main`, el workflow `.github/workflows/deploy.yml` lo publicará automáticamente en producción.
+   - Al mergear en `main`, el workflow `.github/workflows/deploy.yml` actualiza automáticamente el catálogo de juegos en este `README.md` y publica los juegos en producción.
    - Sincroniza tu entorno local:
      ```bash
      git checkout main && git pull origin main
+     ```
+   - *(Opcional)* Si realizas el merge manualmente en local por CLI:
+     ```bash
+     python3 .agents/skills/game/scripts/update-games-readme.py
      ```
 
 ---

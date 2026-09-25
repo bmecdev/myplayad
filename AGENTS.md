@@ -29,6 +29,7 @@ Todo nuevo juego debe replicar fielmente la arquitectura, paleta de colores CRT,
     * `style.css`: Estilo oscuro neón optimizado para dispositivos táctiles (`touch-action: none`).
     * `script.js`: Conexión WebRTC P2P con la pantalla del juego vía DataChannel, envío de comandos en tiempo real a 60fps con vibración táctil háptica.
     * `config.js`: Configuración de señalización para el cliente móvil.
+  * `games/<slug>/game.json`: Metadatos del minijuego (nombre, slug, icono, género, descripción y tipo de controles) consumidos por el actualizador automático del catálogo en `README.md`.
 
 ### 3. Protocolo Obligatorio WebRTC y Señalización (`server/server.js`)
 Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Controller), todo juego DEBE cumplir este contrato:
@@ -104,6 +105,11 @@ Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/mypla
      gh pr create --base main --head game/<slug> --title "feat(game): agregar minijuego <slug>" --body "..."
      ```
    - Al aprobar y mergear el PR a `main`, el workflow `.github/workflows/deploy.yml` lo publicará automáticamente en producción.
+4. **Actualización Obligatoria del Catálogo de Juegos en `README.md`**:
+   - Cada juego DEBE incluir su archivo de metadatos `games/<slug>/game.json` (nombre, slug, icon, genre, description, controls).
+   - En cada merge hacia `main`, el catálogo de juegos en `README.md` se actualiza automáticamente con todos los juegos presentes en la rama principal.
+   - En el pipeline de CI/CD, el workflow `.github/workflows/deploy.yml` ejecuta `python3 .agents/skills/game/scripts/update-games-readme.py` y commitea la tabla actualizada en `main` si hubo cambios.
+   - Si el desarrollador o agente hace merge manual en local, debe ejecutar siempre `python3 .agents/skills/game/scripts/update-games-readme.py` antes de hacer push a `main`.
 
 ---
 

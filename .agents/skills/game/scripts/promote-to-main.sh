@@ -31,6 +31,11 @@ if ! git diff-index --quiet HEAD --; then
     exit 1
 fi
 
+# Verificar si existe metadata game.json
+if [ -d "games/${SLUG}" ] && [ ! -f "games/${SLUG}/game.json" ]; then
+    echo "⚠️ Advertencia: No se encontró 'games/${SLUG}/game.json'. Se recomienda crearlo para que el juego aparezca con su icono y descripción en el catálogo de README.md."
+fi
+
 # 2. Push de la rama a GitHub
 echo "⬆️ Pushing '${BRANCH_NAME}' a origin..."
 git push origin "${BRANCH_NAME}"

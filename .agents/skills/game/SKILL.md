@@ -69,6 +69,7 @@ Cada nuevo juego debe crearse dentro del directorio `games/<slug>/` con la sigui
 
 ```text
 games/<slug>/
+├── game.json                  # Metadatos del juego (nombre, slug, icon, genre, description, controls)
 ├── game/                      # Aplicación que se ejecuta en la Pantalla (TV / Kiosco en modo Arcade Puro)
 │   ├── index.html             # Estructura de consola LCD retro + QR local + Hall of Fame
 │   ├── style.css              # Estilos CRT retro, paleta phosphor, consola 440x400 y canvas 400x320
@@ -420,4 +421,12 @@ Solo cuando el usuario y el desarrollador hayan verificado el juego en Staging:
    git checkout main
    git pull origin main
    ```
+4. **Actualización Automática del Catálogo en `README.md`**:
+   - Cada juego DEBE incluir su `games/<slug>/game.json`.
+   - En GitHub Actions, `.github/workflows/deploy.yml` ejecuta `python3 .agents/skills/game/scripts/update-games-readme.py` en cada push a `main` y commitea la tabla actualizada con `[skip ci]`.
+   - Si se realiza un merge manual en local por CLI, ejecutar siempre:
+     ```bash
+     python3 .agents/skills/game/scripts/update-games-readme.py
+     ```
+     y commitear los cambios antes de hacer push a `main`.
 

@@ -1,0 +1,8 @@
+{
+  "name": "Galaga",
+  "slug": "galaga",
+  "icon": "🚀",
+  "genre": "Space Shooter",
+  "description": "Shooter espacial clásico contra escuadrones de insectoides alienígenas en formación dinámica.",
+  "controls": "Deslizador horizontal y botón de disparo táctil / Flechas y Espacio"
+}
