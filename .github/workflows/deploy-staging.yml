@@ -33,3 +33,4 @@ jobs:
           source: "games/,screen/"
           target: "/var/www/myplayad-staging/"
           strip_components: 0
+
