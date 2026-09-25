@@ -11,7 +11,6 @@ const gameOverOverlay = document.getElementById('game-over-overlay');
 const waitingOverlay = document.getElementById('waiting-overlay');
 const mainScreen = document.getElementById('main-screen');
 const rankingList = document.getElementById('ranking-list');
-const videoRankingList = document.getElementById('video-ranking-list');
 const qrCodeImg = document.getElementById('qr-code-img');
 const iceRouteElement = document.getElementById('ice-route');
 
@@ -1292,18 +1291,6 @@ function endGame() {
         }
     });
 
-    // Show video ranking overlay
-    const videoOverlay = document.getElementById('video-ranking-overlay');
-    if (videoOverlay) {
-        videoOverlay.classList.remove('hidden');
-        if (typeof fetchAndShowUpcomingGames === 'function') {
-            fetchAndShowUpcomingGames();
-        }
-        setTimeout(() => {
-            if (!GameState.running) videoOverlay.classList.add('hidden');
-        }, 5000);
-    }
-
     // Auto-restart countdown (15s Hall of Fame display)
     setTimeout(() => {
         if (!GameState.running) {
@@ -1359,15 +1346,6 @@ function displayRanking(ranking) {
                 <span class="nick">${entry.name.toUpperCase().substring(0, 10)}</span>
                 <span class="score">${entry.score.toString().padStart(3, '0')}</span>
             </li>
-        `).join('');
-    }
-    if (videoRankingList) {
-        videoRankingList.innerHTML = ranking.slice(0, 5).map((entry, idx) => `
-            <li>
-                <span>${idx + 1}. ${entry.name.toUpperCase()}</span>
-                <span>${entry.score.toString().padStart(3, '0')}</span>
-            </li>
-        `).join('');
     }
 }
 
