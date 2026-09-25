@@ -6,11 +6,11 @@
     <title>OutRun Retro Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <div class="container">
-        <!-- Consola Retro Arcade Superior -->
+        <!-- Consola Retro Arcade -->
         <div class="console-bezel">
             <div class="lcd-screen" id="main-screen">
                 <div class="scanlines"></div>
@@ -50,10 +50,6 @@
                             <h3>HALL OF FAME</h3>
                             <ul id="ranking-list"></ul>
                         </div>
-                        <div id="game-over-upcoming-container" style="display: none; width: 100%; margin-top: 15px;">
-                            <h3 style="font-size: 14px; margin-bottom: 8px; color: var(--amber);">PRÓXIMOS JUEGOS</h3>
-                            <ul id="game-over-upcoming-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; margin-left: auto; margin-right: auto;"></ul>
-                        </div>
                         <p class="instruction">ESCANEA EL QR PARA CORRER DE NUEVO</p>
                     </div>
                 </div>
@@ -61,10 +57,10 @@
                 <!-- Overlay de Conexión / Espera -->
                 <div id="waiting-overlay">
                     <div class="overlay-content">
-                        <h2 class="arcade-title">OUTRUN<span>RETRO</span></h2>
+                        <h2 class="arcade-title">OUTRUN <span>1986</span></h2>
                         <p class="pulse-text">¡ESCANEA PARA CONDUCIR!</p>
                         <div class="qr-wrapper">
-                            <img id="qr-code-img" src="" alt="QR">
+                            <div id="qrcode"></div>
                         </div>
                         <p class="status-text">ESPERANDO PILOTO...</p>
                         <div class="arcade-features">
@@ -80,27 +76,11 @@
                 <div class="speaker-grille"></div>
             </div>
         </div>
-
-        <!-- Reproductor de Video Publicitario -->
-        <div class="video-container">
-            <div class="video-bezel">
-                <video id="bgVideo" muted autoplay playsinline></video>
-                <div id="video-ranking-overlay" class="hidden">
-                    <div class="ranking-header">HALL OF FAME</div>
-                    <ul id="video-ranking-list"></ul>
-                    <div id="upcoming-games-container" style="display: none; width: 100%; margin-top: 20px;">
-                        <div class="ranking-header" style="font-size: 18px; margin-bottom: 15px;">PRÓXIMOS JUEGOS</div>
-                        <ul id="upcoming-games-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; font-family: 'Courier New', Courier, monospace; margin-left: auto; margin-right: auto;"></ul>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Scripts -->
-    <script src="config.js?v=2"></script>
-    <script src="script.js?v=2"></script>
-    <script src="video_loop.js?v=2"></script>
+    <script src="qrcode.min.js"></script>
+    <script src="config.js?v=3"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>
-
