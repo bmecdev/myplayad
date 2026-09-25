@@ -107,6 +107,10 @@ def main():
         else:
             new_readme = readme_content + section
 
+    # Actualizar también la lista entre paréntesis en el párrafo introductorio
+    names_str = ", ".join([g["name"] for g in games])
+    new_readme = re.sub(r'minijuegos retro \([^)]*\)', f'minijuegos retro ({names_str})', new_readme)
+
     if new_readme != readme_content:
         with open(readme_path, "w", encoding="utf-8") as f:
             f.write(new_readme)
@@ -116,3 +120,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
