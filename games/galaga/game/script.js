@@ -1458,43 +1458,23 @@ function connectSignaling() {
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'offer') {
-                    const pc = new RTCPeerConnection(window.GAME_CONFIG ? window.GAME_CONFIG.getIceConfig() : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-                    peerConnections.set(data.from || 'controller', pc);
-
-                    if (window.GAME_CONFIG && window.GAME_CONFIG.attachPCDiagnostics) {
-                        window.GAME_CONFIG.attachPCDiagnostics(pc, `host-${data.from || 'ctrl'}`);
-                    }
-
-                    pc.ondatachannel = (e) => {
-                        const dc = e.channel;
-                        dataChannels.set(data.from || 'controller', dc);
-                        setupDataChannel(dc);
-                    };
-
-                    pc.onicecandidate = (e) => {
-                        if (e.candidate) {
-                            socket.send(JSON.stringify({
-                                type: 'candidate',
-                                candidate: e.candidate,
-                                roomId: GameState.roomId,
-                                to: data.from
-                            }));
-                        }
-                    };
-
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-
-                    socket.send(JSON.stringify({
-                        ...answer,
-                        type: 'answer',
-                        roomId: GameState.roomId,
-                        to: data.from
-                    }));
+                    await handleOffer(data);
                 } else if (data.type === 'candidate') {
-                    const pc = peerConnections.get(data.from || 'controller');
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    const playerId = data.playerId || 'controller';
+                    const pc = peerConnections.get(playerId);
+                    if (pc) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (err) {
+                            console.warn('Error añadiendo candidate:', err);
+                        }
+                    }
+                } else if (data.type === 'controller_connected') {
+                    console.log('Controlador conectado:', data.playerId);
+                    waitingOverlay.classList.add('hidden');
+                } else if (data.type === 'controller_disconnected') {
+                    console.log('Controlador desconectado:', data.playerId);
+                    handleControllerDisconnect(data.playerId || 'controller');
                 }
             } catch (err) {
                 console.error('Error procesando mensaje de señalización:', err);
@@ -1515,33 +1495,94 @@ function connectSignaling() {
     }
 }
 
-function setupDataChannel(channel) {
+async function handleOffer(data) {
+    const { playerId, type, sdp } = data;
+    const targetPlayerId = playerId || 'controller';
+    const rtcConfig = (window.GAME_CONFIG && window.GAME_CONFIG.getIceConfig) 
+        ? window.GAME_CONFIG.getIceConfig() 
+        : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    const pc = new RTCPeerConnection(rtcConfig);
+    peerConnections.set(targetPlayerId, pc);
+
+    if (window.GAME_CONFIG && window.GAME_CONFIG.attachPCDiagnostics) {
+        try { window.GAME_CONFIG.attachPCDiagnostics(pc, `host-${targetPlayerId}`); } catch (e) {}
+    }
+
+    pc.onicecandidate = (e) => {
+        if (e.candidate && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'candidate',
+                candidate: e.candidate,
+                roomId: GameState.roomId,
+                playerId: targetPlayerId
+            }));
+        }
+    };
+
+    pc.ondatachannel = (e) => {
+        const dc = e.channel;
+        dataChannels.set(targetPlayerId, dc);
+        if (window.GAME_CONFIG && window.GAME_CONFIG.attachDataChannelDiagnostics) {
+            try { window.GAME_CONFIG.attachDataChannelDiagnostics(dc, `dc-${targetPlayerId}`); } catch (e) {}
+        }
+        setupDataChannel(dc, targetPlayerId);
+    };
+
+    await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.send(JSON.stringify({
+        type: 'answer',
+        sdp: answer.sdp,
+        roomId: GameState.roomId,
+        playerId: targetPlayerId
+    }));
+}
+
+function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
-        console.log('WebRTC DataChannel abierto con el controlador');
+        console.log('WebRTC DataChannel abierto con el controlador:', playerId);
+        waitingOverlay.classList.add('hidden');
     };
 
     channel.onmessage = (e) => {
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'join') {
-                GameState.currentNickname = msg.nickname || 'PILOT';
-                if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
+            if (msg.type === 'join' || msg.type === 'nickname') {
+                GameState.currentNickname = (msg.nickname || msg.value || 'PILOT').toUpperCase().substring(0, 10);
+                if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname}`;
                 startNewGame();
-            } else if (msg.type === 'input' || (msg.x !== undefined)) {
-                // Analog movement from trackpad / joystick
+            }
+            if (msg.x !== undefined) {
                 const rawX = msg.x || 0;
                 GameState.player.dx = rawX * PLAYER_SPEED;
-            } else if (msg.fire || msg.type === 'fire') {
+            }
+            if (msg.fire || msg.type === 'fire') {
                 shootTorpedo();
-            } else if (msg.type === 'restart' && GameState.gameOver) {
+            }
+            if (msg.type === 'restart' && GameState.gameOver) {
                 startNewGame();
             }
         } catch (err) {}
     };
 
     channel.onclose = () => {
-        console.log('WebRTC DataChannel cerrado');
+        console.log('WebRTC DataChannel cerrado:', playerId);
+        handleControllerDisconnect(playerId);
     };
+}
+
+function handleControllerDisconnect(playerId) {
+    const pc = peerConnections.get(playerId);
+    if (pc) pc.close();
+    peerConnections.delete(playerId);
+    dataChannels.delete(playerId);
+
+    if (peerConnections.size === 0 && !GameState.gameOver && GameState.running) {
+        waitingOverlay.classList.remove('hidden');
+        GameState.running = false;
+    }
 }
 
 // Keyboard controls fallback for browser testing

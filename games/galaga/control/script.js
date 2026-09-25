@@ -155,6 +155,11 @@ window.addEventListener('load', () => {
     if (roomFromUrl) {
         roomInput.value = roomFromUrl.toUpperCase();
         nicknameInput.focus();
+        status.textContent = 'INGRESA TU NICKNAME';
+        status.style.color = '#ffb703';
+    } else {
+        status.textContent = 'ESCANEA EL CÓDIGO QR';
+        status.style.color = '#ff4d6d';
     }
     const turnIp = urlParams.get('turn_ip');
     const turnUser = urlParams.get('turn_user');
@@ -224,7 +229,13 @@ function connectSignaling(roomId) {
                     roomSelection.style.display = 'none';
                     container.style.display = 'flex';
                 } else if (data.type === 'candidate') {
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (err) {
+                            console.warn('Error candidate:', err);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error JSON en socket:', e);
@@ -252,7 +263,7 @@ async function startWebRTC() {
     pc = new RTCPeerConnection(rtcConfig);
 
     // Crear DataChannel bidireccional
-    dataChannel = pc.createDataChannel('gameControls', { ordered: false, maxRetransmits: 0 });
+    dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
         status.textContent = 'LISTO PARA DESPEGAR';
@@ -261,7 +272,7 @@ async function startWebRTC() {
         container.style.display = 'flex';
 
         // Enviar Join con nickname
-        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname }));
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
     };
 
     dataChannel.onmessage = (e) => {
