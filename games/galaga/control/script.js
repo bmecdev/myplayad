@@ -374,21 +374,14 @@ function sendMovementData() {
 window.addEventListener('resize', updateTrackpadDimensions);
 setTimeout(updateTrackpadDimensions, 100);
 
-trackpadContainer.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    activePointers.set(e.pointerId, { type: 'trackpad' });
-    updateTrackpadDimensions();
-});
-
-trackpadContainer.addEventListener('pointermove', (e) => {
-    if (!activePointers.has(e.pointerId) || !trackpadRect) return;
-
+function handleTrackpadTouch(e) {
+    if (!trackpadRect) updateTrackpadDimensions();
     const touchX = e.clientX - trackpadRect.left;
     let normalizedPosition = touchX / trackpadRect.width;
     normalizedPosition = Math.max(0, Math.min(1, normalizedPosition));
 
     let normalizedX = (normalizedPosition - 0.5) * 2;
-    const deadZone = 0.08;
+    const deadZone = 0.04;
     if (Math.abs(normalizedX) < deadZone) normalizedX = 0;
 
     currentMovement.x = normalizedX;
@@ -400,6 +393,18 @@ trackpadContainer.addEventListener('pointermove', (e) => {
     trackpadIndicator.style.boxShadow = `0 6px ${16 + intensity * 8}px rgba(61, 255, 138, ${0.4 + intensity * 0.4})`;
 
     sendMovementData();
+}
+
+trackpadContainer.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    activePointers.set(e.pointerId, { type: 'trackpad' });
+    updateTrackpadDimensions();
+    handleTrackpadTouch(e);
+});
+
+trackpadContainer.addEventListener('pointermove', (e) => {
+    if (!activePointers.has(e.pointerId)) return;
+    handleTrackpadTouch(e);
 });
 
 trackpadContainer.addEventListener('pointerup', (e) => {

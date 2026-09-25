@@ -47,3 +47,4 @@ echo "✅ Rama activa: $(git branch --show-current)"
 echo "🚀 Todo commit y push desplegará automáticamente en STAGING (/var/www/myplayad-staging/)"
 echo "   Pantalla: https://dev.myplayad.com/${SLUG}/"
 echo "   Control:  https://dev-controllers.myplayad.com/${SLUG}/"
+

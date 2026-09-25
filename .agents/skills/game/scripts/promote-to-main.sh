@@ -59,3 +59,4 @@ echo "🎉 Juego listo para merge a producción."
 echo "Para mergear automáticamente ejecuta:"
 echo "   gh pr merge ${PR_URL} --merge --delete-branch"
 echo "O mergea directamente en GitHub."
+

@@ -296,7 +296,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 const PLAYER_WIDTH = 13;
 const PLAYER_HEIGHT = 11;
-const PLAYER_SPEED = 120;
+const PLAYER_SPEED = 240;
 const MAX_PLAYER_BULLETS = 4; // 2 pairs of torpedoes
 
 const GameState = {
@@ -1556,7 +1556,8 @@ function setupDataChannel(channel, playerId) {
             }
             if (msg.x !== undefined) {
                 const rawX = msg.x || 0;
-                GameState.player.dx = rawX * PLAYER_SPEED;
+                const expX = Math.sign(rawX) * Math.pow(Math.abs(rawX), 1.15);
+                GameState.player.dx = expX * PLAYER_SPEED;
             }
             if (msg.fire || msg.type === 'fire') {
                 shootTorpedo();
