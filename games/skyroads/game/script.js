@@ -15,7 +15,7 @@ const waitingOverlay = document.getElementById('waiting-overlay');
 const mainScreen = document.getElementById('main-screen');
 const rankingList = document.getElementById('ranking-list');
 const videoRankingList = document.getElementById('video-ranking-list');
-const qrCodeImg = document.getElementById('qr-code-img');
+const qrContainer = document.getElementById('qrcode');
 
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 160;
@@ -1815,14 +1815,38 @@ function getControlUrl() {
 
 function updateQrCode() {
     const controlUrl = getControlUrl();
-    if (qrCodeImg) {
-        qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(controlUrl)}&margin=10`;
+    const qrContainer = document.getElementById('qrcode');
+    if (qrContainer) {
+        qrContainer.innerHTML = '';
+        try {
+            if (typeof QRCode !== 'undefined') {
+                new QRCode(qrContainer, {
+                    text: controlUrl,
+                    width: 160,
+                    height: 160,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } else {
+                throw new Error('QRCode not loaded');
+            }
+        } catch (e) {
+            console.warn('QRCode error, using fallback API:', e);
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+        }
+    } else {
+        const qrCodeImg = document.getElementById('qr-code-img');
+        if (qrCodeImg) {
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+        }
     }
     const roomSpan = document.getElementById('room-id');
     if (roomSpan) roomSpan.textContent = `ID: ${GameState.roomId}`;
 }
 
 function connectSignaling() {
+    updateQrCode();
     const wsUrl = `wss://${CONFIG.SIGNALING_SERVER_URL || 'signaling.myplayad.com'}`;
     socket = new WebSocket(wsUrl);
 
@@ -1993,23 +2017,44 @@ function autoScale() {
     if (!container) return;
 
     container.style.transform = 'none';
-    const rect = container.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    const naturalW = container.offsetWidth || 480;
+    const naturalH = container.offsetHeight || 470;
 
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
     if (!availableW || !availableH) return;
 
     const padding = 20;
-    const scaleX = (availableW - padding) / rect.width;
-    const scaleY = (availableH - padding) / rect.height;
+    const scaleX = (availableW - padding) / naturalW;
+    const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
 
     container.style.transform = `scale(${scale})`;
 }
 
+window.addEventListener('DOMContentLoaded', () => {
+    updateQrCode();
+    autoScale();
+    const audioToggleBtn = document.getElementById('audio-toggle-btn');
+    if (audioToggleBtn) {
+        audioToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!audio.ctx) audio.init();
+            else audio.resume();
+        });
+    }
+});
+
+mainScreen.addEventListener('click', () => {
+    audio.init();
+    if (!GameState.running || GameState.gameOver) startNewGame();
+});
+
 window.addEventListener('resize', autoScale);
-window.addEventListener('load', autoScale);
+window.addEventListener('load', () => {
+    updateQrCode();
+    autoScale();
+});
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
 if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
 window.addEventListener('message', (e) => { if (e.data?.type === 'RESCALE') autoScale(); });
@@ -2024,5 +2069,7 @@ generateTrack(1);
 resetShip();
 loadRanking();
 updateUI();
+updateQrCode();
+autoScale();
 requestAnimationFrame(gameLoop);
 connectSignaling();

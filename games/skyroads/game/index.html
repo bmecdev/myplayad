@@ -6,11 +6,11 @@
     <title>Skyroads - Cosmic Runway Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
     <div class="container">
-        <!-- Parte Superior: Consola Retro Arcade -->
+        <!-- Consola Retro Arcade -->
         <div class="console-bezel">
             <div class="lcd-screen" id="main-screen">
                 <div class="scanlines"></div>
@@ -45,10 +45,6 @@
                             <h3>HALL OF FAME</h3>
                             <ul id="ranking-list"></ul>
                         </div>
-                        <div id="game-over-upcoming-container" style="display: none; width: 100%; margin-top: 20px;">
-                            <h3 style="font-size: 16px; margin-bottom: 10px; color: var(--accent);">PRÓXIMOS JUEGOS</h3>
-                            <ul id="game-over-upcoming-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; margin-left: auto; margin-right: auto;"></ul>
-                        </div>
                         <p class="instruction">CLICK O ESPACIO PARA REINICIAR</p>
                     </div>
                 </div>
@@ -56,10 +52,10 @@
                 <!-- Overlay de Conexión / Espera -->
                 <div id="waiting-overlay">
                     <div class="overlay-content">
-                        <h2 class="arcade-title">SKY<span>ROADS</span></h2>
+                        <h2 class="arcade-title">SKY <span>ROADS</span></h2>
                         <p class="pulse-text">¡ESCANEA PARA PILOTAR!</p>
                         <div class="qr-wrapper">
-                            <img id="qr-code-img" src="" alt="QR">
+                            <div id="qrcode"></div>
                         </div>
                         <p class="status-text">¡ESQUIVA LOS HUECOS Y SALTA CON TU NAVE!</p>
                     </div>
@@ -72,26 +68,11 @@
                 <div class="speaker-grille"></div>
             </div>
         </div>
-
-        <!-- Parte Inferior: Reproductor de Video Publicitario -->
-        <div class="video-container">
-            <div class="video-bezel">
-                <video id="bgVideo" muted autoplay playsinline></video>
-                <div id="video-ranking-overlay" class="hidden">
-                    <div class="ranking-header">HALL OF FAME</div>
-                    <ul id="video-ranking-list"></ul>
-                    <div id="upcoming-games-container" style="display: none; width: 100%; margin-top: 20px;">
-                        <div class="ranking-header" style="font-size: 18px; margin-bottom: 15px;">PRÓXIMOS JUEGOS</div>
-                        <ul id="upcoming-games-list" style="list-style: none; padding: 0; margin: 0; width: 90%; color: white; font-size: 12px; font-family: 'Courier New', Courier, monospace; margin-left: auto; margin-right: auto;"></ul>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Scripts -->
-    <script src="config.js?v=1"></script>
-    <script src="script.js?v=5"></script>
-    <script src="video_loop.js?v=1"></script>
+    <script src="qrcode.min.js"></script>
+    <script src="config.js?v=2"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>
