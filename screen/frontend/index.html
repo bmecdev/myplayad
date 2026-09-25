@@ -5,31 +5,68 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
     <title>MyPlayAd Screen</title>
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
-    <div id="standby" class="layer active">
+    <!-- Pantalla Standby (cuando no hay ID o está cargando) -->
+    <div id="standby" class="standby-layer">
         <div class="logo">MyPlayAd</div>
         <div class="spinner"></div>
-    </div>
-    <video id="video-player" class="layer" muted autoplay playsinline preload="auto"></video>
-    
-    <iframe id="game-frame" class="layer" frameborder="0"></iframe>
-
-    <div id="interstitial" class="layer">
-        <div class="interstitial-content">
-            <h2 class="interstitial-title">Próximos Juegos</h2>
-            <ul id="interstitial-list"></ul>
-        </div>
+        <p class="standby-status" id="standby-status">Iniciando pantalla...</p>
     </div>
 
+    <!-- Layout Dual Responsivo (Juego y Video simultáneos) -->
+    <main id="screen-layout" class="screen-layout">
+        <!-- Sección de Juego Arcade (Izquierda en horizontal / Arriba en vertical) -->
+        <section class="game-section">
+            <iframe id="game-frame" frameborder="0" allow="autoplay; fullscreen"></iframe>
+        </section>
+
+        <!-- Sección de Video Promocional envuelto en Bisel Arcade (Derecha en horizontal / Abajo en vertical) -->
+        <section class="video-section">
+            <div class="video-container">
+                <div class="video-console-bezel">
+                    <div class="video-header">
+                        <div class="channel-tag">MYPLAYAD TV</div>
+                        <div class="live-indicator"><span class="blink-dot">●</span> ON AIR</div>
+                    </div>
+                    <div class="video-screen-frame">
+                        <div class="scanlines"></div>
+                        <video id="video-player" muted autoplay playsinline preload="auto"></video>
+                        
+                        <!-- Overlay de Ranking / Hall of Fame (aparece 5 segundos al terminar la secuencia de videos) -->
+                        <div id="video-ranking-overlay" class="hidden">
+                            <div class="video-ranking-content">
+                                <h2 class="arcade-title glow">HALL OF FAME</h2>
+                                <div class="ranking-table-header">
+                                    <span>POS</span>
+                                    <span>PILOT</span>
+                                    <span>SCORE</span>
+                                </div>
+                                <ul id="video-ranking-list"></ul>
+                                
+                                <div id="upcoming-games-container" class="upcoming-container hidden">
+                                    <h3 class="upcoming-title">PRÓXIMOS JUEGOS</h3>
+                                    <ul id="upcoming-games-list"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="console-footer">
+                        <div class="speaker-grille"></div>
+                        <div class="model-number">MYPLAYAD-MEDIA</div>
+                        <div class="speaker-grille"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Indicador de Identificación remota -->
     <div id="identify-indicator" class="identify-indicator hidden"></div>
 
-    <div id="dev-toolbar" class="dev-toolbar">
-        <button id="btn-switch-video" class="dev-btn" title="Ver Videos (Atajo: V)">📺 Videos</button>
-        <button id="btn-switch-game" class="dev-btn" title="Ver Juego Arcade (Atajo: G)">🎮 Juego Arcade</button>
-    </div>
-
-    <script src="main.js?v=5"></script>
+    <script src="main.js?v=6"></script>
 </body>
 </html>

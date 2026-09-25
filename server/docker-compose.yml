@@ -63,6 +63,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad?schema=public
       - NODE_ENV=production
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-myplayad123}
     volumes:
       - /srv/videos:/srv/videos
       - ../games:/srv/games
