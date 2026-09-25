@@ -8,11 +8,25 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Games Catalog in README.md
+        run: |
+          python3 .agents/skills/game/scripts/update-games-readme.py
+          if [ -n "$(git status --porcelain README.md)" ]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add README.md
+            git commit -m "docs: auto-actualizar catálogo de juegos en README.md [skip ci]"
+            git push origin main
+          fi
 
       - name: Copy Frontend (games & screen) via scp
         uses: appleboy/scp-action@v0.1.7

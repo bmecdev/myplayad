@@ -1,0 +1,9 @@
+{
+  "name": "Snake",
+  "slug": "snake",
+  "icon": "🐍",
+  "genre": "Arcade Retro",
+  "description": "La serpiente retro clásica que crece al devorar píldoras, evitando colisiones con bordes y su propio cuerpo.",
+  "controls": "D-Pad direccional y gestos táctiles de deslizamiento (Swipe) / Flechas del teclado"
+}
+

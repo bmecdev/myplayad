@@ -1,10 +1,18 @@
 // Archivo de Configuración (Equivalente a .env para el navegador)
+const isDevHost = typeof window !== 'undefined' && (
+    window.location.hostname.includes('dev') || 
+    window.location.hostname.includes('staging') || 
+    window.location.hostname.includes('test')
+);
+
 const CONFIG = {
     // Pon aquí la IP de tu servidor de señalización
     SIGNALING_SERVER_IP: '192.168.40.20', 
     SIGNALING_SERVER_PORT: '8080',
     SIGNALING_SERVER_URL: 'signaling.myplayad.com',
-    CONTROL_URL: 'https://controllers.myplayad.com/invaders',
+    CONTROL_URL: isDevHost 
+        ? 'https://dev-controllers.myplayad.com/invaders' 
+        : 'https://controllers.myplayad.com/invaders',
     MAX_PLAYERS: 1,
     // Origen remoto de videos (internet)
     VIDEO_SERVER_URL: 'https://videos.myplayad.com',

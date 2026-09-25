@@ -25,48 +25,42 @@ body {
 
 .container {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
-    padding: 20px;
+    padding: 10px;
     transform-origin: center center;
-}
-
-@media (orientation: landscape) {
-    .container {
-        flex-direction: row;
-    }
 }
 
 /* Consola Bezel */
 .console-bezel {
-    background: linear-gradient(180deg, #161f1a, #0d1512);
-    padding: 15px 15px 5px 15px;
-    border-radius: 18px;
+    background: linear-gradient(180deg, #18231d, #0d1512);
+    padding: 16px 18px 8px 18px;
+    border-radius: 20px;
     border: 4px solid #2b4536;
-    box-shadow: 0 0 0 2px #060a08, 0 20px 60px rgba(0,0,0,.6), inset 0 0 40px rgba(61,255,138,.04);
+    box-shadow: 0 0 0 2px #060a08, 0 25px 70px rgba(0,0,0,.7), inset 0 0 40px rgba(61,255,138,.05);
     position: relative;
+    user-select: none;
 }
-.console-bezel::before{
-    content:"● ● ●";
-    display:block;
-    text-align:right;
-    color:#2b4536;
-    font-family:'Press Start 2P', monospace;
-    font-size:8px;
-    letter-spacing:6px;
-    padding:0 6px 8px;
+
+.console-bezel::before {
+    content: "● ● ●";
+    display: block;
+    text-align: right;
+    color: #2b4536;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    letter-spacing: 6px;
+    padding: 0 6px 8px;
 }
 
 .lcd-screen {
     background: radial-gradient(ellipse at 50% 0%, #0e1a13 0%, #060b08 100%);
-    width: 240px;
-    height: 240px;
-    min-height: 240px;
-    padding: 6px 8px;
+    width: 440px;
+    height: 400px;
+    min-height: 400px;
+    padding: 8px 12px;
     border: 3px solid #060a08;
-    border-radius: 8px;
+    border-radius: 10px;
     position: relative;
     overflow: hidden;
     cursor: pointer;
@@ -74,6 +68,7 @@ body {
     display: flex;
     flex-direction: column;
 }
+
 .lcd-screen::after {
     content: "";
     position: absolute;
@@ -87,9 +82,10 @@ body {
     pointer-events: none;
     animation: flicker 6s infinite;
 }
+
 @keyframes flicker {
-    0%,97%,100% {opacity: 1;}
-    98% {opacity: .85;}
+    0%, 97%, 100% { opacity: 1; }
+    98% { opacity: .85; }
 }
 
 /* Efecto de Scanlines */
@@ -110,24 +106,24 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 7px;
+    font-size: 9px;
     color: var(--phosphor);
     font-family: 'Press Start 2P', monospace;
-    margin-bottom: 2px;
+    margin-bottom: 6px;
     border-bottom: 1px solid var(--phosphor-dim, #1f7d49);
-    padding-bottom: 2px;
-    gap: 4px;
+    padding-bottom: 4px;
+    gap: 8px;
 }
 
 .header-left {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
 }
 
 #lives-container {
     color: var(--phosphor);
-    font-size: 8px;
+    font-size: 10px;
     font-weight: bold;
     text-align: center;
 }
@@ -136,17 +132,17 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 1px;
+    gap: 2px;
 }
 
 .room-ice-row {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     align-items: center;
 }
 
 #ice-route {
-    font-size: 7px;
+    font-size: 8px;
     color: var(--amber);
     font-weight: bold;
 }
@@ -156,8 +152,8 @@ body {
     border: 1px solid var(--phosphor);
     color: var(--phosphor);
     font-family: 'Press Start 2P', monospace;
-    font-size: 6px;
-    padding: 2px 4px;
+    font-size: 7px;
+    padding: 2px 5px;
     border-radius: 3px;
     cursor: pointer;
     text-transform: uppercase;
@@ -188,6 +184,7 @@ body {
     justify-content: center;
     border: none;
     padding: 0;
+    width: 100%;
 }
 
 #gameCanvas {
@@ -195,8 +192,8 @@ body {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 200px;
-    height: 160px;
+    width: 400px;
+    height: 320px;
 }
 
 /* Overlays Retro */
@@ -218,47 +215,33 @@ body {
 }
 
 .overlay-content {
-    padding: 10px;
+    padding: 12px;
     width: 100%;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .arcade-title {
     font-family: 'Press Start 2P', monospace;
-    font-size: 14px;
-    margin: 0 0 10px 0;
+    font-size: 18px;
+    margin: 0 0 8px 0;
     color: var(--phosphor);
-    text-shadow: 0 0 6px var(--phosphor);
+    text-shadow: 0 0 8px var(--phosphor);
+    letter-spacing: 2px;
 }
 
 .arcade-title span {
-    font-weight: 300;
-}
-
-.qr-wrapper {
-    background: white;
-    padding: 5px;
-    display: inline-block;
-    border: 2px solid var(--phosphor);
-    margin: 5px 0;
-}
-
-#qr-code-img {
-    width: 70px;
-    height: 70px;
-    display: block;
-}
-
-.status-text {
-    font-size: 8px;
-    margin: 5px 0;
-    text-transform: uppercase;
-    font-weight: bold;
+    color: var(--amber);
+    font-size: 14px;
+    margin-left: 4px;
 }
 
 .pulse-text {
-    margin: 5px 0;
-    font-size: 11px;
+    margin: 4px 0 8px 0;
+    font-size: 12px;
     font-family: 'Press Start 2P', monospace;
     text-transform: uppercase;
     animation: pulse 1.2s ease-in-out infinite;
@@ -267,42 +250,84 @@ body {
 }
 
 @keyframes pulse {
-    0% {
-        transform: scale(1);
-    }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
 
-    50% {
-        transform: scale(1.35);
-    }
+.qr-wrapper {
+    background: white;
+    padding: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--phosphor);
+    border-radius: 8px;
+    margin: 6px 0;
+    box-shadow: 0 0 16px rgba(61, 255, 138, 0.35);
+}
 
-    100% {
-        transform: scale(1);
-    }
+#qrcode, #qr-code-img {
+    width: 160px;
+    height: 160px;
+    display: block;
+    margin: 0 auto;
+}
+
+#qrcode canvas, #qrcode img {
+    display: block;
+    width: 160px !important;
+    height: 160px !important;
+}
+
+.status-text {
+    font-size: 10px;
+    margin: 8px 0 0 0;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: var(--text-dim);
 }
 
 /* Ranking Table Style */
-#ranking-container,
-#waiting-ranking-container {
-    margin-top: 5px;
-    width: 100%;
+#ranking-container {
+    margin-top: 6px;
+    width: 85%;
+    max-width: 320px;
+}
+
+h2.blink {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 20px;
+    color: var(--danger);
+    margin: 0 0 8px 0;
+    text-shadow: 0 0 8px var(--danger);
 }
 
 h3 {
-    font-size: 10px;
-    margin: 2px 0;
-    border-bottom: 1px solid var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    margin: 6px 0;
+    color: var(--amber);
+    border-bottom: 1px solid var(--amber);
+    padding-bottom: 4px;
 }
 
 ul {
     list-style: none;
     padding: 0;
     margin: 0;
-    font-size: 9px;
+    font-size: 16px;
+    font-family: 'VT323', monospace;
 }
 
 li {
     white-space: pre;
     text-align: left;
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px dashed rgba(61, 255, 138, 0.2);
 }
 
 .blink {
@@ -310,14 +335,14 @@ li {
 }
 
 @keyframes blinker {
-    50% {
-        opacity: 0;
-    }
+    50% { opacity: 0; }
 }
 
 .instruction {
-    font-size: 9px;
-    margin-top: 10px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    margin-top: 15px;
+    color: var(--phosphor);
 }
 
 /* Footer de Consola */
@@ -326,92 +351,21 @@ li {
     justify-content: space-between;
     align-items: center;
     margin-top: 10px;
-    padding: 0 5px;
+    padding: 0 8px;
 }
 
 .speaker-grille {
-    width: 30px;
-    height: 10px;
-    background-image: radial-gradient(#000 20%, transparent 20%);
-    background-size: 4px 4px;
+    width: 50px;
+    height: 12px;
+    background-image: radial-gradient(#000 25%, transparent 25%);
+    background-size: 5px 5px;
 }
 
 .model-number {
-    font-size: 8px;
-    color: #666;
-    font-weight: bold;
-}
-
-/* Estilos de Video (Abajo) */
-.video-container {
-    width: 250px;
-    padding: 8px;
-    background: linear-gradient(180deg, #161f1a, #0d1512);
-    border-radius: 8px;
-    border: 4px solid #2b4536;
-    box-shadow: 0 0 0 2px #060a08, 0 20px 60px rgba(0,0,0,.6), inset 0 0 40px rgba(61,255,138,.04);
-}
-
-.video-bezel {
-    width: 100%;
-    aspect-ratio: 9/16;
-    background: #000;
-    border-radius: 4px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    /* Para el overlay absoluto */
-}
-
-#video-ranking-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    box-sizing: border-box;
-}
-
-#video-ranking-overlay .ranking-header {
-    font-size: 24px;
-    color: var(--phosphor);
-    margin-bottom: 30px;
-    font-weight: 900;
-    text-transform: uppercase;
-    border-bottom: 2px solid var(--phosphor);
-}
-
-#video-ranking-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    width: 90%;
-    color: var(--phosphor);
-    font-size: 24px;
-    font-family: 'VT323', monospace;
-}
-
-#video-ranking-list li {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--phosphor-dim, rgba(61, 255, 138, 0.3));
-    display: flex;
-    justify-content: space-between;
-    white-space: pre;
-}
-
-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    font-size: 9px;
+    color: #4a755d;
+    font-family: 'Press Start 2P', monospace;
+    letter-spacing: 1px;
 }
 
 .hidden {
