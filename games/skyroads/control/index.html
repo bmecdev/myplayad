@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skyroads Mobile Controller</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div id="status">Conectando...</div>
+    
+    <!-- Pantalla de Bienvenida y Nickname -->
+    <div id="room-selection" class="welcome-container">
+        <div class="header-logo">
+            <h1>SKY<span>ROADS</span></h1>
+        </div>
+        
+        <div class="input-group">
+            <p class="welcome-text">¡Piloto, toma los controles de tu nave espacial! Esquiva los huecos y salta en el momento justo.</p>
+            <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10">
+            <input type="text" id="room-input" style="display: none;">
+            <button id="connect-btn">DESPEGAR</button>
+        </div>
+        
+        <p class="footer-hint">Usa el botón SALTAR para evitar caer al abismo.</p>
+    </div>
+
+    <!-- Pantalla de Fin de Misión -->
+    <div id="thanks-screen" class="thanks-container" style="display: none;">
+        <div class="header-logo">
+            <h1>¡FIN DE MISIÓN!</h1>
+        </div>
+        <p id="thanks-message">Tu nave ha regresado a la base.</p>
+        <p class="small">Vuelve a escanear el código QR en la pantalla para una revancha.</p>
+    </div>
+
+    <!-- Controles de Vuelo Táctiles -->
+    <div class="flight-container" id="joystick-container" style="display: none;">
+        <!-- Panel Izquierdo: Dirección -->
+        <div class="steering-panel">
+            <button class="nav-btn steer-btn" id="btn-left" data-dir="LEFT">◀ IZQ</button>
+            <div class="touch-track" id="touch-track">
+                <span>◀ DESLIZA PARA GIRAR ▶</span>
+                <div class="touch-slider" id="touch-slider"></div>
+            </div>
+            <button class="nav-btn steer-btn" id="btn-right" data-dir="RIGHT">DER ▶</button>
+        </div>
+
+        <!-- Panel Derecho: Acciones (Salto y Turbo) -->
+        <div class="actions-panel">
+            <div class="sub-actions">
+                <button class="nav-btn brake-btn" id="btn-brake">🛑 FRENO</button>
+                <button class="nav-btn turbo-btn" id="btn-turbo">⚡ TURBO</button>
+            </div>
+            <button class="jump-btn" id="btn-jump">
+                <span class="jump-icon">🚀</span>
+                <span class="jump-text">SALTAR</span>
+            </button>
+        </div>
+    </div>
+
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=2"></script>
+</body>
+</html>
