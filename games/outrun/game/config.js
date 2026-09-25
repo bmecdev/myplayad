@@ -1,9 +1,17 @@
 // Archivo de Configuración para OutRun Retro Arcade
+const isDevHost = typeof window !== 'undefined' && (
+    window.location.hostname.includes('dev') || 
+    window.location.hostname.includes('staging') || 
+    window.location.hostname.includes('test')
+);
+
 const CONFIG = {
     SIGNALING_SERVER_IP: '192.168.40.20', 
     SIGNALING_SERVER_PORT: '8080',
     SIGNALING_SERVER_URL: 'signaling.myplayad.com',
-    CONTROL_URL: 'https://controllers.myplayad.com/outrun',
+    CONTROL_URL: isDevHost 
+        ? 'https://dev-controllers.myplayad.com/outrun' 
+        : 'https://controllers.myplayad.com/outrun',
     MAX_PLAYERS: 1,
     VIDEO_SERVER_URL: 'https://videos.myplayad.com',
     LOCAL_VIDEO_SERVER_URL: 'http://localhost:8090',
