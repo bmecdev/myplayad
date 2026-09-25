@@ -12,6 +12,87 @@ El proyecto está dividido en tres componentes principales:
 
 ---
 
+## 🚀 Flujo de Ramas y CI/CD (Staging -> Producción)
+
+El repositorio cuenta con un ciclo de despliegue continuo (CI/CD) automatizado con GitHub Actions sobre el VPS de Hostinger, separando estrictamente el entorno de pruebas (**Staging**) del entorno real (**Producción**).
+
+### 🌐 Entornos y Dominios
+
+| Entorno | Rama Git | Desencadenador CI/CD | Directorio VPS | URLs de Acceso |
+| :--- | :--- | :--- | :--- | :--- |
+| **Staging** (Pruebas) | `game/**`, `staging` | Push a la rama (`deploy-staging.yml`) | `/var/www/myplayad-staging/` | 🖥️ Pantallas: `https://dev.myplayad.com/<slug>/`<br>📱 Controles: `https://dev-controllers.myplayad.com/<slug>/` |
+| **Producción** | `main` | Push o Merge a `main` (`deploy.yml`) | `/var/www/myplayad/` (frontend)<br>`/opt/myplayad/` (backend) | 🖥️ Pantallas: `https://myplayad.com`<br>📱 Controles: `https://controllers.myplayad.com/<slug>/` |
+
+### 🔄 Diagrama del Ciclo de Vida
+
+```mermaid
+flowchart TD
+    A[1. Crear rama game/slug desde main] --> B[2. Desarrollar minijuego o cambios]
+    B --> C[3. git push origin game/slug]
+    C --> D[4. GitHub Actions: Deploy Staging to VPS]
+    D --> E[5. Pruebas reales en móvil via dev-controllers y dev.myplayad.com]
+    E --> F{¿Funciona 100% OK?}
+    F -- No: Ajustar código --> B
+    F -- Sí: Aprobado --> G[6. Crear Pull Request hacia main]
+    G --> H[7. Revisión y Merge del PR]
+    H --> I[8. GitHub Actions: Deploy to VPS Producción]
+    I --> J[9. En vivo para usuarios finales]
+```
+
+### 📋 Guía Paso a Paso para Nuevos Juegos
+
+> [!IMPORTANT]
+> **PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
+> Commitear en `main` dispara el despliegue directo a los kioscos de producción. Sigue siempre este flujo:
+
+1. **Crear y pasarse a la rama aislada del juego**:
+   ```bash
+   # Opción recomendada (script automatizado):
+   ./.agents/skills/game/scripts/start-game-branch.sh <slug>
+
+   # Opción manual:
+   git checkout main && git pull origin main
+   git checkout -b game/<slug>
+   ```
+
+2. **Desarrollar y subir a Staging**:
+   ```bash
+   git add games/<slug>/
+   git commit -m "feat(game): implementar minijuego <slug>"
+   git push origin game/<slug>
+   ```
+   *El workflow `.github/workflows/deploy-staging.yml` desplegará los cambios en ~20 segundos en `/var/www/myplayad-staging/`.*
+
+3. **Probar en Dispositivos Reales**:
+   - Abre la pantalla en el navegador: `https://dev.myplayad.com/<slug>/`
+   - Escanea el código QR con tu móvil: abrirá `https://dev-controllers.myplayad.com/<slug>/?room=XXXX`
+   - Prueba WebRTC, latencia, respuesta táctil, vidas, ranking y reinicio.
+
+4. **Crear Pull Request (PR)**:
+   Una vez probado y validado:
+   ```bash
+   # Opción recomendada:
+   ./.agents/skills/game/scripts/promote-to-main.sh <slug>
+
+   # Opción manual:
+   gh pr create --base main --head game/<slug> \
+       --title "feat(game): agregar minijuego <slug>" \
+       --body "Minijuego probado y verificado en Staging."
+   ```
+
+5. **Merge y Despliegue en Producción**:
+   - Aprueba y mergea el PR (desde la interfaz de GitHub o mediante CLI):
+     ```bash
+     gh pr merge <PR_URL> --merge --delete-branch
+     ```
+   - Al mergear en `main`, el workflow `.github/workflows/deploy.yml` lo publicará automáticamente en producción.
+   - Sincroniza tu entorno local:
+     ```bash
+     git checkout main && git pull origin main
+     ```
+
+---
+
 ## 🛠️ Cómo Correr el Proyecto Localmente (Desarrollo)
 
 Para probar el proyecto en tu computadora, necesitas tener instalado **Node.js** y **Git**. 
