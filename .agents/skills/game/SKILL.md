@@ -69,13 +69,12 @@ Cada nuevo juego debe crearse dentro del directorio `games/<slug>/` con la sigui
 
 ```text
 games/<slug>/
-├── game/                      # Aplicación que se ejecuta en la Pantalla (TV / Kiosco)
-│   ├── index.html             # Estructura de consola LCD retro + video de fondo
-│   ├── style.css              # Estilos CRT retro, paleta phosphor y contenedor responsivo
-│   ├── script.js              # Lógica del juego, render en Canvas, WebRTC Host y autoScale
-│   ├── config.js              # Configuración de señalización, TURN y endpoints
-│   ├── video_loop.js          # Manejo de cola de videos de anuncios y próximos juegos
-│   └── videos.html            # Vista auxiliar de reproducción de video
+├── game/                      # Aplicación que se ejecuta en la Pantalla (TV / Kiosco en modo Arcade Puro)
+│   ├── index.html             # Estructura de consola LCD retro + QR local + Hall of Fame
+│   ├── style.css              # Estilos CRT retro, paleta phosphor, consola 440x400 y canvas 400x320
+│   ├── script.js              # Lógica del juego, render en Canvas, WebRTC Host, QR local y autoScale
+│   ├── qrcode.min.js          # Generador QR local y offline (0ms latencia, sin bloqueos de red)
+│   └── config.js              # Configuración de señalización, TURN y endpoints
 └── control/                   # Aplicación web que abre el jugador en su teléfono móvil
     ├── index.html             # Interfaz móvil táctil (Nickname -> Joystick/Botones -> Gracias)
     ├── style.css              # Estilos retro táctiles para móviles (touch-friendly)
@@ -109,21 +108,36 @@ Todos los juegos deben compartir la misma estética arcade retro CRT:
 * `'VT323', monospace;` (Textos de estado, ranking, tablas de puntuación).
 
 ### Reglas Críticas de Escalado y Renderizado:
-1. **Media Query Responsive**:
+1. **Consola Arcade Pura y Centrada**:
    ```css
-   @media (orientation: landscape) {
-       .container {
-           flex-direction: row;
-       }
+   .container {
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       padding: 10px;
+       transform-origin: center center;
+   }
+   .lcd-screen {
+       width: 440px;
+       height: 400px;
+       min-height: 400px;
+   }
+   #qrcode, #qr-code-img {
+       width: 160px;
+       height: 160px;
+       display: block;
+       margin: 0 auto;
    }
    ```
-2. **Pixel-Art Nítido en Canvas**:
+2. **Pixel-Art Nítido en Canvas a Escala Entera 2x (400x320)**:
    ```css
    #gameCanvas {
        background-color: transparent;
        display: block;
        image-rendering: pixelated;
        image-rendering: crisp-edges;
+       width: 400px;
+       height: 320px;
    }
    ```
 3. **Motor Reactivo `autoScale()` en `game/script.js`**:
@@ -131,23 +145,26 @@ Todos los juegos deben compartir la misma estética arcade retro CRT:
    function autoScale() {
        const container = document.querySelector('.container');
        if (!container) return;
+
        container.style.transform = 'none';
-       const rect = container.getBoundingClientRect();
-       if (!rect.width || !rect.height) return;
+       const naturalW = container.offsetWidth || 480;
+       const naturalH = container.offsetHeight || 470;
 
        const availableW = window.innerWidth || document.documentElement.clientWidth;
        const availableH = window.innerHeight || document.documentElement.clientHeight;
        if (!availableW || !availableH) return;
 
        const padding = 20;
-       const scaleX = (availableW - padding) / rect.width;
-       const scaleY = (availableH - padding) / rect.height;
+       const scaleX = (availableW - padding) / naturalW;
+       const scaleY = (availableH - padding) / naturalH;
        const scale = Math.max(0.1, Math.min(scaleX, scaleY));
+
        container.style.transform = `scale(${scale})`;
    }
 
+   window.addEventListener('DOMContentLoaded', () => { updateQrCode(); autoScale(); });
    window.addEventListener('resize', autoScale);
-   window.addEventListener('load', autoScale);
+   window.addEventListener('load', () => { updateQrCode(); autoScale(); });
    if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
    if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
    window.addEventListener('message', (e) => { if (e.data?.type === 'RESCALE') autoScale(); });

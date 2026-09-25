@@ -18,13 +18,12 @@ Cuando el usuario ejecute el comando `/game` o solicite crear un nuevo juego par
 Todo nuevo juego debe replicar fielmente la arquitectura, paleta de colores CRT, renderizado de canvas y sistema de comunicación de [`games/arkanoid/game`](file:///Users/gonza/mycodes/myPlayAd/games/arkanoid/game):
 
 * **Estructura obligatoria**:
-  * `games/<slug>/game/`: Pantalla del juego (TV/Kiosco).
-    * `index.html`: Consola LCD retro con scanlines CRT + canvas 200x160 base + overlays (QR, Hall of Fame, Próximos juegos) + reproductor de video de anuncios.
-    * `style.css`: Paleta neón retro (`--bg-deep: #0a0f0d`, `--panel: #101a15`, `--phosphor: #3dff8a`, `--amber: #ffb703`, `--danger: #ff4d6d`, `--white: #eafff2`), fuentes `'Press Start 2P'` y `'VT323'`, media query `@media (orientation: landscape) { .container { flex-direction: row; } }`, renderizado `image-rendering: pixelated;`.
-    * `script.js`: Bucle de juego con canvas 2d, gestión de vidas y score, motor reactivo `autoScale()` multi-etapa con `ResizeObserver`, WebSocket signaling y WebRTC Host con DataChannel.
+  * `games/<slug>/game/`: Pantalla del juego (TV/Kiosco en modo Arcade Puro, centrado, a pantalla completa sin videos duplicados).
+    * `index.html`: Consola LCD retro con scanlines CRT + canvas 200x160 base escalado a 400x320 + overlays (QR de 160x160 generado localmente, Hall of Fame) + footer de consola arcade con grille.
+    * `style.css`: Paleta neón retro (`--bg-deep: #0a0f0d`, `--panel: #101a15`, `--phosphor: #3dff8a`, `--amber: #ffb703`, `--danger: #ff4d6d`, `--white: #eafff2`), fuentes `'Press Start 2P'` y `'VT323'`, renderizado `image-rendering: pixelated; crisp-edges;`, consola espaciosa de 440px x 400px base centrada que escala responsivamente ocupando el 95-98% de la altura de la pantalla.
+    * `script.js`: Bucle de juego con canvas 2d, gestión de vidas y score, motor reactivo `autoScale()` multi-etapa con medición de dimensiones no transformadas (`offsetWidth`/`offsetHeight`), generación local instantánea de QR (`qrcode.min.js`), WebSocket signaling y WebRTC Host con DataChannel.
+    * `qrcode.min.js`: Librería cliente de generación local de códigos QR (0ms latencia, sin peticiones de red externas ni bloqueos por adblockers).
     * `config.js`: Parámetros de señalización, TURN y endpoints.
-    * `video_loop.js`: Reproducción en cola de videos de anuncios con sincronización local y overlay de próximos juegos.
-    * `videos.html`: Reproductor auxiliar.
   * `games/<slug>/control/`: Controlador web móvil para el teléfono del usuario.
     * `index.html`: Pantalla de bienvenida con Nickname + interfaz táctil (joystick/trackpad/botones) + pantalla de agradecimiento al terminar la partida.
     * `style.css`: Estilo oscuro neón optimizado para dispositivos táctiles (`touch-action: none`).
