@@ -9,7 +9,7 @@ const waitingOverlay = document.getElementById('waiting-overlay');
 const mainScreen = document.getElementById('main-screen');
 const rankingList = document.getElementById('ranking-list');
 const videoRankingList = document.getElementById('video-ranking-list');
-const qrCodeImg = document.getElementById('qr-code-img');
+const qrContainer = document.getElementById('qrcode');
 const iceRouteElement = document.getElementById('ice-route');
 
 // Retro Arcade Space Invaders Web Audio API Synthesizer
@@ -477,8 +477,31 @@ function getControlUrl() {
 
 function updateQrCode() {
     const controlUrl = getControlUrl();
-    if (qrCodeImg) {
-        qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(controlUrl)}`;
+    const qrContainer = document.getElementById('qrcode');
+    if (qrContainer) {
+        qrContainer.innerHTML = '';
+        try {
+            if (typeof QRCode !== 'undefined') {
+                new QRCode(qrContainer, {
+                    text: controlUrl,
+                    width: 160,
+                    height: 160,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } else {
+                throw new Error('QRCode not loaded');
+            }
+        } catch (e) {
+            console.warn('QRCode error, using fallback API:', e);
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+        }
+    } else {
+        const qrCodeImg = document.getElementById('qr-code-img');
+        if (qrCodeImg) {
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+        }
     }
 }
 
@@ -1286,10 +1309,14 @@ function init() {
     resetGame();
     gameOverOverlay.classList.add('hidden');
     waitingOverlay.classList.remove('hidden');
+    updateQrCode();
+    autoScale();
 }
 
 loadRanking();
 init();
+updateQrCode();
+autoScale();
 draw();
 requestAnimationFrame(loop);
 connectSignaling();
@@ -1299,26 +1326,41 @@ function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    // Reset transform to measure base untransformed dimensions
     container.style.transform = 'none';
-    const rect = container.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    const naturalW = container.offsetWidth || 480;
+    const naturalH = container.offsetHeight || 470;
 
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
     if (!availableW || !availableH) return;
 
     const padding = 20;
-    const scaleX = (availableW - padding) / rect.width;
-    const scaleY = (availableH - padding) / rect.height;
+    const scaleX = (availableW - padding) / naturalW;
+    const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
 
     container.style.transform = `scale(${scale})`;
 }
 
+window.addEventListener('DOMContentLoaded', () => {
+    updateQrCode();
+    autoScale();
+    const audioToggleBtn = document.getElementById('audio-toggle-btn');
+    if (audioToggleBtn) {
+        audioToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!audio.ctx) audio.init();
+            else audio.resume();
+        });
+    }
+});
+
 // Multi-stage event bindings to ensure accurate dimensions
 window.addEventListener('resize', autoScale);
-window.addEventListener('load', autoScale);
+window.addEventListener('load', () => {
+    updateQrCode();
+    autoScale();
+});
 if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(autoScale);
 }
@@ -1336,6 +1378,14 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// Periodic retries after mount to handle dynamic layout shifts (images, QR, videos)
+// Periodic retries after mount to handle dynamic layout shifts (images, QR)
 [0, 50, 150, 300, 600, 1200].forEach(delay => setTimeout(autoScale, delay));
+
+mainScreen.addEventListener('click', () => {
+    audio.init();
+    if (!GameState.running || GameState.gameOver) {
+        resetGame();
+        startGame();
+    }
+});
 

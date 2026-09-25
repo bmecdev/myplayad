@@ -18,18 +18,98 @@ Cuando el usuario ejecute el comando `/game` o solicite crear un nuevo juego par
 Todo nuevo juego debe replicar fielmente la arquitectura, paleta de colores CRT, renderizado de canvas y sistema de comunicación de [`games/arkanoid/game`](file:///Users/gonza/mycodes/myPlayAd/games/arkanoid/game):
 
 * **Estructura obligatoria**:
-  * `games/<slug>/game/`: Pantalla del juego (TV/Kiosco).
-    * `index.html`: Consola LCD retro con scanlines CRT + canvas 200x160 base + overlays (QR, Hall of Fame, Próximos juegos) + reproductor de video de anuncios.
-    * `style.css`: Paleta neón retro (`--bg-deep: #0a0f0d`, `--panel: #101a15`, `--phosphor: #3dff8a`, `--amber: #ffb703`, `--danger: #ff4d6d`, `--white: #eafff2`), fuentes `'Press Start 2P'` y `'VT323'`, media query `@media (orientation: landscape) { .container { flex-direction: row; } }`, renderizado `image-rendering: pixelated;`.
-    * `script.js`: Bucle de juego con canvas 2d, gestión de vidas y score, motor reactivo `autoScale()` multi-etapa con `ResizeObserver`, WebSocket signaling y WebRTC Host con DataChannel.
+  * `games/<slug>/game/`: Pantalla del juego (TV/Kiosco en modo Arcade Puro, centrado, a pantalla completa sin videos duplicados).
+    * `index.html`: Consola LCD retro con scanlines CRT + canvas 200x160 base escalado a 400x320 + overlays (QR de 160x160 generado localmente, Hall of Fame) + footer de consola arcade con grille.
+    * `style.css`: Paleta neón retro (`--bg-deep: #0a0f0d`, `--panel: #101a15`, `--phosphor: #3dff8a`, `--amber: #ffb703`, `--danger: #ff4d6d`, `--white: #eafff2`), fuentes `'Press Start 2P'` y `'VT323'`, renderizado `image-rendering: pixelated; crisp-edges;`, consola espaciosa de 440px x 400px base centrada que escala responsivamente ocupando el 95-98% de la altura de la pantalla.
+    * `script.js`: Bucle de juego con canvas 2d, gestión de vidas y score, motor reactivo `autoScale()` multi-etapa con medición de dimensiones no transformadas (`offsetWidth`/`offsetHeight`), generación local instantánea de QR (`qrcode.min.js`), WebSocket signaling y WebRTC Host con DataChannel.
+    * `qrcode.min.js`: Librería cliente de generación local de códigos QR (0ms latencia, sin peticiones de red externas ni bloqueos por adblockers).
     * `config.js`: Parámetros de señalización, TURN y endpoints.
-    * `video_loop.js`: Reproducción en cola de videos de anuncios con sincronización local y overlay de próximos juegos.
-    * `videos.html`: Reproductor auxiliar.
   * `games/<slug>/control/`: Controlador web móvil para el teléfono del usuario.
     * `index.html`: Pantalla de bienvenida con Nickname + interfaz táctil (joystick/trackpad/botones) + pantalla de agradecimiento al terminar la partida.
     * `style.css`: Estilo oscuro neón optimizado para dispositivos táctiles (`touch-action: none`).
     * `script.js`: Conexión WebRTC P2P con la pantalla del juego vía DataChannel, envío de comandos en tiempo real a 60fps con vibración táctil háptica.
     * `config.js`: Configuración de señalización para el cliente móvil.
+  * `games/<slug>/game.json`: Metadatos del minijuego (nombre, slug, icono, género, descripción y tipo de controles) consumidos por el actualizador automático del catálogo en `README.md`.
+
+### 3. Protocolo Obligatorio WebRTC y Señalización (`server/server.js`)
+Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Controller), todo juego DEBE cumplir este contrato:
+
+* **Enrutamiento por `playerId` (Crítico)**:
+  * El servidor `server/server.js` asigna un `playerId` numérico al controlador y lo inyecta en cada mensaje hacia el host (`data.playerId`).
+  * **El Host SIEMPRE debe responder incluyendo `playerId: data.playerId`** tanto en el mensaje `answer` como en cada `candidate`. Si se omite o se usa `to: data.from`, el servidor no encuentra el controlador y descarta la respuesta silenciosamente.
+  * Mapear conexiones en el Host por `playerId`: `peerConnections.set(playerId, pc)` y `dataChannels.set(playerId, dc)`.
+  * Escuchar `controller_connected` y `controller_disconnected` en el socket del Host.
+* **Configuración del DataChannel en el Móvil**:
+  * Crear el canal como `pc.createDataChannel('control', { ordered: false });`.
+  * **NUNCA usar `maxRetransmits: 0`** en el canal principal, ya que descarta paquetes en redes móviles inestables y provoca la pérdida del mensaje inicial `{ type: 'join' }`.
+  * Al abrir el canal (`onopen`), enviar `{ type: 'join', nickname: nickname, value: nickname }`.
+* **Detección Dinámica de Entornos (Staging / Dev / Prod)**:
+  * En `config.js` tanto de `game/` como de `control/`:
+    ```javascript
+    const isDevHost = typeof window !== 'undefined' && (
+        window.location.hostname.includes('dev') || 
+        window.location.hostname.includes('staging') || 
+        window.location.hostname.includes('test')
+    );
+    const CONTROL_URL = isDevHost 
+        ? 'https://dev-controllers.myplayad.com/<slug>' 
+        : 'https://controllers.myplayad.com/<slug>';
+    ```
+* **Estado del Controlador Móvil**:
+  * Al cargar con `?room=XXXX`, mostrar `"INGRESA TU NICKNAME"` (no `"Conectando..."` antes de que el usuario pulse el botón de jugar).
+
+### 4. Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
+**TODO juego DEBE poder jugarse y probarse al 100% con teclado antes de hacer push a Git.**
+Esto permite al desarrollador y al agente verificar la jugabilidad, mecánicas y colisiones inmediatamente en el navegador sin requerir obligatoriamente el móvil:
+
+* **Mapeo Obligatorio de Teclas en `game/script.js`**:
+  * **Movimiento**: Flechas del cursor (`ArrowLeft`, `ArrowRight`, `ArrowUp`, `ArrowDown`) y teclas `WASD`.
+  * **Acción / Disparo**: Tecla `Espacio`, `Enter` o `Z`/`X`.
+  * **Eventos `keydown` y `keyup`**: Manejar tanto el inicio como el cese de movimiento al soltar la tecla (`keyup`) para evitar inercias o movimientos infinitos indeseados.
+* **Inicio Rápido Local (Bypass del QR)**:
+  * Al hacer clic en la pantalla arcade (`mainScreen.addEventListener('click', ...)`) o al presionar `Espacio`/`Enter` en el overlay de espera, el juego debe ocultar el overlay (`waitingOverlay.classList.add('hidden')`) e iniciar la partida directamente con un nickname por defecto (`PILOT` / `PLAYER 1`).
+* **Protocolo de Verificación Pre-Push**:
+  * **ANTES** de hacer commit o push a la rama de Staging, el juego debe probarse con teclado para comprobar:
+    1. Movimiento fluido a 60fps.
+    2. Detección de colisiones y límites de pantalla.
+    3. Gestión correcta de vidas y suma de puntuación.
+    4. Audio sintetizado Web Audio API operativo tras interacción.
+    5. Transición limpia a Game Over y reinicio.
+
+### 5. Flujo Git y CI/CD Obligatorio para Juegos (`game/<slug>`)
+**PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
+Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/myplayad/`). Para garantizar que todo juego se pruebe antes en dispositivos móviles reales sobre el VPS:
+
+1. **Aislamiento Inicial en Rama Dedicada**:
+   - **ANTES** de escribir código para un juego nuevo o refactorizar uno existente, cambiar a su rama:
+     ```bash
+     # Usar el script del skill o comando git:
+     ./.agents/skills/game/scripts/start-game-branch.sh <slug>
+     # O manualmente:
+     git checkout main && git pull origin main
+     git checkout -b game/<slug>
+     ```
+   - Verificar siempre que `git branch --show-current` sea `game/<slug>`.
+2. **Despliegue Continuo a Staging**:
+   - Cada `git push origin game/<slug>` activa automáticamente el workflow `.github/workflows/deploy-staging.yml`.
+   - Se despliega de forma segura en `/var/www/myplayad-staging/`.
+   - URLs de prueba inmediata en móvil y pantalla:
+     - 📺 Pantalla: `https://dev.myplayad.com/<slug>/`
+     - 📱 Control Móvil: `https://dev-controllers.myplayad.com/<slug>/`
+3. **Promoción a Producción (PR y Merge)**:
+   - Solo cuando el juego esté 100% probado en Staging:
+     ```bash
+     # Usar el script de promoción:
+     ./.agents/skills/game/scripts/promote-to-main.sh <slug>
+     # O crear PR manualmente:
+     gh pr create --base main --head game/<slug> --title "feat(game): agregar minijuego <slug>" --body "..."
+     ```
+   - Al aprobar y mergear el PR a `main`, el workflow `.github/workflows/deploy.yml` lo publicará automáticamente en producción.
+4. **Actualización Obligatoria del Catálogo de Juegos en `README.md`**:
+   - Cada juego DEBE incluir su archivo de metadatos `games/<slug>/game.json` (nombre, slug, icon, genre, description, controls).
+   - En cada merge hacia `main`, el catálogo de juegos en `README.md` se actualiza automáticamente con todos los juegos presentes en la rama principal.
+   - En el pipeline de CI/CD, el workflow `.github/workflows/deploy.yml` ejecuta `python3 .agents/skills/game/scripts/update-games-readme.py` y commitea la tabla actualizada en `main` si hubo cambios.
+   - Si el desarrollador o agente hace merge manual en local, debe ejecutar siempre `python3 .agents/skills/game/scripts/update-games-readme.py` antes de hacer push a `main`.
 
 ---
 
