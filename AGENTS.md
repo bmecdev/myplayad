@@ -31,6 +31,33 @@ Todo nuevo juego debe replicar fielmente la arquitectura, paleta de colores CRT,
     * `script.js`: Conexión WebRTC P2P con la pantalla del juego vía DataChannel, envío de comandos en tiempo real a 60fps con vibración táctil háptica.
     * `config.js`: Configuración de señalización para el cliente móvil.
 
+### 3. Protocolo Obligatorio WebRTC y Señalización (`server/server.js`)
+Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Controller), todo juego DEBE cumplir este contrato:
+
+* **Enrutamiento por `playerId` (Crítico)**:
+  * El servidor `server/server.js` asigna un `playerId` numérico al controlador y lo inyecta en cada mensaje hacia el host (`data.playerId`).
+  * **El Host SIEMPRE debe responder incluyendo `playerId: data.playerId`** tanto en el mensaje `answer` como en cada `candidate`. Si se omite o se usa `to: data.from`, el servidor no encuentra el controlador y descarta la respuesta silenciosamente.
+  * Mapear conexiones en el Host por `playerId`: `peerConnections.set(playerId, pc)` y `dataChannels.set(playerId, dc)`.
+  * Escuchar `controller_connected` y `controller_disconnected` en el socket del Host.
+* **Configuración del DataChannel en el Móvil**:
+  * Crear el canal como `pc.createDataChannel('control', { ordered: false });`.
+  * **NUNCA usar `maxRetransmits: 0`** en el canal principal, ya que descarta paquetes en redes móviles inestables y provoca la pérdida del mensaje inicial `{ type: 'join' }`.
+  * Al abrir el canal (`onopen`), enviar `{ type: 'join', nickname: nickname, value: nickname }`.
+* **Detección Dinámica de Entornos (Staging / Dev / Prod)**:
+  * En `config.js` tanto de `game/` como de `control/`:
+    ```javascript
+    const isDevHost = typeof window !== 'undefined' && (
+        window.location.hostname.includes('dev') || 
+        window.location.hostname.includes('staging') || 
+        window.location.hostname.includes('test')
+    );
+    const CONTROL_URL = isDevHost 
+        ? 'https://dev-controllers.myplayad.com/<slug>' 
+        : 'https://controllers.myplayad.com/<slug>';
+    ```
+* **Estado del Controlador Móvil**:
+  * Al cargar con `?room=XXXX`, mostrar `"INGRESA TU NICKNAME"` (no `"Conectando..."` antes de que el usuario pulse el botón de jugar).
+
 ---
 
 ## 📁 Estructura del Repositorio
