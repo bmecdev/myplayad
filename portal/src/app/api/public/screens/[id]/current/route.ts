@@ -114,6 +114,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return setCorsHeaders(NextResponse.json(responseData));
   } catch (error) {
     console.error('Error fetching current screen schedule:', error);
-    return setCorsHeaders(NextResponse.json({ error: 'Internal Server Error' }, { status: 500 }));
+    const details = error instanceof Error ? error.message : String(error);
+    return setCorsHeaders(NextResponse.json({ error: 'Internal Server Error', details }, { status: 500 }));
   }
 }

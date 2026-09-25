@@ -53,7 +53,10 @@ flowchart TD
     I --> J[9. En vivo para usuarios finales]
 ```
 
-### 📋 Guía Paso a Paso para Nuevos Juegos
+### 📋 Guía Paso a Paso para Nuevos Juegos (`/game` y `/test`)
+
+> [!TIP]
+> Puedes usar el comando **/game** para crear nuevos juegos siguiendo el estándar Pure Arcade, y el comando **/test** para ejecutar el protocolo guiado de pruebas (teclado -> celular en Staging -> merge con bucle interactivo de corrección en el chat).
 
 > [!IMPORTANT]
 > **PROHIBIDO desarrollar o commitear juegos directamente en `main`.**

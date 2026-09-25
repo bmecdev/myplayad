@@ -14,15 +14,13 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const handleLogout = () => {
-    // Hack to clear Basic Auth cache in most browsers
-    fetch('/', {
-      headers: {
-        'Authorization': 'Basic ' + btoa('logout:logout')
-      }
-    }).finally(() => {
-      window.location.href = '/';
-    });
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Error cerrando sesión:', err);
+    }
+    window.location.href = '/login';
   };
 
   return (
