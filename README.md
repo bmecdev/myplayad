@@ -55,7 +55,16 @@ flowchart TD
    git checkout -b game/<slug>
    ```
 
-2. **Desarrollar y subir a Staging**:
+2. **Desarrollar el Minijuego y Soporte de Teclado**:
+   - Implementar la pantalla en `games/<slug>/game/` y el control móvil en `games/<slug>/control/`.
+   - Incluir soporte completo de teclado (`ArrowLeft`, `ArrowRight`, `ArrowUp`, `ArrowDown`, `WASD`, `Espacio`, `Enter`) en `game/script.js`.
+
+3. **Probar primero localmente con Teclado (Pre-Push)**:
+   - **ANTES** de hacer commit o push, abre `games/<slug>/game/index.html` en tu navegador.
+   - Haz clic en la pantalla o pulsa `Espacio`/`Enter` para saltar el QR e iniciar la partida de prueba.
+   - Juega 1-2 minutos con el teclado para verificar fluidez a 60fps, detección de colisiones, velocidad de respuesta, puntuación y reinicio.
+
+4. **Subir a Staging para Prueba Móvil**:
    ```bash
    git add games/<slug>/
    git commit -m "feat(game): implementar minijuego <slug>"
@@ -63,12 +72,12 @@ flowchart TD
    ```
    *El workflow `.github/workflows/deploy-staging.yml` desplegará los cambios en ~20 segundos en `/var/www/myplayad-staging/`.*
 
-3. **Probar en Dispositivos Reales**:
+5. **Probar en Dispositivos Reales (Staging)**:
    - Abre la pantalla en el navegador: `https://dev.myplayad.com/<slug>/`
    - Escanea el código QR con tu móvil: abrirá `https://dev-controllers.myplayad.com/<slug>/?room=XXXX`
    - Prueba WebRTC, latencia, respuesta táctil, vidas, ranking y reinicio.
 
-4. **Crear Pull Request (PR)**:
+6. **Crear Pull Request (PR)**:
    Una vez probado y validado:
    ```bash
    # Opción recomendada:
@@ -80,7 +89,7 @@ flowchart TD
        --body "Minijuego probado y verificado en Staging."
    ```
 
-5. **Merge y Despliegue en Producción**:
+7. **Merge y Despliegue en Producción**:
    - Aprueba y mergea el PR (desde la interfaz de GitHub o mediante CLI):
      ```bash
      gh pr merge <PR_URL> --merge --delete-branch

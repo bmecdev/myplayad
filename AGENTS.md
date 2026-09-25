@@ -58,7 +58,25 @@ Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Con
 * **Estado del Controlador Móvil**:
   * Al cargar con `?room=XXXX`, mostrar `"INGRESA TU NICKNAME"` (no `"Conectando..."` antes de que el usuario pulse el botón de jugar).
 
-### 4. Flujo Git y CI/CD Obligatorio para Juegos (`game/<slug>`)
+### 4. Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
+**TODO juego DEBE poder jugarse y probarse al 100% con teclado antes de hacer push a Git.**
+Esto permite al desarrollador y al agente verificar la jugabilidad, mecánicas y colisiones inmediatamente en el navegador sin requerir obligatoriamente el móvil:
+
+* **Mapeo Obligatorio de Teclas en `game/script.js`**:
+  * **Movimiento**: Flechas del cursor (`ArrowLeft`, `ArrowRight`, `ArrowUp`, `ArrowDown`) y teclas `WASD`.
+  * **Acción / Disparo**: Tecla `Espacio`, `Enter` o `Z`/`X`.
+  * **Eventos `keydown` y `keyup`**: Manejar tanto el inicio como el cese de movimiento al soltar la tecla (`keyup`) para evitar inercias o movimientos infinitos indeseados.
+* **Inicio Rápido Local (Bypass del QR)**:
+  * Al hacer clic en la pantalla arcade (`mainScreen.addEventListener('click', ...)`) o al presionar `Espacio`/`Enter` en el overlay de espera, el juego debe ocultar el overlay (`waitingOverlay.classList.add('hidden')`) e iniciar la partida directamente con un nickname por defecto (`PILOT` / `PLAYER 1`).
+* **Protocolo de Verificación Pre-Push**:
+  * **ANTES** de hacer commit o push a la rama de Staging, el juego debe probarse con teclado para comprobar:
+    1. Movimiento fluido a 60fps.
+    2. Detección de colisiones y límites de pantalla.
+    3. Gestión correcta de vidas y suma de puntuación.
+    4. Audio sintetizado Web Audio API operativo tras interacción.
+    5. Transición limpia a Game Over y reinicio.
+
+### 5. Flujo Git y CI/CD Obligatorio para Juegos (`game/<slug>`)
 **PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
 Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/myplayad/`). Para garantizar que todo juego se pruebe antes en dispositivos móviles reales sobre el VPS:
 

@@ -21,8 +21,9 @@ flowchart TD
     E --> F[Fase 2: Aislamiento en Rama Git game/<slug>]
     F --> G[Fase 3: Generación del Juego games/<slug>/game/]
     G --> H[Fase 4: Generación del Controlador games/<slug>/control/]
-    H --> I[Fase 5: Despliegue Automático en Staging y Pruebas Reales]
-    I --> J[Fase 6: Pull Request y Promoción a Producción Main]
+    H --> I[Fase 5: Pruebas Locales con Teclado Pre-Push]
+    I --> J[Fase 6: Despliegue en Staging y Verificación Móvil]
+    J --> K[Fase 7: Pull Request y Promoción a Producción Main]
 ```
 
 ---
@@ -287,9 +288,72 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
 
 ---
 
-## 🧪 Fase 6: Despliegue en Staging y Verificación Móvil en Vivo
+## ⌨️ Fase 6: Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
 
-Una vez implementado el juego en la rama `game/<slug>`:
+> [!IMPORTANT]
+> **TODO juego DEBE poder jugarse primero con teclado localmente antes de hacer push a Git.**
+> Esto garantiza que la lógica, colisiones, render y puntuación estén 100% pulidos sin depender de la conexión WebRTC o del teléfono móvil.
+
+### 1. Implementación de Controles de Teclado en `game/script.js`:
+```javascript
+// Controles de teclado para pruebas locales en navegador
+window.addEventListener('keydown', (e) => {
+    if (audio.init) audio.init();
+    const key = e.key.toLowerCase();
+    
+    // Movimiento (Flechas o WASD)
+    if (key === 'arrowleft' || key === 'a') GameState.player.dx = -PLAYER_SPEED;
+    if (key === 'arrowright' || key === 'd') GameState.player.dx = PLAYER_SPEED;
+    if (key === 'arrowup' || key === 'w') GameState.player.dy = -PLAYER_SPEED;
+    if (key === 'arrowdown' || key === 's') GameState.player.dy = PLAYER_SPEED;
+    
+    // Acción / Disparo / Salto
+    if (e.code === 'Space' || key === 'enter') {
+        if (!GameState.running || GameState.gameOver) {
+            startNewGame(); // Inicia partida directamente
+        } else {
+            shootAction(); // Acción principal del juego
+        }
+    }
+});
+
+// Detener movimiento al soltar tecla
+window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    if ((key === 'arrowleft' || key === 'a') && GameState.player.dx < 0) GameState.player.dx = 0;
+    if ((key === 'arrowright' || key === 'd') && GameState.player.dx > 0) GameState.player.dx = 0;
+    if ((key === 'arrowup' || key === 'w') && GameState.player.dy < 0) GameState.player.dy = 0;
+    if ((key === 'arrowdown' || key === 's') && GameState.player.dy > 0) GameState.player.dy = 0;
+});
+
+// Clic en la pantalla para iniciar partida directamente (Bypass de QR)
+const mainScreen = document.getElementById('main-screen');
+if (mainScreen) {
+    mainScreen.addEventListener('click', () => {
+        if (audio.init) audio.init();
+        if (!GameState.running || GameState.gameOver) {
+            startNewGame();
+        }
+    });
+}
+```
+
+### 2. Protocolo de Prueba Local del Agente / Desarrollador:
+Antes de ejecutar `git push`:
+1. Abrir `games/<slug>/game/index.html` en el navegador.
+2. Hacer clic en la pantalla o presionar `Espacio`/`Enter` para ocultar el overlay de espera y arrancar el juego.
+3. Jugar durante al menos 1-2 minutos con las teclas:
+   - ¿El personaje se mueve ágil y responde sin retardo?
+   - ¿Las colisiones con obstáculos/enemigos son justas y precisas?
+   - ¿Las vidas disminuyen correctamente y el marcador suma puntos?
+   - ¿Se activa la pantalla de Game Over y se puede reiniciar?
+4. **Solo cuando el juego sea 100% divertido y estable con teclado**, proceder al push a Staging.
+
+---
+
+## 🧪 Fase 7: Despliegue en Staging y Verificación Móvil en Vivo
+
+Una vez implementado y verificado localmente el juego en la rama `game/<slug>`:
 1. **Comprobar la rama activa**:
    ```bash
    git branch --show-current # Debe ser game/<slug>
@@ -315,7 +379,7 @@ Una vez implementado el juego en la rama `game/<slug>`:
 
 ---
 
-## 🚀 Fase 7: Pull Request y Promoción a Producción (`main`)
+## 🚀 Fase 8: Pull Request y Promoción a Producción (`main`)
 
 Solo cuando el usuario y el desarrollador hayan verificado el juego en Staging:
 1. **Crear Pull Request**:
