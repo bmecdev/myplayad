@@ -577,9 +577,10 @@ async function handleOffer(data) {
         receiveChannel.onmessage = (e) => {
             try {
                 const input = JSON.parse(e.data);
-                if (input.type === 'nickname') {
-                    GameState.currentNickname = input.value;
+                if (input.type === 'nickname' || input.type === 'join') {
+                    GameState.currentNickname = (input.nickname || input.value || 'Player').substring(0, 10);
                     if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
+                    startGame();
                 } else {
                     handleJoystickInput(input);
                 }
@@ -633,13 +634,13 @@ async function handleOffer(data) {
 function handleJoystickInput(input) {
     if (GameState.isRespawning) return;
 
-    if (!GameState.gameRunning && waitingOverlay.classList.contains('hidden')) {
-        if (Math.abs(input.x) > 0.5 || Math.abs(input.y) > 0.5) {
+    if (!GameState.gameRunning) {
+        if (Math.abs(input.x || 0) > 0.3 || Math.abs(input.y || 0) > 0.3 || input.fire) {
             startGame();
         }
     }
 
-    const threshold = 0.4;
+    const threshold = 0.3;
     if (Math.abs(input.x) > Math.abs(input.y)) {
         if (input.x > threshold && GameState.dx !== -1) { GameState.nextDx = 1; GameState.nextDy = 0; }
         else if (input.x < -threshold && GameState.dx !== 1) { GameState.nextDx = -1; GameState.nextDy = 0; }
@@ -833,47 +834,75 @@ function gameOver() {
         }
     });
 
-    const videoOverlay = document.getElementById('video-ranking-overlay');
-    if (videoOverlay) {
-        videoOverlay.classList.remove('hidden');
-        if (typeof fetchAndShowUpcomingGames === 'function') {
-            fetchAndShowUpcomingGames();
-        }
-        setTimeout(() => {
-            if (!GameState.gameRunning) videoOverlay.classList.add('hidden');
-        }, 5000);
-    }
+    if (gameOverOverlay) gameOverOverlay.classList.remove('hidden');
 
-    resetSignaling();
+    window.resetTimeout = setTimeout(() => {
+        if (!GameState.gameRunning) {
+            resetSignaling();
+        }
+    }, 6000);
 }
 
 function startGame() {
-    if (GameState.isRespawning || GameState.gameRunning) return;
+    if (GameState.isRespawning) return;
 
     if (!GameState.gameRunning) {
+        audio.init();
         audio.playStart();
         if (window.resetTimeout) clearTimeout(window.resetTimeout);
         
+        init();
         GameState.lives = 3;
         GameState.isInvulnerable = false;
         updateLivesDisplay();
         GameState.gameRunning = true;
         GameState.lastTime = performance.now();
+        
+        // Ocultar overlays inmediatamente
+        if (waitingOverlay) waitingOverlay.classList.add('hidden');
+        if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+        
+        if (playerNickElement && (!GameState.currentNickname || GameState.currentNickname === 'Player')) {
+            playerNickElement.textContent = 'PLAYER: PILOT';
+        }
+
         requestAnimationFrame(update);
     }
 }
 
 window.addEventListener('keydown', (e) => {
+    if (audio.init) audio.init();
     if (GameState.isRespawning) return;
-    if (e.key === 'ArrowUp' && GameState.dy !== 1) { GameState.nextDx = 0; GameState.nextDy = -1; }
-    if (e.key === 'ArrowDown' && GameState.dy !== -1) { GameState.nextDx = 0; GameState.nextDy = 1; }
-    if (e.key === 'ArrowLeft' && GameState.dx !== 1) { GameState.nextDx = -1; GameState.nextDy = 0; }
-    if (e.key === 'ArrowRight' && GameState.dx !== -1) { GameState.nextDx = 1; GameState.nextDy = 0; }
+
+    const key = e.key.toLowerCase();
+    
+    // Si no está corriendo, cualquier tecla de acción o dirección inicia la partida
+    if (!GameState.gameRunning) {
+        if ([' ', 'enter', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
+            e.preventDefault();
+            startGame();
+            if (['arrowup', 'w'].includes(key) && GameState.dy !== 1) { GameState.nextDx = 0; GameState.nextDy = -1; }
+            if (['arrowdown', 's'].includes(key) && GameState.dy !== -1) { GameState.nextDx = 0; GameState.nextDy = 1; }
+            if (['arrowleft', 'a'].includes(key) && GameState.dx !== 1) { GameState.nextDx = -1; GameState.nextDy = 0; }
+            if (['arrowright', 'd'].includes(key) && GameState.dx !== -1) { GameState.nextDx = 1; GameState.nextDy = 0; }
+            return;
+        }
+    }
+
+    if (['arrowup', 'w'].includes(key) && GameState.dy !== 1) { GameState.nextDx = 0; GameState.nextDy = -1; }
+    if (['arrowdown', 's'].includes(key) && GameState.dy !== -1) { GameState.nextDx = 0; GameState.nextDy = 1; }
+    if (['arrowleft', 'a'].includes(key) && GameState.dx !== 1) { GameState.nextDx = -1; GameState.nextDy = 0; }
+    if (['arrowright', 'd'].includes(key) && GameState.dx !== -1) { GameState.nextDx = 1; GameState.nextDy = 0; }
 });
 
-mainScreen.addEventListener('click', () => {
-    if (!GameState.gameRunning && !GameState.isRespawning) {
-        startGame();
+[mainScreen, waitingOverlay, gameOverOverlay].forEach(el => {
+    if (el) {
+        el.addEventListener('click', () => {
+            if (audio.init) audio.init();
+            if (!GameState.gameRunning && !GameState.isRespawning) {
+                startGame();
+            }
+        });
     }
 });
 
