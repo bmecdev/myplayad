@@ -65,9 +65,10 @@ jobs:
               nginx -t && systemctl reload nginx || true
             fi
 
-            # 2. Intentar emitir o renovar certificados SSL si Certbot está disponible
+            # 2. Intentar emitir o renovar certificados SSL individualmente si Certbot está disponible
             if command -v certbot >/dev/null 2>&1; then
-              certbot --nginx -d dev-portal.myplayad.com -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+              certbot --nginx -d dev-portal.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+              certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
 
             # 3. Limpiar contenedores previos de staging y redes obsoletas
