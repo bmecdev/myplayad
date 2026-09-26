@@ -121,13 +121,15 @@ window.addEventListener('load', () => {
     const roomFromUrl = urlParams.get('room');
     if (roomFromUrl) {
         roomInput.value = roomFromUrl.toUpperCase();
+        status.textContent = 'INGRESA TU NICKNAME';
+        status.style.color = '#ffb703';
         nicknameInput.focus();
     }
 });
 
 connectBtn.addEventListener('click', () => {
     const roomId = roomInput.value.trim().toUpperCase();
-    nickname = nicknameInput.value.trim() || 'Bear';
+    nickname = nicknameInput.value.trim() || 'PACMAN';
     if (roomId) {
         currentRoomId = roomId;
         connectSignaling(roomId);
@@ -146,7 +148,7 @@ function connectSignaling(roomId) {
     const signalingUrl = CONFIG.SIGNALING_SERVER_URL || `${serverIp}:${serverPort}`;
     const wsUrl = `wss://${signalingUrl}`;
 
-    status.textContent = 'Conectando...';
+    status.textContent = 'Conectando a la sala...';
     status.style.color = '#7fae94';
 
     try {
@@ -160,7 +162,7 @@ function connectSignaling(roomId) {
             try {
                 const data = JSON.parse(message.data);
                 if (data.type === 'error') {
-                    if (data.message === 'SALA_OCUPADA') {
+                    if (data.message === 'SALA_OCUPADA' || data.message === 'SALA_LLENA') {
                         status.textContent = 'SALA OCUPADA - ESPERA UN MOMENTO';
                         status.style.color = '#ffb703';
                         alert('Esta partida ya tiene un jugador conectado.');
@@ -172,14 +174,16 @@ function connectSignaling(roomId) {
                     startWebRTC();
                 } else if (data.type === 'answer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    status.textContent = 'CONECTADO AL GLACIAR';
+                    status.textContent = 'CONECTADO AL JUEGO';
                     status.style.color = '#3dff8a';
                     roomSelection.style.display = 'none';
                     container.style.display = 'flex';
                 } else if (data.type === 'candidate') {
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc && data.candidate) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('Error procesando mensaje signaling:', e);
+            }
         };
 
         socket.onerror = () => {
@@ -193,19 +197,21 @@ function connectSignaling(roomId) {
                 container.style.display = 'none';
             }
         };
-    } catch (e) {}
+    } catch (e) {
+        console.error('Error al conectar WebSocket:', e);
+    }
 }
 
 async function startWebRTC() {
     pc = new RTCPeerConnection(getIceConfig());
-    dataChannel = pc.createDataChannel('gameControls', { ordered: false, maxRetransmits: 0 });
+    dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
         status.textContent = 'PACMAN LISTO';
         status.style.color = '#3dff8a';
         roomSelection.style.display = 'none';
         container.style.display = 'flex';
-        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname }));
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
     };
 
     dataChannel.onmessage = (e) => {
@@ -235,9 +241,25 @@ async function startWebRTC() {
         }
     };
 
+    pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        if (state === 'disconnected' || state === 'failed') {
+            status.textContent = 'Desconectado del juego';
+            status.style.color = '#ffb703';
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                container.style.display = 'none';
+                roomSelection.style.display = 'block';
+            }
+        }
+    };
+
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    socket.send(JSON.stringify({ ...offer, roomId: currentRoomId }));
+    socket.send(JSON.stringify({
+        type: offer.type,
+        sdp: offer.sdp,
+        roomId: currentRoomId
+    }));
 }
 
 function showThanks(finalScore) {
@@ -247,7 +269,7 @@ function showThanks(finalScore) {
 
     const thanksText = thanksScreen.querySelector('p');
     if (thanksText) {
-        thanksText.innerHTML = `¡Bien jugado, Oso <span style="color: var(--primary);">${nickname.toUpperCase()}</span>!<br>Puntuación:<br><span style="font-size: 46px; color: var(--accent); font-weight: 900; display: block; margin: 10px 0;">${finalScore.toString().padStart(3, '0')}</span>`;
+        thanksText.innerHTML = `¡Bien jugado, <span style="color: var(--primary);">${nickname.toUpperCase()}</span>!<br>Puntuación:<br><span style="font-size: 46px; color: var(--accent); font-weight: 900; display: block; margin: 10px 0;">${finalScore.toString().padStart(3, '0')}</span>`;
     }
 
     status.textContent = 'Partida terminada';

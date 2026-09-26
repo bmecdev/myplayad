@@ -281,7 +281,7 @@ const GameState = {
     lives: 3,
     level: 1,
     stageIntroTimer: 0,
-    currentNickname: 'Bear',
+    currentNickname: 'PACMAN',
     roomId: Math.random().toString(36).substring(2, 6).toUpperCase(),
     lastTime: 0,
     
@@ -1279,6 +1279,130 @@ function updateQrCode() {
     if (roomIdEl) roomIdEl.textContent = `ID: ${GameState.roomId}`;
 }
 
+function setIceRouteText(text) {
+    if (iceRouteElement) {
+        iceRouteElement.textContent = `ICE: ${text}`;
+    }
+}
+
+function getIceRouteType(stats) {
+    let selectedPair = null;
+    let localCandidate = null;
+
+    stats.forEach(report => {
+        if (report.type === 'candidate-pair' && (report.selected || report.state === 'succeeded' || report.selectedCandidatePairId)) {
+            selectedPair = report;
+        }
+    });
+
+    if (!selectedPair) {
+        stats.forEach(report => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                selectedPair = report;
+            }
+        });
+    }
+
+    if (selectedPair) {
+        stats.forEach(report => {
+            if (report.type === 'local-candidate' && report.id === selectedPair.localCandidateId) {
+                localCandidate = report;
+            }
+        });
+        if (localCandidate) {
+            return localCandidate.candidateType === 'relay' ? 'TURN' : 'STUN';
+        }
+    }
+    return null;
+}
+
+function refreshIceRoute(pc) {
+    if (!pc || !pc.getStats) return;
+    pc.getStats().then(stats => {
+        const routeType = getIceRouteType(stats);
+        if (routeType) {
+            setIceRouteText(routeType);
+        } else {
+            setIceRouteText('P2P');
+        }
+    }).catch(err => {
+        setIceRouteText('P2P');
+    });
+}
+
+function handleControllerDisconnect(playerId) {
+    const pc = peerConnections.get(playerId);
+    if (pc) pc.close();
+    peerConnections.delete(playerId);
+    dataChannels.delete(playerId);
+
+    if (peerConnections.size === 0) {
+        waitingOverlay.classList.remove('hidden');
+        GameState.running = false;
+        GameState.gameOver = true;
+    }
+}
+
+async function handleOffer(data) {
+    const { playerId, type, sdp } = data;
+    const rtcConfig = (window.GAME_CONFIG && window.GAME_CONFIG.getIceConfig) ? window.GAME_CONFIG.getIceConfig() : getIceConfig();
+    const pc = new RTCPeerConnection(rtcConfig);
+    
+    if (window.GAME_CONFIG && window.GAME_CONFIG.attachPCDiagnostics) {
+        try { window.GAME_CONFIG.attachPCDiagnostics(pc, `pc-${playerId}`); } catch (e) {}
+    }
+    peerConnections.set(playerId, pc);
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'candidate',
+                candidate: event.candidate,
+                roomId: GameState.roomId,
+                playerId: playerId
+            }));
+        }
+    };
+
+    pc.ondatachannel = (event) => {
+        const receiveChannel = event.channel;
+        dataChannels.set(playerId, receiveChannel);
+
+        if (window.GAME_CONFIG && window.GAME_CONFIG.attachDataChannelDiagnostics) {
+            try { window.GAME_CONFIG.attachDataChannelDiagnostics(receiveChannel, `dc-${playerId}`); } catch (e) {}
+        }
+
+        setupDataChannel(receiveChannel, playerId);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        refreshIceRoute(pc);
+        const state = pc.iceConnectionState;
+        if (state === 'disconnected' || state === 'failed') {
+            handleControllerDisconnect(playerId);
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        refreshIceRoute(pc);
+        const state = pc.connectionState;
+        if (state === 'disconnected' || state === 'failed') {
+            handleControllerDisconnect(playerId);
+        }
+    };
+
+    await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.send(JSON.stringify({
+        type: 'answer',
+        sdp: answer.sdp,
+        roomId: GameState.roomId,
+        playerId: playerId
+    }));
+}
+
 function resetSignalingAndRoom() {
     dataChannels.forEach(ch => ch.close());
     peerConnections.forEach(pc => pc.close());
@@ -1288,8 +1412,8 @@ function resetSignalingAndRoom() {
     GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
     GameState.running = false;
     GameState.gameOver = false;
-    GameState.currentNickname = 'Bear';
-    if (playerNickElement) playerNickElement.textContent = 'BEAR: ----';
+    GameState.currentNickname = 'PACMAN';
+    if (playerNickElement) playerNickElement.textContent = 'PACMAN: ----';
     
     waitingOverlay.classList.remove('hidden');
     gameOverOverlay.classList.add('hidden');
@@ -1334,60 +1458,47 @@ function connectSignaling() {
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'offer') {
-                    const pc = new RTCPeerConnection(window.GAME_CONFIG ? window.GAME_CONFIG.getIceConfig() : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-                    peerConnections.set(data.from || 'controller', pc);
-
-                    pc.ondatachannel = (e) => {
-                        const dc = e.channel;
-                        dataChannels.set(data.from || 'controller', dc);
-                        setupDataChannel(dc);
-                    };
-
-                    pc.onicecandidate = (e) => {
-                        if (e.candidate) {
-                            socket.send(JSON.stringify({
-                                type: 'candidate',
-                                candidate: e.candidate,
-                                roomId: GameState.roomId,
-                                to: data.from
-                            }));
-                        }
-                    };
-
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-
-                    socket.send(JSON.stringify({
-                        ...answer,
-                        type: 'answer',
-                        roomId: GameState.roomId,
-                        to: data.from
-                    }));
+                    await handleOffer(data);
                 } else if (data.type === 'candidate') {
-                    const pc = peerConnections.get(data.from || 'controller');
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    const pc = peerConnections.get(data.playerId);
+                    if (pc && data.candidate) {
+                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                } else if (data.type === 'controller_connected') {
+                    waitingOverlay.classList.add('hidden');
+                } else if (data.type === 'controller_disconnected') {
+                    handleControllerDisconnect(data.playerId);
                 }
-            } catch (err) {}
+            } catch (err) {
+                console.error('Error procesando mensaje signaling:', err);
+            }
         };
 
         socket.onclose = () => {
             setTimeout(connectSignaling, 2000);
         };
-    } catch (e) {}
+    } catch (e) {
+        console.error('Error conectando signaling:', e);
+    }
 }
 
-function setupDataChannel(channel) {
+function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
-        console.log('WebRTC DataChannel conectado con Pacman');
+        console.log(`WebRTC DataChannel conectado con Pacman (Player ${playerId})`);
+        waitingOverlay.classList.add('hidden');
+        refreshIceRoute(peerConnections.get(playerId));
+    };
+
+    channel.onclose = () => {
+        handleControllerDisconnect(playerId);
     };
 
     channel.onmessage = (e) => {
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'join') {
-                GameState.currentNickname = msg.nickname || 'OSO';
-                if (playerNickElement) playerNickElement.textContent = `BEAR: ${GameState.currentNickname.toUpperCase()}`;
+            if (msg.type === 'join' || msg.type === 'nickname') {
+                GameState.currentNickname = msg.nickname || msg.value || 'PACMAN';
+                if (playerNickElement) playerNickElement.textContent = `PACMAN: ${GameState.currentNickname.toUpperCase()}`;
                 startNewGame();
             } else if (msg.dir) {
                 // Discrete Directional Swipe / D-Pad
