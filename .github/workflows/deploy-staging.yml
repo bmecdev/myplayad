@@ -77,11 +77,13 @@ jobs:
             cd /opt/myplayad/server
             docker compose up -d postgres mosquitto
             sleep 3
-            docker compose exec -T postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'myplayad_staging'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
+            docker compose exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'mysecretpassword';" || true
+            docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
 
             # 5. Desplegar servicios de Staging (Portal y Videos)
             cd /opt/myplayad-staging/server
             docker compose -p myplayad-staging -f docker-compose.staging.yml build prisma-db-push-staging
             docker compose -p myplayad-staging -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
             docker compose -p myplayad-staging -f docker-compose.staging.yml up -d --build --remove-orphans
-            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=30 portal-staging
+            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=30 prisma-db-push-staging || true
+            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=30 portal-staging || true
