@@ -1,4 +1,10 @@
-const PORTAL_URL = 'https://portal.myplayad.com';
+const isDev = typeof window !== 'undefined' && (
+    window.location.hostname.includes('dev') || 
+    window.location.hostname.includes('staging') || 
+    window.location.hostname.includes('test')
+);
+const PORTAL_URL = isDev ? 'https://dev-portal.myplayad.com' : 'https://portal.myplayad.com';
+const VIDEO_SERVER_URL = isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com';
 const POLL_INTERVAL = 10000; // 10 segundos
 
 const standby = document.getElementById('standby');
@@ -99,7 +105,7 @@ function playCurrentVideo() {
     if (videoIndex >= videoPlaylist.length) videoIndex = 0;
     const filename = videoPlaylist[videoIndex];
     const localSrc = `/videos/${screenId}/${encodeURIComponent(filename)}`;
-    const remoteSrc = `https://videos.myplayad.com/videos/${screenId}/${encodeURIComponent(filename)}`;
+    const remoteSrc = `${VIDEO_SERVER_URL}/videos/${screenId}/${encodeURIComponent(filename)}`;
     
     videoPlayer.src = localSrc;
     

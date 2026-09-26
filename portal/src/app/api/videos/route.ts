@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     const filename = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
     
     // Carpeta de pool
-    const poolDir = path.join('/srv/videos', 'pool');
+    const poolDir = path.join(process.env.VIDEOS_DIR || '/srv/videos', 'pool');
     if (!fs.existsSync(poolDir)) {
       fs.mkdirSync(poolDir, { recursive: true });
     }

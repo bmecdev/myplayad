@@ -13,9 +13,13 @@ const CONFIG = {
         ? 'https://dev-controllers.myplayad.com/outrun' 
         : 'https://controllers.myplayad.com/outrun',
     MAX_PLAYERS: 1,
-    VIDEO_SERVER_URL: 'https://videos.myplayad.com',
+    VIDEO_SERVER_URL: isDevHost 
+        ? 'https://dev-videos.myplayad.com' 
+        : 'https://videos.myplayad.com',
     LOCAL_VIDEO_SERVER_URL: 'http://localhost:8090',
-    API_URL: 'https://portal.myplayad.com'
+    API_URL: isDevHost 
+        ? 'https://dev-portal.myplayad.com' 
+        : 'https://portal.myplayad.com'
 };
 
 CONFIG.TURN_PUBLIC_IP = localStorage.getItem('TURN_PUBLIC_IP') || '31.97.43.72';

@@ -1,15 +1,22 @@
-// Archivo de Configuración (Equivalente a .env para el navegador)
+const isDevHost = typeof window !== 'undefined' && (
+    window.location.hostname.includes('dev') || 
+    window.location.hostname.includes('staging') || 
+    window.location.hostname.includes('test')
+);
+
 const CONFIG = {
     // Pon aquí la IP de tu servidor de señalización
     SIGNALING_SERVER_IP: '192.168.40.20', 
     SIGNALING_SERVER_PORT: '8080',
     SIGNALING_SERVER_URL: 'signaling.myplayad.com',
-    CONTROL_URL: (typeof window !== 'undefined' && (window.location.hostname.includes('dev') || window.location.hostname.includes('staging') || window.location.hostname.includes('test')))
+    CONTROL_URL: isDevHost
         ? 'https://dev-controllers.myplayad.com/pacman'
         : 'https://controllers.myplayad.com/pacman',
     MAX_PLAYERS: 1,
     // Origen remoto de videos (internet)
-    VIDEO_SERVER_URL: 'https://videos.myplayad.com',
+    VIDEO_SERVER_URL: isDevHost 
+        ? 'https://dev-videos.myplayad.com' 
+        : 'https://videos.myplayad.com',
     // Cache local en la pantalla (localhost)
     LOCAL_VIDEO_SERVER_URL: 'http://localhost:8090'
 };

@@ -5,6 +5,8 @@ on:
     branches:
       - 'staging'
       - 'game/**'
+      - 'feat/**'
+      - 'fix/**'
 
 jobs:
   deploy-staging:
@@ -15,7 +17,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Ensure Staging Directory Exists on VPS
+      - name: Ensure Staging Directories Exist on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -23,6 +25,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             mkdir -p /var/www/myplayad-staging
+            mkdir -p /opt/myplayad-staging
+            mkdir -p /srv/videos-staging/pool
+            chmod -R 777 /srv/videos-staging
 
       - name: Copy Frontend (games & screen) to Staging via scp
         uses: appleboy/scp-action@v0.1.7
@@ -34,3 +39,49 @@ jobs:
           target: "/var/www/myplayad-staging/"
           strip_components: 0
 
+      - name: Copy Backend (server & portal) to Staging via scp
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "server/,portal/,games/"
+          target: "/opt/myplayad-staging/"
+          strip_components: 0
+
+      - name: Setup Nginx & Staging Backend Services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # 1. Configurar Nginx para dev-portal y dev-videos si existen los archivos
+            if [ -d /etc/nginx/sites-available ]; then
+              cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/ || true
+              cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/ || true
+              ln -sf /etc/nginx/sites-available/dev-portal.myplayad.com.conf /etc/nginx/sites-enabled/ || true
+              ln -sf /etc/nginx/sites-available/dev-videos.myplayad.com.conf /etc/nginx/sites-enabled/ || true
+              nginx -t && systemctl reload nginx || true
+            fi
+
+            # 2. Intentar emitir o renovar certificados SSL si Certbot está disponible
+            if command -v certbot >/dev/null 2>&1; then
+              certbot --nginx -d dev-portal.myplayad.com -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+            fi
+
+            # 3. Asegurar red compartida de Docker (server_default)
+            docker network inspect server_default >/dev/null 2>&1 || docker network create server_default
+
+            # 4. Asegurar que PostgreSQL esté corriendo y crear la base de datos myplayad_staging
+            cd /opt/myplayad/server
+            docker compose up -d postgres
+            sleep 3
+            docker compose exec -T postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'myplayad_staging'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
+
+            # 5. Desplegar servicios de Staging (Portal y Videos)
+            cd /opt/myplayad-staging/server
+            docker compose -f docker-compose.staging.yml build prisma-db-push-staging
+            docker compose -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
+            docker compose -f docker-compose.staging.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.staging.yml logs --tail=30 portal-staging

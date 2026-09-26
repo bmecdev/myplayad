@@ -35,8 +35,8 @@ El repositorio cuenta con un ciclo de despliegue continuo (CI/CD) automatizado c
 
 | Entorno | Rama Git | Desencadenador CI/CD | Directorio VPS | URLs de Acceso |
 | :--- | :--- | :--- | :--- | :--- |
-| **Staging** (Pruebas) | `game/**`, `staging` | Push a la rama (`deploy-staging.yml`) | `/var/www/myplayad-staging/` | 🖥️ Pantallas: `https://dev.myplayad.com/<slug>/`<br>📱 Controles: `https://dev-controllers.myplayad.com/<slug>/` |
-| **Producción** | `main` | Push o Merge a `main` (`deploy.yml`) | `/var/www/myplayad/` (frontend)<br>`/opt/myplayad/` (backend) | 🖥️ Pantallas: `https://myplayad.com`<br>📱 Controles: `https://controllers.myplayad.com/<slug>/` |
+| **Staging** (Pruebas) | `staging`, `feat/**`, `fix/**`, `game/**` | Push a la rama (`deploy-staging.yml`) | `/var/www/myplayad-staging/`<br>`/opt/myplayad-staging/` | 🖥️ Pantallas: `https://dev.myplayad.com/<slug>/`<br>📱 Controles: `https://dev-controllers.myplayad.com/<slug>/`<br>🎛️ Portal: `https://dev-portal.myplayad.com`<br>🎬 Videos: `https://dev-videos.myplayad.com` |
+| **Producción** | `main` | Push o Merge a `main` (`deploy.yml`) | `/var/www/myplayad/` (frontend)<br>`/opt/myplayad/` (backend) | 🖥️ Pantallas: `https://myplayad.com`<br>📱 Controles: `https://controllers.myplayad.com/<slug>/`<br>🎛️ Portal: `https://portal.myplayad.com`<br>🎬 Videos: `https://videos.myplayad.com` |
 
 ### 🔄 Diagrama del Ciclo de Vida
 

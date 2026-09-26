@@ -93,9 +93,11 @@ Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/mypla
 2. **Despliegue Continuo a Staging**:
    - Cada `git push origin game/<slug>` activa automáticamente el workflow `.github/workflows/deploy-staging.yml`.
    - Se despliega de forma segura en `/var/www/myplayad-staging/`.
-   - URLs de prueba inmediata en móvil y pantalla:
+   - URLs de prueba inmediata en móvil, pantalla, portal y videos:
      - 📺 Pantalla: `https://dev.myplayad.com/<slug>/`
      - 📱 Control Móvil: `https://dev-controllers.myplayad.com/<slug>/`
+     - 🎛️ Portal Staging: `https://dev-portal.myplayad.com`
+     - 🎬 Servidor Videos Staging: `https://dev-videos.myplayad.com`
 3. **Promoción a Producción (PR y Merge)**:
    - Solo cuando el juego esté 100% probado en Staging:
      ```bash

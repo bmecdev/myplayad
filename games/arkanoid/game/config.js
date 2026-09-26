@@ -15,7 +15,9 @@ const CONFIG = {
         : 'https://controllers.myplayad.com/arkanoid',
     MAX_PLAYERS: 1,
     // Origen remoto de videos (internet)
-    VIDEO_SERVER_URL: 'https://videos.myplayad.com',
+    VIDEO_SERVER_URL: isDevHost 
+        ? 'https://dev-videos.myplayad.com' 
+        : 'https://videos.myplayad.com',
     // Cache local en la pantalla (localhost)
     LOCAL_VIDEO_SERVER_URL: 'http://localhost:8090'
 };
