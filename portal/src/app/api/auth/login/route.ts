@@ -114,10 +114,13 @@ export async function POST(req: Request) {
         plan: user.plan ? { id: user.plan.id, name: user.plan.name } : null,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error en /api/auth/login:', error);
     return NextResponse.json(
-      { error: 'Error procesando la solicitud de inicio de sesión' },
+      { 
+        error: 'Error procesando la solicitud de inicio de sesión',
+        details: error?.message || String(error)
+      },
       { status: 500 }
     );
   }

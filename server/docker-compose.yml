@@ -50,7 +50,7 @@ services:
     restart: "no"
     environment:
       - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad?schema=public
-    command: npx prisma db push --skip-generate
+    command: npx prisma db push --accept-data-loss --skip-generate
     depends_on:
       - postgres
 
@@ -71,8 +71,10 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - postgres
-      - prisma-db-push
+      postgres:
+        condition: service_started
+      prisma-db-push:
+        condition: service_completed_successfully
 
   mosquitto:
     image: eclipse-mosquitto:2

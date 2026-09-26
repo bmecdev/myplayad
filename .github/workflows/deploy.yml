@@ -59,5 +59,7 @@ jobs:
             docker compose up -d postgres
             sleep 3
             docker compose exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'mysecretpassword';" || true
+            docker compose build prisma-db-push
+            docker compose run --rm prisma-db-push npx prisma db push --accept-data-loss --skip-generate
             docker compose up -d --build --remove-orphans
             docker compose logs --tail=50 portal
