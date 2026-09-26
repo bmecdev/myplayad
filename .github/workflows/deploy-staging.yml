@@ -70,14 +70,14 @@ jobs:
               certbot --nginx -d dev-portal.myplayad.com -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
 
-            # 3. Asegurar red compartida de Docker (myplayad-shared-net)
-            docker network inspect myplayad-shared-net >/dev/null 2>&1 || docker network create myplayad-shared-net
+            # 3. Limpiar redes obsoletas si existen
+            docker network rm myplayad-shared-net >/dev/null 2>&1 || true
 
-            # 4. Asegurar que PostgreSQL esté corriendo y crear la base de datos myplayad_staging
+            # 4. Asegurar que PostgreSQL en el proyecto principal esté corriendo y crear la base de datos myplayad_staging
             cd /opt/myplayad/server
-            docker compose -p myplayad-prod up -d postgres mosquitto
+            docker compose up -d postgres mosquitto
             sleep 3
-            docker compose -p myplayad-prod exec -T postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'myplayad_staging'" | grep -q 1 || docker compose -p myplayad-prod exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
+            docker compose exec -T postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'myplayad_staging'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
 
             # 5. Desplegar servicios de Staging (Portal y Videos)
             cd /opt/myplayad-staging/server

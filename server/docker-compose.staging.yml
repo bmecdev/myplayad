@@ -51,5 +51,5 @@ services:
 
 networks:
   default:
-    name: myplayad-shared-net
+    name: server_default
     external: true
