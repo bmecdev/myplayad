@@ -29,6 +29,30 @@ body {
     text-transform: uppercase;
 }
 
+.audio-btn {
+    position: fixed;
+    top: 6px;
+    right: 12px;
+    background: #101a15;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 999;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s ease;
+}
+
+.audio-btn.muted {
+    border-color: #ff4d6d;
+    color: #ff4d6d;
+    opacity: 0.8;
+}
+
 /* Contenedor de Bienvenida */
 .welcome-container, .thanks-container {
     background: #1e1e1e;

@@ -66,6 +66,7 @@ class PacmanAudio {
     }
 
     playChomp() {
+        broadcastSFX('chomp');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -84,10 +85,10 @@ class PacmanAudio {
             osc.start(t);
             osc.stop(t + 0.05);
         } catch (e) {}
-        broadcastSFX('chomp');
     }
 
     playPowerChomp() {
+        broadcastSFX('powerPellet');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -104,10 +105,10 @@ class PacmanAudio {
             osc.start(t);
             osc.stop(t + 0.12);
         } catch (e) {}
-        broadcastSFX('powerPellet');
     }
 
     playCatchBear() {
+        broadcastSFX('catchBear');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -125,7 +126,6 @@ class PacmanAudio {
             osc.start(t);
             osc.stop(t + 0.16);
         } catch (e) {}
-        broadcastSFX('catchBear');
     }
 
     playDrinkSoda() {
@@ -133,6 +133,7 @@ class PacmanAudio {
     }
 
     playDeath() {
+        broadcastSFX('playerDeath');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -149,10 +150,10 @@ class PacmanAudio {
             osc.start(t);
             osc.stop(t + 0.55);
         } catch (e) {}
-        broadcastSFX('playerDeath');
     }
 
     playLevelClear() {
+        broadcastSFX('levelClear');
         if (!this.ctx) return;
         this.resume();
         const notes = [392, 523.25, 659.25, 783.99, 1046.5];
@@ -169,10 +170,10 @@ class PacmanAudio {
             osc.start(t + idx * 0.08);
             osc.stop(t + idx * 0.08 + 0.13);
         });
-        broadcastSFX('levelClear');
     }
 
     playIntro() {
+        broadcastSFX('intro');
         if (!this.ctx) return;
         this.resume();
         const notes = [261.63, 523.25, 392, 329.63, 523.25, 392, 329.63];
@@ -192,6 +193,7 @@ class PacmanAudio {
     }
 
     playGameOver() {
+        broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 392, 349.23, 311.13, 261.63];
@@ -208,7 +210,6 @@ class PacmanAudio {
             osc.start(t + idx * 0.15);
             osc.stop(t + idx * 0.15 + 0.22);
         });
-        broadcastSFX('gameover');
     }
 }
 const audio = new PacmanAudio();

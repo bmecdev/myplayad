@@ -40,77 +40,203 @@ function getIceConfig() {
 }
 
 // ==========================================
-// 🔊 Audio Móvil Sintetizado
+// 🔊 Audio Móvil Sintetizado (Web Audio API)
 // ==========================================
 class MobilePacmanAudio {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
+        this.unlocked = false;
+        this.enabled = true;
+        this.wakaStep = false;
     }
 
     init() {
-        if (this.ctx) {
-            if (this.ctx.state === 'suspended') this.ctx.resume();
-            return;
-        }
+        if (!this.enabled) return;
         try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            this.ctx = new AudioCtx();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-            this.masterGain.connect(this.ctx.destination);
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                this.ctx = new AudioCtx();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
+                this.masterGain.connect(this.ctx.destination);
+            }
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+            // Unlock audio on iOS / Android with a dummy buffer
+            if (this.ctx && !this.unlocked) {
+                const buffer = this.ctx.createBuffer(1, 1, 22050);
+                const source = this.ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(this.ctx.destination);
+                source.start(0);
+                this.unlocked = true;
+            }
+        } catch (e) {
+            console.warn('Audio init error:', e);
+        }
+    }
+
+    toggle() {
+        this.enabled = !this.enabled;
+        if (this.enabled) {
+            this.init();
+            this.playTest();
+        }
+        return this.enabled;
+    }
+
+    playTest() {
+        if (!this.ctx) this.init();
+        if (!this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const t = this.ctx.currentTime;
+        try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(440, t);
+            osc.frequency.exponentialRampToValueAtTime(880, t + 0.1);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.1);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.1);
         } catch (e) {}
     }
 
-    play(sound) {
+    play(sound, param) {
+        if (!this.enabled) return;
+        if (!this.ctx) this.init();
         if (!this.ctx) return;
         if (this.ctx.state === 'suspended') this.ctx.resume();
         const t = this.ctx.currentTime;
         try {
             if (sound === 'chomp') {
+                this.wakaStep = !this.wakaStep;
+                const freq = this.wakaStep ? 260 : 360;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'triangle';
-                osc.frequency.setValueAtTime(300, t);
-                osc.frequency.exponentialRampToValueAtTime(180, t + 0.05);
-                gain.gain.setValueAtTime(0.18, t);
-                gain.gain.linearRampToValueAtTime(0.0001, t + 0.05);
+                osc.frequency.setValueAtTime(freq, t);
+                osc.frequency.exponentialRampToValueAtTime(freq * 0.7, t + 0.06);
+                gain.gain.setValueAtTime(0.35, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.06);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(t);
-                osc.stop(t + 0.05);
-            } else if (sound === 'drinkSoda') {
+                osc.stop(t + 0.06);
+            } else if (sound === 'powerPellet' || sound === 'drinkSoda') {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(500, t);
-                osc.frequency.linearRampToValueAtTime(1200, t + 0.15);
-                gain.gain.setValueAtTime(0.3, t);
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(380, t);
+                osc.frequency.exponentialRampToValueAtTime(880, t + 0.15);
+                gain.gain.setValueAtTime(0.4, t);
                 gain.gain.linearRampToValueAtTime(0.0001, t + 0.15);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(t);
                 osc.stop(t + 0.15);
+            } else if (sound === 'catchBear') {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(320, t);
+                osc.frequency.exponentialRampToValueAtTime(1100, t + 0.18);
+                gain.gain.setValueAtTime(0.45, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.18);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t);
+                osc.stop(t + 0.18);
             } else if (sound === 'playerDeath') {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(550, t);
-                osc.frequency.linearRampToValueAtTime(90, t + 0.5);
-                gain.gain.setValueAtTime(0.32, t);
-                gain.gain.linearRampToValueAtTime(0.0001, t + 0.5);
+                osc.frequency.setValueAtTime(580, t);
+                osc.frequency.linearRampToValueAtTime(70, t + 0.55);
+                gain.gain.setValueAtTime(0.45, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.55);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(t);
-                osc.stop(t + 0.5);
+                osc.stop(t + 0.55);
+            } else if (sound === 'intro') {
+                const notes = [261.63, 523.25, 392, 329.63, 523.25, 392, 329.63];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, t + idx * 0.1);
+                    gain.gain.setValueAtTime(0.35, t + idx * 0.1);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.1 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + idx * 0.1);
+                    osc.stop(t + idx * 0.1 + 0.13);
+                });
+            } else if (sound === 'levelClear') {
+                const notes = [392, 523.25, 659.25, 783.99, 1046.5];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(freq, t + idx * 0.08);
+                    gain.gain.setValueAtTime(0.35, t + idx * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.08 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + idx * 0.08);
+                    osc.stop(t + idx * 0.08 + 0.13);
+                });
+            } else if (sound === 'gameover') {
+                const notes = [440, 392, 349.23, 311.13, 261.63];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, t + idx * 0.14);
+                    gain.gain.setValueAtTime(0.35, t + idx * 0.14);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.14 + 0.18);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + idx * 0.14);
+                    osc.stop(t + idx * 0.14 + 0.2);
+                });
             }
         } catch (e) {}
     }
 }
 const mobileAudio = new MobilePacmanAudio();
-['touchstart', 'pointerdown', 'click'].forEach(evt => {
-    window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
+
+// Desbloquear audio en cualquier interacción táctil
+const unlockAudio = () => {
+    mobileAudio.init();
+};
+['touchstart', 'touchend', 'pointerdown', 'pointerup', 'click'].forEach(evt => {
+    window.addEventListener(evt, unlockAudio, { passive: true });
+});
+
+// Botón de Toggle Audio
+window.addEventListener('DOMContentLoaded', () => {
+    const audioBtn = document.getElementById('audio-btn');
+    if (audioBtn) {
+        audioBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isEnabled = mobileAudio.toggle();
+            if (isEnabled) {
+                audioBtn.textContent = '🔊';
+                audioBtn.classList.remove('muted');
+            } else {
+                audioBtn.textContent = '🔇';
+                audioBtn.classList.add('muted');
+            }
+        });
+    }
 });
 
 // ==========================================
@@ -128,6 +254,7 @@ window.addEventListener('load', () => {
 });
 
 connectBtn.addEventListener('click', () => {
+    unlockAudio();
     const roomId = roomInput.value.trim().toUpperCase();
     nickname = nicknameInput.value.trim() || 'PACMAN';
     if (roomId) {
@@ -219,13 +346,18 @@ async function startWebRTC() {
             const data = JSON.parse(e.data);
             if (data.type === 'game_over') {
                 if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
+                mobileAudio.play('gameover');
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
-                mobileAudio.play(data.sound);
-                if (data.sound === 'drinkSoda' && navigator.vibrate) {
-                    navigator.vibrate(30);
+                mobileAudio.play(data.sound, data.param);
+                if ((data.sound === 'powerPellet' || data.sound === 'drinkSoda') && navigator.vibrate) {
+                    navigator.vibrate(40);
+                } else if (data.sound === 'catchBear' && navigator.vibrate) {
+                    navigator.vibrate([30, 20, 50]);
                 } else if (data.sound === 'playerDeath' && navigator.vibrate) {
-                    navigator.vibrate([40, 30, 40]);
+                    navigator.vibrate([60, 40, 60, 40, 100]);
+                } else if (data.sound === 'chomp' && navigator.vibrate) {
+                    navigator.vibrate(8);
                 }
             }
         } catch (err) {}
@@ -282,6 +414,7 @@ function showThanks(finalScore) {
 // 🕹️ D-Pad Buttons & Swipe Gestures
 // ==========================================
 function sendDirection(dir) {
+    unlockAudio();
     if (navigator.vibrate) navigator.vibrate(10);
     if (dataChannel && dataChannel.readyState === 'open') {
         dataChannel.send(JSON.stringify({ dir: dir }));
@@ -293,6 +426,7 @@ document.querySelectorAll('.dpad-btn').forEach(btn => {
     btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        unlockAudio();
         const dir = btn.getAttribute('data-dir');
         btn.classList.add('active');
         sendDirection(dir);
