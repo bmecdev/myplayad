@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arkanoid Clon Control</title>
+    <title>Pacman Clon Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
-    <div id="status">Conectando...</div>
+    <button id="audio-btn" class="audio-btn" title="Activar/Silenciar Audio">🔊</button>
+    <div id="status">INGRESA TU NICKNAME</div>
     
     <div id="room-selection" class="welcome-container">
         <div class="header-logo">
-            <div class="snake-icon"></div>
-            <h1>ARKANOID<span>CLON</span></h1>
+            <h1>PACMAN <span>CLON</span></h1>
         </div>
         
         <div class="input-group">
-            <p class="welcome-text">¡Bienvenido! Ingresa tu Nickname para empezar a jugar.</p>
+            <p class="welcome-text">¡Controla a Pacman, come todos los puntos y escapa de los fantasmas!</p>
             <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10">
             <input type="text" id="room-input" style="display: none;">
             <button id="connect-btn">EMPEZAR A JUGAR</button>
         </div>
         
-        <p class="footer-hint">Desliza horizontalmente para mover la paleta.</p>
+        <p class="footer-hint">Usa el D-Pad o desliza tu dedo en la pantalla para moverte.</p>
     </div>
 
     <div id="thanks-screen" class="thanks-container" style="display: none;">
@@ -36,15 +36,23 @@
     </div>
 
     <div class="joystick-container" id="joystick-container" style="display: none;">
-        <div class="trackpad-container" id="trackpad-container">
-            <div class="trackpad-track">
-                <div class="trackpad-indicator" id="trackpad-indicator"></div>
-            </div>
+        <div class="dpad-container" id="dpad-container">
+            <div></div>
+            <button class="dpad-btn" id="btn-up" data-dir="UP">▲</button>
+            <div></div>
+
+            <button class="dpad-btn" id="btn-left" data-dir="LEFT">◀</button>
+            <div class="dpad-center">🟡</div>
+            <button class="dpad-btn" id="btn-right" data-dir="RIGHT">▶</button>
+
+            <div></div>
+            <button class="dpad-btn" id="btn-down" data-dir="DOWN">▼</button>
+            <div></div>
         </div>
-        <button id="fire-btn" class="fire-button">LANZAR / ACCIÓN</button>
+        <p class="swipe-hint">TOCA EL D-PAD O DESLIZA TU DEDO EN CUALQUIER DIRECCIÓN</p>
     </div>
 
-    <script src="config.js"></script>
-    <script src="script.js"></script>
+    <script src="config.js?v=8"></script>
+    <script src="script.js?v=8"></script>
 </body>
 </html>

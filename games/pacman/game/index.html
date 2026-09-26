@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OutRun Clon - Retro Arcade</title>
+    <title>Pacman Clon - Arcade Retro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=3">
@@ -17,18 +17,17 @@
                 
                 <div class="game-header">
                     <div class="header-left">
-                        <span id="player-nick">DRIVER: ----</span>
-                        <span id="score">SCORE: 00000</span>
+                        <span id="player-nick">PACMAN: ----</span>
+                        <span id="score">SCORE: 000</span>
                     </div>
-                    <div class="header-center">
-                        <div id="time-container"><span id="time-label">TIME</span> <span id="time-count">60</span></div>
-                        <div id="speed-container"><span id="speed-count">0</span> <span id="speed-unit">KM/H</span></div>
+                    <div id="lives-container">
+                        LIVES: <span id="lives-count">3</span>
                     </div>
                     <div class="header-right">
-                        <span id="high-score">HI: 00000</span>
+                        <span id="high-score">HI: 000</span>
                         <div class="room-ice-row">
                             <span id="room-id">ID: ----</span>
-                            <span id="ice-route">ICE: --</span>
+                            <span id="ice-route">PAC: --</span>
                             <button id="audio-toggle-btn" class="audio-toggle-btn muted" title="Activar/Silenciar Audio">🔊 AUDIO</button>
                         </div>
                     </div>
@@ -41,38 +40,31 @@
                 <!-- Mensaje de Fin de Juego -->
                 <div id="game-over-overlay" class="hidden">
                     <div class="overlay-content">
-                        <h2 class="blink" id="game-over-title">TIME OUT</h2>
-                        <div id="final-stats-container">
-                            <p id="final-score-text">FINAL SCORE: 00000</p>
-                            <p id="checkpoints-cleared-text">CHECKPOINTS: 0</p>
-                        </div>
+                        <h2 class="blink">GAME OVER</h2>
                         <div id="ranking-container">
                             <h3>HALL OF FAME</h3>
                             <ul id="ranking-list"></ul>
                         </div>
-                        <p class="instruction">ESCANEA EL QR PARA CORRER DE NUEVO</p>
+                        <p class="instruction">CLICK TO RESTART</p>
                     </div>
                 </div>
 
-                <!-- Overlay de Conexión / Espera -->
+                <!-- Overlay de Conexión -->
                 <div id="waiting-overlay">
                     <div class="overlay-content">
-                        <h2 class="arcade-title">OUTRUN <span>CLON</span></h2>
-                        <p class="pulse-text">¡ESCANEA PARA CONDUCIR!</p>
+                        <h2 class="arcade-title">PACMAN <span>CLON</span></h2>
+                        <p class="pulse-text">ESCANEA PARA JUGAR !!</p>
                         <div class="qr-wrapper">
                             <div id="qrcode"></div>
                         </div>
-                        <p class="status-text">ESPERANDO PILOTO...</p>
-                        <div class="arcade-features">
-                            <span>TURBO SPEED</span> • <span>TIME ATTACK</span>
-                        </div>
+                        <p class="status-text">¡ESQUIVA LOS FANTASMAS Y COME TODOS LOS PUNTOS!</p>
                     </div>
                 </div>
 
             </div>
             <div class="console-footer">
                 <div class="speaker-grille"></div>
-                <div class="model-number">TURBO-OUTRUN-86</div>
+                <div class="model-number">PAC-MAN-80</div>
                 <div class="speaker-grille"></div>
             </div>
         </div>
@@ -80,7 +72,7 @@
 
     <!-- Scripts -->
     <script src="qrcode.min.js"></script>
-    <script src="config.js?v=3"></script>
-    <script src="script.js?v=3"></script>
+    <script src="config.js?v=8"></script>
+    <script src="script.js?v=8"></script>
 </body>
 </html>
