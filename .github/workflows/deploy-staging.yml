@@ -73,10 +73,13 @@ jobs:
             # 3. Limpiar redes obsoletas si existen
             docker network rm myplayad-shared-net >/dev/null 2>&1 || true
 
-            # 4. Asegurar que PostgreSQL en el proyecto principal esté corriendo y crear la base de datos myplayad_staging
+            # 4. Asegurar que PostgreSQL en el proyecto principal esté corriendo y conectado a server_default
             cd /opt/myplayad/server
             docker compose up -d postgres mosquitto
             sleep 3
+            docker network inspect server_default >/dev/null 2>&1 || docker network create server_default
+            docker network connect server_default postgres 2>/dev/null || true
+            docker network connect server_default mosquitto 2>/dev/null || true
             docker compose exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'mysecretpassword';" || true
             docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
 
