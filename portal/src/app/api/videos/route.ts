@@ -3,16 +3,35 @@ import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 import { publishSyncEvent } from '@/lib/mqttPublisher';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
   try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const isClient = currentUser.role === 'CLIENT';
+
     const videos = await prisma.video.findMany({
+      where: isClient
+        ? {
+            schedules: {
+              some: {
+                screen: {
+                  userId: currentUser.id,
+                },
+              },
+            },
+          }
+        : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
         schedules: {
-          include: { screen: true }
-        }
-      }
+          include: { screen: true },
+        },
+      },
     });
     return NextResponse.json(videos);
   } catch (error) {
@@ -22,19 +41,34 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const title = formData.get('title') as string;
     const screenId = formData.get('screenId') as string;
 
     if (!file || !title || !screenId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 });
+    }
+
+    // Si es CLIENT, verificar que la pantalla seleccionada le pertenezca
+    if (currentUser.role === 'CLIENT' && screenId !== 'none') {
+      const screen = await prisma.screen.findUnique({
+        where: { id: screenId },
+      });
+      if (!screen || screen.userId !== currentUser.id) {
+        return NextResponse.json({ error: 'Acceso denegado a esta pantalla' }, { status: 403 });
+      }
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const filename = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
     
-    // Create pool directory if it doesn't exist
+    // Carpeta de pool
     const poolDir = path.join('/srv/videos', 'pool');
     if (!fs.existsSync(poolDir)) {
       fs.mkdirSync(poolDir, { recursive: true });
@@ -46,19 +80,17 @@ export async function POST(request: Request) {
     const video = await prisma.video.create({
       data: {
         title,
-        filename, // Just the filename
+        filename,
       },
     });
 
-    // Automatically create a schedule assigning this video to the screen
     if (screenId !== 'none') {
       await prisma.schedule.create({
         data: {
           screenId,
           videoId: video.id,
           startDate: new Date(),
-          // isActive: true by default
-        }
+        },
       });
       await publishSyncEvent(screenId);
     }

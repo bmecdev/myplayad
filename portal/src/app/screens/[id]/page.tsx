@@ -28,6 +28,13 @@ type ScreenDetail = {
   location: string;
   description: string;
   lastSeen?: string;
+  userId?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    username: string;
+    plan?: { id: string; name: string } | null;
+  } | null;
 };
 
 export default function ScreenDetailPage() {
@@ -35,6 +42,7 @@ export default function ScreenDetailPage() {
   const router = useRouter();
   const screenId = params?.id as string;
   
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [screen, setScreen] = useState<ScreenDetail | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [activeGameSchedule, setActiveGameSchedule] = useState<Schedule | null>(null);
@@ -73,6 +81,12 @@ export default function ScreenDetailPage() {
 
   const fetchScreenData = async () => {
     try {
+      const meRes = await fetch('/api/auth/me');
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setCurrentUser(meData.user);
+      }
+
       const res = await fetch(`/api/screens/${screenId}`);
       if (!res.ok) {
         if (res.status === 404) router.push('/screens');
@@ -275,7 +289,19 @@ export default function ScreenDetailPage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Monitor className="w-8 h-8 text-primary" /> {screen.name}
           </h1>
-          <p className="text-muted-foreground mt-1">{screen.location}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <p className="text-muted-foreground text-sm">{screen.location}</p>
+            {screen.user && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+                Cliente: {screen.user.name}
+              </span>
+            )}
+            {currentUser?.plan && currentUser.role === 'CLIENT' && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                Plan: {currentUser.plan.name}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -450,16 +476,22 @@ export default function ScreenDetailPage() {
             <form onSubmit={handleAssignGame} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Seleccionar Juego</label>
-                <select 
-                  required
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  value={selectedGameId}
-                  onChange={e => setSelectedGameId(e.target.value)}
-                >
-                  {games.map(g => (
-                    <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
-                  ))}
-                </select>
+                {games.length === 0 ? (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
+                    No tienes juegos habilitados en tu plan actual. Contacta al administrador para activar juegos.
+                  </div>
+                ) : (
+                  <select 
+                    required
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    value={selectedGameId}
+                    onChange={e => setSelectedGameId(e.target.value)}
+                  >
+                    {games.map(g => (
+                      <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -491,7 +523,8 @@ export default function ScreenDetailPage() {
                 </button>
                 <button 
                   type="submit"
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                  disabled={games.length === 0}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:pointer-events-none"
                 >
                   Guardar
                 </button>
@@ -509,16 +542,22 @@ export default function ScreenDetailPage() {
             <form onSubmit={handleScheduleGame} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Seleccionar Juego</label>
-                <select 
-                  required
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  value={selectedGameId}
-                  onChange={e => setSelectedGameId(e.target.value)}
-                >
-                  {games.map(g => (
-                    <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
-                  ))}
-                </select>
+                {games.length === 0 ? (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
+                    No tienes juegos habilitados en tu plan actual. Contacta al administrador para activar juegos.
+                  </div>
+                ) : (
+                  <select 
+                    required
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    value={selectedGameId}
+                    onChange={e => setSelectedGameId(e.target.value)}
+                  >
+                    {games.map(g => (
+                      <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -551,7 +590,8 @@ export default function ScreenDetailPage() {
                 </button>
                 <button 
                   type="submit"
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                  disabled={games.length === 0}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:pointer-events-none"
                 >
                   Programar
                 </button>
