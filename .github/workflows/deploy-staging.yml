@@ -70,16 +70,22 @@ jobs:
               certbot --nginx -d dev-portal.myplayad.com -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
 
-            # 3. Limpiar redes obsoletas si existen
+            # 3. Limpiar contenedores previos de staging y redes obsoletas
+            cd /opt/myplayad-staging/server
+            docker compose -p myplayad-staging -f docker-compose.staging.yml down --remove-orphans 2>/dev/null || true
+            docker rm -f prisma-db-push-staging portal-staging videos-staging 2>/dev/null || true
             docker network rm myplayad-shared-net >/dev/null 2>&1 || true
 
             # 4. Asegurar que PostgreSQL en el proyecto principal esté corriendo y conectado a server_default
             cd /opt/myplayad/server
             docker compose up -d postgres mosquitto
-            sleep 3
             docker network inspect server_default >/dev/null 2>&1 || docker network create server_default
             docker network connect server_default postgres 2>/dev/null || true
             docker network connect server_default mosquitto 2>/dev/null || true
+            until docker compose exec -T postgres pg_isready -U postgres; do
+              echo "Esperando que postgres este listo..."
+              sleep 2
+            done
             docker compose exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'mysecretpassword';" || true
             docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
 
@@ -87,6 +93,8 @@ jobs:
             cd /opt/myplayad-staging/server
             docker compose -p myplayad-staging -f docker-compose.staging.yml build prisma-db-push-staging
             docker compose -p myplayad-staging -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
-            docker compose -p myplayad-staging -f docker-compose.staging.yml up -d --build --remove-orphans
-            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=30 prisma-db-push-staging || true
-            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=30 portal-staging || true
+            docker compose -p myplayad-staging -f docker-compose.staging.yml up -d --build --remove-orphans portal-staging videos-staging
+            sleep 5
+            docker compose -p myplayad-staging -f docker-compose.staging.yml ps
+            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=40 portal-staging || true
+            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=40 videos-staging || true

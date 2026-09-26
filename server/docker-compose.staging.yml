@@ -5,7 +5,6 @@ services:
       context: ../portal
       dockerfile: Dockerfile
       target: deps
-    container_name: prisma-db-push-staging
     restart: "no"
     environment:
       - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad_staging?schema=public
@@ -29,9 +28,6 @@ services:
       - /var/www/myplayad-staging/games:/srv/games
     ports:
       - "3100:3000"
-    depends_on:
-      prisma-db-push-staging:
-        condition: service_completed_successfully
 
   videos-staging:
     build:
