@@ -1,6 +1,6 @@
 # MyPlayAd - Interactive Digital Signage & Retro Games
 
-Este repositorio contiene el código fuente completo del sistema MyPlayAd, una plataforma de publicidad interactiva y cartelería digital (Digital Signage) que combina reproducción de videos con minijuegos retro (Arkanoid Clon, Galaga Clon, Space Invaders Clon, OutRun Clon, Snake Clon, Pacman Clon) controlados en tiempo real desde los teléfonos de los usuarios.
+Este repositorio contiene el código fuente completo del sistema MyPlayAd, una plataforma de publicidad interactiva y cartelería digital (Digital Signage) que combina reproducción de videos con minijuegos retro (Arkanoid Clon, Galaga Clon, Space Invaders Clon, OutRun Clon, Pacman Clon, Snake Clon) controlados en tiempo real desde los teléfonos de los usuarios.
 
 ## Arquitectura del Proyecto
 
