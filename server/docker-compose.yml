@@ -50,7 +50,7 @@ services:
     restart: "no"
     environment:
       - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad?schema=public
-    command: npx prisma db push --accept-data-loss --skip-generate
+    command: npx prisma db push --accept-data-loss
     depends_on:
       - postgres
 
