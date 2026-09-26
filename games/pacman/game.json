@@ -1,0 +1,8 @@
+{
+  "name": "Pacman Clon",
+  "slug": "pacman",
+  "icon": "🟡",
+  "genre": "Maze / Arcade",
+  "description": "Laberinto retro donde Pacman recolecta puntos y frutas huyendo de los 4 fantasmas.",
+  "controls": "D-Pad táctil / Teclas de flecha"
+}

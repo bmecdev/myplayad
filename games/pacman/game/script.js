@@ -1,5 +1,5 @@
-// PolarPac Retro Arcade - MyPlayAd
-// El Oso Polar en el Glaciar vs Los 4 Osos Pardos (Canvas 200x160)
+// Pacman Clon Retro Arcade - MyPlayAd
+// El Comecocos en el Laberinto vs Los 4 Fantasmas (Canvas 200x160)
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -24,7 +24,7 @@ const ROWS = 20;
 // ==========================================
 // 🔊 Retro Arcade Web Audio API Synthesizer
 // ==========================================
-class PolarPacAudio {
+class PacmanAudio {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
@@ -211,7 +211,7 @@ class PolarPacAudio {
         broadcastSFX('gameover');
     }
 }
-const audio = new PolarPacAudio();
+const audio = new PacmanAudio();
 
 function broadcastSFX(sound, param = null) {
     if (typeof dataChannels === 'undefined') return;
@@ -1189,7 +1189,7 @@ function updateUI() {
 // ==========================================
 function loadRanking() {
     try {
-        const ranking = JSON.parse(localStorage.getItem('polarpac-ranking')) || [];
+        const ranking = JSON.parse(localStorage.getItem('pacman-ranking')) || [];
         if (ranking.length > 0) {
             GameState.highScore = ranking[0].score;
             updateUI();
@@ -1201,14 +1201,14 @@ function loadRanking() {
 function saveScore(nickname, score) {
     if (score === 0) return;
     try {
-        let ranking = JSON.parse(localStorage.getItem('polarpac-ranking')) || [];
+        let ranking = JSON.parse(localStorage.getItem('pacman-ranking')) || [];
         ranking = ranking.filter(entry => !(entry.name === nickname && entry.score < score));
         if (!ranking.some(entry => entry.name === nickname && entry.score === score)) {
             ranking.push({ name: nickname, score: score, date: new Date().toLocaleDateString() });
         }
         ranking.sort((a, b) => b.score - a.score);
         ranking = ranking.slice(0, 5);
-        localStorage.setItem('polarpac-ranking', JSON.stringify(ranking));
+        localStorage.setItem('pacman-ranking', JSON.stringify(ranking));
         displayRanking(ranking);
     } catch (e) {}
 }
@@ -1241,7 +1241,7 @@ const dataChannels = new Map();
 let socket = null;
 
 function getControlUrl() {
-    const baseUrl = CONFIG.CONTROL_URL || 'https://controllers.myplayad.com/polarpac';
+    const baseUrl = CONFIG.CONTROL_URL || 'https://controllers.myplayad.com/pacman';
     return baseUrl.includes('://')
         ? `${baseUrl}?room=${GameState.roomId}`
         : `${window.location.protocol}//${baseUrl}?room=${GameState.roomId}`;
@@ -1379,7 +1379,7 @@ function connectSignaling() {
 
 function setupDataChannel(channel) {
     channel.onopen = () => {
-        console.log('WebRTC DataChannel conectado con el oso polar');
+        console.log('WebRTC DataChannel conectado con Pacman');
     };
 
     channel.onmessage = (e) => {

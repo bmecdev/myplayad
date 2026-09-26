@@ -1,4 +1,4 @@
-// PolarPac Mobile Controller - WebRTC P2P DataChannel & Swipe Gestures
+// Pacman Clon Mobile Controller - WebRTC P2P DataChannel & Swipe Gestures
 
 const container = document.getElementById('joystick-container');
 const status = document.getElementById('status');
@@ -14,7 +14,7 @@ let pc;
 let dataChannel;
 let socket;
 let currentRoomId = null;
-let nickname = 'Bear';
+let nickname = 'Pacman';
 
 function getIceConfig() {
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -42,7 +42,7 @@ function getIceConfig() {
 // ==========================================
 // 🔊 Audio Móvil Sintetizado
 // ==========================================
-class MobilePolarPacAudio {
+class MobilePacmanAudio {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
@@ -108,7 +108,7 @@ class MobilePolarPacAudio {
         } catch (e) {}
     }
 }
-const mobileAudio = new MobilePolarPacAudio();
+const mobileAudio = new MobilePacmanAudio();
 ['touchstart', 'pointerdown', 'click'].forEach(evt => {
     window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
 });
@@ -201,7 +201,7 @@ async function startWebRTC() {
     dataChannel = pc.createDataChannel('gameControls', { ordered: false, maxRetransmits: 0 });
 
     dataChannel.onopen = () => {
-        status.textContent = 'OSO POLAR LISTO';
+        status.textContent = 'PACMAN LISTO';
         status.style.color = '#3dff8a';
         roomSelection.style.display = 'none';
         container.style.display = 'flex';
