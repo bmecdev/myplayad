@@ -70,18 +70,18 @@ jobs:
               certbot --nginx -d dev-portal.myplayad.com -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
 
-            # 3. Asegurar red compartida de Docker (server_default)
-            docker network inspect server_default >/dev/null 2>&1 || docker network create server_default
+            # 3. Asegurar red compartida de Docker (myplayad-shared-net)
+            docker network inspect myplayad-shared-net >/dev/null 2>&1 || docker network create myplayad-shared-net
 
             # 4. Asegurar que PostgreSQL esté corriendo y crear la base de datos myplayad_staging
             cd /opt/myplayad/server
-            docker compose up -d postgres
+            docker compose -p myplayad-prod up -d postgres mosquitto
             sleep 3
-            docker compose exec -T postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'myplayad_staging'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
+            docker compose -p myplayad-prod exec -T postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'myplayad_staging'" | grep -q 1 || docker compose -p myplayad-prod exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
 
             # 5. Desplegar servicios de Staging (Portal y Videos)
             cd /opt/myplayad-staging/server
-            docker compose -f docker-compose.staging.yml build prisma-db-push-staging
-            docker compose -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
-            docker compose -f docker-compose.staging.yml up -d --build --remove-orphans
-            docker compose -f docker-compose.staging.yml logs --tail=30 portal-staging
+            docker compose -p myplayad-staging -f docker-compose.staging.yml build prisma-db-push-staging
+            docker compose -p myplayad-staging -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
+            docker compose -p myplayad-staging -f docker-compose.staging.yml up -d --build --remove-orphans
+            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=30 portal-staging

@@ -1,3 +1,4 @@
+name: myplayad-staging
 services:
   prisma-db-push-staging:
     build:
@@ -50,5 +51,5 @@ services:
 
 networks:
   default:
-    name: server_default
+    name: myplayad-shared-net
     external: true
