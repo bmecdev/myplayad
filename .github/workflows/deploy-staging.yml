@@ -109,8 +109,8 @@ jobs:
 
             # 6. Sincronizar registros de videos desde produccion a staging si existen
             cd /opt/myplayad/server
-            docker compose exec -T postgres pg_dump -U postgres -d myplayad -t '"Video"' --data-only --on-conflict-do-nothing -f /tmp/videos_prod.sql 2>/dev/null || true
-            docker compose exec -T postgres psql -U postgres -d myplayad_staging -f /tmp/videos_prod.sql 2>/dev/null || true
+            docker compose exec -T postgres pg_dump -U postgres -d myplayad -t '"Video"' --data-only --inserts --on-conflict-do-nothing -f /tmp/videos_prod.sql || true
+            docker compose exec -T postgres psql -U postgres -d myplayad_staging -f /tmp/videos_prod.sql || true
             docker compose exec -T postgres rm -f /tmp/videos_prod.sql 2>/dev/null || true
 
             sleep 5
