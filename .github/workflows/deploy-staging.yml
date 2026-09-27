@@ -8,6 +8,10 @@ on:
       - 'feat/**'
       - 'fix/**'
 
+concurrency:
+  group: staging-vps
+  cancel-in-progress: false
+
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
@@ -67,6 +71,10 @@ jobs:
 
             # 2. Intentar emitir o renovar certificados SSL individualmente si Certbot está disponible
             if command -v certbot >/dev/null 2>&1; then
+              while pgrep -x certbot >/dev/null; do
+                echo "Esperando a que la instancia previa de Certbot libere el bloqueo..."
+                sleep 3
+              done
               certbot --nginx -d dev-portal.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
               certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
