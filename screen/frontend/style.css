@@ -475,3 +475,23 @@ body, html {
 @keyframes blinker {
     50% { opacity: 0; }
 }
+
+/* Capa de Reposo / Apagado (Blackout) */
+.sleep-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000000;
+    z-index: 999999;
+    cursor: none;
+    transition: opacity 0.5s ease;
+}
+
+.sleep-overlay.hidden {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+}
+

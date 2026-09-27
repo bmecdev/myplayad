@@ -6,9 +6,9 @@ echo "   Configurando Raspberry Pi 5 Kiosk Mode"
 echo "================================================="
 
 # 1. Instalar dependencias
-echo "[1/5] Instalando dependencias (swaybg, kanshi, x11-apps, wlr-randr)..."
+echo "[1/5] Instalando dependencias (cec-utils, swaybg, kanshi, x11-apps, wlr-randr)..."
 sudo apt-get update
-sudo apt-get install -y swaybg kanshi x11-apps wlr-randr || sudo apt-get install -y swaybg kanshi x11-apps
+sudo apt-get install -y cec-utils swaybg kanshi x11-apps wlr-randr || sudo apt-get install -y swaybg kanshi x11-apps
 
 # 2. Configurar rotación permanente en el Kernel Linux (KMS / DRM)
 echo "[2/5] Configurando rotación vertical a nivel de Kernel en /boot/firmware/cmdline.txt..."

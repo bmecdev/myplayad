@@ -274,11 +274,34 @@ async function initialize() {
         } else if (event.data === 'identify') {
             console.log('[SSE] Alerta de identificación');
             showIdentifyIndicator();
+        } else if (event.data === 'power_off') {
+            console.log('[SSE] Modo reposo / pantalla apagada');
+            setScreenSleepMode(true);
+        } else if (event.data === 'power_on') {
+            console.log('[SSE] Pantalla encendida');
+            setScreenSleepMode(false);
+        } else if (event.data === 'updated') {
+            console.log('[SSE] Software actualizado, recargando página...');
+            setTimeout(() => window.location.reload(), 1500);
         }
     };
     eventSource.onerror = (err) => {
         console.warn('[SSE] EventSource error', err);
     };
+}
+
+function setScreenSleepMode(sleep) {
+    const overlay = document.getElementById('sleep-overlay');
+    const video = document.getElementById('video-player');
+    if (overlay) {
+        if (sleep) {
+            overlay.classList.remove('hidden');
+            if (video) video.pause();
+        } else {
+            overlay.classList.add('hidden');
+            if (video && video.src) video.play().catch(() => {});
+        }
+    }
 }
 
 async function checkSchedule() {

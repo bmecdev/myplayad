@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -30,6 +30,7 @@ type ScreenDetail = {
   description: string;
   lastSeen?: string;
   userId?: string | null;
+  displayState?: 'ON' | 'OFF' | string;
   user?: {
     id: string;
     name: string;
@@ -167,6 +168,50 @@ export default function ScreenDetailPage() {
     
     setIsScheduleModalOpen(false);
     fetchScreenData();
+  };
+
+  const handleTogglePower = async () => {
+    if (!screen) return;
+    const isCurrentlyOff = screen.displayState === 'OFF';
+    const action = isCurrentlyOff ? 'POWER_ON' : 'POWER_OFF';
+    const promptMsg = isCurrentlyOff
+      ? `¿Deseas encender la pantalla "${screen.name}" (reactivar señal HDMI y encender TV por HDMI-CEC)?`
+      : `¿Deseas apagar / poner en reposo la pantalla "${screen.name}" (apagar señal HDMI y TV)?`;
+
+    if (!confirm(promptMsg)) return;
+
+    try {
+      const res = await fetch(`/api/screens/${screen.id}/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al cambiar energía');
+        return;
+      }
+      setScreen(prev => prev ? { ...prev, displayState: data.displayState } : null);
+    } catch (err) {
+      console.error('Error toggling screen power:', err);
+    }
+  };
+
+  const handleReboot = async () => {
+    if (!screen) return;
+    if (!confirm(`¿Estás seguro de reiniciar el dispositivo de la pantalla "${screen.name}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/screens/${screen.id}/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'REBOOT' }),
+      });
+      const data = await res.json();
+      alert(data.message || 'Orden de reinicio enviada.');
+    } catch (err) {
+      console.error('Error rebooting screen:', err);
+    }
   };
 
   const handleRemoveGame = async () => {
@@ -332,11 +377,38 @@ export default function ScreenDetailPage() {
             )}
             <button
               onClick={() => setIsUpdateModalOpen(true)}
-              className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Actualizar software o programar mantenimiento"
             >
-              <RefreshCw className="w-3 h-3 text-emerald-400" />
-              <span>Actualizar Software (OTA)</span>
+              <RefreshCw className="w-3 h-3 text-blue-400" />
+              <span>Actualizaciones OTA</span>
+            </button>
+
+            {/* Control de Energía (Encender / Apagar / Reiniciar) */}
+            <button
+              onClick={handleTogglePower}
+              className={`text-xs px-2.5 py-0.5 rounded-full border font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                screen.displayState === 'OFF'
+                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+              }`}
+              title={
+                screen.displayState === 'OFF'
+                  ? 'Pantalla en Reposo / Apagada. Clic para Encender TV'
+                  : 'Pantalla Encendida. Clic para Apagar TV (Standby HDMI-CEC)'
+              }
+            >
+              <Power className="w-3 h-3" />
+              <span>{screen.displayState === 'OFF' ? 'Pantalla en Reposo (Encender)' : 'Display Activo (Apagar)'}</span>
+            </button>
+
+            <button
+              onClick={handleReboot}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Reiniciar dispositivo"
+            >
+              <RotateCw className="w-3 h-3" />
+              <span>Reiniciar</span>
             </button>
           </div>
         </div>

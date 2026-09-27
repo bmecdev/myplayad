@@ -79,3 +79,30 @@ export async function publishUpdateCommand(params: {
     console.error('[MQTT Publisher] Failed to publish update command:', err);
   }
 }
+
+export async function publishPowerCommand(params: {
+  action: 'POWER_ON' | 'POWER_OFF' | 'REBOOT';
+  screenId?: string;
+  broadcast?: boolean;
+  triggeredBy?: string;
+}) {
+  try {
+    const client = getClient();
+    const payload = JSON.stringify({
+      action: params.action,
+      screenId: params.screenId,
+      triggeredBy: params.triggeredBy || 'portal',
+      timestamp: Date.now(),
+    });
+
+    if (params.broadcast) {
+      client.publish('screens/broadcast/commands', payload, { qos: 1 });
+      console.log(`[MQTT Publisher] Published broadcast power command: ${params.action} by ${params.triggeredBy}`);
+    } else if (params.screenId) {
+      client.publish(`screens/${params.screenId}/commands`, payload, { qos: 1 });
+      console.log(`[MQTT Publisher] Published power command: ${params.action} for screen ${params.screenId} by ${params.triggeredBy}`);
+    }
+  } catch (err) {
+    console.error('[MQTT Publisher] Failed to publish power command:', err);
+  }
+}

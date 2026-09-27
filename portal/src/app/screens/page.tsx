@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw } from 'lucide-react';
+import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power } from 'lucide-react';
 import mqtt from 'mqtt';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -23,6 +23,7 @@ type Screen = {
   description: string;
   userId?: string | null;
   user?: UserSummary | null;
+  displayState?: 'ON' | 'OFF' | string;
   lastSeen?: string;
   createdAt: string;
 };
@@ -138,6 +139,62 @@ export default function ScreensPage() {
     }
   };
 
+  const handleTogglePower = async (screen: Screen) => {
+    const isCurrentlyOff = screen.displayState === 'OFF';
+    const action = isCurrentlyOff ? 'POWER_ON' : 'POWER_OFF';
+    const promptMsg = isCurrentlyOff
+      ? `¿Deseas encender la pantalla "${screen.name}" (reactivar señal HDMI y encender TV por HDMI-CEC)?`
+      : `¿Deseas apagar / poner en reposo la pantalla "${screen.name}" (apagar señal HDMI y TV)?`;
+
+    if (!confirm(promptMsg)) return;
+
+    try {
+      const res = await fetch(`/api/screens/${screen.id}/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al cambiar energía');
+        return;
+      }
+      setScreens(prev => prev.map(s => s.id === screen.id ? { ...s, displayState: data.displayState } : s));
+    } catch (err) {
+      console.error('Error toggling screen power:', err);
+    }
+  };
+
+  const handleBulkPower = async (action: 'POWER_ON' | 'POWER_OFF') => {
+    const isTurnOn = action === 'POWER_ON';
+    const confirmMsg = isTurnOn
+      ? isSuperAdmin
+        ? '¿Deseas encender todas las pantallas de la plataforma?'
+        : '¿Deseas encender todas tus pantallas asignadas?'
+      : isSuperAdmin
+        ? '¿Deseas apagar / poner en reposo todas las pantallas de la plataforma?'
+        : '¿Deseas apagar / poner en reposo todas tus pantallas asignadas?';
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch('/api/screens/power-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error en operación masiva');
+        return;
+      }
+      alert(data.message || 'Comando enviado exitosamente');
+      fetchScreens();
+    } catch (err) {
+      console.error('Error in bulk power:', err);
+    }
+  };
+
   const openReassignModal = (screen: Screen) => {
     setSelectedScreenForReassign(screen);
     setNewAssignedUserId(screen.userId || 'none');
@@ -193,13 +250,34 @@ export default function ScreensPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Botones de Control de Energía Masivo */}
+          <div className="flex items-center bg-black/40 border border-white/10 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => handleBulkPower('POWER_ON')}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 hover:bg-emerald-500/15 transition-colors flex items-center gap-1.5 cursor-pointer"
+              title={isSuperAdmin ? "Encender todas las pantallas de la plataforma" : "Encender todas mis pantallas"}
+            >
+              <Power className="w-3.5 h-3.5" />
+              <span>Encender Todas</span>
+            </button>
+            <span className="text-white/20">|</span>
+            <button
+              onClick={() => handleBulkPower('POWER_OFF')}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-400 hover:bg-amber-500/15 transition-colors flex items-center gap-1.5 cursor-pointer"
+              title={isSuperAdmin ? "Apagar / poner en reposo todas las pantallas de la plataforma" : "Apagar / poner en reposo todas mis pantallas"}
+            >
+              <Power className="w-3.5 h-3.5 opacity-60" />
+              <span>Apagar Todas</span>
+            </button>
+          </div>
+
           <button
             onClick={() => {
               setUpdateModalScreenId(null);
               setIsUpdateModalOpen(true);
             }}
-            className="glass hover:bg-white/10 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-all font-medium border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.15)] cursor-pointer"
+            className="glass hover:bg-white/10 text-white px-3.5 py-2 rounded-xl flex items-center gap-2 transition-all font-medium border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.15)] cursor-pointer text-sm"
             title="Actualizar o programar software en las pantallas"
           >
             <RefreshCw className="w-4 h-4 text-emerald-400" />
@@ -210,9 +288,9 @@ export default function ScreensPage() {
           {isSuperAdmin && (
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-[0_0_15px_rgba(59,130,246,0.3)] text-sm"
             >
-              <Plus className="w-5 h-5" /> Nueva Pantalla
+              <Plus className="w-4 h-4" /> Nueva Pantalla
             </button>
           )}
         </div>
@@ -231,9 +309,20 @@ export default function ScreensPage() {
                 <div>
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h3 className="text-xl font-bold flex items-center gap-2">
-                        {screen.name}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold">
+                          {screen.name}
+                        </h3>
+                        {screen.displayState === 'OFF' ? (
+                          <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            En Reposo
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-medium">
+                            Display Activo
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
                         <span className={`flex items-center gap-1 font-medium ${online ? 'text-green-500' : 'text-red-500'}`}>
                           <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-red-500'}`}></span>
@@ -244,6 +333,23 @@ export default function ScreensPage() {
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {/* Botón de Control de Energía Individual */}
+                      <button
+                        onClick={() => handleTogglePower(screen)}
+                        className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                          screen.displayState === 'OFF'
+                            ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/15'
+                            : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/15'
+                        }`}
+                        title={
+                          screen.displayState === 'OFF'
+                            ? 'Pantalla en Reposo / Apagada. Clic para Encender TV'
+                            : 'Pantalla Encendida. Clic para Apagar TV (Standby HDMI-CEC)'
+                        }
+                      >
+                        <Power className="w-5 h-5" />
+                      </button>
+
                       <button 
                         onClick={() => handleIdentify(screen.id)}
                         className="text-green-500/70 hover:text-green-500 transition-colors p-2 rounded-lg hover:bg-green-500/10"

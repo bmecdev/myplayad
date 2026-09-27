@@ -271,6 +271,44 @@ if (SCREEN_ID) {
                         timestamp: Date.now()
                     }), { qos: 1 });
                 }
+            } else if (payload.action === 'POWER_OFF' || payload.action === 'DISPLAY_OFF') {
+                console.log(`[mqtt] [POWER] Apagando pantalla / TV (${topic})`);
+                sseClients.forEach(c => c.write(`data: power_off\n\n`));
+                try {
+                    const powerScriptPath = path.join(__dirname, 'power.sh');
+                    if (fs.existsSync(powerScriptPath)) {
+                        await execPromise(`bash "${powerScriptPath}" off`, { timeout: 15000 });
+                    }
+                    client.publish(`screens/${SCREEN_ID}/display_status`, 'OFF', { qos: 1, retain: true });
+                    console.log('[mqtt] [POWER] Pantalla puesta en modo reposo.');
+                } catch (err) {
+                    console.error('[mqtt] [POWER] Error apagando display:', err.message);
+                }
+            } else if (payload.action === 'POWER_ON' || payload.action === 'DISPLAY_ON') {
+                console.log(`[mqtt] [POWER] Encendiendo pantalla / TV (${topic})`);
+                sseClients.forEach(c => c.write(`data: power_on\n\n`));
+                try {
+                    const powerScriptPath = path.join(__dirname, 'power.sh');
+                    if (fs.existsSync(powerScriptPath)) {
+                        await execPromise(`bash "${powerScriptPath}" on`, { timeout: 15000 });
+                    }
+                    client.publish(`screens/${SCREEN_ID}/display_status`, 'ON', { qos: 1, retain: true });
+                    console.log('[mqtt] [POWER] Pantalla encendida exitosamente.');
+                } catch (err) {
+                    console.error('[mqtt] [POWER] Error encendiendo display:', err.message);
+                }
+            } else if (payload.action === 'REBOOT') {
+                console.log(`[mqtt] [POWER] Reiniciando la pantalla (${topic})`);
+                try {
+                    const powerScriptPath = path.join(__dirname, 'power.sh');
+                    if (fs.existsSync(powerScriptPath)) {
+                        await execPromise(`bash "${powerScriptPath}" reboot`, { timeout: 10000 });
+                    } else {
+                        await execPromise('sudo reboot', { timeout: 10000 });
+                    }
+                } catch (err) {
+                    console.error('[mqtt] [POWER] Error reiniciando:', err.message);
+                }
             }
         }
     });

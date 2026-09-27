@@ -56,6 +56,8 @@ model Screen {
   userId      String?
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   
+  displayState    String      @default("ON") // "ON" | "OFF"
+  
   schedules       Schedule[]
   updateSchedules UpdateSchedule[]
   createdAt       DateTime    @default(now())
