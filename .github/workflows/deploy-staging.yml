@@ -64,85 +64,15 @@ jobs:
             if [ -d /etc/nginx/sites-available ]; then
               cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/
               cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/
-
-              # Si los certificados ya existen en LetsEncrypt, inyectar el bloque SSL 443 directamente en Nginx
-              if [ -f /etc/letsencrypt/live/dev-portal.myplayad.com/fullchain.pem ]; then
-                if ! grep -q "ssl_certificate /etc/letsencrypt/live/dev-portal.myplayad.com" /etc/nginx/sites-available/dev-portal.myplayad.com.conf; then
-                  cat << 'EOF' >> /etc/nginx/sites-available/dev-portal.myplayad.com.conf
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name dev-portal.myplayad.com;
-
-    ssl_certificate /etc/letsencrypt/live/dev-portal.myplayad.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/dev-portal.myplayad.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:3100;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-    }
-}
-EOF
-                fi
-              fi
-
-              if [ -f /etc/letsencrypt/live/dev-videos.myplayad.com/fullchain.pem ]; then
-                if ! grep -q "ssl_certificate /etc/letsencrypt/live/dev-videos.myplayad.com" /etc/nginx/sites-available/dev-videos.myplayad.com.conf; then
-                  cat << 'EOF' >> /etc/nginx/sites-available/dev-videos.myplayad.com.conf
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name dev-videos.myplayad.com;
-    client_max_body_size 500M;
-
-    ssl_certificate /etc/letsencrypt/live/dev-videos.myplayad.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/dev-videos.myplayad.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8190;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-    }
-
-    location /mqtt {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-    }
-}
-EOF
-                fi
-              fi
-
               ln -sf /etc/nginx/sites-available/dev-portal.myplayad.com.conf /etc/nginx/sites-enabled/
               ln -sf /etc/nginx/sites-available/dev-videos.myplayad.com.conf /etc/nginx/sites-enabled/
               nginx -t && systemctl reload nginx
             fi
 
-            # 2. Si no existen certificados para algún subdominio, intentar emitirlos limpiando bloqueos
+            # 2. Si no existe certificado para dev-videos, intentar emitirlo cuando su DNS este listo
             if command -v certbot >/dev/null 2>&1; then
               killall -9 certbot 2>/dev/null || true
-              rm -f /var/lib/letsencrypt/.certbot.lock /tmp/.certbot.lock /etc/letsencrypt/.certbot.lock /tmp/certbot* 2>/dev/null || true
-              if [ ! -f /etc/letsencrypt/live/dev-portal.myplayad.com/fullchain.pem ]; then
-                certbot --nginx -d dev-portal.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
-              fi
+              rm -f /var/lib/letsencrypt/.certbot.lock /tmp/.certbot.lock /etc/letsencrypt/.certbot.lock 2>/dev/null || true
               if [ ! -f /etc/letsencrypt/live/dev-videos.myplayad.com/fullchain.pem ]; then
                 certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
               fi
