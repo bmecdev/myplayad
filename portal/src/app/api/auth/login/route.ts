@@ -95,10 +95,11 @@ export async function POST(req: Request) {
       planName: user.plan?.name || null,
     });
 
+    const isHttps = req.headers.get('x-forwarded-proto') === 'https' || req.url.startsWith('https://');
     const cookieStore = await cookies();
     cookieStore.set('myplayad_session', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 7 días

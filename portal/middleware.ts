@@ -22,8 +22,16 @@ export function middleware(req: NextRequest) {
       // 1. Token firmado nuevo
       if (sessionCookie.includes('.')) {
         const [payloadBase64] = sessionCookie.split('.');
-        const base64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonStr = atob(base64);
+        let jsonStr = '';
+        if (typeof Buffer !== 'undefined') {
+          jsonStr = Buffer.from(payloadBase64, 'base64url').toString('utf8');
+        } else {
+          let base64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+          while (base64.length % 4) {
+            base64 += '=';
+          }
+          jsonStr = atob(base64);
+        }
         const payload = JSON.parse(jsonStr);
         if (payload.userId && payload.exp && payload.exp > Date.now()) {
           isAuthenticated = true;
@@ -37,7 +45,8 @@ export function middleware(req: NextRequest) {
           isAuthenticated = true;
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('Error al decodificar sesión en middleware:', err);
       isAuthenticated = false;
     }
   }
