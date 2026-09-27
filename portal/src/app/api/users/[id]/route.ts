@@ -49,7 +49,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await request.json();
-    const { username, password, name, email, role, planId } = body;
+    const { username, password, name, email, role, planId, screenIds } = body;
 
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) {
@@ -78,6 +78,26 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       updateData.password = hashPassword(String(password).trim());
     }
 
+    // Si se enviaron screenIds, actualizar la asignación de pantallas del cliente
+    if (Array.isArray(screenIds)) {
+      await prisma.screen.updateMany({
+        where: {
+          userId: id,
+          id: { notIn: screenIds },
+        },
+        data: { userId: null },
+      });
+
+      if (screenIds.length > 0) {
+        await prisma.screen.updateMany({
+          where: {
+            id: { in: screenIds },
+          },
+          data: { userId: id },
+        });
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data: updateData,
@@ -91,6 +111,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
           select: {
             id: true,
             name: true,
+          },
+        },
+        screens: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
           },
         },
       },
@@ -112,10 +139,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     const { id } = await params;
 
-    // No permitir que el Super Admin se elimine a sí mismo
-    if (currentUser.id === id) {
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    }
+
+    // No permitir que el Super Admin se elimine a sí mismo ni eliminar cuentas Super Admin
+    if (targetUser.role === 'SUPER_ADMIN' || currentUser.id === id) {
       return NextResponse.json(
-        { error: 'No puedes eliminar tu propia cuenta de Super Administrador.' },
+        { error: 'No está permitido eliminar cuentas de Super Administrador.' },
         { status: 400 }
       );
     }

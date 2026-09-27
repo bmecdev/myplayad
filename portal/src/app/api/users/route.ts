@@ -29,6 +29,13 @@ export async function GET() {
             slug: true,
           },
         },
+        screens: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
+          },
+        },
         _count: {
           select: {
             screens: true,
@@ -55,7 +62,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { username, password, name, email, role, planId } = body;
+    const { username, password, name, email, role, planId, screenIds } = body;
 
     if (!username || !password || !name) {
       return NextResponse.json(
@@ -100,8 +107,23 @@ export async function POST(request: Request) {
             name: true,
           },
         },
+        screens: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
+          },
+        },
       },
     });
+
+    // Si se enviaron pantallas a asignar inicialmente
+    if (Array.isArray(screenIds) && screenIds.length > 0) {
+      await prisma.screen.updateMany({
+        where: { id: { in: screenIds } },
+        data: { userId: newUser.id },
+      });
+    }
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {

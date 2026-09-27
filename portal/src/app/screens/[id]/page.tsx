@@ -79,12 +79,25 @@ export default function ScreenDetailPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [assigningVideos, setAssigningVideos] = useState(false);
 
+  // Client Assignment Modal State (for Super Admin)
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [clientUsers, setClientUsers] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('none');
+  const [reassignSubmitting, setReassignSubmitting] = useState(false);
+
   const fetchScreenData = async () => {
     try {
       const meRes = await fetch('/api/auth/me');
       if (meRes.ok) {
         const meData = await meRes.json();
         setCurrentUser(meData.user);
+        if (meData.user?.role === 'SUPER_ADMIN') {
+          const usersRes = await fetch('/api/users');
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            setClientUsers(usersData);
+          }
+        }
       }
 
       const res = await fetch(`/api/screens/${screenId}`);
@@ -291,11 +304,23 @@ export default function ScreenDetailPage() {
           </h1>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <p className="text-muted-foreground text-sm">{screen.location}</p>
-            {screen.user && (
+            {currentUser?.role === 'SUPER_ADMIN' ? (
+              <button
+                onClick={() => {
+                  setSelectedClientId(screen.userId || 'none');
+                  setIsReassignModalOpen(true);
+                }}
+                className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Cambiar cliente asignado a esta pantalla"
+              >
+                <span>Cliente: {screen.user ? screen.user.name : 'Sin asignar'}</span>
+                <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.2 rounded ml-0.5">Asignar</span>
+              </button>
+            ) : screen.user ? (
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
                 Cliente: {screen.user.name}
               </span>
-            )}
+            ) : null}
             {currentUser?.plan && currentUser.role === 'CLIENT' && (
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
                 Plan: {currentUser.plan.name}
@@ -724,6 +749,81 @@ export default function ScreenDetailPage() {
                 Asignar {selectedVideoIds.length > 0 && `(${selectedVideoIds.length})`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Reasignar Cliente (Super Admin) */}
+      {isReassignModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <h2 className="text-xl font-bold mb-2">Asignar Pantalla a Cliente</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Pantalla: <span className="text-white font-semibold">{screen.name}</span>
+            </p>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setReassignSubmitting(true);
+                try {
+                  const res = await fetch(`/api/screens/${screen.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: selectedClientId === 'none' ? null : selectedClientId,
+                    }),
+                  });
+                  if (!res.ok) {
+                    throw new Error('Error al actualizar asignación');
+                  }
+                  setIsReassignModalOpen(false);
+                  fetchScreenData();
+                } catch (err) {
+                  console.error('Error reasignando pantalla:', err);
+                } finally {
+                  setReassignSubmitting(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Cliente Asignado</label>
+                <select
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                >
+                  <option value="none" className="bg-[#181a20]">Sin asignar (Desvincular)</option>
+                  {clientUsers.map((u) => (
+                    <option key={u.id} value={u.id} className="bg-[#181a20]">
+                      {u.name} ({u.username}) {u.plan ? `• ${u.plan.name}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  El cliente asignado podrá visualizar esta pantalla, subir videos y programar juegos.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsReassignModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm"
+                  disabled={reassignSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={reassignSubmitting}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium text-sm"
+                >
+                  {reassignSubmitting ? 'Guardando...' : 'Actualizar Asignación'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
