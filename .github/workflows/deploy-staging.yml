@@ -60,21 +60,17 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # 1. Configurar Nginx para dev-portal y dev-videos si existen los archivos
+            # 1. Configurar Nginx sites-available y habilitar con ln -sf a sites-enabled
             if [ -d /etc/nginx/sites-available ]; then
-              cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/ || true
-              cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/ || true
-              ln -sf /etc/nginx/sites-available/dev-portal.myplayad.com.conf /etc/nginx/sites-enabled/ || true
-              ln -sf /etc/nginx/sites-available/dev-videos.myplayad.com.conf /etc/nginx/sites-enabled/ || true
-              nginx -t && systemctl reload nginx || true
+              cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/
+              cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/
+              ln -sf /etc/nginx/sites-available/dev-portal.myplayad.com.conf /etc/nginx/sites-enabled/
+              ln -sf /etc/nginx/sites-available/dev-videos.myplayad.com.conf /etc/nginx/sites-enabled/
+              nginx -t && systemctl reload nginx
             fi
 
-            # 2. Intentar emitir o renovar certificados SSL individualmente si Certbot está disponible
+            # 2. Certificados SSL si Certbot está disponible
             if command -v certbot >/dev/null 2>&1; then
-              while pgrep -x certbot >/dev/null; do
-                echo "Esperando a que la instancia previa de Certbot libere el bloqueo..."
-                sleep 3
-              done
               certbot --nginx -d dev-portal.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
               certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
