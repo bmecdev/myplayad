@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3 } from 'lucide-react';
+import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw } from 'lucide-react';
 import mqtt from 'mqtt';
+import UpdateModal from '@/components/UpdateModal';
 
 type UserSummary = {
   id: string;
@@ -41,6 +42,10 @@ export default function ScreensPage() {
   const [selectedScreenForReassign, setSelectedScreenForReassign] = useState<Screen | null>(null);
   const [newAssignedUserId, setNewAssignedUserId] = useState('');
   const [reassignLoading, setReassignLoading] = useState(false);
+
+  // Modal de Actualizaciones OTA
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [updateModalScreenId, setUpdateModalScreenId] = useState<string | null>(null);
 
   const [mqttStatuses, setMqttStatuses] = useState<Record<string, boolean>>({});
 
@@ -188,15 +193,29 @@ export default function ScreensPage() {
           </p>
         </div>
 
-        {/* Solo el Super Administrador puede crear nuevas pantallas */}
-        {isSuperAdmin && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setUpdateModalScreenId(null);
+              setIsUpdateModalOpen(true);
+            }}
+            className="glass hover:bg-white/10 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-all font-medium border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.15)] cursor-pointer"
+            title="Actualizar o programar software en las pantallas"
           >
-            <Plus className="w-5 h-5" /> Nueva Pantalla
+            <RefreshCw className="w-4 h-4 text-emerald-400" />
+            <span>Actualizaciones OTA</span>
           </button>
-        )}
+
+          {/* Solo el Super Administrador puede crear nuevas pantallas */}
+          {isSuperAdmin && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+            >
+              <Plus className="w-5 h-5" /> Nueva Pantalla
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -231,6 +250,16 @@ export default function ScreensPage() {
                         title="Identificar Pantalla"
                       >
                         <Lightbulb className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setUpdateModalScreenId(screen.id);
+                          setIsUpdateModalOpen(true);
+                        }}
+                        className="text-emerald-400/70 hover:text-emerald-400 transition-colors p-2 rounded-lg hover:bg-emerald-500/10"
+                        title="Actualizar Software (OTA)"
+                      >
+                        <RefreshCw className="w-5 h-5" />
                       </button>
                       <Link 
                         href={`/screens/${screen.id}`}
@@ -429,6 +458,17 @@ export default function ScreensPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Actualizaciones OTA (Inmediata y Programada) */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        screens={screens}
+        initialScreenId={updateModalScreenId}
+        isSuperAdmin={isSuperAdmin}
+        currentUserId={currentUser?.id}
+        onSuccess={fetchScreens}
+      />
     </div>
   );
 }

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import UpdateModal from '@/components/UpdateModal';
 
 type Video = {
   id: string;
@@ -84,6 +85,9 @@ export default function ScreenDetailPage() {
   const [clientUsers, setClientUsers] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('none');
   const [reassignSubmitting, setReassignSubmitting] = useState(false);
+
+  // OTA Update Modal State
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   const fetchScreenData = async () => {
     try {
@@ -326,6 +330,14 @@ export default function ScreenDetailPage() {
                 Plan: {currentUser.plan.name}
               </span>
             )}
+            <button
+              onClick={() => setIsUpdateModalOpen(true)}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Actualizar software o programar mantenimiento"
+            >
+              <RefreshCw className="w-3 h-3 text-emerald-400" />
+              <span>Actualizar Software (OTA)</span>
+            </button>
           </div>
         </div>
       </div>
@@ -827,6 +839,17 @@ export default function ScreenDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Actualizaciones OTA (Inmediata y Programada) */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        screens={screen ? [screen] : []}
+        initialScreenId={screen?.id}
+        isSuperAdmin={currentUser?.role === 'SUPER_ADMIN'}
+        currentUserId={currentUser?.id}
+        onSuccess={fetchScreenData}
+      />
     </div>
   );
 }

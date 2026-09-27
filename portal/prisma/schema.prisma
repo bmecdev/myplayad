@@ -26,7 +26,8 @@ model User {
   planId    String?
   plan      Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
   
-  screens   Screen[]
+  screens         Screen[]
+  updateSchedules UpdateSchedule[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -55,9 +56,10 @@ model Screen {
   userId      String?
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   
-  schedules   Schedule[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  schedules       Schedule[]
+  updateSchedules UpdateSchedule[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 }
 
 model Game {
@@ -101,3 +103,21 @@ model Schedule {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+
+model UpdateSchedule {
+  id          String    @id @default(uuid())
+  screenId    String?
+  screen      Screen?   @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetType  String    // "SINGLE" | "CLIENT_ALL" | "SYSTEM_ALL"
+  targetName  String?   // e.g. "Pantalla Central" o "Todas mis pantallas (4)" o "Toda la plataforma"
+  scheduledAt DateTime
+  executedAt  DateTime?
+  status      String    @default("PENDING") // PENDING, EXECUTED, CANCELLED, FAILED
+  resultNote  String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+

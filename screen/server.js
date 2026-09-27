@@ -187,9 +187,14 @@ if (SCREEN_ID) {
         // Suscribirse al topic de sincronización e identificar
         client.subscribe(`screens/${SCREEN_ID}/sync`, { qos: 1 });
         client.subscribe(`screens/${SCREEN_ID}/identify`, { qos: 1 });
+        // Suscribirse a comandos de actualización (individual y broadcast)
+        client.subscribe(`screens/${SCREEN_ID}/commands`, { qos: 1 });
+        client.subscribe(`screens/${SCREEN_ID}/update`, { qos: 1 });
+        client.subscribe(`screens/broadcast/commands`, { qos: 1 });
+        client.subscribe(`screens/broadcast/update`, { qos: 1 });
     });
 
-    client.on('message', (topic, message) => {
+    client.on('message', async (topic, message) => {
         if (topic === `screens/${SCREEN_ID}/sync`) {
             console.log('[mqtt] Recibida alerta de sincronización del portal');
             // Broadcast a los clientes SSE conectados
@@ -203,6 +208,70 @@ if (SCREEN_ID) {
             sseClients.forEach(client => {
                 client.write(`data: identify\n\n`);
             });
+        } else if (
+            topic === `screens/${SCREEN_ID}/commands` ||
+            topic === `screens/${SCREEN_ID}/update` ||
+            topic === `screens/broadcast/commands` ||
+            topic === `screens/broadcast/update`
+        ) {
+            let payload = {};
+            try {
+                payload = JSON.parse(message.toString());
+            } catch (_) {
+                payload = { action: 'UPDATE_SOFTWARE' };
+            }
+
+            if (payload.action === 'UPDATE_SOFTWARE' || topic.endsWith('/update')) {
+                console.log(`[mqtt] [OTA] Comando de actualización recibido desde el portal (${topic})`);
+
+                // Notificar a pantallas conectadas
+                sseClients.forEach(c => {
+                    c.write(`data: updating\n\n`);
+                });
+
+                client.publish(`screens/${SCREEN_ID}/status`, 'updating', { qos: 1 });
+
+                try {
+                    const updateScriptPath = path.join(__dirname, 'update.sh');
+                    let stdoutResult = '';
+                    if (fs.existsSync(updateScriptPath)) {
+                        console.log(`[mqtt] [OTA] Ejecutando ${updateScriptPath}...`);
+                        const { stdout, stderr } = await execPromise(`bash "${updateScriptPath}"`, { timeout: 90000 });
+                        stdoutResult = stdout || '';
+                        console.log('[mqtt] [OTA] Resultado update.sh:\n', stdoutResult);
+                        if (stderr) console.warn('[mqtt] [OTA] Stderr update.sh:', stderr);
+                    } else {
+                        console.log('[mqtt] [OTA] update.sh no encontrado, ejecutando git reset directo...');
+                        const { stdout } = await execPromise('git fetch origin main && git reset --hard origin/main', { timeout: 45000 });
+                        stdoutResult = stdout || '';
+                    }
+
+                    // Reportar éxito al broker MQTT
+                    client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
+                    client.publish(`screens/${SCREEN_ID}/update_ack`, JSON.stringify({
+                        screenId: SCREEN_ID,
+                        status: 'success',
+                        output: stdoutResult.slice(-200),
+                        timestamp: Date.now()
+                    }), { qos: 1 });
+
+                    // Notificar al navegador para refrescar
+                    sseClients.forEach(c => {
+                        c.write(`data: updated\n\n`);
+                    });
+
+                    console.log('[mqtt] [OTA] Actualización completada con éxito.');
+                } catch (err) {
+                    console.error('[mqtt] [OTA] Error ejecutando actualización:', err.message);
+                    client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
+                    client.publish(`screens/${SCREEN_ID}/update_ack`, JSON.stringify({
+                        screenId: SCREEN_ID,
+                        status: 'error',
+                        error: err.message,
+                        timestamp: Date.now()
+                    }), { qos: 1 });
+                }
+            }
         }
     });
 

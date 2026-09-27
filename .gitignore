@@ -33,6 +33,7 @@ Thumbs.db
 # Video Cache directory
 server/videos/
 screen/videos/
+screen/update.log
 /srv/videos/
 
 # Ignorar videos gigantes en los juegos
