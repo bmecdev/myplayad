@@ -150,6 +150,41 @@ Cuando el usuario ejecute el comando `/test` o solicite probar, depurar o valida
 
 ---
 
+## 🖥️ Agente de Pruebas del Portal (`/test-portal`)
+
+Cuando el usuario ejecute el comando `/test-portal` o solicite probar, verificar o auditar el Portal Web de MyPlayAd:
+
+### 1. Arquitectura de Pruebas
+* **Frontend (UI & E2E)**: Se valida utilizando **Playwright** en modo headless.
+  * Autenticación (`01-auth.spec.ts`): Carga de login, alertas de credenciales inválidas, login exitoso de Super Admin y redirección.
+  * Pantallas & Control Remoto (`02-screens.spec.ts`): Filtro de pantallas por cliente, botones de encendido/apagado masivo (`Encender Todas`/`Apagar Todas`), indicadores de cuota de rotación (`X / Y videos en rotación`) y modal de actualizaciones OTA.
+  * Videos & Cuotas (`03-videos.spec.ts`): Filtro de videos por cliente en Super Admin, badges de cliente propietario, modal de subida con selector de cliente y selector de pantallas con indicación de cuota (`X / Y videos usados`).
+  * Planes (`04-plans.spec.ts`): Visualización de catálogo de planes con badge `maxVideosPerScreen` (`X videos por pantalla`) y modal de creación/edición de plan con límite de videos.
+* **Backend (APIs & Lógica)**: Se valida utilizando **cURL** con aserciones estrictas de códigos de estado HTTP, esquemas JSON y cookies de sesión HMAC-SHA256.
+  * Autenticación (`01-auth.sh`): Login con error (401), login exitoso (200), sesión activa en `/api/auth/me`, rutas protegidas sin cookie (401) y logout.
+  * Planes y Cuotas (`02-plans.sh`): Catálogo de planes, campo `maxVideosPerScreen`, slugs y asociación de juegos arcade.
+  * Pantallas y Control Remoto (`03-screens.sh`): Listado de pantallas, filtro `?userId=UNASSIGNED`, comando masivo MQTT `POWER_ON` y `POWER_OFF`, y validación de error 400.
+  * Videos y Asignaciones (`04-videos.sh`): Listado con relación `user` y `userId`, filtro `?userId=UNASSIGNED`, y validación de payload en `PUT /api/videos/[id]/screens`.
+  * Kiosk Público (`05-kiosk-public.sh`): Pre-flight CORS `OPTIONS` (`Access-Control-Allow-Origin: *`), consulta pública de contenido activo para kioscos (`/current`) y heartbeat.
+
+### 2. Comandos de Ejecución
+```bash
+# Suite unificada completa (Backend con cURL + Frontend con Playwright):
+./.agents/skills/test-portal/scripts/run-portal-tests.sh
+
+# Solo pruebas de backend:
+./.agents/skills/test-portal/scripts/run-portal-tests.sh --backend
+
+# Solo pruebas de frontend:
+./.agents/skills/test-portal/scripts/run-portal-tests.sh --frontend
+
+# Apuntar a entorno específico (por defecto Staging: https://dev-portal.myplayad.com):
+./.agents/skills/test-portal/scripts/run-portal-tests.sh --target http://localhost:3000
+./.agents/skills/test-portal/scripts/run-portal-tests.sh --target https://portal.myplayad.com
+```
+
+---
+
 ## 📁 Estructura del Repositorio
 
 * **`games/`**: Minijuegos retro interactivos (Snake, Arkanoid, Invaders, etc.).
