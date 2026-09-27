@@ -31,6 +31,10 @@ jobs:
             mkdir -p /var/www/myplayad-staging
             mkdir -p /opt/myplayad-staging
             mkdir -p /srv/videos-staging/pool
+            if [ -d /srv/videos ]; then
+              echo "Copiando archivos de video de produccion a staging..."
+              cp -rn /srv/videos/* /srv/videos-staging/ 2>/dev/null || true
+            fi
             chmod -R 777 /srv/videos-staging
 
       - name: Copy Frontend (games & screen) to Staging via scp
@@ -102,7 +106,13 @@ jobs:
             docker compose -p myplayad-staging -f docker-compose.staging.yml build prisma-db-push-staging
             docker compose -p myplayad-staging -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
             docker compose -p myplayad-staging -f docker-compose.staging.yml up -d --build --remove-orphans portal-staging videos-staging
+
+            # 6. Sincronizar registros de videos desde produccion a staging si existen
+            cd /opt/myplayad/server
+            docker compose exec -T postgres pg_dump -U postgres -d myplayad -t '"Video"' --data-only --on-conflict-do-nothing 2>/dev/null | \
+              docker compose exec -T postgres psql -U postgres -d myplayad_staging 2>/dev/null || true
+
             sleep 5
-            docker compose -p myplayad-staging -f docker-compose.staging.yml ps
-            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=40 portal-staging || true
-            docker compose -p myplayad-staging -f docker-compose.staging.yml logs --tail=40 videos-staging || true
+            docker compose -p myplayad-staging -f /opt/myplayad-staging/server/docker-compose.staging.yml ps
+            docker compose -p myplayad-staging -f /opt/myplayad-staging/server/docker-compose.staging.yml logs --tail=40 portal-staging || true
+            docker compose -p myplayad-staging -f /opt/myplayad-staging/server/docker-compose.staging.yml logs --tail=40 videos-staging || true
