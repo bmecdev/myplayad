@@ -62,8 +62,12 @@ jobs:
           script: |
             # 1. Configurar Nginx sites-available y habilitar con ln -sf a sites-enabled
             if [ -d /etc/nginx/sites-available ]; then
-              cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/
-              cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/
+              if ! grep -q "ssl_certificate" /etc/nginx/sites-available/dev-portal.myplayad.com.conf 2>/dev/null; then
+                cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/
+              fi
+              if ! grep -q "ssl_certificate" /etc/nginx/sites-available/dev-videos.myplayad.com.conf 2>/dev/null; then
+                cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/
+              fi
               ln -sf /etc/nginx/sites-available/dev-portal.myplayad.com.conf /etc/nginx/sites-enabled/
               ln -sf /etc/nginx/sites-available/dev-videos.myplayad.com.conf /etc/nginx/sites-enabled/
               nginx -t && systemctl reload nginx
@@ -71,8 +75,8 @@ jobs:
 
             # 2. Certificados SSL si Certbot está disponible
             if command -v certbot >/dev/null 2>&1; then
-              certbot --nginx -d dev-portal.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
-              certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+              certbot --nginx -d dev-portal.myplayad.com --reinstall --non-interactive --agree-tos --register-unsafely-without-email --redirect || certbot --nginx -d dev-portal.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+              certbot --nginx -d dev-videos.myplayad.com --reinstall --non-interactive --agree-tos --register-unsafely-without-email --redirect || certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
             fi
 
             # 3. Limpiar contenedores previos de staging y redes obsoletas
