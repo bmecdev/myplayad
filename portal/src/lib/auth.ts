@@ -123,6 +123,7 @@ export async function ensureSuperAdminAndDefaultPlans() {
           name: 'Plan Básico',
           slug: 'basic',
           description: 'Acceso a juegos arcade esenciales (Snake y Arkanoid).',
+          maxVideosPerScreen: 3,
           games: {
             connect: basicGames.map(g => ({ id: g.id }))
           }
@@ -136,6 +137,7 @@ export async function ensureSuperAdminAndDefaultPlans() {
           name: 'Plan Arcade Pro',
           slug: 'pro',
           description: 'Acceso al catálogo arcade ampliado (Snake, Arkanoid, Invaders, Galaga).',
+          maxVideosPerScreen: 8,
           games: {
             connect: proGames.map(g => ({ id: g.id }))
           }
@@ -148,6 +150,7 @@ export async function ensureSuperAdminAndDefaultPlans() {
           name: 'Plan VIP Todo Incluido',
           slug: 'vip',
           description: 'Acceso ilimitado a todos los juegos arcade presentes y futuros de MyPlayAd.',
+          maxVideosPerScreen: 25,
           games: {
             connect: allGames.map(g => ({ id: g.id }))
           }
@@ -159,7 +162,7 @@ export async function ensureSuperAdminAndDefaultPlans() {
   }
 }
 
-// Obtiene el usuario autenticado actual desde las cookies de Next.js
+// Obtiene el usuario autenticado actual desde las cookies de Next.js (App Router)
 export async function getCurrentUser() {
   try {
     const cookieStore = await cookies();
@@ -171,6 +174,32 @@ export async function getCurrentUser() {
     if (!payload) return null;
 
     // Obtener datos frescos del usuario en base de datos
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      include: {
+        plan: {
+          include: {
+            games: true
+          }
+        }
+      }
+    });
+
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+// Obtiene el usuario autenticado actual desde una solicitud de Pages API (NextApiRequest)
+export async function getUserFromApiRequest(req: { cookies: Partial<{ [key: string]: string }> }) {
+  try {
+    const token = req.cookies[SESSION_COOKIE_NAME];
+    if (!token) return null;
+
+    const payload = verifySessionToken(token);
+    if (!payload) return null;
+
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       include: {

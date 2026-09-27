@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Award, Plus, Trash2, Edit2, Gamepad2, Users, Check } from 'lucide-react';
+import { Award, Plus, Trash2, Edit2, Gamepad2, Users, Check, Film } from 'lucide-react';
 
 type Game = {
   id: string;
@@ -14,6 +14,7 @@ type PlanItem = {
   name: string;
   slug: string;
   description?: string | null;
+  maxVideosPerScreen?: number;
   games: Game[];
   _count?: {
     users: number;
@@ -32,6 +33,7 @@ export default function PlansPage() {
     name: '',
     slug: '',
     description: '',
+    maxVideosPerScreen: 5,
     gameIds: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
@@ -69,6 +71,7 @@ export default function PlansPage() {
       name: '',
       slug: '',
       description: '',
+      maxVideosPerScreen: 5,
       gameIds: [],
     });
     setError(null);
@@ -81,6 +84,7 @@ export default function PlansPage() {
       name: plan.name,
       slug: plan.slug,
       description: plan.description || '',
+      maxVideosPerScreen: plan.maxVideosPerScreen ?? 5,
       gameIds: plan.games.map((g) => g.id),
     });
     setError(null);
@@ -211,9 +215,16 @@ export default function PlansPage() {
                   </div>
                 </div>
 
-                <p className="text-sm text-slate-300 mb-4 min-h-[40px]">
+                <p className="text-sm text-slate-300 mb-3 min-h-[40px]">
                   {plan.description || 'Sin descripción.'}
                 </p>
+
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20 font-medium flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5 text-blue-400" />
+                    {plan.maxVideosPerScreen ?? 5} videos por pantalla
+                  </span>
+                </div>
 
                 <div className="space-y-2 mb-6">
                   <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -295,6 +306,28 @@ export default function PlansPage() {
                   onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                   className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-wider text-slate-300 mb-1">
+                  Máximo de Videos por Pantalla
+                </label>
+                <div className="relative">
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="5"
+                    value={formData.maxVideosPerScreen}
+                    onChange={(e) => setFormData({ ...formData, maxVideosPerScreen: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <Film className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Cantidad máxima de videos en rotación que cada pantalla de este plan puede tener asignada.
+                </p>
               </div>
 
               <div>

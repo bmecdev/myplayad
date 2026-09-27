@@ -67,6 +67,27 @@ export async function POST(request: Request) {
       }
     }
 
+    // Si programa un video, verificar límite por pantalla según el plan
+    if (currentUser.role === 'CLIENT' && videoId) {
+      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 5;
+      const currentVideosCount = await prisma.schedule.count({
+        where: {
+          screenId,
+          videoId: { not: null },
+          isActive: true,
+        },
+      });
+
+      if (currentVideosCount >= maxAllowed) {
+        return NextResponse.json(
+          {
+            error: `Has alcanzado el límite de ${maxAllowed} videos para esta pantalla según tu plan (${currentUser.plan?.name || 'Básico'}). Mejora tu plan o desasigna un video previo para continuar.`,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const schedule = await prisma.schedule.create({
       data: { 
         screenId, 

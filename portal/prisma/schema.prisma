@@ -27,6 +27,7 @@ model User {
   plan      Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
   
   screens         Screen[]
+  videos          Video[]
   updateSchedules UpdateSchedule[]
   
   createdAt DateTime @default(now())
@@ -34,10 +35,11 @@ model User {
 }
 
 model Plan {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  description String?
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  description         String?
+  maxVideosPerScreen  Int      @default(5)
   
   games       Game[]
   users       User[]
@@ -81,6 +83,10 @@ model Video {
   id          String      @id @default(uuid())
   title       String
   filename    String
+  
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   schedules   Schedule[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt

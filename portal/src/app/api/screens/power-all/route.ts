@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { action } = body;
+    const { action, clientId } = body;
 
     if (!['POWER_ON', 'POWER_OFF'].includes(action)) {
       return NextResponse.json({ error: 'Acción inválida. Usa: POWER_ON o POWER_OFF' }, { status: 400 });
@@ -19,8 +19,38 @@ export async function POST(request: Request) {
 
     const newDisplayState = action === 'POWER_ON' ? 'ON' : 'OFF';
 
-    // 1. Super Administrador (Toda la plataforma)
+    // 1. Super Administrador (Toda la plataforma o cliente seleccionado)
     if (currentUser.role === 'SUPER_ADMIN') {
+      if (clientId && clientId !== 'ALL') {
+        const targetScreens = await prisma.screen.findMany({
+          where: { userId: clientId },
+          select: { id: true, name: true },
+        });
+
+        for (const s of targetScreens) {
+          await publishPowerCommand({
+            action,
+            screenId: s.id,
+            triggeredBy: currentUser.username,
+          });
+        }
+
+        const updated = await prisma.screen.updateMany({
+          where: { userId: clientId },
+          data: { displayState: newDisplayState },
+        });
+
+        return NextResponse.json({
+          success: true,
+          action,
+          count: updated.count,
+          message:
+            action === 'POWER_ON'
+              ? `Se encendieron ${updated.count} pantallas del cliente seleccionado.`
+              : `Se apagaron / pusieron en reposo ${updated.count} pantallas del cliente seleccionado.`,
+        });
+      }
+
       await publishPowerCommand({
         action,
         broadcast: true,

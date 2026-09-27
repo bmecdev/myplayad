@@ -35,7 +35,7 @@ type ScreenDetail = {
     id: string;
     name: string;
     username: string;
-    plan?: { id: string; name: string } | null;
+    plan?: { id: string; name: string; maxVideosPerScreen?: number } | null;
   } | null;
 };
 
@@ -267,7 +267,12 @@ export default function ScreenDetailPage() {
       const response = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, screenId, filename: uploadData.filename }),
+        body: JSON.stringify({
+          title,
+          screenId,
+          filename: uploadData.filename,
+          clientId: screen?.userId || undefined,
+        }),
       });
       
       const res = await response.json();
@@ -311,10 +316,17 @@ export default function ScreenDetailPage() {
 
   const handleAssignExistingVideos = async () => {
     if (selectedVideoIds.length === 0) return;
+
+    const maxAllowed = screen?.user?.plan?.maxVideosPerScreen ?? 5;
+    if (currentUser?.role === 'CLIENT' && (videos.length + selectedVideoIds.length) > maxAllowed) {
+      alert(`No es posible asignar ${selectedVideoIds.length} videos. El plan de esta pantalla permite un máximo de ${maxAllowed} videos (actualmente ya tiene ${videos.length}).`);
+      return;
+    }
+
     setAssigningVideos(true);
     try {
       // Create schedules for each selected video
-      await Promise.all(
+      const results = await Promise.all(
         selectedVideoIds.map(videoId => 
           fetch('/api/schedules', {
             method: 'POST',
@@ -324,14 +336,20 @@ export default function ScreenDetailPage() {
               videoId,
               startDate: new Date().toISOString()
             })
-          })
+          }).then(r => r.json())
         )
       );
       
+      const failed = results.find(r => r.error);
+      if (failed) {
+        alert(failed.error);
+      }
+
       setIsExistingVideoModalOpen(false);
       fetchScreenData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error assigning videos:', err);
+      alert(err.message || 'Error asignando videos');
     } finally {
       setAssigningVideos(false);
     }
@@ -525,20 +543,35 @@ export default function ScreenDetailPage() {
 
         {/* Videos Management Section */}
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold flex items-center gap-2 text-purple-400">
-              <Film className="w-6 h-6" /> Videos de esta Pantalla
-            </h2>
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2 text-purple-400">
+                <Film className="w-6 h-6" /> Videos de esta Pantalla
+              </h2>
+              {(() => {
+                const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                const isFull = videos.length >= maxAllowed;
+                return (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Capacidad en rotación:{' '}
+                    <span className={`font-semibold ${isFull ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      {videos.length} de {maxAllowed} videos permitidos
+                    </span>{' '}
+                    {isFull && <span className="text-amber-400 font-bold">(Límite alcanzado)</span>}
+                  </p>
+                );
+              })()}
+            </div>
             <div className="flex gap-2">
               <button 
                 onClick={openExistingVideoModal}
-                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
+                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium cursor-pointer"
               >
                 <Monitor className="w-4 h-4" /> Seleccionar Existente
               </button>
               <button 
                 onClick={() => setIsVideoModalOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
+                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium cursor-pointer"
               >
                 <Upload className="w-4 h-4" /> Subir Video
               </button>

@@ -27,10 +27,31 @@ export async function PUT(
     if (currentUser.role === 'CLIENT') {
       const clientScreens = await prisma.screen.findMany({
         where: { userId: currentUser.id },
-        select: { id: true },
+        select: { id: true, name: true },
       });
       const clientScreenIdSet = new Set(clientScreens.map(s => s.id));
       allowedTargetScreenIds = requestedScreenIds.filter((id: string) => clientScreenIdSet.has(id));
+
+      // Validar límite del plan en cada pantalla destino
+      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 5;
+      for (const targetId of allowedTargetScreenIds) {
+        const otherVideosCount = await prisma.schedule.count({
+          where: {
+            screenId: targetId,
+            videoId: { not: null, notIn: [videoId] },
+            isActive: true,
+          },
+        });
+        if (otherVideosCount + 1 > maxAllowed) {
+          const screenObj = clientScreens.find(s => s.id === targetId);
+          return NextResponse.json(
+            {
+              error: `La pantalla "${screenObj?.name || 'seleccionada'}" ya tiene el máximo de ${maxAllowed} videos permitidos según tu plan (${currentUser.plan?.name || 'Básico'}). Desasigna un video previo para continuar.`,
+            },
+            { status: 403 }
+          );
+        }
+      }
 
       // Mantener asignaciones de pantallas que pertenecen a otros clientes
       const otherScreensSchedules = await prisma.schedule.findMany({

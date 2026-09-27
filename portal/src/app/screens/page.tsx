@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power } from 'lucide-react';
+import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film } from 'lucide-react';
 import mqtt from 'mqtt';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -10,9 +10,11 @@ type UserSummary = {
   id: string;
   name: string;
   username: string;
+  role?: string;
   plan?: {
     id: string;
     name: string;
+    maxVideosPerScreen?: number;
   } | null;
 };
 
@@ -26,6 +28,11 @@ type Screen = {
   displayState?: 'ON' | 'OFF' | string;
   lastSeen?: string;
   createdAt: string;
+  schedules?: Array<{
+    id: string;
+    videoId?: string | null;
+    gameId?: string | null;
+  }>;
 };
 
 export default function ScreensPage() {
@@ -33,6 +40,7 @@ export default function ScreensPage() {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedClientFilter, setSelectedClientFilter] = useState<string>('ALL');
   
   // Modal de Crear Pantalla
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -167,11 +175,18 @@ export default function ScreensPage() {
 
   const handleBulkPower = async (action: 'POWER_ON' | 'POWER_OFF') => {
     const isTurnOn = action === 'POWER_ON';
+    const isFilteredClient = isSuperAdmin && selectedClientFilter !== 'ALL' && selectedClientFilter !== 'UNASSIGNED';
+    const clientObj = isFilteredClient ? users.find(u => u.id === selectedClientFilter) : null;
+
     const confirmMsg = isTurnOn
-      ? isSuperAdmin
+      ? isFilteredClient
+        ? `¿Deseas encender todas las pantallas del cliente "${clientObj?.name || 'seleccionado'}"?`
+        : isSuperAdmin
         ? '¿Deseas encender todas las pantallas de la plataforma?'
         : '¿Deseas encender todas tus pantallas asignadas?'
-      : isSuperAdmin
+      : isFilteredClient
+        ? `¿Deseas apagar / poner en reposo todas las pantallas del cliente "${clientObj?.name || 'seleccionado'}"?`
+        : isSuperAdmin
         ? '¿Deseas apagar / poner en reposo todas las pantallas de la plataforma?'
         : '¿Deseas apagar / poner en reposo todas tus pantallas asignadas?';
 
@@ -181,7 +196,10 @@ export default function ScreensPage() {
       const res = await fetch('/api/screens/power-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          clientId: isFilteredClient ? selectedClientFilter : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -235,6 +253,13 @@ export default function ScreensPage() {
   };
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+
+  const filteredScreens = screens.filter(screen => {
+    if (!isSuperAdmin) return true;
+    if (selectedClientFilter === 'ALL') return true;
+    if (selectedClientFilter === 'UNASSIGNED') return !screen.userId;
+    return screen.userId === selectedClientFilter;
+  });
 
   return (
     <div className="space-y-6">
@@ -296,11 +321,51 @@ export default function ScreensPage() {
         </div>
       </div>
 
+      {/* Barra de Filtro por Cliente (Super Admin) */}
+      {isSuperAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-black/40 border border-white/10 rounded-2xl px-5 py-3.5 shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <Users className="w-5 h-5 text-emerald-400" />
+            <span className="text-sm font-semibold text-slate-200">Filtrar por Cliente:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={selectedClientFilter}
+              onChange={(e) => setSelectedClientFilter(e.target.value)}
+              className="bg-black/60 border border-white/20 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 cursor-pointer min-w-[260px]"
+            >
+              <option value="ALL">Todos los clientes ({screens.length} pantallas)</option>
+              {users.filter(u => u.role !== 'SUPER_ADMIN').map(u => {
+                const count = screens.filter(s => s.userId === u.id).length;
+                return (
+                  <option key={u.id} value={u.id}>
+                    {u.name} (@{u.username}) — {count} {count === 1 ? 'pantalla' : 'pantallas'}
+                  </option>
+                );
+              })}
+              <option value="UNASSIGNED">
+                Sin asignar ({screens.filter(s => !s.userId).length} pantallas)
+              </option>
+            </select>
+
+            {selectedClientFilter !== 'ALL' && (
+              <button
+                onClick={() => setSelectedClientFilter('ALL')}
+                className="text-xs text-slate-400 hover:text-white px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-colors cursor-pointer"
+              >
+                Ver todas ({screens.length})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-10">Cargando...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {screens.map(screen => {
+          {filteredScreens.map(screen => {
             const online = isOnline(screen.id, screen.lastSeen);
             return (
               <div key={screen.id} className="glass-card rounded-2xl p-6 relative group overflow-hidden flex flex-col justify-between">
@@ -418,6 +483,24 @@ export default function ScreensPage() {
                     </div>
                   )}
 
+                  {/* Badge de Límite de Videos según el Plan */}
+                  {(() => {
+                    const videoCount = (screen.schedules || []).filter(s => s.videoId).length;
+                    const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                    const isFull = videoCount >= maxAllowed;
+                    return (
+                      <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Film className="w-3.5 h-3.5 text-blue-400" />
+                          Videos en rotación:
+                        </span>
+                        <span className={`font-semibold ${isFull ? 'text-amber-400' : 'text-slate-200'}`}>
+                          {videoCount} / {maxAllowed} {isFull ? '(Máx)' : ''}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   <div className="text-xs text-muted-foreground bg-black/20 p-2 rounded-lg break-all">
                     ID: {screen.id}
                   </div>
@@ -426,13 +509,15 @@ export default function ScreensPage() {
             );
           })}
 
-          {screens.length === 0 && (
+          {filteredScreens.length === 0 && (
             <div className="col-span-full text-center py-12 glass-card rounded-2xl border-dashed">
               <Monitor className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
               <p className="text-muted-foreground">
-                {isSuperAdmin
-                  ? 'No hay pantallas registradas. Haz clic en "Nueva Pantalla" para crear una.'
-                  : 'Aún no tienes pantallas asignadas a tu cuenta. Contacta al administrador.'}
+                {selectedClientFilter === 'ALL'
+                  ? isSuperAdmin
+                    ? 'No hay pantallas registradas. Haz clic en "Nueva Pantalla" para crear una.'
+                    : 'Aún no tienes pantallas asignadas a tu cuenta. Contacta al administrador.'
+                  : 'No hay pantallas asignadas a este cliente.'}
               </p>
             </div>
           )}

@@ -2,17 +2,31 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const userIdFilter = searchParams.get('userId');
+
     const isClient = currentUser.role === 'CLIENT';
 
+    let whereClause: any = undefined;
+    if (isClient) {
+      whereClause = { userId: currentUser.id };
+    } else if (userIdFilter) {
+      if (userIdFilter === 'UNASSIGNED') {
+        whereClause = { userId: null };
+      } else if (userIdFilter !== 'ALL') {
+        whereClause = { userId: userIdFilter };
+      }
+    }
+
     const screens = await prisma.screen.findMany({
-      where: isClient ? { userId: currentUser.id } : undefined,
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
         user: {
@@ -24,6 +38,7 @@ export async function GET() {
               select: {
                 id: true,
                 name: true,
+                maxVideosPerScreen: true,
               },
             },
           },

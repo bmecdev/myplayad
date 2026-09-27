@@ -5,18 +5,24 @@ import path from 'path';
 import { publishSyncEvent } from '@/lib/mqttPublisher';
 import { getCurrentUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const userIdFilter = searchParams.get('userId');
+
     const isClient = currentUser.role === 'CLIENT';
 
-    const videos = await prisma.video.findMany({
-      where: isClient
-        ? {
+    let whereClause: any = undefined;
+    if (isClient) {
+      whereClause = {
+        OR: [
+          { userId: currentUser.id },
+          {
             schedules: {
               some: {
                 screen: {
@@ -24,10 +30,35 @@ export async function GET() {
                 },
               },
             },
-          }
-        : undefined,
+          },
+        ],
+      };
+    } else if (userIdFilter) {
+      if (userIdFilter === 'UNASSIGNED') {
+        whereClause = { userId: null };
+      } else if (userIdFilter !== 'ALL') {
+        whereClause = { userId: userIdFilter };
+      }
+    }
+
+    const videos = await prisma.video.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            plan: {
+              select: {
+                id: true,
+                name: true,
+                maxVideosPerScreen: true,
+              },
+            },
+          },
+        },
         schedules: {
           include: { screen: true },
         },
@@ -50,18 +81,63 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File;
     const title = formData.get('title') as string;
     const screenId = formData.get('screenId') as string;
+    const clientId = formData.get('clientId') as string;
 
     if (!file || !title || !screenId) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 });
     }
 
-    // Si es CLIENT, verificar que la pantalla seleccionada le pertenezca
-    if (currentUser.role === 'CLIENT' && screenId !== 'none') {
-      const screen = await prisma.screen.findUnique({
+    let ownerUserId: string | null = null;
+    let targetScreen = null;
+
+    if (screenId !== 'none' && screenId !== 'pool') {
+      targetScreen = await prisma.screen.findUnique({
         where: { id: screenId },
+        include: {
+          user: {
+            include: { plan: true },
+          },
+        },
       });
-      if (!screen || screen.userId !== currentUser.id) {
-        return NextResponse.json({ error: 'Acceso denegado a esta pantalla' }, { status: 403 });
+
+      if (!targetScreen) {
+        return NextResponse.json({ error: 'Pantalla no encontrada' }, { status: 404 });
+      }
+    }
+
+    // Si es CLIENT, verificar pertenencia y límites de plan
+    if (currentUser.role === 'CLIENT') {
+      ownerUserId = currentUser.id;
+
+      if (targetScreen) {
+        if (targetScreen.userId !== currentUser.id) {
+          return NextResponse.json({ error: 'Acceso denegado a esta pantalla' }, { status: 403 });
+        }
+
+        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 5;
+        const currentCount = await prisma.schedule.count({
+          where: {
+            screenId: targetScreen.id,
+            videoId: { not: null },
+            isActive: true,
+          },
+        });
+
+        if (currentCount >= maxVideos) {
+          return NextResponse.json(
+            {
+              error: `Has alcanzado el límite de ${maxVideos} videos para esta pantalla según tu plan (${currentUser.plan?.name || 'Básico'}).`,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    } else {
+      // SUPER_ADMIN
+      if (clientId && clientId !== 'none') {
+        ownerUserId = clientId;
+      } else if (targetScreen?.userId) {
+        ownerUserId = targetScreen.userId;
       }
     }
 
@@ -79,25 +155,27 @@ export async function POST(request: Request) {
 
     const video = await prisma.video.create({
       data: {
-        title,
+        title: String(title).trim(),
         filename,
+        userId: ownerUserId,
       },
     });
 
-    if (screenId !== 'none') {
+    if (targetScreen) {
       await prisma.schedule.create({
         data: {
-          screenId,
+          screenId: targetScreen.id,
           videoId: video.id,
           startDate: new Date(),
+          isActive: true,
         },
       });
-      await publishSyncEvent(screenId);
+      await publishSyncEvent(targetScreen.id);
     }
 
     return NextResponse.json(video, { status: 201 });
   } catch (error: any) {
     console.error('Error uploading video:', error);
-    return NextResponse.json({ error: 'Error uploading video' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error uploading video' }, { status: 500 });
   }
 }

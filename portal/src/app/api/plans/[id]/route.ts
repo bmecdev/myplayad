@@ -38,7 +38,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await request.json();
-    const { name, slug, description, gameIds } = body;
+    const { name, slug, description, maxVideosPerScreen, gameIds } = body;
 
     const existingPlan = await prisma.plan.findUnique({ where: { id } });
     if (!existingPlan) {
@@ -48,6 +48,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const updateData: any = {};
     if (name) updateData.name = String(name).trim();
     if (description !== undefined) updateData.description = description ? String(description).trim() : null;
+    if (maxVideosPerScreen !== undefined) {
+      const parsedMax = Number(maxVideosPerScreen);
+      if (parsedMax > 0) updateData.maxVideosPerScreen = parsedMax;
+    }
     if (slug) {
       const cleanSlug = String(slug).trim();
       const duplicate = await prisma.plan.findUnique({ where: { slug: cleanSlug } });

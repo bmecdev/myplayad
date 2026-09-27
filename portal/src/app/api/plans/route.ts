@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, slug, description, gameIds } = body;
+    const { name, slug, description, maxVideosPerScreen, gameIds } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'El nombre del plan es obligatorio' }, { status: 400 });
@@ -69,6 +69,7 @@ export async function POST(request: Request) {
         name: String(name).trim(),
         slug: cleanSlug,
         description: description ? String(description).trim() : null,
+        maxVideosPerScreen: Number(maxVideosPerScreen) > 0 ? Number(maxVideosPerScreen) : 5,
         games: Array.isArray(gameIds) && gameIds.length > 0
           ? {
               connect: gameIds.map((id: string) => ({ id })),
