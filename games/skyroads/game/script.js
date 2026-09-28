@@ -526,24 +526,31 @@ function generateTrack(stageNumber) {
 
         if (stageNumber === 1) {
             // ==========================================
-            // NIVEL 1: FÁCIL (Huecos de exactamente 2 BLOQUES DE DISTANCIA, 0 obstáculos)
+            // NIVEL 1: FÁCIL (Saltos cercanos sin turbo, saltos lejanos con turbo)
             // ==========================================
-            if (rand < 0.45) {
-                // Hueco de salto de EXACTAMENTE 2 BLOQUES DE DISTANCIA (2 segmentos completos)
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo prep
+            if (rand < 0.40) {
+                // Salto cercano: 2 bloques de distancia -> PLATAFORMA CERCA: SIN TURBO
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Sin turbo
                 currentZ += SEGMENT_LENGTH;
-                // BLOQUE DE VACÍO 1
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Vacío 1
                 currentZ += SEGMENT_LENGTH;
-                // BLOQUE DE VACÍO 2
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Vacío 2
                 currentZ += SEGMENT_LENGTH;
-                // Aterrizaje seguro
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje seguro
+                currentZ += SEGMENT_LENGTH;
+            } else if (rand < 0.65) {
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA MÁS LEJOS: CON TURBO
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo pad para cruzar abismo largo
+                currentZ += SEGMENT_LENGTH;
+                for (let v = 0; v < 3; v++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // 3 bloques vacío
+                    currentZ += SEGMENT_LENGTH;
+                }
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje seguro
+                currentZ += SEGMENT_LENGTH;
+            } else if (rand < 0.85) {
+                // Terrazas laterales sin turbo (plataformas cercanas)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.75) {
-                // Terrazas laterales con turbo separadas por 2 bloques de distancia
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [2, 2, 0, 0, 1, 1, 1, 0, 0, 2, 2], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
@@ -554,11 +561,11 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 2) {
             // ==========================================
-            // NIVEL 2: INTERMEDIO (Huecos de 2 bloques, terrazas laterales, algunos bloques)
+            // NIVEL 2: INTERMEDIO (Huecos cortos sin turbo, saltos lejanos con turbo)
             // ==========================================
-            if (rand < 0.38) {
-                // Salto de 2 bloques de distancia
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null });
+            if (rand < 0.35) {
+                // Salto cercano: 2 bloques de distancia -> PLATAFORMA CERCA: SIN TURBO
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Sin turbo
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 1
                 currentZ += SEGMENT_LENGTH;
@@ -566,8 +573,18 @@ function generateTrack(stageNumber) {
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.68) {
-                // Vacío central de 2 bloques: obliga a circular por los costados
+            } else if (rand < 0.60) {
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA MÁS LEJOS: CON TURBO
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo
+                currentZ += SEGMENT_LENGTH;
+                for (let v = 0; v < 3; v++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                    currentZ += SEGMENT_LENGTH;
+                }
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                currentZ += SEGMENT_LENGTH;
+            } else if (rand < 0.80) {
+                // Vacío central de 2 bloques: obliga a circular por los costados (sin turbo)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
@@ -583,19 +600,18 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 3) {
             // ==========================================
-            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, huecos de 2-3 bloques)
+            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, mega salto con turbo)
             // ==========================================
             if (rand < 0.35) {
-                // Gran vacío central de 3 bloques continuos
+                // Gran vacío central de 3 bloques continuos (sin turbo en flancos)
                 for (let s = 0; s < 3; s++) {
-                    const side = (s === 1) ? [2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 2] : [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1];
-                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: side, obstacle: null });
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                     currentZ += SEGMENT_LENGTH;
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.65) {
-                // Zig-zag flotante: Flanco izq -> Salto de 2 bloques -> Flanco der
+                // Zig-zag flotante: Flanco izq -> Salto de 2 bloques -> Flanco der (plataformas cercanas: SIN TURBO)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 1
@@ -607,8 +623,8 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Super salto sobre vacío de 2 bloques con obstáculo al aterrizar
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null });
+                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA MÁS LEJOS: CON TURBO
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
@@ -619,10 +635,10 @@ function generateTrack(stageNumber) {
             }
         } else {
             // ==========================================
-            // NIVEL 4+: EXPERTO (Mega abismos de 3 bloques a alta velocidad)
+            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Turbo, saltos cercanos sin Turbo)
             // ==========================================
             if (rand < 0.40) {
-                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío)
+                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío) -> PLATAFORMA MÁS LEJOS: CON TURBO
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 for (let g = 0; g < 3; g++) {
@@ -632,7 +648,7 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.70) {
-                // Vacío central prolongado de 4 bloques con terrazas estrechas
+                // Vacío central prolongado de 4 bloques con terrazas estrechas (sin turbo)
                 for (let s = 0; s < 4; s++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], obstacle: null });
                     currentZ += SEGMENT_LENGTH;
@@ -640,12 +656,12 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: { lane: 5 } });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Terrazas alternadas con huecos laterales escalonados
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [2, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0], obstacle: null });
+                // Terrazas alternadas con salto corto (plataformas cercanas: SIN TURBO)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2], obstacle: null });
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             }
         }
