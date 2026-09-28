@@ -334,6 +334,38 @@ class SkyroadsAudio {
         });
         broadcastSFX('clear');
     }
+
+    playRing() {
+        if (!this.ctx) return;
+        this.resume();
+        try {
+            const t = this.ctx.currentTime;
+            const osc1 = this.ctx.createOscillator();
+            const osc2 = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(880, t);
+            osc1.frequency.setValueAtTime(1320, t + 0.07);
+
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1760, t);
+            osc2.frequency.setValueAtTime(2640, t + 0.07);
+
+            gain.gain.setValueAtTime(0.28, t);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc1.start(t);
+            osc2.start(t);
+            osc1.stop(t + 0.32);
+            osc2.stop(t + 0.32);
+        } catch (e) {}
+        broadcastSFX('ring');
+    }
 }
 const audio = new SkyroadsAudio();
 
@@ -540,11 +572,18 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje seguro
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.65) {
-                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3)
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
-                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // 3 bloques vacío
+                    const hasRing = (v === 1); // Aro flotante en el centro del abismo
+                    segments.push({
+                        z: currentZ,
+                        length: SEGMENT_LENGTH,
+                        tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        obstacle: null,
+                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                    });
                     currentZ += SEGMENT_LENGTH;
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista de aterrizaje 1
@@ -564,7 +603,7 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 2) {
             // ==========================================
-            // NIVEL 2: INTERMEDIO (Huecos cortos normales, saltos lejanos con plataforma de salto)
+            // NIVEL 2: INTERMEDIO (Huecos cortos normales, saltos lejanos con plataforma de salto y aros)
             // ==========================================
             if (rand < 0.35) {
                 // Salto cercano: 2 bloques de distancia -> Plataforma normal
@@ -577,11 +616,18 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.60) {
-                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3)
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
-                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                    const hasRing = (v === 1);
+                    segments.push({
+                        z: currentZ,
+                        length: SEGMENT_LENGTH,
+                        tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        obstacle: null,
+                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                    });
                     currentZ += SEGMENT_LENGTH;
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
@@ -605,7 +651,7 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 3) {
             // ==========================================
-            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, mega salto con plataforma de salto)
+            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, mega salto con plataforma de salto y aros)
             // ==========================================
             if (rand < 0.35) {
                 // Gran vacío central de 3 bloques continuos (flancos normales)
@@ -628,11 +674,18 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA DE SALTO (Tile 3)
+                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
-                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                    const hasRing = (v === 1);
+                    segments.push({
+                        z: currentZ,
+                        length: SEGMENT_LENGTH,
+                        tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        obstacle: null,
+                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                    });
                     currentZ += SEGMENT_LENGTH;
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista limpia de aterrizaje
@@ -642,14 +695,21 @@ function generateTrack(stageNumber) {
             }
         } else {
             // ==========================================
-            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Plataforma de Salto, saltos cercanos normales)
+            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Plataforma de Salto y Aros, saltos cercanos normales)
             // ==========================================
             if (rand < 0.40) {
-                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío) -> PLATAFORMA DE SALTO (Tile 3)
+                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío) -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let g = 0; g < 3; g++) {
-                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                    const hasRing = (g === 1);
+                    segments.push({
+                        z: currentZ,
+                        length: SEGMENT_LENGTH,
+                        tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        obstacle: null,
+                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                    });
                     currentZ += SEGMENT_LENGTH;
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
@@ -1056,6 +1116,40 @@ function update(dt) {
         }
     }
 
+    // Check and animate Floating Score Rings
+    for (let i = 0; i < GameState.track.length; i++) {
+        const seg = GameState.track[i];
+        if (!seg.ring) continue;
+
+        // Animate collection shockwave
+        if (seg.ring.collectAnim && seg.ring.collectAnim > 0) {
+            seg.ring.collectAnim -= dt;
+        }
+
+        // Ring collision check (only if active and near the ship in Z)
+        if (!seg.ring.collected && !ship.isCrashing) {
+            const zMid = seg.z + SEGMENT_LENGTH / 2;
+            const dz = Math.abs(ship.z - zMid);
+
+            if (dz < 18) {
+                const ringX = seg.ring.x || 0;
+                const ringY = seg.ring.y || 52;
+                const shipCenterY = ship.y + 3;
+                const dist2D = Math.hypot(ship.x - ringX, shipCenterY - ringY);
+
+                if (dist2D <= seg.ring.radius + 8) {
+                    seg.ring.collected = true;
+                    seg.ring.collectAnim = 0.5;
+                    const pts = seg.ring.points || 500;
+                    GameState.score += pts;
+                    audio.playRing();
+                    addPopup(`¡ARO +${pts} PTS!`, '#ffe600');
+                    createRingCollectSparks(ringX, ringY, zMid);
+                }
+            }
+        }
+    }
+
     // Engine Exhaust & Wingtip Contrails
     createExhaustParticles();
     createWingtipTrails();
@@ -1137,6 +1231,24 @@ function createJumpPadSparks(x, y, z) {
             vz: (Math.random() - 0.5) * 30,
             life: 0.45 + Math.random() * 0.35,
             color: Math.random() > 0.4 ? '#00f5d4' : '#ffffff',
+            size: 2.2
+        });
+    }
+}
+
+function createRingCollectSparks(x, y, z) {
+    for (let i = 0; i < 24; i++) {
+        const ang = (i / 24) * Math.PI * 2;
+        const spd = 25 + Math.random() * 35;
+        GameState.particles.push({
+            x: x + Math.cos(ang) * 12,
+            y: y + Math.sin(ang) * 12,
+            z: z,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd + 15,
+            vz: (Math.random() - 0.5) * 40,
+            life: 0.5 + Math.random() * 0.3,
+            color: Math.random() > 0.4 ? '#ffe600' : '#ffffff',
             size: 2.2
         });
     }
@@ -1358,6 +1470,11 @@ function render() {
             drawObstacleCube(seg, cam);
         }
 
+        // Draw Floating Score Ring
+        if (seg.ring) {
+            drawFloatingRing(seg, cam);
+        }
+
         // Draw Finish Wormhole Portal Ring
         if (seg.isFinish) {
             drawWormholePortal(seg, cam);
@@ -1561,6 +1678,86 @@ function drawWormholePortal(seg, cam) {
 
     ctx.fillStyle = 'rgba(61, 255, 138, 0.2)';
     ctx.fill();
+}
+
+// Draw 3D Floating Score Ring
+function drawFloatingRing(seg, cam) {
+    const ring = seg.ring;
+    if (!ring) return;
+
+    const zMid = seg.z + SEGMENT_LENGTH / 2;
+    const pCenter = project(ring.x || 0, ring.y || 52, zMid, cam);
+    if (!pCenter) return;
+
+    const scale = pCenter.scale;
+    const r = ring.radius * scale;
+    if (r < 2) return;
+
+    const time = performance.now() * 0.005;
+
+    if (ring.collected) {
+        // Onda expansiva al recolectar
+        if (ring.collectAnim && ring.collectAnim > 0) {
+            const expR = r + (1.0 - ring.collectAnim / 0.5) * 25 * scale;
+            const alpha = Math.max(0, ring.collectAnim / 0.5);
+            ctx.strokeStyle = `rgba(255, 230, 0, ${alpha * 0.8})`;
+            ctx.lineWidth = Math.max(1, 3 * scale);
+            ctx.beginPath();
+            ctx.arc(pCenter.x, pCenter.y, expR, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Silueta recolectada translúcida tenue
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = Math.max(0.8, 1.2 * scale);
+            ctx.beginPath();
+            ctx.arc(pCenter.x, pCenter.y, r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        return;
+    }
+
+    // ARO ACTIVO NEÓN DORADO
+    // 1. Aura resplandeciente exterior
+    const pulse = Math.sin(time * 3) * 0.12 + 1.0;
+    ctx.strokeStyle = 'rgba(255, 230, 0, 0.35)';
+    ctx.lineWidth = Math.max(2.5, 6 * scale * pulse);
+    ctx.beginPath();
+    ctx.arc(pCenter.x, pCenter.y, r * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 2. Anillo de energía exterior
+    ctx.strokeStyle = '#ffe600';
+    ctx.lineWidth = Math.max(1.8, 3.8 * scale);
+    ctx.beginPath();
+    ctx.arc(pCenter.x, pCenter.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 3. Anillo de brillo interior blanco
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(0.8, 1.6 * scale);
+    ctx.beginPath();
+    ctx.arc(pCenter.x, pCenter.y, r * 0.88, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 4. Cristales giratorios de energía en los 4 polos
+    for (let k = 0; k < 4; k++) {
+        const theta = time * 2.5 + k * (Math.PI / 2);
+        const ox = pCenter.x + Math.cos(theta) * r;
+        const oy = pCenter.y + Math.sin(theta) * r;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(ox, oy, Math.max(1.2, 2.5 * scale), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 5. Etiqueta "+500" flotante en el centro
+    if (scale > 0.0035 && scale < 0.02) {
+        ctx.fillStyle = 'rgba(255, 230, 0, 0.9)';
+        ctx.font = `${Math.max(6, Math.floor(180 * scale))}px 'Press Start 2P', monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('+500', pCenter.x, pCenter.y);
+    }
 }
 
 // Projected Drop-Shadow Under Spaceship

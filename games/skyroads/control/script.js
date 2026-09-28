@@ -107,6 +107,24 @@ class MobileAudio {
             osc.stop(t + 0.05);
         } catch (e) {}
     }
+
+    playRing() {
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, t);
+            osc.frequency.setValueAtTime(1320, t + 0.07);
+            gain.gain.setValueAtTime(0.24, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.28);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.28);
+        } catch (e) {}
+    }
 }
 const mobileAudio = new MobileAudio();
 
@@ -186,6 +204,10 @@ async function setupWebRTC() {
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
                 if (data.sound === 'jump') mobileAudio.playJump();
+                else if (data.sound === 'ring') {
+                    mobileAudio.playRing();
+                    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+                }
                 else if (data.sound === 'crash' && navigator.vibrate) navigator.vibrate(200);
                 else if (data.sound === 'land' && navigator.vibrate) navigator.vibrate(15);
             }
