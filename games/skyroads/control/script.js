@@ -163,7 +163,7 @@ async function setupWebRTC() {
         }
     };
 
-    dataChannel = pc.createDataChannel('controls', { ordered: false, maxRetransmits: 0 });
+    dataChannel = pc.createDataChannel('controls', { ordered: false });
 
     dataChannel.onopen = () => {
         status.textContent = '⚡ ENLACE ACTIVO';

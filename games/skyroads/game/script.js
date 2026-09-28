@@ -424,6 +424,7 @@ const GameState = {
     gameOver: false,
     paused: false,
     score: 0,
+    stageStartScore: 0,
     highScore: 0,
     lives: 3,
     stage: 1,
@@ -526,11 +527,11 @@ function generateTrack(stageNumber) {
 
         if (stageNumber === 1) {
             // ==========================================
-            // NIVEL 1: FÁCIL (Saltos cercanos sin turbo, saltos lejanos con turbo)
+            // NIVEL 1: FÁCIL (Saltos cercanos normales, saltos lejanos con plataforma de salto)
             // ==========================================
             if (rand < 0.40) {
-                // Salto cercano: 2 bloques de distancia -> PLATAFORMA CERCA: SIN TURBO
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Sin turbo
+                // Salto cercano: 2 bloques de distancia -> Plataforma cercana normal
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Vacío 1
                 currentZ += SEGMENT_LENGTH;
@@ -539,17 +540,19 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje seguro
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.65) {
-                // Salto lejano: 3 bloques de distancia -> PLATAFORMA MÁS LEJOS: CON TURBO
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo pad para cruzar abismo largo
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // 3 bloques vacío
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje seguro
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista de aterrizaje 1
+                currentZ += SEGMENT_LENGTH;
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista de aterrizaje 2
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.85) {
-                // Terrazas laterales sin turbo (plataformas cercanas)
+                // Terrazas laterales continuas (plataformas cercanas)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
@@ -561,11 +564,11 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 2) {
             // ==========================================
-            // NIVEL 2: INTERMEDIO (Huecos cortos sin turbo, saltos lejanos con turbo)
+            // NIVEL 2: INTERMEDIO (Huecos cortos normales, saltos lejanos con plataforma de salto)
             // ==========================================
             if (rand < 0.35) {
-                // Salto cercano: 2 bloques de distancia -> PLATAFORMA CERCA: SIN TURBO
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Sin turbo
+                // Salto cercano: 2 bloques de distancia -> Plataforma normal
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 1
                 currentZ += SEGMENT_LENGTH;
@@ -574,8 +577,8 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.60) {
-                // Salto lejano: 3 bloques de distancia -> PLATAFORMA MÁS LEJOS: CON TURBO
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
@@ -583,8 +586,10 @@ function generateTrack(stageNumber) {
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.80) {
-                // Vacío central de 2 bloques: obliga a circular por los costados (sin turbo)
+                // Vacío central de 2 bloques: obliga a circular por los costados
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
@@ -600,10 +605,10 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 3) {
             // ==========================================
-            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, mega salto con turbo)
+            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, mega salto con plataforma de salto)
             // ==========================================
             if (rand < 0.35) {
-                // Gran vacío central de 3 bloques continuos (sin turbo en flancos)
+                // Gran vacío central de 3 bloques continuos (flancos normales)
                 for (let s = 0; s < 3; s++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                     currentZ += SEGMENT_LENGTH;
@@ -611,7 +616,7 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.65) {
-                // Zig-zag flotante: Flanco izq -> Salto de 2 bloques -> Flanco der (plataformas cercanas: SIN TURBO)
+                // Zig-zag flotante: Flanco izq -> Salto de 2 bloques -> Flanco der
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 1
@@ -623,23 +628,25 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA MÁS LEJOS: CON TURBO
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null }); // Turbo
+                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA DE SALTO (Tile 3)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                for (let v = 0; v < 3; v++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                    currentZ += SEGMENT_LENGTH;
+                }
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista limpia de aterrizaje
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: { lane: 5 } });
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             }
         } else {
             // ==========================================
-            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Turbo, saltos cercanos sin Turbo)
+            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Plataforma de Salto, saltos cercanos normales)
             // ==========================================
             if (rand < 0.40) {
-                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío) -> PLATAFORMA MÁS LEJOS: CON TURBO
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 2, 2, 2, 0, 0, 1, 1], obstacle: null });
+                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío) -> PLATAFORMA DE SALTO (Tile 3)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let g = 0; g < 3; g++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
@@ -647,8 +654,10 @@ function generateTrack(stageNumber) {
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.70) {
-                // Vacío central prolongado de 4 bloques con terrazas estrechas (sin turbo)
+                // Vacío central prolongado de 4 bloques con terrazas estrechas
                 for (let s = 0; s < 4; s++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], obstacle: null });
                     currentZ += SEGMENT_LENGTH;
@@ -656,7 +665,7 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: { lane: 5 } });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Terrazas alternadas con salto corto (plataformas cercanas: SIN TURBO)
+                // Terrazas alternadas con salto corto (plataformas cercanas normales)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
@@ -696,6 +705,7 @@ function generateTrack(stageNumber) {
 // ==========================================
 function startNewGame() {
     GameState.score = 0;
+    GameState.stageStartScore = 0;
     GameState.lives = 3;
     GameState.stage = 1;
     GameState.gameOver = false;
@@ -715,12 +725,13 @@ function startNewGame() {
     updateUI();
 }
 
-function resetShip(keepCheckpoint = false) {
+function resetShip() {
     const cfg = getStageConfig(GameState.stage);
     const ship = GameState.ship;
     ship.x = 0;
     ship.y = 0;
-    ship.z = keepCheckpoint ? ship.checkpointZ : 0;
+    ship.z = 0; // Siempre inicia desde el comienzo de la pista del nivel
+    ship.checkpointZ = 0;
     ship.vx = 0;
     ship.targetVx = 0;
     ship.vy = 0;
@@ -776,8 +787,14 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
         setTimeout(endGame, 1200);
     } else {
         setTimeout(() => {
-            resetShip(true);
-            GameState.stageIntroTimer = 1.2;
+            // Reinicia desde el comienzo del nivel actual hasta que logre superarlo
+            GameState.score = GameState.stageStartScore;
+            generateTrack(GameState.stage);
+            resetShip();
+            GameState.stageIntroTimer = 2.0;
+            const currentEnv = getStageEnv(GameState.stage);
+            addPopup(`¡NIVEL ${GameState.stage} - DESDE EL INICIO!`, currentEnv.trackBorder);
+            updateUI();
         }, 1300);
     }
 }
@@ -785,13 +802,14 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
 function nextStage() {
     audio.playStageClear();
     GameState.score += 1000 * GameState.stage;
+    GameState.stageStartScore = GameState.score;
     GameState.stage++;
     const env = getStageEnv(GameState.stage);
     const cfg = getStageConfig(GameState.stage);
     initAtmosphericParticles(env.theme);
     addPopup(`¡${env.name} - NIVEL ${GameState.stage}!`, env.trackBorder);
     generateTrack(GameState.stage);
-    resetShip(false);
+    resetShip();
     GameState.stageIntroTimer = 2.6;
     updateUI();
 }
@@ -964,11 +982,6 @@ function update(dt) {
     ship.z += ship.speed * dt;
     GameState.score += Math.floor(ship.speed * dt * 0.5);
 
-    // Update Checkpoint along track
-    if (ship.onGround && Math.floor(ship.z) % 250 < 10) {
-        ship.checkpointZ = Math.floor(ship.z);
-    }
-
     // 3. Vertical Physics (Gravity & Jumps)
     const GRAVITY = -340;
     ship.vy += GRAVITY * dt;
@@ -1012,21 +1025,14 @@ function update(dt) {
                     createLandingSparks();
                 }
 
-                // Interactive Pads
-                if (tileType === 2) {
-                    // Turbo Booster
-                    if (ship.boostTimer <= 0) {
-                        ship.boostTimer = 2.0;
-                        audio.playBoost();
-                        addPopup('¡TURBO!', '#ffb703');
-                    }
-                } else if (tileType === 3) {
-                    // Super Jump Pad
-                    ship.vy = 225;
+                // Interactive Pads: Plataforma de Salto
+                if (tileType === 2 || tileType === 3) {
+                    ship.vy = 215;
                     ship.onGround = false;
-                    ship.squash = 1.35;
+                    ship.squash = 1.40;
                     audio.playJump();
-                    addPopup('¡SUPER SALTO!', '#ff00ff');
+                    addPopup('¡PLATAFORMA DE SALTO!', '#00f5d4');
+                    createJumpPadSparks(ship.x, ship.y, ship.z);
                 }
             }
         }
@@ -1114,6 +1120,24 @@ function createLandingSparks() {
             life: 0.28,
             color: env.flankBorder,
             size: 1.5
+        });
+    }
+}
+
+function createJumpPadSparks(x, y, z) {
+    for (let i = 0; i < 20; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = 20 + Math.random() * 45;
+        GameState.particles.push({
+            x: x + (Math.random() - 0.5) * 10,
+            y: y + 2,
+            z: z + (Math.random() - 0.5) * 8,
+            vx: Math.cos(ang) * spd,
+            vy: 45 + Math.random() * 65,
+            vz: (Math.random() - 0.5) * 30,
+            life: 0.45 + Math.random() * 0.35,
+            color: Math.random() > 0.4 ? '#00f5d4' : '#ffffff',
+            size: 2.2
         });
     }
 }
@@ -1289,13 +1313,9 @@ function render() {
                 edgeColor = env.flankBorder;
             }
 
-            if (tile === 2) {
-                // Turbo Pad
-                fillColor = '#ffd000';
-                edgeColor = '#ffffff';
-            } else if (tile === 3) {
-                // Super Jump Pad
-                fillColor = '#ff00aa';
+            if (tile === 2 || tile === 3) {
+                // Plataforma de Salto (Launch Pad)
+                fillColor = '#00f5d4';
                 edgeColor = '#ffffff';
             } else if (tile === 9) {
                 // Finish Wormhole
@@ -1318,16 +1338,16 @@ function render() {
             ctx.lineWidth = Math.max(0.7, pNearL.scale * 0.45);
             ctx.stroke();
 
-            // Chevron Patterns on Turbo / Jump Pads
+            // Chevron Patterns on Plataforma de Salto
             if (tile === 2 || tile === 3) {
                 const pMidFar = project((laneLeftX + laneRightX) / 2, 0, zFar - 6, cam);
                 if (pMidFar) {
-                    ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = 1.4;
+                    ctx.strokeStyle = '#051b17';
+                    ctx.lineWidth = Math.max(1.2, pNearL.scale * 0.7);
                     ctx.beginPath();
-                    ctx.moveTo(pNearL.x + (pNearR.x - pNearL.x) * 0.25, pNearL.y - 1);
+                    ctx.moveTo(pNearL.x + (pNearR.x - pNearL.x) * 0.2, pNearL.y - 1);
                     ctx.lineTo(pMidFar.x, pMidFar.y);
-                    ctx.lineTo(pNearR.x - (pNearR.x - pNearL.x) * 0.25, pNearR.y - 1);
+                    ctx.lineTo(pNearR.x - (pNearR.x - pNearL.x) * 0.2, pNearR.y - 1);
                     ctx.stroke();
                 }
             }
