@@ -585,34 +585,35 @@ function applyTrackCurvature(segments) {
 
         let targetCurve = 0;
 
-        if (progress < 0.10) {
-            // 1. Pista de despegue recta inicial
+        if (progress < 0.08) {
+            // 1. Pista de despegue recta inicial (arranque limpio y vista al frente)
             targetCurve = 0;
-        } else if (progress < 0.38) {
-            // 2. Primer Gran Giro hacia la Derecha (curvatura suave y progresiva)
-            const localT = (progress - 0.10) / (0.38 - 0.10);
-            targetCurve = Math.sin(localT * Math.PI) * 1.25;
-        } else if (progress < 0.48) {
-            // 3. Recta de aceleración / saltos
+        } else if (progress < 0.42) {
+            // 2. Primer Gran Giro pronunciado hacia la Derecha
+            const localT = (progress - 0.08) / (0.42 - 0.08);
+            // Curva sostenida con rampa suave y meseta pronunciada
+            targetCurve = Math.pow(Math.sin(localT * Math.PI), 0.55) * 2.20;
+        } else if (progress < 0.50) {
+            // 3. Recta técnica de aceleración y saltos
             targetCurve = 0;
-        } else if (progress < 0.80) {
-            // 4. Segundo Gran Giro Profundo a la Derecha (curvatura pronunciada continua)
-            const localT = (progress - 0.48) / (0.80 - 0.48);
-            targetCurve = Math.sin(localT * Math.PI) * 1.55;
-        } else if (progress < 0.88) {
+        } else if (progress < 0.84) {
+            // 4. Segundo Gran Giro Profundo a la Derecha (Ultra pronunciada)
+            const localT = (progress - 0.50) / (0.84 - 0.50);
+            targetCurve = Math.pow(Math.sin(localT * Math.PI), 0.55) * 2.85;
+        } else if (progress < 0.90) {
             // 5. Recta con aros
             targetCurve = 0;
         } else {
-            // 6. Recta final de aproximación, gran salto y Portal Wormhole
+            // 6. Recta final de aproximación, gran salto con aro dorado y Portal Wormhole
             targetCurve = 0;
         }
 
         // Filtro paso bajo de aceleración angular para suavidad perfecta
-        currentDx += (targetCurve - currentDx) * 0.18;
+        currentDx += (targetCurve - currentDx) * 0.20;
         seg.curve = currentDx;
 
         seg.xNear = currentX;
-        currentX += currentDx * (seg.length / SEGMENT_LENGTH) * 3.6;
+        currentX += currentDx * (seg.length / SEGMENT_LENGTH) * 5.4;
         seg.xFar = currentX;
         seg.x = (seg.xNear + seg.xFar) / 2;
     }
@@ -1149,10 +1150,10 @@ function update(dt) {
     ship.vx += (ship.targetVx - ship.vx) * 15 * dt;
     ship.x += ship.vx * dt;
 
-    // Deriva centrífuga suave hacia el exterior (izquierda) en curvas a la derecha
+    // Deriva centrífuga hacia el exterior (izquierda) en curvas a la derecha
     const curve = getTrackCurvature(ship.z);
     if (curve > 0.05) {
-        const centrifugalDrift = curve * (ship.speed / 120) * 14 * dt;
+        const centrifugalDrift = curve * (ship.speed / 120) * 16 * dt;
         ship.x -= centrifugalDrift;
     }
 
@@ -1166,7 +1167,7 @@ function update(dt) {
     }
 
     // Smooth banking roll spring with curve lean
-    const targetRoll = (ship.vx / 115) * 0.40 + curve * 0.10;
+    const targetRoll = (ship.vx / 115) * 0.40 + curve * 0.12;
     ship.roll += (targetRoll - ship.roll) * 12 * dt;
 
     // Lateral nose yaw tilt
