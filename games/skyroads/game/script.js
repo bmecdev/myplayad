@@ -534,6 +534,91 @@ function updateKeyInputs() {
 }
 
 // ==========================================
+// 🌀 Track Curvature Engine (Rightward Curved Runway System)
+// ==========================================
+function getTrackCenterAtZ(z) {
+    const track = GameState.track;
+    if (!track || track.length === 0) return 0;
+
+    let idx = Math.floor(z / SEGMENT_LENGTH);
+    if (idx < 0) idx = 0;
+    if (idx >= track.length) idx = track.length - 1;
+
+    let seg = track[idx];
+    if (seg && (z < seg.z || z >= seg.z + seg.length)) {
+        if (z < seg.z) {
+            while (idx > 0 && z < track[idx].z) idx--;
+        } else {
+            while (idx < track.length - 1 && z >= track[idx].z + track[idx].length) idx++;
+        }
+        seg = track[idx];
+    }
+
+    if (seg) {
+        const segLen = seg.length || SEGMENT_LENGTH;
+        const t = Math.max(0, Math.min(1, (z - seg.z) / segLen));
+        const near = seg.xNear !== undefined ? seg.xNear : (seg.x || 0);
+        const far = seg.xFar !== undefined ? seg.xFar : (seg.x || 0);
+        return near + (far - near) * t;
+    }
+    return 0;
+}
+
+function getTrackCurvature(z) {
+    const track = GameState.track;
+    if (!track || track.length === 0) return 0;
+    let idx = Math.floor(z / SEGMENT_LENGTH);
+    if (idx < 0) idx = 0;
+    if (idx >= track.length) idx = track.length - 1;
+    const seg = track[idx];
+    return seg ? (seg.curve || 0) : 0;
+}
+
+function applyTrackCurvature(segments) {
+    const total = segments.length;
+    let currentX = 0;
+    let currentDx = 0;
+
+    for (let i = 0; i < total; i++) {
+        const seg = segments[i];
+        const progress = i / Math.max(1, total - 1); // 0.0 to 1.0
+
+        let targetCurve = 0;
+
+        if (progress < 0.10) {
+            // 1. Pista de despegue recta inicial
+            targetCurve = 0;
+        } else if (progress < 0.38) {
+            // 2. Primer Gran Giro hacia la Derecha (curvatura suave y progresiva)
+            const localT = (progress - 0.10) / (0.38 - 0.10);
+            targetCurve = Math.sin(localT * Math.PI) * 1.25;
+        } else if (progress < 0.48) {
+            // 3. Recta de aceleración / saltos
+            targetCurve = 0;
+        } else if (progress < 0.80) {
+            // 4. Segundo Gran Giro Profundo a la Derecha (curvatura pronunciada continua)
+            const localT = (progress - 0.48) / (0.80 - 0.48);
+            targetCurve = Math.sin(localT * Math.PI) * 1.55;
+        } else if (progress < 0.88) {
+            // 5. Recta con aros
+            targetCurve = 0;
+        } else {
+            // 6. Recta final de aproximación, gran salto y Portal Wormhole
+            targetCurve = 0;
+        }
+
+        // Filtro paso bajo de aceleración angular para suavidad perfecta
+        currentDx += (targetCurve - currentDx) * 0.18;
+        seg.curve = currentDx;
+
+        seg.xNear = currentX;
+        currentX += currentDx * (seg.length / SEGMENT_LENGTH) * 3.6;
+        seg.xFar = currentX;
+        seg.x = (seg.xNear + seg.xFar) / 2;
+    }
+}
+
+// ==========================================
 // 🗺️ Level Track Generators (2 Blocks of Distance Everywhere)
 // ==========================================
 function generateTrack(stageNumber) {
@@ -804,6 +889,9 @@ function generateTrack(stageNumber) {
     });
     currentZ += SEGMENT_LENGTH;
 
+    // Aplicar curvatura hacia la derecha a toda la pista
+    applyTrackCurvature(segments);
+
     GameState.track = segments;
     GameState.totalTrackLength = currentZ;
 }
@@ -869,13 +957,14 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
     audio.playCrash();
 
     const env = getStageEnv(GameState.stage);
+    const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
 
     // Create explosion debris particles
     for (let i = 0; i < 35; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 20 + Math.random() * 80;
         GameState.particles.push({
-            x: ship.x,
+            x: shipWorldX,
             y: ship.y + 4,
             z: ship.z,
             vx: Math.cos(ang) * spd,
@@ -1006,11 +1095,12 @@ function performJump() {
 function createJumpSparks() {
     const ship = GameState.ship;
     const env = getStageEnv(GameState.stage);
+    const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
     for (let i = 0; i < 14; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 15 + Math.random() * 35;
         GameState.particles.push({
-            x: ship.x + (Math.random() - 0.5) * 6,
+            x: shipWorldX + (Math.random() - 0.5) * 6,
             y: 0.5,
             z: ship.z - 2,
             vx: Math.cos(ang) * spd,
@@ -1059,6 +1149,13 @@ function update(dt) {
     ship.vx += (ship.targetVx - ship.vx) * 15 * dt;
     ship.x += ship.vx * dt;
 
+    // Deriva centrífuga suave hacia el exterior (izquierda) en curvas a la derecha
+    const curve = getTrackCurvature(ship.z);
+    if (curve > 0.05) {
+        const centrifugalDrift = curve * (ship.speed / 120) * 14 * dt;
+        ship.x -= centrifugalDrift;
+    }
+
     // Boundary clamp with safety margins across 11 lanes (-66 to +66)
     if (ship.x < -68) {
         ship.x = -68;
@@ -1068,8 +1165,8 @@ function update(dt) {
         ship.vx = 0;
     }
 
-    // Smooth banking roll spring
-    const targetRoll = (ship.vx / 115) * 0.40;
+    // Smooth banking roll spring with curve lean
+    const targetRoll = (ship.vx / 115) * 0.40 + curve * 0.10;
     ship.roll += (targetRoll - ship.roll) * 12 * dt;
 
     // Lateral nose yaw tilt
@@ -1140,7 +1237,7 @@ function update(dt) {
                     ship.squash = 1.35;
                     audio.playJump();
                     addPopup('¡PLATAFORMA DE SALTO!', '#00f5d4');
-                    createJumpPadSparks(ship.x, ship.y, ship.z);
+                    createJumpPadSparks(getTrackCenterAtZ(ship.z) + ship.x, ship.y, ship.z);
                 }
             }
         }
@@ -1180,10 +1277,12 @@ function update(dt) {
             const dz = Math.abs(ship.z - zMid);
 
             if (dz < 24) {
-                const ringX = seg.ring.x || 0;
+                const segCenterX = seg.x !== undefined ? seg.x : ((seg.xNear + seg.xFar) / 2 || 0);
+                const ringWorldX = segCenterX + (seg.ring.x || 0);
+                const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
                 const ringY = seg.ring.y || 26;
                 const shipCenterY = ship.y + 2;
-                const dist2D = Math.hypot(ship.x - ringX, shipCenterY - ringY);
+                const dist2D = Math.hypot(shipWorldX - ringWorldX, shipCenterY - ringY);
 
                 if (dist2D <= seg.ring.radius + 14) {
                     seg.ring.collected = true;
@@ -1192,7 +1291,7 @@ function update(dt) {
                     GameState.score += pts;
                     audio.playRing();
                     addPopup(`¡ARO +${pts} PTS!`, '#ffe600');
-                    createRingCollectSparks(ringX, ringY, zMid);
+                    createRingCollectSparks(ringWorldX, ringY, zMid);
                 }
             }
         }
@@ -1211,10 +1310,11 @@ function createExhaustParticles() {
     const ship = GameState.ship;
     if (ship.isCrashing || ship.isFalling) return;
     const env = getStageEnv(GameState.stage);
+    const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
 
     for (let i = 0; i < 2; i++) {
         GameState.particles.push({
-            x: ship.x + (Math.random() - 0.5) * 4,
+            x: shipWorldX + (Math.random() - 0.5) * 4,
             y: ship.y + 2 + ship.hoverOffset,
             z: ship.z - 4,
             vx: (Math.random() - 0.5) * 8,
@@ -1232,9 +1332,10 @@ function createWingtipTrails() {
     if (ship.isCrashing || ship.isFalling) return;
     if (Math.abs(ship.vx) > 35) {
         const env = getStageEnv(GameState.stage);
+        const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
         const tipX = ship.vx > 0 ? -12 : 12; // Outer wingtip streamer
         GameState.particles.push({
-            x: ship.x + tipX,
+            x: shipWorldX + tipX,
             y: ship.y + 1 + ship.hoverOffset,
             z: ship.z - 3,
             vx: (Math.random() - 0.5) * 4,
@@ -1250,10 +1351,11 @@ function createWingtipTrails() {
 function createLandingSparks() {
     const ship = GameState.ship;
     const env = getStageEnv(GameState.stage);
+    const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
     for (let i = 0; i < 12; i++) {
         const ang = Math.random() * Math.PI * 2;
         GameState.particles.push({
-            x: ship.x,
+            x: shipWorldX,
             y: 0.5,
             z: ship.z,
             vx: Math.cos(ang) * 35,
@@ -1391,12 +1493,13 @@ function render() {
     ctx.lineTo(CANVAS_WIDTH, HORIZON_Y);
     ctx.stroke();
 
-    // Camera follow calculation with smooth vertical elevation
+    // Camera follow calculation with smooth vertical elevation & track curvature tracking
     const ship = GameState.ship;
     const cam = GameState.camera;
-    cam.x = ship.x * 0.45;
-    cam.y = Math.max(22, (ship.y + ship.hoverOffset) * 0.35 + 28);
     cam.z = ship.z - 45;
+    const camTrackX = getTrackCenterAtZ(cam.z);
+    cam.x = camTrackX + ship.x * 0.45;
+    cam.y = Math.max(22, (ship.y + ship.hoverOffset) * 0.35 + 28);
 
     // 4. Render Track Segments (11 Lanes with 2-Block Separation & 3D Cliff Slabs)
     const visibleMaxZ = cam.z + 520;
@@ -1410,16 +1513,20 @@ function render() {
     visibleSegments.forEach(seg => {
         const zNear = seg.z;
         const zFar = seg.z + seg.length;
+        const xNearCenter = seg.xNear !== undefined ? seg.xNear : (seg.x || 0);
+        const xFarCenter = seg.xFar !== undefined ? seg.xFar : (seg.x || 0);
 
         for (let l = 0; l < LANES_COUNT; l++) {
             const tile = seg.tiles[l];
-            const laneLeftX = -TRACK_WIDTH / 2 + l * LANE_WIDTH;
-            const laneRightX = laneLeftX + LANE_WIDTH;
+            const laneLeftNearX = xNearCenter - TRACK_WIDTH / 2 + l * LANE_WIDTH;
+            const laneRightNearX = laneLeftNearX + LANE_WIDTH;
+            const laneLeftFarX = xFarCenter - TRACK_WIDTH / 2 + l * LANE_WIDTH;
+            const laneRightFarX = laneLeftFarX + LANE_WIDTH;
 
-            const pNearL = project(laneLeftX, 0, zNear, cam);
-            const pNearR = project(laneRightX, 0, zNear, cam);
-            const pFarL = project(laneLeftX, 0, zFar, cam);
-            const pFarR = project(laneRightX, 0, zFar, cam);
+            const pNearL = project(laneLeftNearX, 0, zNear, cam);
+            const pNearR = project(laneRightNearX, 0, zNear, cam);
+            const pFarL = project(laneLeftFarX, 0, zFar, cam);
+            const pFarR = project(laneRightFarX, 0, zFar, cam);
 
             if (!pNearL || !pNearR || !pFarL || !pFarR) continue;
 
@@ -1435,10 +1542,10 @@ function render() {
             }
 
             // Render 3D Slab Drop-Off Walls (Platform Thickness)
-            const pNearL_sub = project(laneLeftX, SLAB_DEPTH, zNear, cam);
-            const pNearR_sub = project(laneRightX, SLAB_DEPTH, zNear, cam);
-            const pFarL_sub = project(laneLeftX, SLAB_DEPTH, zFar, cam);
-            const pFarR_sub = project(laneRightX, SLAB_DEPTH, zFar, cam);
+            const pNearL_sub = project(laneLeftNearX, SLAB_DEPTH, zNear, cam);
+            const pNearR_sub = project(laneRightNearX, SLAB_DEPTH, zNear, cam);
+            const pFarL_sub = project(laneLeftFarX, SLAB_DEPTH, zFar, cam);
+            const pFarR_sub = project(laneRightFarX, SLAB_DEPTH, zFar, cam);
 
             // Left drop-off wall if facing a gap or outer flank
             if ((l === 0 || seg.tiles[l - 1] === 0) && pNearL && pFarL && pNearL_sub && pFarL_sub) {
@@ -1500,7 +1607,7 @@ function render() {
 
             // Chevron Patterns on Plataforma de Salto
             if (tile === 2 || tile === 3) {
-                const pMidFar = project((laneLeftX + laneRightX) / 2, 0, zFar - 6, cam);
+                const pMidFar = project((laneLeftFarX + laneRightFarX) / 2, 0, zFar - 6, cam);
                 if (pMidFar) {
                     ctx.strokeStyle = '#051b17';
                     ctx.lineWidth = Math.max(1.2, pNearL.scale * 0.7);
@@ -1553,38 +1660,40 @@ function renderSkyAndCelestial(env) {
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+    const camParallaxX = -((GameState.camera.x || 0) * 0.08);
+
     if (env.theme === 'lunar') {
         // Level 1: Crescent Moon & Orbital Space Station
         ctx.fillStyle = '#eafff2';
         ctx.beginPath();
-        ctx.arc(155, 22, 12, 0, Math.PI * 2);
+        ctx.arc(155 + camParallaxX, 22, 12, 0, Math.PI * 2);
         ctx.fill();
         // Moon Crater shadow
         ctx.fillStyle = env.skyMid;
         ctx.beginPath();
-        ctx.arc(151, 20, 11, 0, Math.PI * 2);
+        ctx.arc(151 + camParallaxX, 20, 11, 0, Math.PI * 2);
         ctx.fill();
 
         // Orbital space station
         ctx.fillStyle = '#00d2ff';
-        ctx.fillRect(45, 28, 8, 2);
+        ctx.fillRect(45 + camParallaxX, 28, 8, 2);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(48, 26, 2, 6);
+        ctx.fillRect(48 + camParallaxX, 26, 2, 6);
         // Blinking beacon
         if (Math.sin(performance.now() * 0.006) > 0) {
             ctx.fillStyle = '#ff4d6d';
-            ctx.fillRect(48, 25, 2, 1);
+            ctx.fillRect(48 + camParallaxX, 25, 2, 1);
         }
     } else if (env.theme === 'mars') {
         // Level 2: Jagged Volcanic Mountain Ridges & Giant Phobos Moon
         ctx.fillStyle = '#24060d';
         ctx.beginPath();
         ctx.moveTo(0, HORIZON_Y);
-        ctx.lineTo(25, 52);
-        ctx.lineTo(55, HORIZON_Y);
-        ctx.lineTo(95, 48);
-        ctx.lineTo(135, HORIZON_Y);
-        ctx.lineTo(170, 50);
+        ctx.lineTo(25 + camParallaxX * 0.5, 52);
+        ctx.lineTo(55 + camParallaxX * 0.5, HORIZON_Y);
+        ctx.lineTo(95 + camParallaxX * 0.5, 48);
+        ctx.lineTo(135 + camParallaxX * 0.5, HORIZON_Y);
+        ctx.lineTo(170 + camParallaxX * 0.5, 50);
         ctx.lineTo(CANVAS_WIDTH, HORIZON_Y);
         ctx.closePath();
         ctx.fill();
@@ -1592,44 +1701,44 @@ function renderSkyAndCelestial(env) {
         // Giant Red Moon Phobos
         ctx.fillStyle = '#872418';
         ctx.beginPath();
-        ctx.arc(52, 26, 16, 0, Math.PI * 2);
+        ctx.arc(52 + camParallaxX, 26, 16, 0, Math.PI * 2);
         ctx.fill();
         // Phobos craters
         ctx.fillStyle = '#5c130b';
         ctx.beginPath();
-        ctx.arc(48, 22, 4, 0, Math.PI * 2);
+        ctx.arc(48 + camParallaxX, 22, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(58, 30, 3, 0, Math.PI * 2);
+        ctx.arc(58 + camParallaxX, 30, 3, 0, Math.PI * 2);
         ctx.fill();
 
         // Small moon Deimos
         ctx.fillStyle = '#ff8500';
         ctx.beginPath();
-        ctx.arc(162, 18, 3.5, 0, Math.PI * 2);
+        ctx.arc(162 + camParallaxX, 18, 3.5, 0, Math.PI * 2);
         ctx.fill();
     } else if (env.theme === 'jade') {
         // Level 3: Toxic Aurora Clouds & Ringed Planet
         ctx.fillStyle = 'rgba(57, 255, 20, 0.07)';
         ctx.beginPath();
-        ctx.ellipse(CANVAS_WIDTH / 2, 25, 80, 18, -0.1, 0, Math.PI * 2);
+        ctx.ellipse(CANVAS_WIDTH / 2 + camParallaxX * 0.4, 25, 80, 18, -0.1, 0, Math.PI * 2);
         ctx.fill();
 
         // Ringed Gas Giant
         ctx.fillStyle = '#175432';
         ctx.beginPath();
-        ctx.arc(145, 26, 14, 0, Math.PI * 2);
+        ctx.arc(145 + camParallaxX, 26, 14, 0, Math.PI * 2);
         ctx.fill();
 
         // Planet Neon Rings
         ctx.strokeStyle = '#39ff14';
         ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.ellipse(145, 26, 26, 6, -0.3, 0, Math.PI * 2);
+        ctx.ellipse(145 + camParallaxX, 26, 26, 6, -0.3, 0, Math.PI * 2);
         ctx.stroke();
     } else if (env.theme === 'synthwave') {
         // Level 4: Giant 80s Striped Retro Sun
-        const sunX = CANVAS_WIDTH / 2;
+        const sunX = CANVAS_WIDTH / 2 + camParallaxX;
         const sunY = 48;
         const sunR = 22;
 
@@ -1667,7 +1776,8 @@ function renderStarsAndAtmosphere(env) {
 
 // Draw 3D Extruded Obstacle Block
 function drawObstacleCube(seg, cam) {
-    const laneX = -TRACK_WIDTH / 2 + seg.obstacle.lane * LANE_WIDTH + LANE_WIDTH / 2;
+    const segCenterX = seg.x !== undefined ? seg.x : ((seg.xNear + seg.xFar) / 2 || 0);
+    const laneX = segCenterX - TRACK_WIDTH / 2 + seg.obstacle.lane * LANE_WIDTH + LANE_WIDTH / 2;
     const zMid = seg.z + SEGMENT_LENGTH / 2;
     const h = 14;
     const hw = 4.8;
@@ -1712,7 +1822,8 @@ function drawObstacleCube(seg, cam) {
 // Draw Finish Wormhole Gate
 function drawWormholePortal(seg, cam) {
     const zGate = seg.z + SEGMENT_LENGTH / 2;
-    const pCenter = project(0, 24, zGate, cam);
+    const segCenterX = seg.x !== undefined ? seg.x : ((seg.xNear + seg.xFar) / 2 || 0);
+    const pCenter = project(segCenterX, 24, zGate, cam);
     if (!pCenter) return;
 
     const radius = 38 * pCenter.scale;
@@ -1734,8 +1845,9 @@ function drawFloatingRing(seg, cam) {
     if (!ring) return;
 
     const zMid = seg.z + SEGMENT_LENGTH / 2;
+    const segCenterX = seg.x !== undefined ? seg.x : ((seg.xNear + seg.xFar) / 2 || 0);
     const ringY = (ring.y !== undefined) ? ring.y : 26;
-    const pCenter = project(ring.x || 0, ringY, zMid, cam);
+    const pCenter = project(segCenterX + (ring.x || 0), ringY, zMid, cam);
     if (!pCenter) return;
 
     const scale = pCenter.scale;
@@ -1819,7 +1931,8 @@ function drawFloatingRing(seg, cam) {
 function drawShipShadow(ship, cam) {
     if (ship.isFalling || ship.isCrashing) return;
 
-    const pShadow = project(ship.x, 0, ship.z, cam);
+    const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
+    const pShadow = project(shipWorldX, 0, ship.z, cam);
     if (!pShadow) return;
 
     const shadowW = 14 * pShadow.scale;
@@ -1834,7 +1947,8 @@ function drawShipShadow(ship, cam) {
 
 // Draw Player's Spaceship with Non-Linear Movement, Stabilizers & Asymmetric Thrusters
 function drawSpaceship(ship, cam) {
-    const p = project(ship.x, ship.y + ship.hoverOffset, ship.z, cam);
+    const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
+    const p = project(shipWorldX, ship.y + ship.hoverOffset, ship.z, cam);
     if (!p) return;
 
     const scale = p.scale;
