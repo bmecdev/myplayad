@@ -559,20 +559,23 @@ function generateTrack(stageNumber) {
 
         if (stageNumber === 1) {
             // ==========================================
-            // NIVEL 1: FÁCIL (Saltos cercanos normales, saltos lejanos con plataforma de salto)
+            // NIVEL 1: FÁCIL (Saltos cercanos con aros, plataformas de salto con super aros)
             // ==========================================
-            if (rand < 0.40) {
-                // Salto cercano: 2 bloques de distancia -> Plataforma cercana normal
+            if (rand < 0.35) {
+                // Salto cercano: 2 bloques de distancia con Aro intermedio (+250)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Vacío 1
+                segments.push({
+                    z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null,
+                    ring: { x: 0, y: 22, radius: 16, collected: false, points: 250 }
+                }); // Vacío 1 con aro
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Vacío 2
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje seguro
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Aterrizaje
                 currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.65) {
-                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
+            } else if (rand < 0.70) {
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO DORADO (+500)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
@@ -582,16 +585,16 @@ function generateTrack(stageNumber) {
                         length: SEGMENT_LENGTH,
                         tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         obstacle: null,
-                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                        ring: hasRing ? { x: 0, y: 28, radius: 18, collected: false, points: 500 } : null
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista de aterrizaje 1
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista 1
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista de aterrizaje 2
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista 2
                 currentZ += SEGMENT_LENGTH;
             } else if (rand < 0.85) {
-                // Terrazas laterales continuas (plataformas cercanas)
+                // Terrazas laterales continuas
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
@@ -603,21 +606,24 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 2) {
             // ==========================================
-            // NIVEL 2: INTERMEDIO (Huecos cortos normales, saltos lejanos con plataforma de salto y aros)
+            // NIVEL 2: INTERMEDIO (Huecos cortos con aros, plataformas de salto con super aros)
             // ==========================================
-            if (rand < 0.35) {
-                // Salto cercano: 2 bloques de distancia -> Plataforma normal
+            if (rand < 0.30) {
+                // Salto cercano: 2 bloques de distancia con Aro (+250)
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 1
+                segments.push({
+                    z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null,
+                    ring: { x: 0, y: 22, radius: 16, collected: false, points: 250 }
+                });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 2
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.60) {
-                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
+            } else if (rand < 0.65) {
+                // Salto lejano: 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO DORADO (+500)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
                     const hasRing = (v === 1);
@@ -626,7 +632,7 @@ function generateTrack(stageNumber) {
                         length: SEGMENT_LENGTH,
                         tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         obstacle: null,
-                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                        ring: hasRing ? { x: 0, y: 28, radius: 18, collected: false, points: 500 } : null
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
@@ -634,7 +640,7 @@ function generateTrack(stageNumber) {
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.80) {
+            } else if (rand < 0.82) {
                 // Vacío central de 2 bloques: obliga a circular por los costados
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
@@ -651,9 +657,9 @@ function generateTrack(stageNumber) {
             }
         } else if (stageNumber === 3) {
             // ==========================================
-            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag flotante, mega salto con plataforma de salto y aros)
+            // NIVEL 3: DIFÍCIL (Gran Vacío Central, zig-zag con aros, mega salto con plataforma de salto y aros)
             // ==========================================
-            if (rand < 0.35) {
+            if (rand < 0.30) {
                 // Gran vacío central de 3 bloques continuos (flancos normales)
                 for (let s = 0; s < 3; s++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
@@ -661,21 +667,24 @@ function generateTrack(stageNumber) {
                 }
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.65) {
-                // Zig-zag flotante: Flanco izq -> Salto de 2 bloques -> Flanco der
+            } else if (rand < 0.60) {
+                // Zig-zag flotante: Flanco izq -> Salto con Aro (+250) -> Flanco der
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 1
+                segments.push({
+                    z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null,
+                    ring: { x: 0, y: 22, radius: 16, collected: false, points: 250 }
+                });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null }); // Bloque 2
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
+                // Super salto sobre vacío lejano de 3 bloques -> PLATAFORMA DE SALTO (Tile 3) con ARO DORADO (+500)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 for (let v = 0; v < 3; v++) {
                     const hasRing = (v === 1);
@@ -684,22 +693,22 @@ function generateTrack(stageNumber) {
                         length: SEGMENT_LENGTH,
                         tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         obstacle: null,
-                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                        ring: hasRing ? { x: 0, y: 28, radius: 18, collected: false, points: 500 } : null
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista limpia de aterrizaje
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
             }
         } else {
             // ==========================================
-            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Plataforma de Salto y Aros, saltos cercanos normales)
+            // NIVEL 4+: EXPERTO (Mega abismos lejanos con Plataforma de Salto y Aros, saltos cercanos)
             // ==========================================
-            if (rand < 0.40) {
-                // Mega Salto Chasm de 3 bloques de distancia (96 unidades de vacío) -> PLATAFORMA DE SALTO (Tile 3) con ARO FLOTANTE
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null }); // Plataforma de Salto
+            if (rand < 0.45) {
+                // Mega Salto Chasm de 3 bloques de distancia -> PLATAFORMA DE SALTO (Tile 3) con ARO DORADO (+500)
+                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
                 for (let g = 0; g < 3; g++) {
                     const hasRing = (g === 1);
@@ -708,7 +717,7 @@ function generateTrack(stageNumber) {
                         length: SEGMENT_LENGTH,
                         tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         obstacle: null,
-                        ring: hasRing ? { x: 0, y: 52, radius: 26, collected: false, points: 500 } : null
+                        ring: hasRing ? { x: 0, y: 28, radius: 18, collected: false, points: 500 } : null
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
@@ -716,7 +725,7 @@ function generateTrack(stageNumber) {
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-            } else if (rand < 0.70) {
+            } else if (rand < 0.75) {
                 // Vacío central prolongado de 4 bloques con terrazas estrechas
                 for (let s = 0; s < 4; s++) {
                     segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], obstacle: null });
@@ -725,10 +734,13 @@ function generateTrack(stageNumber) {
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: { lane: 5 } });
                 currentZ += SEGMENT_LENGTH;
             } else {
-                // Terrazas alternadas con salto corto (plataformas cercanas normales)
+                // Terrazas alternadas con salto y aro
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null });
+                segments.push({
+                    z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], obstacle: null,
+                    ring: { x: 0, y: 22, radius: 16, collected: false, points: 250 }
+                });
                 currentZ += SEGMENT_LENGTH;
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
                 currentZ += SEGMENT_LENGTH;
@@ -736,8 +748,11 @@ function generateTrack(stageNumber) {
         }
     }
 
-    // Final Runway & Wormhole Gate
-    for (let i = 0; i < 6; i++) {
+    // ==========================================
+    // 🌌 Gran Salto Final con ARO antes de llegar al otro nivel
+    // ==========================================
+    // 1. Pista de aproximación final (2 segmentos sólidos)
+    for (let i = 0; i < 2; i++) {
         segments.push({
             z: currentZ,
             length: SEGMENT_LENGTH,
@@ -747,7 +762,40 @@ function generateTrack(stageNumber) {
         currentZ += SEGMENT_LENGTH;
     }
 
-    // Finish Gate segment
+    // 2. Plataforma de Salto Final obligatoria antes del portal
+    segments.push({
+        z: currentZ,
+        length: SEGMENT_LENGTH,
+        tiles: [1, 1, 0, 0, 3, 3, 3, 0, 0, 1, 1],
+        obstacle: null
+    });
+    currentZ += SEGMENT_LENGTH;
+
+    // 3. Abismo final con ARO ESTELAR (+500 PTS) justo antes del portal
+    for (let v = 0; v < 3; v++) {
+        const isMiddle = (v === 1);
+        segments.push({
+            z: currentZ,
+            length: SEGMENT_LENGTH,
+            tiles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            obstacle: null,
+            ring: isMiddle ? { x: 0, y: 28, radius: 18, collected: false, points: 500 } : null
+        });
+        currentZ += SEGMENT_LENGTH;
+    }
+
+    // 4. Pista de aterrizaje final (2 segmentos sólidos)
+    for (let i = 0; i < 2; i++) {
+        segments.push({
+            z: currentZ,
+            length: SEGMENT_LENGTH,
+            tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1],
+            obstacle: null
+        });
+        currentZ += SEGMENT_LENGTH;
+    }
+
+    // 5. Finish Gate segment (Wormhole Portal al siguiente nivel)
     segments.push({
         z: currentZ,
         length: SEGMENT_LENGTH,
@@ -1087,9 +1135,9 @@ function update(dt) {
 
                 // Interactive Pads: Plataforma de Salto
                 if (tileType === 2 || tileType === 3) {
-                    ship.vy = 215;
+                    ship.vy = 180;
                     ship.onGround = false;
-                    ship.squash = 1.40;
+                    ship.squash = 1.35;
                     audio.playJump();
                     addPopup('¡PLATAFORMA DE SALTO!', '#00f5d4');
                     createJumpPadSparks(ship.x, ship.y, ship.z);
@@ -1131,13 +1179,13 @@ function update(dt) {
             const zMid = seg.z + SEGMENT_LENGTH / 2;
             const dz = Math.abs(ship.z - zMid);
 
-            if (dz < 18) {
+            if (dz < 24) {
                 const ringX = seg.ring.x || 0;
-                const ringY = seg.ring.y || 52;
-                const shipCenterY = ship.y + 3;
+                const ringY = seg.ring.y || 26;
+                const shipCenterY = ship.y + 2;
                 const dist2D = Math.hypot(ship.x - ringX, shipCenterY - ringY);
 
-                if (dist2D <= seg.ring.radius + 8) {
+                if (dist2D <= seg.ring.radius + 14) {
                     seg.ring.collected = true;
                     seg.ring.collectAnim = 0.5;
                     const pts = seg.ring.points || 500;
@@ -1686,11 +1734,13 @@ function drawFloatingRing(seg, cam) {
     if (!ring) return;
 
     const zMid = seg.z + SEGMENT_LENGTH / 2;
-    const pCenter = project(ring.x || 0, ring.y || 52, zMid, cam);
+    const ringY = (ring.y !== undefined) ? ring.y : 26;
+    const pCenter = project(ring.x || 0, ringY, zMid, cam);
     if (!pCenter) return;
 
     const scale = pCenter.scale;
-    const r = ring.radius * scale;
+    const ringRadius = (ring.radius !== undefined) ? ring.radius : 18;
+    const r = ringRadius * scale;
     if (r < 2) return;
 
     const time = performance.now() * 0.005;
@@ -1750,13 +1800,18 @@ function drawFloatingRing(seg, cam) {
         ctx.fill();
     }
 
-    // 5. Etiqueta "+500" flotante en el centro
-    if (scale > 0.0035 && scale < 0.02) {
-        ctx.fillStyle = 'rgba(255, 230, 0, 0.9)';
-        ctx.font = `${Math.max(6, Math.floor(180 * scale))}px 'Press Start 2P', monospace`;
+    // 5. Etiqueta de puntos flotante en el centro del aro
+    if (scale > 0.35 && scale < 2.5) {
+        const ptsText = `+${ring.points || 500}`;
+        const fontSize = Math.max(5, Math.min(8, Math.round(5 * scale)));
+        ctx.font = `${fontSize}px 'Press Start 2P', monospace`;
+        ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('+500', pCenter.x, pCenter.y);
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 3;
+        ctx.fillText(ptsText, pCenter.x, pCenter.y);
+        ctx.shadowBlur = 0;
     }
 }
 
