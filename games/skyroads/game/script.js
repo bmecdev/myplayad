@@ -2246,7 +2246,13 @@ function updateQrCode() {
 
 function connectSignaling() {
     updateQrCode();
-    const wsUrl = `wss://${CONFIG.SIGNALING_SERVER_URL || 'signaling.myplayad.com'}`;
+    const serverIp = CONFIG.SIGNALING_SERVER_IP || window.location.hostname;
+    const serverPort = CONFIG.SIGNALING_SERVER_PORT || '8080';
+    const serverUrl = CONFIG.SIGNALING_SERVER_URL || `${serverIp}:${serverPort}`;
+    const wsUrl = serverUrl.startsWith('ws://') || serverUrl.startsWith('wss://')
+        ? serverUrl
+        : `wss://${serverUrl}`;
+
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -2262,26 +2268,32 @@ function connectSignaling() {
     socket.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data);
-            const senderId = data.senderId || data.controllerId;
+            const playerId = data.playerId;
 
             if (data.type === 'offer') {
                 const pc = new RTCPeerConnection(getIceConfig());
-                peerConnections.set(senderId, pc);
+                peerConnections.set(playerId, pc);
 
                 pc.ondatachannel = (e) => {
                     const dc = e.channel;
-                    dataChannels.set(senderId, dc);
-                    setupDataChannel(dc, senderId);
+                    dataChannels.set(playerId, dc);
+                    setupDataChannel(dc, playerId);
                 };
 
                 pc.onicecandidate = (e) => {
-                    if (e.candidate) {
+                    if (e.candidate && socket && socket.readyState === WebSocket.OPEN) {
                         socket.send(JSON.stringify({
                             type: 'candidate',
                             candidate: e.candidate,
-                            targetId: senderId,
+                            playerId: playerId,
                             roomId: GameState.roomId
                         }));
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                        handleControllerDisconnect(playerId);
                     }
                 };
 
@@ -2289,20 +2301,42 @@ function connectSignaling() {
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
 
-                socket.send(JSON.stringify({
-                    type: 'answer',
-                    sdp: answer.sdp,
-                    targetId: senderId,
-                    roomId: GameState.roomId
-                }));
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        type: 'answer',
+                        sdp: answer.sdp,
+                        playerId: playerId,
+                        roomId: GameState.roomId
+                    }));
+                }
             } else if (data.type === 'candidate') {
-                const pc = peerConnections.get(senderId);
-                if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                const pc = peerConnections.get(playerId);
+                if (pc && data.candidate) {
+                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                }
+            } else if (data.type === 'controller_connected') {
+                waitingOverlay.classList.add('hidden');
+            } else if (data.type === 'controller_disconnected') {
+                handleControllerDisconnect(data.playerId);
             }
-        } catch (err) {}
+        } catch (err) {
+            console.error('Error procesando señalización:', err);
+        }
     };
 
     socket.onclose = () => setTimeout(connectSignaling, 3000);
+}
+
+function handleControllerDisconnect(playerId) {
+    const pc = peerConnections.get(playerId);
+    if (pc) {
+        try { pc.close(); } catch (e) {}
+    }
+    peerConnections.delete(playerId);
+    dataChannels.delete(playerId);
+    if (peerConnections.size === 0) {
+        waitingOverlay.classList.remove('hidden');
+    }
 }
 
 function setupDataChannel(dc, senderId) {
@@ -2311,17 +2345,14 @@ function setupDataChannel(dc, senderId) {
     };
 
     dc.onclose = () => {
-        dataChannels.delete(senderId);
-        if (dataChannels.size === 0) {
-            waitingOverlay.classList.remove('hidden');
-        }
+        handleControllerDisconnect(senderId);
     };
 
     dc.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'join') {
-                GameState.currentNickname = data.nickname || 'Pilot';
+            if (data.type === 'join' || data.type === 'nickname') {
+                GameState.currentNickname = data.nickname || data.value || 'Pilot';
                 playerNickElement.textContent = `PILOT: ${GameState.currentNickname.toUpperCase()}`;
                 startNewGame();
             } else if (data.type === 'input') {

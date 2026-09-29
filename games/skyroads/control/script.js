@@ -133,46 +133,84 @@ const mobileAudio = new MobileAudio();
 // ==========================================
 async function initConnection() {
     status.textContent = 'Conectando al servidor...';
+    status.style.color = '#7fae94';
 
-    const wsUrl = `wss://${CONFIG.SIGNALING_SERVER_URL || 'signaling.myplayad.com'}`;
-    socket = new WebSocket(wsUrl);
+    const serverIp = CONFIG.SIGNALING_SERVER_IP || window.location.hostname;
+    const serverPort = CONFIG.SIGNALING_SERVER_PORT || '8080';
+    const signalingUrl = CONFIG.SIGNALING_SERVER_URL || `${serverIp}:${serverPort}`;
+    const wsUrl = signalingUrl.startsWith('ws://') || signalingUrl.startsWith('wss://')
+        ? signalingUrl
+        : `wss://${signalingUrl}`;
 
-    socket.onopen = () => {
-        status.textContent = 'Buscando pantalla...';
-        socket.send(JSON.stringify({
-            type: 'register',
-            role: 'controller',
-            roomId: currentRoomId
-        }));
-    };
+    try {
+        socket = new WebSocket(wsUrl);
 
-    socket.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
+        socket.onopen = () => {
+            status.textContent = 'Buscando pantalla...';
+            socket.send(JSON.stringify({
+                type: 'register',
+                role: 'controller',
+                roomId: currentRoomId
+            }));
+        };
 
-        if (data.type === 'registered') {
-            status.textContent = 'Pantalla encontrada. Enlazando...';
-            setupWebRTC();
-        } else if (data.type === 'answer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(data));
-        } else if (data.type === 'candidate') {
-            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } else if (data.type === 'error') {
-            status.textContent = 'Error: ' + data.message;
+        socket.onmessage = async (event) => {
+            try {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'host_ready') {
+                    status.textContent = 'Pantalla encontrada. Enlazando...';
+                    setupWebRTC();
+                } else if (data.type === 'answer') {
+                    if (pc) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data));
+                        status.textContent = '⚡ ENLACE ACTIVO';
+                    }
+                } else if (data.type === 'candidate') {
+                    if (pc && data.candidate) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (err) {
+                            console.warn('Error candidate:', err);
+                        }
+                    }
+                } else if (data.type === 'error') {
+                    if (data.message === 'SALA_LLENA' || data.message === 'SALA_OCUPADA') {
+                        status.textContent = 'SALA OCUPADA - RECARGA LA PANTALLA';
+                        status.style.color = '#ffb703';
+                        alert('La sala actual ya tiene un jugador conectado o la sesión anterior sigue cerrándose. Por favor recarga la pantalla grande (F5) para generar un nuevo código QR limpio.');
+                    } else {
+                        status.textContent = 'Error: ' + data.message;
+                        status.style.color = '#ff4d6d';
+                    }
+                    roomSelection.style.display = 'block';
+                }
+            } catch (err) {
+                console.error('Error JSON en socket:', err);
+            }
+        };
+
+        socket.onerror = () => {
+            status.textContent = 'Error de conexión';
+            status.style.color = '#ff4d6d';
             roomSelection.style.display = 'block';
-        }
-    };
+        };
 
-    socket.onerror = () => {
-        status.textContent = 'Error de conexión';
-        roomSelection.style.display = 'block';
-    };
+        socket.onclose = () => {
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                // Si la partida no terminó normalmente
+            }
+        };
+    } catch (e) {
+        console.error('Excep WS:', e);
+    }
 }
 
 async function setupWebRTC() {
     pc = new RTCPeerConnection(getIceConfig());
 
     pc.onicecandidate = (event) => {
-        if (event.candidate) {
+        if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
                 type: 'candidate',
                 candidate: event.candidate,
@@ -181,7 +219,18 @@ async function setupWebRTC() {
         }
     };
 
-    dataChannel = pc.createDataChannel('controls', { ordered: false });
+    pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        if (state === 'disconnected' || state === 'failed') {
+            status.textContent = 'Desconectado';
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                container.style.display = 'none';
+                roomSelection.style.display = 'block';
+            }
+        }
+    };
+
+    dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
         status.textContent = '⚡ ENLACE ACTIVO';
@@ -191,7 +240,8 @@ async function setupWebRTC() {
         // Enviar evento de inicio con nickname
         dataChannel.send(JSON.stringify({
             type: 'join',
-            nickname: nickname
+            nickname: nickname,
+            value: nickname
         }));
 
         if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
@@ -216,14 +266,21 @@ async function setupWebRTC() {
 
     dataChannel.onclose = () => {
         status.textContent = 'Desconectado';
-        if (thanksScreen.style.display === 'none') {
+        if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+            container.style.display = 'none';
             roomSelection.style.display = 'block';
         }
     };
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    socket.send(JSON.stringify({ ...offer, roomId: currentRoomId }));
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'offer',
+            sdp: offer.sdp,
+            roomId: currentRoomId
+        }));
+    }
 }
 
 function showThanks(finalScore) {
@@ -399,12 +456,18 @@ window.addEventListener('DOMContentLoaded', () => {
     const roomParam = urlParams.get('room');
     if (roomParam) {
         currentRoomId = roomParam.toUpperCase();
-        status.textContent = `Sala: ${currentRoomId}`;
+        status.textContent = `Sala: ${currentRoomId} - INGRESA TU NICKNAME`;
     }
 
     const savedNick = localStorage.getItem('skyroads_nickname');
     if (savedNick && nicknameInput) {
         nicknameInput.value = savedNick;
+    }
+
+    if (nicknameInput) {
+        nicknameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && connectBtn) connectBtn.click();
+        });
     }
 
     if (connectBtn) {
@@ -417,6 +480,21 @@ window.addEventListener('DOMContentLoaded', () => {
             if (!currentRoomId) {
                 currentRoomId = 'TEST';
             }
+
+            // Cerrar conexiones previas antes de crear una nueva
+            if (dataChannel) {
+                try { dataChannel.close(); } catch (e) {}
+                dataChannel = null;
+            }
+            if (pc) {
+                try { pc.close(); } catch (e) {}
+                pc = null;
+            }
+            if (socket) {
+                try { socket.close(); } catch (e) {}
+                socket = null;
+            }
+
             initConnection();
         });
     }
