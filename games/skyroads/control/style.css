@@ -162,58 +162,80 @@ body {
     }
 }
 
-/* Panel de Dirección (Giro Izquierda / Derecha) */
+/* Panel de Dirección (Slider Centrado) */
 .steering-panel {
     display: flex;
     flex-direction: column;
-    gap: 12px;
     justify-content: center;
-}
-
-.steer-btn {
-    background: #0d212b;
-    border: 2px solid var(--primary);
-    color: var(--primary);
-    padding: 18px;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 14px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 210, 255, 0.2);
-    cursor: pointer;
-}
-.steer-btn:active {
-    background: var(--primary);
-    color: #03080e;
-    box-shadow: 0 0 20px rgba(0, 210, 255, 0.8);
-    transform: scale(0.96);
+    align-items: center;
+    width: 100%;
 }
 
 .touch-track {
-    background: #091319;
-    border: 1px dashed rgba(0, 210, 255, 0.4);
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
+    background: #081217;
+    border: 2px solid rgba(0, 210, 255, 0.45);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 440px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: relative;
     overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.8), 0 4px 15px rgba(0, 210, 255, 0.15);
+    cursor: grab;
 }
-.touch-track span {
-    font-family: 'VT323', monospace;
-    font-size: 16px;
-    color: #6a9ab5;
+
+.touch-track:active {
+    cursor: grabbing;
+    border-color: var(--primary);
+    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 210, 255, 0.4);
+}
+
+.track-center-notch {
+    position: absolute;
+    top: 12%;
+    bottom: 12%;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    background: rgba(0, 210, 255, 0.35);
     pointer-events: none;
 }
+
+.touch-track span {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: rgba(0, 210, 255, 0.75);
+    text-shadow: 0 0 6px rgba(0, 210, 255, 0.4);
+    pointer-events: none;
+    z-index: 1;
+}
+
 .touch-slider {
     position: absolute;
-    top: 0;
-    bottom: 0;
+    top: 5px;
+    bottom: 5px;
     left: 50%;
-    width: 24px;
-    margin-left: -12px;
-    background: rgba(0, 210, 255, 0.35);
-    border-radius: 4px;
+    width: 44px;
+    margin-left: -22px;
+    background: linear-gradient(180deg, #00f5d4 0%, #00bbf9 100%);
+    border: 1px solid #eafff2;
+    border-radius: 12px;
+    box-shadow: 0 0 16px rgba(0, 245, 212, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.8);
     pointer-events: none;
-    transition: left 0.05s ease-out;
+    transition: left 0.04s ease-out, transform 0.1s ease;
+    z-index: 2;
+}
+
+.touch-track:active .touch-slider {
+    transform: scale(1.06);
+    box-shadow: 0 0 24px rgba(0, 245, 212, 1), inset 0 1px 3px rgba(255, 255, 255, 0.95);
 }
 
 /* Panel de Acciones (Salto y Turbo) */

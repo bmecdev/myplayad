@@ -6,7 +6,7 @@
     <title>Skyroads Clon Mobile Controller</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
     <div id="status">INGRESA TU NICKNAME</div>
@@ -38,14 +38,13 @@
 
     <!-- Controles de Vuelo Táctiles -->
     <div class="flight-container" id="joystick-container" style="display: none;">
-        <!-- Panel Izquierdo: Dirección -->
+        <!-- Panel de Dirección: Slider Centrado -->
         <div class="steering-panel">
-            <button class="nav-btn steer-btn" id="btn-left" data-dir="LEFT">◀ IZQ</button>
             <div class="touch-track" id="touch-track">
+                <div class="track-center-notch"></div>
                 <span>◀ DESLIZA PARA GIRAR ▶</span>
                 <div class="touch-slider" id="touch-slider"></div>
             </div>
-            <button class="nav-btn steer-btn" id="btn-right" data-dir="RIGHT">DER ▶</button>
         </div>
 
         <!-- Panel Derecho: Acciones (Salto y Turbo) -->
@@ -62,6 +61,6 @@
     </div>
 
     <script src="config.js?v=1"></script>
-    <script src="script.js?v=13"></script>
+    <script src="script.js?v=14"></script>
 </body>
 </html>

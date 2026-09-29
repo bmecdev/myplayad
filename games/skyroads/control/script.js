@@ -8,8 +8,6 @@ const roomSelection = document.getElementById('room-selection');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
 const btnJump = document.getElementById('btn-jump');
 const btnTurbo = document.getElementById('btn-turbo');
 const btnBrake = document.getElementById('btn-brake');
@@ -474,30 +472,7 @@ if (btnBrake) {
     btnBrake.addEventListener('pointercancel', () => sendAction('NORMAL_SPEED'));
 }
 
-// 4. Botones de Dirección (IZQ / DER)
-if (btnLeft) {
-    btnLeft.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        mobileAudio.playClick();
-        if (navigator.vibrate) navigator.vibrate(15);
-        sendSteer(-1);
-    });
-    btnLeft.addEventListener('pointerup', () => sendSteer(0));
-    btnLeft.addEventListener('pointercancel', () => sendSteer(0));
-}
-
-if (btnRight) {
-    btnRight.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        mobileAudio.playClick();
-        if (navigator.vibrate) navigator.vibrate(15);
-        sendSteer(1);
-    });
-    btnRight.addEventListener('pointerup', () => sendSteer(0));
-    btnRight.addEventListener('pointercancel', () => sendSteer(0));
-}
-
-// 5. Touch Slider Track (Deslizamiento horizontal suave)
+// 4. Touch Slider Track (Deslizamiento horizontal centrado y suave)
 if (touchTrack) {
     let isTracking = false;
 
@@ -507,7 +482,7 @@ if (touchTrack) {
         let pct = Math.max(0, Math.min(1, touchX / rect.width));
         let normX = (pct - 0.5) * 2; // -1 to +1
 
-        if (Math.abs(normX) < 0.1) normX = 0; // Deadzone
+        if (Math.abs(normX) < 0.08) normX = 0; // Deadzone suave en el centro
 
         if (touchSlider) {
             touchSlider.style.left = `${pct * 100}%`;
@@ -518,7 +493,13 @@ if (touchTrack) {
 
     touchTrack.addEventListener('pointerdown', (e) => {
         e.preventDefault();
+        try {
+            if (touchTrack.setPointerCapture) {
+                touchTrack.setPointerCapture(e.pointerId);
+            }
+        } catch (_) {}
         isTracking = true;
+        if (navigator.vibrate) navigator.vibrate(10);
         handleTouchTrack(e);
     });
 
@@ -527,9 +508,14 @@ if (touchTrack) {
         handleTouchTrack(e);
     });
 
-    const resetTrack = () => {
+    const resetTrack = (e) => {
         if (!isTracking) return;
         isTracking = false;
+        try {
+            if (e && touchTrack.hasPointerCapture && touchTrack.hasPointerCapture(e.pointerId)) {
+                touchTrack.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
         if (touchSlider) touchSlider.style.left = '50%';
         sendSteer(0);
     };
