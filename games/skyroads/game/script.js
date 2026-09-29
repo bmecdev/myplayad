@@ -676,10 +676,11 @@ function generateTrack(stageNumber) {
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista 1
-                currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null }); // Pista 2
-                currentZ += SEGMENT_LENGTH;
+                // Pista de aterrizaje amplia (3 bloques sólidos para maniobrar y preparar el siguiente salto)
+                for (let k = 0; k < 3; k++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                    currentZ += SEGMENT_LENGTH;
+                }
             } else if (rand < 0.85) {
                 // Terrazas laterales continuas
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
@@ -723,10 +724,11 @@ function generateTrack(stageNumber) {
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
+                // Pista de aterrizaje amplia (3 bloques sólidos)
+                for (let k = 0; k < 3; k++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                    currentZ += SEGMENT_LENGTH;
+                }
             } else if (rand < 0.82) {
                 // Vacío central de 2 bloques: obliga a circular por los costados
                 segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], obstacle: null });
@@ -784,10 +786,11 @@ function generateTrack(stageNumber) {
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
+                // Pista de aterrizaje amplia (3 bloques sólidos)
+                for (let k = 0; k < 3; k++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                    currentZ += SEGMENT_LENGTH;
+                }
             }
         } else {
             // ==========================================
@@ -808,10 +811,11 @@ function generateTrack(stageNumber) {
                     });
                     currentZ += SEGMENT_LENGTH;
                 }
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
-                segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
-                currentZ += SEGMENT_LENGTH;
+                // Pista de aterrizaje amplia (3 bloques sólidos)
+                for (let k = 0; k < 3; k++) {
+                    segments.push({ z: currentZ, length: SEGMENT_LENGTH, tiles: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1], obstacle: null });
+                    currentZ += SEGMENT_LENGTH;
+                }
             } else if (rand < 0.75) {
                 // Vacío central prolongado de 4 bloques con terrazas estrechas
                 for (let s = 0; s < 4; s++) {
@@ -871,8 +875,8 @@ function generateTrack(stageNumber) {
         currentZ += SEGMENT_LENGTH;
     }
 
-    // 4. Pista de aterrizaje final (2 segmentos sólidos)
-    for (let i = 0; i < 2; i++) {
+    // 4. Pista de aterrizaje final (3 segmentos sólidos antes del portal)
+    for (let i = 0; i < 3; i++) {
         segments.push({
             z: currentZ,
             length: SEGMENT_LENGTH,
@@ -1238,20 +1242,26 @@ function update(dt) {
                     ship.squash = 0.80; // Landing squash impact
                     audio.playLand();
                     createLandingSparks();
+                    // Al aterrizar, devolver suavemente la velocidad para dar tiempo y control al piloto
+                    const cfg = getStageConfig(GameState.stage);
+                    if (ship.boostTimer <= 0.2) {
+                        ship.targetSpeed = cfg.baseSpeed;
+                    }
                 }
 
                 // Interactive Pads: Plataforma de Salto (Tile 3) y Acelerador (Tile 2)
                 if (tileType === 2 || tileType === 3) {
                     const cfg = getStageConfig(GameState.stage);
-                    ship.vy = 215; // Impulso vertical óptimo para sobrevolar con holgura los 3 bloques de abismo
+                    ship.vy = 188; // Impulso vertical equilibrado: cruza el aro sin salir disparada al infinito
                     ship.onGround = false;
-                    ship.squash = 1.45;
-                    ship.speed = Math.max(ship.speed, cfg.turboSpeed); // Inyecta velocidad turbo hacia adelante
-                    ship.targetSpeed = Math.max(ship.targetSpeed, cfg.turboSpeed);
-                    ship.boostTimer = Math.max(ship.boostTimer, 1.8); // Mantiene velocidad turbo durante todo el vuelo
+                    ship.squash = 1.35;
+                    const jumpSpeed = Math.min(cfg.baseSpeed + 18, cfg.turboSpeed);
+                    ship.speed = jumpSpeed; // Impulso frontal exacto para aterrizar con holgura
+                    ship.targetSpeed = jumpSpeed;
+                    ship.boostTimer = 0.85; // Se disipa al aterrizar en la nueva plataforma
                     audio.playJump();
                     broadcastSFX('boost');
-                    addPopup('¡SUPER SALTO!', '#00f5d4');
+                    addPopup('¡SALTO!', '#00f5d4');
                     createJumpPadSparks(getTrackCenterAtZ(ship.z) + ship.x, ship.y, ship.z);
                 }
             }
