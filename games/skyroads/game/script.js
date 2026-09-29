@@ -1150,13 +1150,6 @@ function update(dt) {
     ship.vx += (ship.targetVx - ship.vx) * 15 * dt;
     ship.x += ship.vx * dt;
 
-    // Deriva centrífuga hacia el exterior (izquierda) en curvas a la derecha
-    const curve = getTrackCurvature(ship.z);
-    if (curve > 0.05) {
-        const centrifugalDrift = curve * (ship.speed / 120) * 16 * dt;
-        ship.x -= centrifugalDrift;
-    }
-
     // Boundary clamp with safety margins across 11 lanes (-66 to +66)
     if (ship.x < -68) {
         ship.x = -68;
@@ -1166,8 +1159,8 @@ function update(dt) {
         ship.vx = 0;
     }
 
-    // Smooth banking roll spring with curve lean
-    const targetRoll = (ship.vx / 115) * 0.40 + curve * 0.12;
+    // Smooth banking roll spring (reacciona al giro del jugador)
+    const targetRoll = (ship.vx / 115) * 0.40;
     ship.roll += (targetRoll - ship.roll) * 12 * dt;
 
     // Lateral nose yaw tilt
@@ -1498,7 +1491,8 @@ function render() {
     const ship = GameState.ship;
     const cam = GameState.camera;
     cam.z = ship.z - 45;
-    const camTrackX = getTrackCenterAtZ(cam.z);
+    // Anclar el centro de curvatura de la cámara a la nave para que la nave permanezca centrada en su carril
+    const camTrackX = getTrackCenterAtZ(ship.z);
     cam.x = camTrackX + ship.x * 0.45;
     cam.y = Math.max(22, (ship.y + ship.hoverOffset) * 0.35 + 28);
 
