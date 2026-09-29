@@ -1087,7 +1087,7 @@ function releaseJump() {
 function performJump() {
     audio.init();
     const ship = GameState.ship;
-    ship.vy = 160;
+    ship.vy = Math.max(ship.vy, 160);
     ship.y = Math.max(ship.y, 0.5);
     ship.onGround = false;
     ship.squash = 1.25; // Vertical stretch on liftoff
@@ -1240,13 +1240,18 @@ function update(dt) {
                     createLandingSparks();
                 }
 
-                // Interactive Pads: Plataforma de Salto
+                // Interactive Pads: Plataforma de Salto (Tile 3) y Acelerador (Tile 2)
                 if (tileType === 2 || tileType === 3) {
-                    ship.vy = 180;
+                    const cfg = getStageConfig(GameState.stage);
+                    ship.vy = 215; // Impulso vertical óptimo para sobrevolar con holgura los 3 bloques de abismo
                     ship.onGround = false;
-                    ship.squash = 1.35;
+                    ship.squash = 1.45;
+                    ship.speed = Math.max(ship.speed, cfg.turboSpeed); // Inyecta velocidad turbo hacia adelante
+                    ship.targetSpeed = Math.max(ship.targetSpeed, cfg.turboSpeed);
+                    ship.boostTimer = Math.max(ship.boostTimer, 1.8); // Mantiene velocidad turbo durante todo el vuelo
                     audio.playJump();
-                    addPopup('¡PLATAFORMA DE SALTO!', '#00f5d4');
+                    broadcastSFX('boost');
+                    addPopup('¡SUPER SALTO!', '#00f5d4');
                     createJumpPadSparks(getTrackCenterAtZ(ship.z) + ship.x, ship.y, ship.z);
                 }
             }

@@ -64,16 +64,24 @@ class MobileAudio {
                 if (!AudioCtx) return;
                 this.ctx = new AudioCtx();
                 this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+                this.masterGain.gain.setValueAtTime(0.55, this.ctx.currentTime);
                 this.masterGain.connect(this.ctx.destination);
             } catch (e) {}
         }
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
+            this.ctx.resume().catch(() => {});
+        }
+    }
+
+    ensureContext() {
+        if (!this.ctx) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
         }
     }
 
     playJump() {
+        this.ensureContext();
         if (!this.ctx) return;
         try {
             const t = this.ctx.currentTime;
@@ -81,17 +89,127 @@ class MobileAudio {
             const gain = this.ctx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(260, t);
-            osc.frequency.exponentialRampToValueAtTime(700, t + 0.15);
-            gain.gain.setValueAtTime(0.28, t);
-            gain.gain.linearRampToValueAtTime(0.0001, t + 0.16);
+            osc.frequency.exponentialRampToValueAtTime(750, t + 0.16);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.18);
             osc.connect(gain);
             gain.connect(this.masterGain);
             osc.start(t);
-            osc.stop(t + 0.16);
+            osc.stop(t + 0.18);
+        } catch (e) {}
+    }
+
+    playLand() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(140, t);
+            osc.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.09);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.09);
+        } catch (e) {}
+    }
+
+    playBoost() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(320, t);
+            osc.frequency.exponentialRampToValueAtTime(900, t + 0.22);
+            gain.gain.setValueAtTime(0.30, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.24);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.24);
+        } catch (e) {}
+    }
+
+    playCrash() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(180, t);
+            osc.frequency.linearRampToValueAtTime(35, t + 0.35);
+            gain.gain.setValueAtTime(0.40, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.35);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.35);
+        } catch (e) {}
+    }
+
+    playRing() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc1 = this.ctx.createOscillator();
+            const osc2 = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(880, t);
+            osc1.frequency.setValueAtTime(1320, t + 0.07);
+
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1760, t);
+            osc2.frequency.setValueAtTime(2640, t + 0.07);
+
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc1.start(t);
+            osc2.start(t);
+            osc1.stop(t + 0.32);
+            osc2.stop(t + 0.32);
+        } catch (e) {}
+    }
+
+    playClear() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const notes = [330, 392, 523, 659];
+            const t = this.ctx.currentTime;
+            notes.forEach((freq, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, t + idx * 0.12);
+                gain.gain.setValueAtTime(0.28, t + idx * 0.12);
+                gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.12 + 0.18);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t + idx * 0.12);
+                osc.stop(t + idx * 0.12 + 0.2);
+            });
         } catch (e) {}
     }
 
     playClick() {
+        this.ensureContext();
         if (!this.ctx) return;
         try {
             const t = this.ctx.currentTime;
@@ -99,7 +217,7 @@ class MobileAudio {
             const gain = this.ctx.createGain();
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(520, t);
-            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.setValueAtTime(0.22, t);
             gain.gain.linearRampToValueAtTime(0.0001, t + 0.05);
             osc.connect(gain);
             gain.connect(this.masterGain);
@@ -107,26 +225,13 @@ class MobileAudio {
             osc.stop(t + 0.05);
         } catch (e) {}
     }
-
-    playRing() {
-        if (!this.ctx) return;
-        try {
-            const t = this.ctx.currentTime;
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, t);
-            osc.frequency.setValueAtTime(1320, t + 0.07);
-            gain.gain.setValueAtTime(0.24, t);
-            gain.gain.linearRampToValueAtTime(0.0001, t + 0.28);
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            osc.start(t);
-            osc.stop(t + 0.28);
-        } catch (e) {}
-    }
 }
 const mobileAudio = new MobileAudio();
+
+// Desbloquear audio en el primer toque del usuario
+['touchstart', 'touchend', 'pointerdown', 'click'].forEach(evt => {
+    window.addEventListener(evt, () => mobileAudio.init(), { passive: true });
+});
 
 // ==========================================
 // 📡 Conexión WebRTC P2P
@@ -253,13 +358,25 @@ async function setupWebRTC() {
             if (data.type === 'game_over') {
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
-                if (data.sound === 'jump') mobileAudio.playJump();
-                else if (data.sound === 'ring') {
+                if (data.sound === 'jump') {
+                    mobileAudio.playJump();
+                    if (navigator.vibrate) navigator.vibrate(30);
+                } else if (data.sound === 'ring') {
                     mobileAudio.playRing();
                     if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+                } else if (data.sound === 'land') {
+                    mobileAudio.playLand();
+                    if (navigator.vibrate) navigator.vibrate(15);
+                } else if (data.sound === 'boost') {
+                    mobileAudio.playBoost();
+                    if (navigator.vibrate) navigator.vibrate(25);
+                } else if (data.sound === 'crash') {
+                    mobileAudio.playCrash();
+                    if (navigator.vibrate) navigator.vibrate(200);
+                } else if (data.sound === 'clear') {
+                    mobileAudio.playClear();
+                    if (navigator.vibrate) navigator.vibrate([50, 100, 50, 100]);
                 }
-                else if (data.sound === 'crash' && navigator.vibrate) navigator.vibrate(200);
-                else if (data.sound === 'land' && navigator.vibrate) navigator.vibrate(15);
             }
         } catch (e) {}
     };
