@@ -122,10 +122,25 @@ body {
 }
 
 #lives-container {
-    color: var(--phosphor);
-    font-size: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 8.5px;
     font-weight: bold;
     text-align: center;
+}
+
+#level-indicator {
+    color: var(--amber, #ffb703);
+    text-shadow: 0 0 5px rgba(255, 183, 3, 0.5);
+    letter-spacing: 0.5px;
+}
+
+#ships-indicator {
+    color: var(--phosphor, #3dff8a);
+    text-shadow: 0 0 5px rgba(61, 255, 138, 0.4);
 }
 
 .header-right {

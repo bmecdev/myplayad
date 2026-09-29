@@ -9,6 +9,7 @@ const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
 const livesCountElement = document.getElementById('lives-count');
+const levelCountElement = document.getElementById('level-count');
 const speedMeterElement = document.getElementById('speed-meter');
 const gameOverOverlay = document.getElementById('game-over-overlay');
 const waitingOverlay = document.getElementById('waiting-overlay');
@@ -2130,6 +2131,7 @@ function updateUI() {
     scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(4, '0')}`;
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(4, '0')}`;
     livesCountElement.textContent = GameState.lives;
+    if (levelCountElement) levelCountElement.textContent = GameState.stage;
     speedMeterElement.textContent = `KM/H: ${Math.floor(GameState.ship.speed * 1.5)}`;
 }
 
