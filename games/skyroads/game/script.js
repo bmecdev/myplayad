@@ -1052,6 +1052,7 @@ function isShipOnSolidRoad() {
     if (ship.isCrashing || ship.isFalling) return false;
     // Must be on the road surface
     if (!ship.onGround && ship.y > 1.2) return false;
+    if (ship.y < -1) return false;
 
     // Find current track segment beneath the ship
     const seg = GameState.track.find(s => ship.z >= s.z && ship.z < s.z + s.length);
@@ -1201,18 +1202,32 @@ function update(dt) {
             return;
         }
 
-        // Check if above road level or falling through gap
-        if (ship.y <= 0) {
+        // Check if falling through gap, colliding with platform walls, or safe landing
+        if (ship.isFalling) {
+            // Ya está cayendo al abismo: la caída es irreversible
+            // Si la nave avanza hacia un segmento con plataforma sólida o vira hacia una pista:
+            if (tileType !== 0 && ship.y < -1) {
+                handleShipCrash('¡IMPACTO CON PLATAFORMA!');
+                return;
+            }
+            // Si continúa cayendo en el vacío y supera el umbral visible bajo la pista:
+            if (ship.y < -12) {
+                handleShipCrash('¡CAÍSTE AL VACÍO!');
+                return;
+            }
+        } else if (ship.y <= 0) {
             if (tileType === 0) {
-                // HUECO / GAP / VOID! No solid road beneath!
+                // Entró a un HUECO / ABISMO sin saltar o cayó en él: caída irreversible
                 ship.onGround = false;
                 ship.isFalling = true;
-                if (ship.y < -35) {
-                    handleShipCrash('¡CAÍSTE AL VACÍO!');
+                ship.vy = Math.min(ship.vy, -120); // Impulso vertical hacia abajo
+            } else {
+                // ATERRIZAJE EN PISTA SÓLIDA (sólo si no estaba cayendo previamente)
+                if (ship.y < -3) {
+                    // Venía demasiado bajo para superar el bordillo frontal de la plataforma
+                    handleShipCrash('¡IMPACTO CON PLATAFORMA!');
                     return;
                 }
-            } else {
-                // SOLID TILE! Safe Landing
                 const wasAirborne = !ship.onGround && ship.vy < -50;
                 ship.y = 0;
                 ship.vy = 0;
@@ -1248,9 +1263,9 @@ function update(dt) {
         nextStage();
         return;
     } else if (ship.y <= 0) {
-        // Past track or off-grid
+        // Fuera de pista / límites del circuito
         ship.isFalling = true;
-        if (ship.y < -35) {
+        if (ship.y < -12) {
             handleShipCrash('¡FUERA DE PISTA!');
             return;
         }
