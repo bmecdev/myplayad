@@ -6,7 +6,7 @@
     <title>Skyroads Clon Mobile Controller</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <div id="status">INGRESA TU NICKNAME</div>
@@ -38,16 +38,7 @@
 
     <!-- Controles de Vuelo Táctiles -->
     <div class="flight-container" id="joystick-container" style="display: none;">
-        <!-- Panel de Dirección: Slider Centrado -->
-        <div class="steering-panel">
-            <div class="touch-track" id="touch-track">
-                <div class="track-center-notch"></div>
-                <span>◀ DESLIZA PARA GIRAR ▶</span>
-                <div class="touch-slider" id="touch-slider"></div>
-            </div>
-        </div>
-
-        <!-- Panel Derecho: Acciones (Salto y Turbo) -->
+        <!-- Panel de Acciones (Salto y Velocidad) -->
         <div class="actions-panel">
             <div class="sub-actions">
                 <button class="nav-btn brake-btn" id="btn-brake">🛑 FRENO</button>
@@ -58,9 +49,18 @@
                 <span class="jump-text">SALTAR</span>
             </button>
         </div>
+
+        <!-- Panel de Dirección: Slider Centrado Más Abajo -->
+        <div class="steering-panel">
+            <div class="touch-track" id="touch-track">
+                <div class="track-center-notch"></div>
+                <span>◀ DESLIZA PARA GIRAR ▶</span>
+                <div class="touch-slider" id="touch-slider"></div>
+            </div>
+        </div>
     </div>
 
     <script src="config.js?v=1"></script>
-    <script src="script.js?v=14"></script>
+    <script src="script.js?v=15"></script>
 </body>
 </html>

@@ -1074,6 +1074,9 @@ function isShipOnSolidRoad() {
 }
 
 function requestJump() {
+    // Prohibido saltar si el juego no está corriendo, si está en Game Over o durante la cuenta regresiva inicial (intro)
+    if (!GameState.running || GameState.gameOver || GameState.stageIntroTimer > 0) return;
+
     // Cannot auto-jump while holding button down: must be a fresh press!
     if (jumpConsumedForCurrentPress) return;
 
@@ -1089,6 +1092,7 @@ function releaseJump() {
 }
 
 function performJump() {
+    if (!GameState.running || GameState.gameOver || GameState.stageIntroTimer > 0) return;
     audio.init();
     const ship = GameState.ship;
     ship.vy = Math.max(ship.vy, 160);
@@ -1126,12 +1130,22 @@ function createJumpSparks() {
 function update(dt) {
     if (!GameState.running || GameState.gameOver) return;
 
+    const ship = GameState.ship;
+
     if (GameState.stageIntroTimer > 0) {
         GameState.stageIntroTimer -= dt;
+        // Garantizar que la nave permanezca firmemente posada sobre la pista sin postura de salto
+        ship.y = 0;
+        ship.vy = 0;
+        ship.onGround = true;
+        ship.squash = 1.0;
+        ship.isFalling = false;
+        ship.isCrashing = false;
+        ship.hoverTimer += dt;
+        ship.hoverOffset = Math.sin(ship.hoverTimer * 8.0) * 0.35;
         return;
     }
 
-    const ship = GameState.ship;
     const cfg = getStageConfig(GameState.stage);
 
     // Handle Crashing Delay
@@ -2390,7 +2404,9 @@ function setupDataChannel(dc, senderId) {
                     GameState.ship.targetVx = data.x * 115;
                 }
             } else if (data.action === 'JUMP') {
-                requestJump();
+                if (GameState.running && !GameState.gameOver && GameState.stageIntroTimer <= 0) {
+                    requestJump();
+                }
             } else if (data.action === 'JUMP_RELEASE') {
                 releaseJump();
             } else if (data.action === 'BOOST') {
@@ -2430,7 +2446,9 @@ window.addEventListener('keydown', (e) => {
         if (e.repeat) return;
         if (!jumpKeyHeld) {
             jumpKeyHeld = true;
-            requestJump();
+            if (GameState.running && !GameState.gameOver && GameState.stageIntroTimer <= 0) {
+                requestJump();
+            }
         }
     } else if (key === 'shift' || key === 'e') {
         keys.turbo = true;

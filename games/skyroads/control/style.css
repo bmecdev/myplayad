@@ -145,30 +145,41 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 16px;
+    padding: 16px 16px 20px 16px;
     gap: 16px;
     justify-content: space-between;
     height: 100%;
+    box-sizing: border-box;
 }
 
 @media (min-width: 600px) or (orientation: landscape) {
     .flight-container {
         flex-direction: row;
         align-items: center;
+        gap: 24px;
     }
-    .steering-panel, .actions-panel {
+    .steering-panel {
+        order: 1;
         flex: 1;
-        height: 80%;
+        height: 85%;
+        justify-content: center;
+        padding-bottom: 0;
+    }
+    .actions-panel {
+        order: 2;
+        flex: 1;
+        height: 85%;
     }
 }
 
-/* Panel de Dirección (Slider Centrado) */
+/* Panel de Dirección (Slider Centrado Más Abajo) */
 .steering-panel {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
     width: 100%;
+    padding-bottom: 8px;
 }
 
 .touch-track {
@@ -177,7 +188,7 @@ body {
     border-radius: 16px;
     width: 100%;
     max-width: 440px;
-    height: 70px;
+    height: 74px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -240,6 +251,7 @@ body {
 
 /* Panel de Acciones (Salto y Turbo) */
 .actions-panel {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 12px;
