@@ -412,6 +412,10 @@ function spawnBallInPlunger() {
         radius: 3.2,
         active: true,
         inPlunger: true,
+        hasLaunched: false,
+        stuckTimer: 0,
+        lastX: 180,
+        lastY: 295,
         trail: []
     });
     GameState.targetCamY = 160;
@@ -519,7 +523,7 @@ const tableWalls = [
     { p1: { x: 65,  y: 10 },  p2: { x: 26,  y: 28 } },
 
     // 3. Pared Lateral Izquierda Superior (Pantalla 1)
-    { p1: { x: 26,  y: 28 },  p2: { x: 26,  y: 142 } },
+    { p1: { x: 26,  y: 28 },  p2: { x: 26,  y: 118 } },
 
     // 4. Guías hacia los Flippers Superiores (Pantalla 1)
     { p1: { x: 26,  y: 118 }, p2: { x: 38,  y: 130 } },
@@ -529,22 +533,17 @@ const tableWalls = [
     { p1: { x: 156, y: 130 }, p2: { x: 140, y: 134 } },
 
     // 5. Paredes de la Mesa Inferior (Pantalla 2)
-    { p1: { x: 26,  y: 154 }, p2: { x: 26,  y: 280 } },
-    { p1: { x: 174, y: 154 }, p2: { x: 174, y: 280 } },
+    { p1: { x: 26,  y: 154 }, p2: { x: 26,  y: 275 } },
+    { p1: { x: 174, y: 154 }, p2: { x: 174, y: 275 } },
 
-    // 6. Inlanes / Outlanes y Guías hacia los Flippers Inferiores
+    // 6. Guías hacia los Flippers Inferiores (Inlanes suaves sin esquinas muertas)
     // Lado Izquierdo
-    { p1: { x: 26,  y: 280 }, p2: { x: 42,  y: 294 } },
-    { p1: { x: 42,  y: 294 }, p2: { x: 66,  y: 298 } },
+    { p1: { x: 26,  y: 275 }, p2: { x: 42,  y: 290 } },
+    { p1: { x: 42,  y: 290 }, p2: { x: 66,  y: 295 } },
 
     // Lado Derecho
-    { p1: { x: 174, y: 280 }, p2: { x: 152, y: 294 } },
-    { p1: { x: 152, y: 294 }, p2: { x: 128, y: 298 } },
-
-    // 7. Divisores de Inlane / Outlane Inferior (Lado Izquierdo)
-    { p1: { x: 38, y: 262 }, p2: { x: 38, y: 290 } },
-    // Divisores de Inlane / Outlane Inferior (Lado Derecho)
-    { p1: { x: 156, y: 262 }, p2: { x: 156, y: 290 } }
+    { p1: { x: 174, y: 275 }, p2: { x: 152, y: 290 } },
+    { p1: { x: 152, y: 290 }, p2: { x: 128, y: 295 } }
 ];
 
 function updatePhysics(dt) {
@@ -804,6 +803,15 @@ function updatePhysics(dt) {
                 ball.inPlunger = false;
             }
 
+            // Si la bola vuelve a caer en el canal del plunger
+            if (ball.x > 172 && ball.y > 270 && ball.vy >= 0 && !ball.inPlunger) {
+                ball.inPlunger = true;
+                ball.x = 180;
+                ball.y = 295;
+                ball.vx = 0;
+                ball.vy = 0;
+            }
+
             // 11. Drenaje de la bola (Drain al fondo de la pantalla inferior)
             if (ball.y > TABLE_HEIGHT + 10) {
                 ball.active = false;
@@ -860,6 +868,41 @@ function updatePhysics(dt) {
         pop.alpha -= dt * 0.9;
         if (pop.alpha <= 0) GameState.popups.splice(i, 1);
     }
+
+    // Detección de bola estancada: si la bola ha sido lanzada y deja de moverse por > 2.0s, reiniciar el juego
+    GameState.balls.forEach(ball => {
+        if (!ball.active || !ball.hasLaunched) {
+            ball.stuckTimer = 0;
+            ball.lastX = ball.x;
+            ball.lastY = ball.y;
+            return;
+        }
+
+        const speed = Math.hypot(ball.vx, ball.vy);
+        const distMoved = Math.hypot(ball.x - (ball.lastX ?? ball.x), ball.y - (ball.lastY ?? ball.y));
+
+        // Si la bola casi no tiene velocidad o su posición no cambia
+        if (speed < 7.0 && distMoved < 2.0) {
+            ball.stuckTimer = (ball.stuckTimer || 0) + dt;
+            if (ball.stuckTimer >= 2.0) {
+                ball.stuckTimer = 0;
+                audio.playDrain();
+                startNewGame();
+                GameState.popups.push({
+                    text: '¡BOLA ESTANCADA - REINICIANDO!',
+                    x: 97,
+                    y: 160,
+                    vy: -15,
+                    alpha: 1.0,
+                    color: '#ff4d6d'
+                });
+            }
+        } else {
+            ball.stuckTimer = 0;
+            ball.lastX = ball.x;
+            ball.lastY = ball.y;
+        }
+    });
 }
 
 // Colisión Dinámica con Flipper (aporta velocidad angular del golpe)
@@ -1351,10 +1394,14 @@ function releasePlunger() {
     GameState.balls.forEach(ball => {
         if (ball.inPlunger) {
             ball.inPlunger = false;
+            ball.hasLaunched = true;
+            ball.stuckTimer = 0;
+            ball.lastX = ball.x;
+            ball.lastY = ball.y;
             // Impulso potente que recorre todo el canal vertical hasta la mesa superior
-            const shootVelocity = -220 - GameState.plunger.power * 150;
+            const shootVelocity = -360 - GameState.plunger.power * 140;
             ball.vy = shootVelocity;
-            ball.vx = 0;
+            ball.vx = (Math.random() - 0.5) * 8;
             audio.playLaunch();
             broadcastSFX('launch');
         }
@@ -1389,6 +1436,12 @@ function nudgeTable() {
 window.addEventListener('keydown', (e) => {
     audio.init();
     const key = e.key.toLowerCase();
+
+    // Tecla 'R' para reiniciar partida manualmente en cualquier momento
+    if (key === 'r') {
+        startNewGame();
+        return;
+    }
 
     if (['arrowleft', 'a', 'z'].includes(key)) {
         if (!GameState.running || GameState.gameOver) {
