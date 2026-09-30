@@ -184,6 +184,24 @@ class SoundFX {
         } catch (_) {}
     }
 
+    playGatePass() {
+        if (!this.ctx || this.muted) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(480, t);
+            osc.frequency.exponentialRampToValueAtTime(780, t + 0.05);
+            gain.gain.setValueAtTime(0.25, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.06);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.06);
+        } catch (_) {}
+    }
+
     playTarget() {
         if (!this.ctx || this.muted) return;
         try {
@@ -339,6 +357,14 @@ const GameState = {
     particles: [],
     popups: [],
 
+    // Compuerta antirretorno del carril de lanzamiento (Diagonal amarilla)
+    oneWayGate: {
+        p1: { x: 174, y: 52 },
+        p2: { x: 188, y: 42 },
+        swing: 0,
+        lit: 0
+    },
+
     // Doble par de Flippers estilo NES (Superiores e Inferiores)
     flippers: {
         // Flippers Superiores (Pantalla 1)
@@ -468,6 +494,7 @@ function spawnBallInPlunger() {
         active: true,
         inPlunger: true,
         hasLaunched: false,
+        passedGate: false,
         stuckTimer: 0,
         lastX: 180,
         lastY: 295,
@@ -492,6 +519,10 @@ function startNewGame() {
     GameState.particles = [];
     GameState.popups = [];
     GameState.balls = [];
+    if (GameState.oneWayGate) {
+        GameState.oneWayGate.swing = 0;
+        GameState.oneWayGate.lit = 0;
+    }
 
     initTableElements();
     spawnBallInPlunger();
@@ -634,6 +665,12 @@ function updatePhysics(dt) {
     GameState.slingshots.forEach(s => { if (s.lit > 0) s.lit -= dt * 4; });
     GameState.sideKickers.forEach(k => { if (k.lit > 0) k.lit -= dt * 4; });
 
+    // Actualizar animación de compuerta antirretorno amarilla (One-way gate)
+    if (GameState.oneWayGate) {
+        if (GameState.oneWayGate.swing > 0) GameState.oneWayGate.swing = Math.max(0, GameState.oneWayGate.swing - dt * 6);
+        if (GameState.oneWayGate.lit > 0) GameState.oneWayGate.lit = Math.max(0, GameState.oneWayGate.lit - dt * 4);
+    }
+
     // Actualizar los 4 Flippers (ambos pares responden juntos)
     const flippers = GameState.flippers;
     ['upperLeft', 'lowerLeft', 'upperRight', 'lowerRight'].forEach(key => {
@@ -690,6 +727,50 @@ function updatePhysics(dt) {
                     }
                 }
             });
+
+            // Compuerta antirretorno del carril de lanzamiento (Diagonal amarilla)
+            // Deja salir la bola hacia la mesa pero bloquea 100% que vuelva a ingresar al plunger
+            if (ball.passedGate) {
+                const gateHit = collideBallWithSegment(
+                    ball,
+                    GameState.oneWayGate.p1.x,
+                    GameState.oneWayGate.p1.y,
+                    GameState.oneWayGate.p2.x,
+                    GameState.oneWayGate.p2.y,
+                    RESTITUTION_WALL,
+                    false
+                );
+                if (gateHit) {
+                    GameState.oneWayGate.lit = 1.0;
+                    audio.playWallBounce(0.85);
+                    broadcastSFX('bounce');
+                    createSparks(ball.x, ball.y, '#ffea00', 5);
+                }
+
+                // Bloqueo de seguridad estricto: la bola que ya salió nunca puede ingresar al carril del plunger
+                if (ball.x > 172.5 && ball.y >= 38) {
+                    ball.x = 171.5;
+                    ball.vx = -Math.abs(ball.vx) - 30;
+                    createSparks(ball.x, ball.y, '#ffea00', 4);
+                }
+            } else {
+                // Si la bola va saliendo impulsada hacia arriba desde el plunger
+                if (ball.vy < 0 && (ball.y <= 48 || ball.x < 174)) {
+                    ball.passedGate = true;
+                    ball.inPlunger = false;
+                    GameState.oneWayGate.swing = 1.0;
+                    GameState.oneWayGate.lit = 1.0;
+                    audio.playGatePass();
+                } else if (ball.y > 285 && ball.vy >= 0 && !ball.inPlunger) {
+                    // Si el disparo fue débil y no alcanzó a salir de la compuerta, reasentar en el plunger
+                    ball.inPlunger = true;
+                    ball.hasLaunched = false;
+                    ball.x = 180;
+                    ball.y = 295;
+                    ball.vx = 0;
+                    ball.vy = 0;
+                }
+            }
 
             // 2. Colisión con los 4 Flippers Dinámicos
             collideBallWithFlipper(ball, flippers.upperLeft);
@@ -913,20 +994,11 @@ function updatePhysics(dt) {
             }
 
             // 13. Salida del Plunger hacia la mesa
-            if (ball.y < 38 && ball.x < 172 && ball.inPlunger) {
+            if (ball.y < 48 && (ball.x < 174 || ball.vy < 0) && ball.inPlunger) {
                 ball.inPlunger = false;
             }
 
-            // Si la bola vuelve a caer en el canal del plunger
-            if (ball.x > 172 && ball.y > 270 && ball.vy >= 0 && !ball.inPlunger) {
-                ball.inPlunger = true;
-                ball.x = 180;
-                ball.y = 295;
-                ball.vx = 0;
-                ball.vy = 0;
-            }
-
-            // 11. Drenaje de la bola (Drain al fondo de la pantalla inferior)
+            // 14. Drenaje de la bola (Drain al fondo de la pantalla inferior)
             if (ball.y > TABLE_HEIGHT + 10) {
                 ball.active = false;
             }
@@ -1187,12 +1259,30 @@ function render() {
     ctx.stroke();
 
     // 4. Puerta antirretorno del Plunger (One-way gate en la curva superior)
+    ctx.save();
+    const gate = GameState.oneWayGate;
+    const swingOffset = gate.swing * 7; // Se abre hacia arriba cuando la bola sale propulsada
+
+    if (gate.lit > 0) {
+        ctx.shadowColor = '#ffea00';
+        ctx.shadowBlur = 8 * gate.lit;
+    }
+
     ctx.strokeStyle = '#ffea00';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(174, 52);
-    ctx.lineTo(188, 42);
+    ctx.moveTo(gate.p1.x, gate.p1.y);
+    ctx.lineTo(gate.p2.x, gate.p2.y - swingOffset);
     ctx.stroke();
+
+    // Pernos metálicos en los extremos de la compuerta
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(gate.p1.x, gate.p1.y, 1.4, 0, Math.PI * 2);
+    ctx.arc(gate.p2.x, gate.p2.y - swingOffset, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 
     // ==========================================
     // PANTALLA SUPERIOR (Mesa 1: y = 0..160)
@@ -1513,6 +1603,7 @@ function releasePlunger() {
         if (ball.inPlunger) {
             ball.inPlunger = false;
             ball.hasLaunched = true;
+            ball.passedGate = false;
             ball.stuckTimer = 0;
             ball.lastX = ball.x;
             ball.lastY = ball.y;
