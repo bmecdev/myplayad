@@ -32,13 +32,38 @@ Todo nuevo juego debe replicar fielmente la arquitectura, paleta de colores CRT,
   * `games/<slug>/game.json`: Metadatos del minijuego (nombre, slug, icono, género, descripción y tipo de controles) consumidos por el actualizador automático del catálogo en `README.md`.
 
 ### 3. Protocolo Obligatorio WebRTC y Señalización (`server/server.js`)
-Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Controller), todo juego DEBE cumplir este contrato:
+Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Controller) y evitar que el móvil se quede congelado en *"Enlazando..."*:
 
 * **Enrutamiento por `playerId` (Crítico)**:
   * El servidor `server/server.js` asigna un `playerId` numérico al controlador y lo inyecta en cada mensaje hacia el host (`data.playerId`).
   * **El Host SIEMPRE debe responder incluyendo `playerId: data.playerId`** tanto en el mensaje `answer` como en cada `candidate`. Si se omite o se usa `to: data.from`, el servidor no encuentra el controlador y descarta la respuesta silenciosamente.
   * Mapear conexiones en el Host por `playerId`: `peerConnections.set(playerId, pc)` y `dataChannels.set(playerId, dc)`.
-  * Escuchar `controller_connected` y `controller_disconnected` en el socket del Host.
+  * Escuchar `controller_connected` y `controller_disconnected` en el socket del Host. Al recibir `controller_connected`, ocultar de inmediato el overlay de espera (`waitingOverlay.classList.add('hidden')`).
+* **Formato Estricto de `offer` y `answer` (Evita error 'Enlazando...')**:
+  * **En el Host (`game/script.js`)**:
+    ```javascript
+    const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.send(JSON.stringify({
+        type: 'answer',
+        sdp: answer.sdp, // <-- OBLIGATORIO: answer.sdp (string), NUNCA el objeto answer completo
+        roomId: GameState.roomId,
+        playerId: playerId
+    }));
+    ```
+  * **En el Móvil (`control/script.js`)**:
+    ```javascript
+    const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
+    // Transición inmediata a los controles al recibir answer
+    roomSelection.style.display = 'none';
+    container.style.display = 'flex';
+    ```
+* **Cola Obligatoria de Candidatos ICE (`pendingCandidates`)**:
+  * Tanto en el Host como en el Controller, si llegan candidatos ICE antes de que `pc.setRemoteDescription` haya resuelto, `pc.addIceCandidate` arroja `InvalidStateError` y la conexión P2P se bloquea.
+  * **Solución obligatoria**: Si `!pc.remoteDescription`, almacenar en `pendingCandidates.push(data.candidate)` y vaciar la cola con `await pc.addIceCandidate` justo después de `await pc.setRemoteDescription(...)`.
 * **Configuración del DataChannel en el Móvil**:
   * Crear el canal como `pc.createDataChannel('control', { ordered: false });`.
   * **NUNCA usar `maxRetransmits: 0`** en el canal principal, ya que descarta paquetes en redes móviles inestables y provoca la pérdida del mensaje inicial `{ type: 'join' }`.

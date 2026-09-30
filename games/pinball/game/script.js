@@ -1590,9 +1590,12 @@ function connectSignaling() {
                 const data = JSON.parse(event.data);
                 const playerId = data.playerId;
 
-                if (data.type === 'offer') {
+                if (data.type === 'controller_connected') {
+                    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+                } else if (data.type === 'offer') {
                     const pc = new RTCPeerConnection(getIceConfig());
                     peerConnections.set(playerId, pc);
+                    pc._pendingCandidates = [];
 
                     pc.ondatachannel = (e) => {
                         const dc = e.channel;
@@ -1601,7 +1604,7 @@ function connectSignaling() {
                     };
 
                     pc.onicecandidate = (e) => {
-                        if (e.candidate && socket.readyState === WebSocket.OPEN) {
+                        if (e.candidate && socket && socket.readyState === WebSocket.OPEN) {
                             socket.send(JSON.stringify({
                                 type: 'candidate',
                                 candidate: e.candidate,
@@ -1611,20 +1614,37 @@ function connectSignaling() {
                         }
                     };
 
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+                    await pc.setRemoteDescription(new RTCSessionDescription({
+                        type: 'offer',
+                        sdp: sdp
+                    }));
+
+                    while (pc._pendingCandidates && pc._pendingCandidates.length > 0) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(pc._pendingCandidates.shift()));
+                        } catch (_) {}
+                    }
+
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
 
                     socket.send(JSON.stringify({
                         type: 'answer',
-                        sdp: answer,
+                        sdp: answer.sdp,
                         roomId: GameState.roomId,
                         playerId: playerId
                     }));
                 } else if (data.type === 'candidate') {
                     const pc = peerConnections.get(playerId);
                     if (pc && data.candidate) {
-                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        if (pc.remoteDescription) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                            } catch (_) {}
+                        } else if (pc._pendingCandidates) {
+                            pc._pendingCandidates.push(data.candidate);
+                        }
                     }
                 } else if (data.type === 'controller_disconnected') {
                     handleControllerDisconnect(playerId);

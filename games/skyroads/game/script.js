@@ -2317,6 +2317,7 @@ function connectSignaling() {
             if (data.type === 'offer') {
                 const pc = new RTCPeerConnection(getIceConfig());
                 peerConnections.set(playerId, pc);
+                pc._pendingCandidates = [];
 
                 pc.ondatachannel = (e) => {
                     const dc = e.channel;
@@ -2341,7 +2342,18 @@ function connectSignaling() {
                     }
                 };
 
-                await pc.setRemoteDescription(new RTCSessionDescription(data));
+                const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+                await pc.setRemoteDescription(new RTCSessionDescription({
+                    type: 'offer',
+                    sdp: sdp
+                }));
+
+                while (pc._pendingCandidates && pc._pendingCandidates.length > 0) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(pc._pendingCandidates.shift()));
+                    } catch (_) {}
+                }
+
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
 
@@ -2356,7 +2368,13 @@ function connectSignaling() {
             } else if (data.type === 'candidate') {
                 const pc = peerConnections.get(playerId);
                 if (pc && data.candidate) {
-                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc.remoteDescription) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (_) {}
+                    } else if (pc._pendingCandidates) {
+                        pc._pendingCandidates.push(data.candidate);
+                    }
                 }
             } else if (data.type === 'controller_connected') {
                 waitingOverlay.classList.add('hidden');
