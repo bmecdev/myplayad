@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pacman Clon - Arcade Retro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=3">
+</head>
+<body>
+    <div class="container">
+        <!-- Consola Retro Arcade -->
+        <div class="console-bezel">
+            <div class="lcd-screen" id="main-screen">
+                <div class="scanlines"></div>
+                
+                <div class="game-header">
+                    <div class="header-left">
+                        <span id="player-nick">PACMAN: ----</span>
+                        <span id="score">SCORE: 000</span>
+                    </div>
+                    <div id="lives-container">
+                        LIVES: <span id="lives-count">3</span>
+                    </div>
+                    <div class="header-right">
+                        <span id="high-score">HI: 000</span>
+                        <div class="room-ice-row">
+                            <span id="room-id">ID: ----</span>
+                            <span id="ice-route">PAC: --</span>
+                            <button id="audio-toggle-btn" class="audio-toggle-btn muted" title="Activar/Silenciar Audio">🔊 AUDIO</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="gameCanvas" width="200" height="160"></canvas>
+                </div>
+                
+                <!-- Mensaje de Fin de Juego -->
+                <div id="game-over-overlay" class="hidden">
+                    <div class="overlay-content">
+                        <h2 class="blink">GAME OVER</h2>
+                        <div id="ranking-container">
+                            <h3>HALL OF FAME</h3>
+                            <ul id="ranking-list"></ul>
+                        </div>
+                        <p class="instruction">CLICK TO RESTART</p>
+                    </div>
+                </div>
+
+                <!-- Overlay de Conexión -->
+                <div id="waiting-overlay">
+                    <div class="overlay-content">
+                        <h2 class="arcade-title">PACMAN <span>CLON</span></h2>
+                        <p class="pulse-text">ESCANEA PARA JUGAR !!</p>
+                        <div class="qr-wrapper">
+                            <div id="qrcode"></div>
+                        </div>
+                        <p class="status-text">¡ESQUIVA LOS FANTASMAS Y COME TODOS LOS PUNTOS!</p>
+                    </div>
+                </div>
+
+            </div>
+            <div class="console-footer">
+                <div class="speaker-grille"></div>
+                <div class="model-number">PAC-MAN-80</div>
+                <div class="speaker-grille"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="qrcode.min.js"></script>
+    <script src="config.js?v=8"></script>
+    <script src="script.js?v=8"></script>
+</body>
+</html>

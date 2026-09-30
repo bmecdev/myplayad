@@ -1,4 +1,10 @@
-const PORTAL_URL = 'https://portal.myplayad.com';
+const isDev = typeof window !== 'undefined' && (
+    window.location.hostname.includes('dev') || 
+    window.location.hostname.includes('staging') || 
+    window.location.hostname.includes('test')
+);
+const PORTAL_URL = isDev ? 'https://dev-portal.myplayad.com' : 'https://portal.myplayad.com';
+const VIDEO_SERVER_URL = isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com';
 const POLL_INTERVAL = 10000; // 10 segundos
 
 const standby = document.getElementById('standby');
@@ -99,7 +105,7 @@ function playCurrentVideo() {
     if (videoIndex >= videoPlaylist.length) videoIndex = 0;
     const filename = videoPlaylist[videoIndex];
     const localSrc = `/videos/${screenId}/${encodeURIComponent(filename)}`;
-    const remoteSrc = `https://videos.myplayad.com/videos/${screenId}/${encodeURIComponent(filename)}`;
+    const remoteSrc = `${VIDEO_SERVER_URL}/videos/${screenId}/${encodeURIComponent(filename)}`;
     
     videoPlayer.src = localSrc;
     
@@ -268,11 +274,34 @@ async function initialize() {
         } else if (event.data === 'identify') {
             console.log('[SSE] Alerta de identificación');
             showIdentifyIndicator();
+        } else if (event.data === 'power_off') {
+            console.log('[SSE] Modo reposo / pantalla apagada');
+            setScreenSleepMode(true);
+        } else if (event.data === 'power_on') {
+            console.log('[SSE] Pantalla encendida');
+            setScreenSleepMode(false);
+        } else if (event.data === 'updated') {
+            console.log('[SSE] Software actualizado, recargando página...');
+            setTimeout(() => window.location.reload(), 1500);
         }
     };
     eventSource.onerror = (err) => {
         console.warn('[SSE] EventSource error', err);
     };
+}
+
+function setScreenSleepMode(sleep) {
+    const overlay = document.getElementById('sleep-overlay');
+    const video = document.getElementById('video-player');
+    if (overlay) {
+        if (sleep) {
+            overlay.classList.remove('hidden');
+            if (video) video.pause();
+        } else {
+            overlay.classList.add('hidden');
+            if (video && video.src) video.play().catch(() => {});
+        }
+    }
 }
 
 async function checkSchedule() {

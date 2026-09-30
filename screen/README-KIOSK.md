@@ -88,13 +88,17 @@ kanshi &
 killall pcmanfm wf-panel-pi lwrespawn 2>/dev/null
 swaybg -i /home/screen/screen/logo.png -m center -c "#000000" &
 
-# Ocultamiento del mouse
+# 4. Auto-actualización al encender (Boot-Time Update de producción)
+if [ -f "/home/screen/screen/update.sh" ]; then
+    echo "[AUTOSTART] Comprobando actualizaciones de produccion en origin/main..."
+    bash /home/screen/screen/update.sh || true
+fi
 
-# 4. Iniciar el servidor Node en segundo plano
+# 5. Iniciar el servidor Node en segundo plano
 cd /home/screen/screen
 SCREEN_ID="${SCREEN_ID:-bc502bba-859c-461c-a795-f6e4bf2d4931}" REMOTE_VIDEO_SERVER_URL="https://videos.myplayad.com" node server.js &
 
-# 5. Darle 3 segundos al servidor para que inicie y abrir Chromium en modo kiosco
+# 6. Darle 3 segundos al servidor para que inicie y abrir Chromium en modo kiosco
 sleep 3
 chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --enable-features=OverlayScrollbar --disable-features=Translate http://localhost:8090
 ```

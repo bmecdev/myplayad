@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:backend": "bash tests/backend/test-all-backend.sh",
+    "test:frontend": "playwright test",
+    "test": "npm run test:backend && npm run test:frontend"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
@@ -22,6 +25,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/formidable": "^3.5.1",
     "@types/node": "^20",

@@ -10,15 +10,60 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  SUPER_ADMIN
+  CLIENT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String?  @unique
+  password  String
+  name      String
+  role      Role     @default(CLIENT)
+  
+  planId    String?
+  plan      Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  
+  screens         Screen[]
+  videos          Video[]
+  updateSchedules UpdateSchedule[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Plan {
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  description         String?
+  maxVideosPerScreen  Int      @default(5)
+  
+  games       Game[]
+  users       User[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Screen {
   id          String      @id @default(uuid())
   name        String
   location    String?
   description String?
   lastSeen    DateTime?
-  schedules   Schedule[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  displayState    String      @default("ON") // "ON" | "OFF"
+  
+  schedules       Schedule[]
+  updateSchedules UpdateSchedule[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 }
 
 model Game {
@@ -26,7 +71,10 @@ model Game {
   name        String      // e.g. "Snake", "Invaders"
   slug        String      @unique // e.g. "snake"
   description String?
+  
+  plans       Plan[]
   schedules   Schedule[]
+  
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
@@ -35,6 +83,10 @@ model Video {
   id          String      @id @default(uuid())
   title       String
   filename    String
+  
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   schedules   Schedule[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -59,3 +111,21 @@ model Schedule {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+
+model UpdateSchedule {
+  id          String    @id @default(uuid())
+  screenId    String?
+  screen      Screen?   @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetType  String    // "SINGLE" | "CLIENT_ALL" | "SYSTEM_ALL"
+  targetName  String?   // e.g. "Pantalla Central" o "Todas mis pantallas (4)" o "Toda la plataforma"
+  scheduledAt DateTime
+  executedAt  DateTime?
+  status      String    @default("PENDING") // PENDING, EXECUTED, CANCELLED, FAILED
+  resultNote  String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+

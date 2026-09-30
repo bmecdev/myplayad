@@ -1,0 +1,51 @@
+name: myplayad-staging
+services:
+  prisma-db-push-staging:
+    build:
+      context: ../portal
+      dockerfile: Dockerfile
+      target: deps
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad_staging?schema=public
+    command: npx prisma db push --accept-data-loss
+
+  portal-staging:
+    build:
+      context: ../portal
+      dockerfile: Dockerfile
+    container_name: portal-staging
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad_staging?schema=public
+      - NODE_ENV=production
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-myplayad123}
+      - VIDEOS_DIR=/srv/videos
+      - MQTT_URL=mqtt://mosquitto:1883
+    volumes:
+      - /srv/videos-staging:/srv/videos
+      - /var/www/myplayad-staging/games:/srv/games
+    ports:
+      - "3100:3000"
+
+  videos-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile.videos
+    container_name: videos-staging
+    ports:
+      - "8190:8090"
+    volumes:
+      - /srv/videos-staging:/videos
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - VIDEOS_DIR=/videos
+      - VIDEO_PORT=8090
+      - REMOTE_VIDEO_SERVER_URL=https://dev-videos.myplayad.com
+
+networks:
+  default:
+    name: server_default
+    external: true

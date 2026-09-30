@@ -37,9 +37,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Redirigir al dashboard principal
-      router.push('/');
-      router.refresh();
+      // Redirigir al dashboard principal con recarga limpia para aplicar la cookie
+      window.location.href = '/';
     } catch (err) {
       console.error('Error al iniciar sesión:', err);
       setError('Ocurrió un error al conectar con el servidor.');

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw } from 'lucide-react';
 import Link from 'next/link';
+import UpdateModal from '@/components/UpdateModal';
 
 type Video = {
   id: string;
@@ -28,6 +29,14 @@ type ScreenDetail = {
   location: string;
   description: string;
   lastSeen?: string;
+  userId?: string | null;
+  displayState?: 'ON' | 'OFF' | string;
+  user?: {
+    id: string;
+    name: string;
+    username: string;
+    plan?: { id: string; name: string; maxVideosPerScreen?: number } | null;
+  } | null;
 };
 
 export default function ScreenDetailPage() {
@@ -35,6 +44,7 @@ export default function ScreenDetailPage() {
   const router = useRouter();
   const screenId = params?.id as string;
   
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [screen, setScreen] = useState<ScreenDetail | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [activeGameSchedule, setActiveGameSchedule] = useState<Schedule | null>(null);
@@ -71,8 +81,30 @@ export default function ScreenDetailPage() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [assigningVideos, setAssigningVideos] = useState(false);
 
+  // Client Assignment Modal State (for Super Admin)
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [clientUsers, setClientUsers] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('none');
+  const [reassignSubmitting, setReassignSubmitting] = useState(false);
+
+  // OTA Update Modal State
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+
   const fetchScreenData = async () => {
     try {
+      const meRes = await fetch('/api/auth/me');
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setCurrentUser(meData.user);
+        if (meData.user?.role === 'SUPER_ADMIN') {
+          const usersRes = await fetch('/api/users');
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            setClientUsers(usersData);
+          }
+        }
+      }
+
       const res = await fetch(`/api/screens/${screenId}`);
       if (!res.ok) {
         if (res.status === 404) router.push('/screens');
@@ -138,6 +170,50 @@ export default function ScreenDetailPage() {
     fetchScreenData();
   };
 
+  const handleTogglePower = async () => {
+    if (!screen) return;
+    const isCurrentlyOff = screen.displayState === 'OFF';
+    const action = isCurrentlyOff ? 'POWER_ON' : 'POWER_OFF';
+    const promptMsg = isCurrentlyOff
+      ? `¿Deseas encender la pantalla "${screen.name}" (reactivar señal HDMI y encender TV por HDMI-CEC)?`
+      : `¿Deseas apagar / poner en reposo la pantalla "${screen.name}" (apagar señal HDMI y TV)?`;
+
+    if (!confirm(promptMsg)) return;
+
+    try {
+      const res = await fetch(`/api/screens/${screen.id}/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al cambiar energía');
+        return;
+      }
+      setScreen(prev => prev ? { ...prev, displayState: data.displayState } : null);
+    } catch (err) {
+      console.error('Error toggling screen power:', err);
+    }
+  };
+
+  const handleReboot = async () => {
+    if (!screen) return;
+    if (!confirm(`¿Estás seguro de reiniciar el dispositivo de la pantalla "${screen.name}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/screens/${screen.id}/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'REBOOT' }),
+      });
+      const data = await res.json();
+      alert(data.message || 'Orden de reinicio enviada.');
+    } catch (err) {
+      console.error('Error rebooting screen:', err);
+    }
+  };
+
   const handleRemoveGame = async () => {
     if (confirm('¿Estás seguro de quitar el juego programado? La pantalla volverá a mostrar solo videos.')) {
       await fetch(`/api/screens/${screenId}/game`, {
@@ -191,7 +267,12 @@ export default function ScreenDetailPage() {
       const response = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, screenId, filename: uploadData.filename }),
+        body: JSON.stringify({
+          title,
+          screenId,
+          filename: uploadData.filename,
+          clientId: screen?.userId || undefined,
+        }),
       });
       
       const res = await response.json();
@@ -235,10 +316,17 @@ export default function ScreenDetailPage() {
 
   const handleAssignExistingVideos = async () => {
     if (selectedVideoIds.length === 0) return;
+
+    const maxAllowed = screen?.user?.plan?.maxVideosPerScreen ?? 5;
+    if (currentUser?.role === 'CLIENT' && (videos.length + selectedVideoIds.length) > maxAllowed) {
+      alert(`No es posible asignar ${selectedVideoIds.length} videos. El plan de esta pantalla permite un máximo de ${maxAllowed} videos (actualmente ya tiene ${videos.length}).`);
+      return;
+    }
+
     setAssigningVideos(true);
     try {
       // Create schedules for each selected video
-      await Promise.all(
+      const results = await Promise.all(
         selectedVideoIds.map(videoId => 
           fetch('/api/schedules', {
             method: 'POST',
@@ -248,14 +336,20 @@ export default function ScreenDetailPage() {
               videoId,
               startDate: new Date().toISOString()
             })
-          })
+          }).then(r => r.json())
         )
       );
       
+      const failed = results.find(r => r.error);
+      if (failed) {
+        alert(failed.error);
+      }
+
       setIsExistingVideoModalOpen(false);
       fetchScreenData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error assigning videos:', err);
+      alert(err.message || 'Error asignando videos');
     } finally {
       setAssigningVideos(false);
     }
@@ -275,7 +369,66 @@ export default function ScreenDetailPage() {
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Monitor className="w-8 h-8 text-primary" /> {screen.name}
           </h1>
-          <p className="text-muted-foreground mt-1">{screen.location}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <p className="text-muted-foreground text-sm">{screen.location}</p>
+            {currentUser?.role === 'SUPER_ADMIN' ? (
+              <button
+                onClick={() => {
+                  setSelectedClientId(screen.userId || 'none');
+                  setIsReassignModalOpen(true);
+                }}
+                className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Cambiar cliente asignado a esta pantalla"
+              >
+                <span>Cliente: {screen.user ? screen.user.name : 'Sin asignar'}</span>
+                <span className="text-[10px] bg-blue-500/20 px-1.5 py-0.2 rounded ml-0.5">Asignar</span>
+              </button>
+            ) : screen.user ? (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+                Cliente: {screen.user.name}
+              </span>
+            ) : null}
+            {currentUser?.plan && currentUser.role === 'CLIENT' && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                Plan: {currentUser.plan.name}
+              </span>
+            )}
+            <button
+              onClick={() => setIsUpdateModalOpen(true)}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Actualizar software o programar mantenimiento"
+            >
+              <RefreshCw className="w-3 h-3 text-blue-400" />
+              <span>Actualizaciones OTA</span>
+            </button>
+
+            {/* Control de Energía (Encender / Apagar / Reiniciar) */}
+            <button
+              onClick={handleTogglePower}
+              className={`text-xs px-2.5 py-0.5 rounded-full border font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                screen.displayState === 'OFF'
+                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+              }`}
+              title={
+                screen.displayState === 'OFF'
+                  ? 'Pantalla en Reposo / Apagada. Clic para Encender TV'
+                  : 'Pantalla Encendida. Clic para Apagar TV (Standby HDMI-CEC)'
+              }
+            >
+              <Power className="w-3 h-3" />
+              <span>{screen.displayState === 'OFF' ? 'Pantalla en Reposo (Encender)' : 'Display Activo (Apagar)'}</span>
+            </button>
+
+            <button
+              onClick={handleReboot}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Reiniciar dispositivo"
+            >
+              <RotateCw className="w-3 h-3" />
+              <span>Reiniciar</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -390,20 +543,35 @@ export default function ScreenDetailPage() {
 
         {/* Videos Management Section */}
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold flex items-center gap-2 text-purple-400">
-              <Film className="w-6 h-6" /> Videos de esta Pantalla
-            </h2>
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2 text-purple-400">
+                <Film className="w-6 h-6" /> Videos de esta Pantalla
+              </h2>
+              {(() => {
+                const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                const isFull = videos.length >= maxAllowed;
+                return (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Capacidad en rotación:{' '}
+                    <span className={`font-semibold ${isFull ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      {videos.length} de {maxAllowed} videos permitidos
+                    </span>{' '}
+                    {isFull && <span className="text-amber-400 font-bold">(Límite alcanzado)</span>}
+                  </p>
+                );
+              })()}
+            </div>
             <div className="flex gap-2">
               <button 
                 onClick={openExistingVideoModal}
-                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
+                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium cursor-pointer"
               >
                 <Monitor className="w-4 h-4" /> Seleccionar Existente
               </button>
               <button 
                 onClick={() => setIsVideoModalOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium"
+                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors font-medium cursor-pointer"
               >
                 <Upload className="w-4 h-4" /> Subir Video
               </button>
@@ -450,16 +618,22 @@ export default function ScreenDetailPage() {
             <form onSubmit={handleAssignGame} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Seleccionar Juego</label>
-                <select 
-                  required
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  value={selectedGameId}
-                  onChange={e => setSelectedGameId(e.target.value)}
-                >
-                  {games.map(g => (
-                    <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
-                  ))}
-                </select>
+                {games.length === 0 ? (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
+                    No tienes juegos habilitados en tu plan actual. Contacta al administrador para activar juegos.
+                  </div>
+                ) : (
+                  <select 
+                    required
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    value={selectedGameId}
+                    onChange={e => setSelectedGameId(e.target.value)}
+                  >
+                    {games.map(g => (
+                      <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -491,7 +665,8 @@ export default function ScreenDetailPage() {
                 </button>
                 <button 
                   type="submit"
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                  disabled={games.length === 0}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:pointer-events-none"
                 >
                   Guardar
                 </button>
@@ -509,16 +684,22 @@ export default function ScreenDetailPage() {
             <form onSubmit={handleScheduleGame} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Seleccionar Juego</label>
-                <select 
-                  required
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  value={selectedGameId}
-                  onChange={e => setSelectedGameId(e.target.value)}
-                >
-                  {games.map(g => (
-                    <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
-                  ))}
-                </select>
+                {games.length === 0 ? (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
+                    No tienes juegos habilitados en tu plan actual. Contacta al administrador para activar juegos.
+                  </div>
+                ) : (
+                  <select 
+                    required
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    value={selectedGameId}
+                    onChange={e => setSelectedGameId(e.target.value)}
+                  >
+                    {games.map(g => (
+                      <option key={g.id} value={g.id} className="bg-background">{g.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -551,7 +732,8 @@ export default function ScreenDetailPage() {
                 </button>
                 <button 
                   type="submit"
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                  disabled={games.length === 0}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-colors font-medium disabled:opacity-50 disabled:pointer-events-none"
                 >
                   Programar
                 </button>
@@ -687,6 +869,92 @@ export default function ScreenDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Reasignar Cliente (Super Admin) */}
+      {isReassignModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <h2 className="text-xl font-bold mb-2">Asignar Pantalla a Cliente</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Pantalla: <span className="text-white font-semibold">{screen.name}</span>
+            </p>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setReassignSubmitting(true);
+                try {
+                  const res = await fetch(`/api/screens/${screen.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: selectedClientId === 'none' ? null : selectedClientId,
+                    }),
+                  });
+                  if (!res.ok) {
+                    throw new Error('Error al actualizar asignación');
+                  }
+                  setIsReassignModalOpen(false);
+                  fetchScreenData();
+                } catch (err) {
+                  console.error('Error reasignando pantalla:', err);
+                } finally {
+                  setReassignSubmitting(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Cliente Asignado</label>
+                <select
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                >
+                  <option value="none" className="bg-[#181a20]">Sin asignar (Desvincular)</option>
+                  {clientUsers.map((u) => (
+                    <option key={u.id} value={u.id} className="bg-[#181a20]">
+                      {u.name} ({u.username}) {u.plan ? `• ${u.plan.name}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  El cliente asignado podrá visualizar esta pantalla, subir videos y programar juegos.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsReassignModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm"
+                  disabled={reassignSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={reassignSubmitting}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium text-sm"
+                >
+                  {reassignSubmitting ? 'Guardando...' : 'Actualizar Asignación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Actualizaciones OTA (Inmediata y Programada) */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        screens={screen ? [screen] : []}
+        initialScreenId={screen?.id}
+        isSuperAdmin={currentUser?.role === 'SUPER_ADMIN'}
+        currentUserId={currentUser?.id}
+        onSuccess={fetchScreenData}
+      />
     </div>
   );
 }

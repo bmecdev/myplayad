@@ -5,6 +5,12 @@ on:
     branches:
       - 'staging'
       - 'game/**'
+      - 'feat/**'
+      - 'fix/**'
+
+concurrency:
+  group: staging-vps
+  cancel-in-progress: false
 
 jobs:
   deploy-staging:
@@ -15,7 +21,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Ensure Staging Directory Exists on VPS
+      - name: Ensure Staging Directories Exist on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -23,6 +29,13 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             mkdir -p /var/www/myplayad-staging
+            mkdir -p /opt/myplayad-staging
+            mkdir -p /srv/videos-staging/pool
+            if [ -d /srv/videos ]; then
+              echo "Copiando archivos de video de produccion a staging..."
+              cp -rn /srv/videos/* /srv/videos-staging/ 2>/dev/null || true
+            fi
+            chmod -R 777 /srv/videos-staging
 
       - name: Copy Frontend (games & screen) to Staging via scp
         uses: appleboy/scp-action@v0.1.7
@@ -34,3 +47,73 @@ jobs:
           target: "/var/www/myplayad-staging/"
           strip_components: 0
 
+      - name: Copy Backend (server & portal) to Staging via scp
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "server/,portal/,games/"
+          target: "/opt/myplayad-staging/"
+          strip_components: 0
+
+      - name: Setup Nginx & Staging Backend Services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # 1. Configurar Nginx sites-available y habilitar con ln -sf a sites-enabled
+            if [ -d /etc/nginx/sites-available ]; then
+              cp /opt/myplayad-staging/server/nginx/dev-portal.myplayad.com.conf /etc/nginx/sites-available/
+              cp /opt/myplayad-staging/server/nginx/dev-videos.myplayad.com.conf /etc/nginx/sites-available/
+              ln -sf /etc/nginx/sites-available/dev-portal.myplayad.com.conf /etc/nginx/sites-enabled/
+              ln -sf /etc/nginx/sites-available/dev-videos.myplayad.com.conf /etc/nginx/sites-enabled/
+              nginx -t && systemctl reload nginx
+            fi
+
+            # 2. Si no existe certificado para dev-videos, intentar emitirlo cuando su DNS este listo
+            if command -v certbot >/dev/null 2>&1; then
+              killall -9 certbot 2>/dev/null || true
+              rm -f /var/lib/letsencrypt/.certbot.lock /tmp/.certbot.lock /etc/letsencrypt/.certbot.lock 2>/dev/null || true
+              if [ ! -f /etc/letsencrypt/live/dev-videos.myplayad.com/fullchain.pem ]; then
+                certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+              fi
+            fi
+
+            # 3. Limpiar contenedores previos de staging y redes obsoletas
+            cd /opt/myplayad-staging/server
+            docker compose -p myplayad-staging -f docker-compose.staging.yml down --remove-orphans 2>/dev/null || true
+            docker rm -f prisma-db-push-staging portal-staging videos-staging 2>/dev/null || true
+            docker network rm myplayad-shared-net >/dev/null 2>&1 || true
+
+            # 4. Asegurar que PostgreSQL en el proyecto principal esté corriendo y conectado a server_default
+            cd /opt/myplayad/server
+            docker compose up -d postgres mosquitto
+            docker network inspect server_default >/dev/null 2>&1 || docker network create server_default
+            docker network connect server_default postgres 2>/dev/null || true
+            docker network connect server_default mosquitto 2>/dev/null || true
+            until docker compose exec -T postgres pg_isready -U postgres; do
+              echo "Esperando que postgres este listo..."
+              sleep 2
+            done
+            docker compose exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'mysecretpassword';" || true
+            docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE myplayad_staging;" || true
+
+            # 5. Desplegar servicios de Staging (Portal y Videos)
+            cd /opt/myplayad-staging/server
+            docker compose -p myplayad-staging -f docker-compose.staging.yml build prisma-db-push-staging
+            docker compose -p myplayad-staging -f docker-compose.staging.yml run --rm prisma-db-push-staging npx prisma db push --accept-data-loss
+            docker compose -p myplayad-staging -f docker-compose.staging.yml up -d --build --remove-orphans portal-staging videos-staging
+
+            # 6. Sincronizar registros de videos desde produccion a staging si existen
+            cd /opt/myplayad/server
+            docker compose exec -T postgres pg_dump -U postgres -d myplayad -t '"Video"' --data-only --inserts --on-conflict-do-nothing -f /tmp/videos_prod.sql || true
+            docker compose exec -T postgres psql -U postgres -d myplayad_staging -f /tmp/videos_prod.sql || true
+            docker compose exec -T postgres rm -f /tmp/videos_prod.sql 2>/dev/null || true
+
+            sleep 5
+            docker compose -p myplayad-staging -f /opt/myplayad-staging/server/docker-compose.staging.yml ps
+            docker compose -p myplayad-staging -f /opt/myplayad-staging/server/docker-compose.staging.yml logs --tail=40 portal-staging || true
+            docker compose -p myplayad-staging -f /opt/myplayad-staging/server/docker-compose.staging.yml logs --tail=40 videos-staging || true
