@@ -14,7 +14,7 @@ El proyecto está dividido en tres componentes principales:
 ## 🕹️ Catálogo de Minijuegos Disponibles en Producción
 
 <!-- GAMES_CATALOG_START -->
-Actualmente la rama principal (`main`) cuenta con **6 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
+Actualmente la rama principal (`main`) cuenta con **7 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
 
 | Juego | Género | Mecánica & Descripción | Controles Móviles / Teclado | Producción | Staging (Dev) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -23,6 +23,7 @@ Actualmente la rama principal (`main`) cuenta con **6 minijuegos** interactivos 
 | **👾 Space Invaders Clon**<br>`invaders` | Fixed Shooter | Defensa de la Tierra contra oleadas alienígenas descendentes con búnkeres de protección destructibles. | Botones de dirección y disparo láser táctil / Flechas y Espacio | 🖥️ [Pantalla](https://myplayad.com/invaders/)<br>📱 [Control](https://controllers.myplayad.com/invaders/) | 🖥️ [Pantalla](https://dev.myplayad.com/invaders/)<br>📱 [Control](https://dev-controllers.myplayad.com/invaders/) |
 | **🏎️ OutRun Clon**<br>`outrun` | Arcade Racing | Carrera retro a alta velocidad con bifurcaciones de ruta hacia 5 metas distintas (A-E) y reloj contrarreloj. | Volante digital, acelerador y freno táctil / Flechas o WASD | 🖥️ [Pantalla](https://myplayad.com/outrun/)<br>📱 [Control](https://controllers.myplayad.com/outrun/) | 🖥️ [Pantalla](https://dev.myplayad.com/outrun/)<br>📱 [Control](https://dev-controllers.myplayad.com/outrun/) |
 | **🟡 Pacman Clon**<br>`pacman` | Maze / Arcade | Laberinto retro donde Pacman recolecta puntos y frutas huyendo de los 4 fantasmas. | D-Pad táctil / Teclas de flecha | 🖥️ [Pantalla](https://myplayad.com/pacman/)<br>📱 [Control](https://controllers.myplayad.com/pacman/) | 🖥️ [Pantalla](https://dev.myplayad.com/pacman/)<br>📱 [Control](https://dev-controllers.myplayad.com/pacman/) |
+| **🛸 Skyroads Clon**<br>`skyroads` | Space Platformer / Racing | Nave espacial recorriendo túneles y plataformas en gravedad cero con saltos y turbo. | Dirección y propulsión táctil / Teclas de flecha + Espacio | 🖥️ [Pantalla](https://myplayad.com/skyroads/)<br>📱 [Control](https://controllers.myplayad.com/skyroads/) | 🖥️ [Pantalla](https://dev.myplayad.com/skyroads/)<br>📱 [Control](https://dev-controllers.myplayad.com/skyroads/) |
 | **🐍 Snake Clon**<br>`snake` | Arcade Retro | La serpiente retro clásica que crece al devorar píldoras, evitando colisiones con bordes y su propio cuerpo. | D-Pad direccional y gestos táctiles de deslizamiento (Swipe) / Flechas del teclado | 🖥️ [Pantalla](https://myplayad.com/snake/)<br>📱 [Control](https://controllers.myplayad.com/snake/) | 🖥️ [Pantalla](https://dev.myplayad.com/snake/)<br>📱 [Control](https://dev-controllers.myplayad.com/snake/) |
 <!-- GAMES_CATALOG_END -->
 
