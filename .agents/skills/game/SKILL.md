@@ -201,7 +201,7 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
        ? 'https://dev-controllers.myplayad.com/<slug>' 
        : 'https://controllers.myplayad.com/<slug>';
    ```
-3. **Manejo de Oferta (`handleOffer`) con `playerId`**:
+3. **Manejo de Oferta (`handleOffer`) con `playerId`, Cola ICE y `answer.sdp`**:
    ```javascript
    async function handleOffer(data) {
        const { playerId, type, sdp } = data;
@@ -210,6 +210,7 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
            ? window.GAME_CONFIG.getIceConfig() 
            : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
        const pc = new RTCPeerConnection(rtcConfig);
+       pc._pendingCandidates = [];
        peerConnections.set(targetPlayerId, pc);
 
        pc.onicecandidate = (e) => {
@@ -229,19 +230,44 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
            setupDataChannel(dc, targetPlayerId);
        };
 
-       await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+       const sdpStr = typeof sdp === 'string' ? sdp : (sdp?.sdp || '');
+       await pc.setRemoteDescription(new RTCSessionDescription({ type: type || 'offer', sdp: sdpStr }));
+
+       while (pc._pendingCandidates && pc._pendingCandidates.length > 0) {
+           try { await pc.addIceCandidate(new RTCIceCandidate(pc._pendingCandidates.shift())); } catch (_) {}
+       }
+
        const answer = await pc.createAnswer();
        await pc.setLocalDescription(answer);
 
        socket.send(JSON.stringify({
            type: 'answer',
-           sdp: answer.sdp,
+           sdp: answer.sdp, // OBLIGATORIO: answer.sdp (string), NUNCA el objeto answer completo
            roomId: GameState.roomId,
            playerId: targetPlayerId // OBLIGATORIO
        }));
    }
    ```
-4. **Ciclo de Vida de DataChannel y Desconexiones**:
+4. **Manejo de Mensajes WebSocket en el Host**:
+   ```javascript
+   if (data.type === 'controller_connected') {
+       waitingOverlay.classList.add('hidden'); // Feedback visual inmediato
+   } else if (data.type === 'offer') {
+       await handleOffer(data);
+   } else if (data.type === 'candidate') {
+       const pc = peerConnections.get(data.playerId);
+       if (pc && data.candidate) {
+           if (pc.remoteDescription) {
+               try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+           } else if (pc._pendingCandidates) {
+               pc._pendingCandidates.push(data.candidate);
+           }
+       }
+   } else if (data.type === 'controller_disconnected') {
+       handleControllerDisconnect(data.playerId);
+   }
+   ```
+5. **Ciclo de Vida de DataChannel y Desconexiones**:
    ```javascript
    function setupDataChannel(channel, playerId) {
        channel.onopen = () => {
@@ -272,7 +298,7 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
        }
    }
    ```
-5. **Al finalizar la partida (`endGame`)**:
+6. **Al finalizar la partida (`endGame`)**:
    * Notificar al móvil: `dataChannels.forEach(ch => ch.send(JSON.stringify({ type: 'game_over', score: GameState.score })));`.
    * Enviar puntuación a ranking local/portal vía `submitScore(nickname, score)`.
    * Mostrar overlay Hall of Fame durante 15s y luego regenerar sala con `resetSignalingAndRoom()`.
@@ -285,10 +311,43 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
    ```javascript
    socket.send(JSON.stringify({ type: 'register', role: 'controller', roomId: roomId }));
    ```
-3. **Creación de DataChannel Fiable**:
+3. **Manejo Robusto de `answer` y Candidatos ICE (Evita error 'Enlazando...')**:
+   ```javascript
+   let pendingCandidates = [];
+
+   socket.onmessage = async (event) => {
+       const data = JSON.parse(event.data);
+       if (data.type === 'host_ready') {
+           pendingCandidates = [];
+           setupWebRTC();
+       } else if (data.type === 'answer') {
+           if (pc) {
+               const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+               await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
+               // Transición visual inmediata: NUNCA dejar al usuario bloqueado en "Enlazando..."
+               roomSelection.style.display = 'none';
+               container.style.display = 'flex';
+               status.textContent = 'CONECTADO';
+
+               while (pendingCandidates.length > 0) {
+                   try { await pc.addIceCandidate(new RTCIceCandidate(pendingCandidates.shift())); } catch (_) {}
+               }
+           }
+       } else if (data.type === 'candidate') {
+           if (pc && data.candidate) {
+               if (pc.remoteDescription) {
+                   try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+               } else {
+                   pendingCandidates.push(data.candidate);
+               }
+           }
+       }
+   };
+   ```
+4. **Creación de DataChannel Fiable**:
    * `pc.createDataChannel('control', { ordered: false });`
    * **PROHIBIDO usar `maxRetransmits: 0`**, ya que hace que los paquetes iniciales de `join` se pierdan en redes móviles.
-4. **Envío de Handshake en `dataChannel.onopen`**:
+5. **Envío de Handshake en `dataChannel.onopen`**:
    ```javascript
    dataChannel.onopen = () => {
        status.textContent = 'LISTO';
@@ -297,11 +356,11 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
    };
    ```
-5. **Captura Táctil y Háptica**:
+6. **Captura Táctil y Háptica**:
    * `touchAction: none` en el contenedor táctil.
    * Enviar coordenadas throttled a ~60fps (16ms).
    * Vibración háptica en botones de acción (`navigator.vibrate(15)`).
-6. **Fin de Partida**:
+7. **Fin de Partida**:
    * Al recibir `{ type: 'game_over', score }`, mostrar pantalla de agradecimiento y cerrar conexiones limpiamente.
 
 ---
@@ -432,4 +491,3 @@ Solo cuando el usuario y el desarrollador hayan verificado el juego en Staging:
      python3 .agents/skills/game/scripts/update-games-readme.py
      ```
      y commitear los cambios antes de hacer push a `main`.
-

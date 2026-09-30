@@ -21,6 +21,7 @@ let dataChannel;
 let socket;
 let currentRoomId = null;
 let nickname = 'Pilot';
+let pendingCandidates = [];
 
 // Configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -263,18 +264,37 @@ async function initConnection() {
 
                 if (data.type === 'host_ready') {
                     status.textContent = 'Pantalla encontrada. Enlazando...';
+                    pendingCandidates = [];
                     setupWebRTC();
                 } else if (data.type === 'answer') {
                     if (pc) {
-                        await pc.setRemoteDescription(new RTCSessionDescription(data));
+                        const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+                        await pc.setRemoteDescription(new RTCSessionDescription({
+                            type: 'answer',
+                            sdp: sdp
+                        }));
                         status.textContent = '⚡ ENLACE ACTIVO';
+                        roomSelection.style.display = 'none';
+                        container.style.display = 'flex';
+
+                        while (pendingCandidates.length > 0) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(pendingCandidates.shift()));
+                            } catch (err) {
+                                console.warn('Error procesando candidate pendiente:', err);
+                            }
+                        }
                     }
                 } else if (data.type === 'candidate') {
                     if (pc && data.candidate) {
-                        try {
-                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                        } catch (err) {
-                            console.warn('Error candidate:', err);
+                        if (pc.remoteDescription) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                            } catch (err) {
+                                console.warn('Error candidate:', err);
+                            }
+                        } else {
+                            pendingCandidates.push(data.candidate);
                         }
                     }
                 } else if (data.type === 'error') {
