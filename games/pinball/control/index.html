@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pinball Arcade Mobile Controller</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div id="status">INGRESA TU NICKNAME</div>
+    
+    <!-- Pantalla de Bienvenida y Nickname -->
+    <div id="room-selection" class="welcome-container">
+        <div class="header-logo">
+            <h1>PINBALL <span>ARCADE</span></h1>
+        </div>
+        
+        <div class="input-group">
+            <p class="welcome-text">¡Controla los flippers con ambos pulgares, golpea los bumpers y acumula millones!</p>
+            <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10">
+            <input type="text" id="room-input" style="display: none;">
+            <button id="connect-btn">INSERT COIN</button>
+        </div>
+        
+        <p class="footer-hint">Toca la izquierda para Flipper Izq y la derecha para Flipper Der.</p>
+    </div>
+
+    <!-- Pantalla de Fin de Partida -->
+    <div id="thanks-screen" class="thanks-container" style="display: none;">
+        <div class="header-logo">
+            <h1>¡FIN DE PARTIDA!</h1>
+        </div>
+        <p id="thanks-message">Tu bola ha caído.</p>
+        <p class="small">Vuelve a escanear el código QR en la pantalla para una revancha.</p>
+    </div>
+
+    <!-- Interfaz de Control Arcade de Pinball -->
+    <div class="pinball-container" id="controls-container" style="display: none;">
+        
+        <!-- Barra Superior de Acciones Secundarias (Lanzador y Empujón) -->
+        <div class="top-actions-bar">
+            <button class="top-btn nudge-btn" id="btn-nudge">👋 EMPUJAR</button>
+            <div class="plunger-group">
+                <button class="top-btn launch-btn" id="btn-launch">
+                    <span class="launch-icon">🚀</span>
+                    <span>LANZAR</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Zonas Táctiles Principales: Flippers Izquierdo y Derecho -->
+        <div class="flippers-touch-area">
+            <button class="flipper-pad flipper-left" id="btn-flipper-left">
+                <div class="pad-content">
+                    <span class="flipper-arrow">◀</span>
+                    <span class="flipper-label">FLIPPER<br>IZQUIERDO</span>
+                </div>
+            </button>
+            
+            <button class="flipper-pad flipper-right" id="btn-flipper-right">
+                <div class="pad-content">
+                    <span class="flipper-label">FLIPPER<br>DERECHO</span>
+                    <span class="flipper-arrow">▶</span>
+                </div>
+            </button>
+        </div>
+
+    </div>
+
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+</body>
+</html>

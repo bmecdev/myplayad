@@ -1,0 +1,8 @@
+{
+  "name": "Pinball Arcade",
+  "slug": "pinball",
+  "icon": "⚡",
+  "genre": "Arcade / Physics Pinball",
+  "description": "Mesa arcade de pinball retro con bumpers luminosos, flippers de alta respuesta, rampas y multibola.",
+  "controls": "Flippers izquierdo/derecho y resorte de lanzamiento / Teclas Z, X y Espacio"
+}
