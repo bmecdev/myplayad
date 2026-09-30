@@ -173,6 +173,120 @@ class MobileAudio {
             osc.stop(t + 0.42);
         } catch (e) {}
     }
+
+    playWallBounce() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(220, t);
+            osc.frequency.exponentialRampToValueAtTime(80, t + 0.04);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.045);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.045);
+        } catch (e) {}
+    }
+
+    playFlipperHit() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(360, t);
+            osc.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.06);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.06);
+        } catch (e) {}
+    }
+
+    playTarget() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(600, t);
+            osc.frequency.exponentialRampToValueAtTime(880, t + 0.06);
+            gain.gain.setValueAtTime(0.25, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.07);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.07);
+        } catch (e) {}
+    }
+
+    playCardFlip() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(700, t);
+            osc.frequency.setValueAtTime(950, t + 0.03);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.07);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.07);
+        } catch (e) {}
+    }
+
+    playChute() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(550, t);
+            osc.frequency.exponentialRampToValueAtTime(1250, t + 0.12);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.14);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.14);
+        } catch (e) {}
+    }
+
+    playSave() {
+        this.ensureContext();
+        if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, t);
+            osc.frequency.exponentialRampToValueAtTime(1100, t + 0.2);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.22);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.22);
+        } catch (e) {}
+    }
 }
 const mobileAudio = new MobileAudio();
 
@@ -331,6 +445,24 @@ async function setupWebRTC() {
                 } else if (data.sound === 'slingshot') {
                     mobileAudio.playSlingshot();
                     if (navigator.vibrate) navigator.vibrate(20);
+                } else if (data.sound === 'bounce') {
+                    mobileAudio.playWallBounce();
+                    if (navigator.vibrate) navigator.vibrate(10);
+                } else if (data.sound === 'flipper_hit') {
+                    mobileAudio.playFlipperHit();
+                    if (navigator.vibrate) navigator.vibrate(18);
+                } else if (data.sound === 'card') {
+                    mobileAudio.playCardFlip();
+                    if (navigator.vibrate) navigator.vibrate(15);
+                } else if (data.sound === 'target') {
+                    mobileAudio.playTarget();
+                    if (navigator.vibrate) navigator.vibrate(15);
+                } else if (data.sound === 'chute') {
+                    mobileAudio.playChute();
+                    if (navigator.vibrate) navigator.vibrate([15, 20, 25]);
+                } else if (data.sound === 'save') {
+                    mobileAudio.playSave();
+                    if (navigator.vibrate) navigator.vibrate([30, 40, 50]);
                 } else if (data.sound === 'flipper') {
                     mobileAudio.playFlipper();
                 } else if (data.sound === 'launch') {

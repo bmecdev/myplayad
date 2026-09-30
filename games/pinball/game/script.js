@@ -129,6 +129,61 @@ class SoundFX {
         } catch (_) {}
     }
 
+    playWallBounce(intensity = 1) {
+        if (!this.ctx || this.muted) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(220, t);
+            osc.frequency.exponentialRampToValueAtTime(80, t + 0.04);
+            const vol = Math.max(0.05, Math.min(0.35, 0.25 * intensity));
+            gain.gain.setValueAtTime(vol, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.045);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.045);
+        } catch (_) {}
+    }
+
+    playFlipperHit() {
+        if (!this.ctx || this.muted) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(360, t);
+            osc.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.06);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.06);
+        } catch (_) {}
+    }
+
+    playChute() {
+        if (!this.ctx || this.muted) return;
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(550, t);
+            osc.frequency.exponentialRampToValueAtTime(1250, t + 0.12);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.linearRampToValueAtTime(0.001, t + 0.14);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.14);
+        } catch (_) {}
+    }
+
     playTarget() {
         if (!this.ctx || this.muted) return;
         try {
@@ -625,7 +680,15 @@ function updatePhysics(dt) {
 
             // 1. Colisión con Paredes Estáticas
             tableWalls.forEach(wall => {
-                collideBallWithSegment(ball, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y, RESTITUTION_WALL, false);
+                const hit = collideBallWithSegment(ball, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y, RESTITUTION_WALL, false);
+                if (hit) {
+                    const spd = Math.hypot(ball.vx, ball.vy);
+                    if (spd > 12) {
+                        audio.playWallBounce(Math.min(1.0, spd / 180));
+                        broadcastSFX('bounce');
+                        createSparks(ball.x, ball.y, '#3dff8a', 3);
+                    }
+                }
             });
 
             // 2. Colisión con los 4 Flippers Dinámicos
@@ -692,6 +755,7 @@ function updatePhysics(dt) {
 
                     k.lit = 1.0;
                     audio.playSlingshot();
+                    broadcastSFX('slingshot');
                     addScore(100, k.x, k.y);
                     createSparks(k.x, k.y, k.color, 6);
                 }
@@ -706,6 +770,7 @@ function updatePhysics(dt) {
                     card.flipped = true;
                     ball.vy = Math.abs(ball.vy) * 0.85; // Rebote hacia abajo
                     audio.playCardFlip();
+                    broadcastSFX('card');
                     addScore(200, card.x + 6, card.y - 6);
                     createSparks(card.x + 6, card.y + 8, '#3dff8a', 8);
 
@@ -713,6 +778,7 @@ function updatePhysics(dt) {
                     if (GameState.cards.every(c => c.flipped)) {
                         addScore(2500, 97, 180);
                         audio.playPlugActive();
+                        broadcastSFX('save');
                         GameState.popups.push({
                             text: '¡CARD BONUS +2500!',
                             x: 97,
@@ -733,6 +799,7 @@ function updatePhysics(dt) {
             if (ball.y > 76 && ball.y < 86 && ball.x > 82 && ball.x < 112) {
                 ball.vy = -Math.abs(ball.vy) * 1.15;
                 audio.playTarget();
+                broadcastSFX('target');
                 GameState.penguinHits++;
                 addScore(150, 97, 80);
                 createSparks(ball.x, ball.y, '#00f5d4', 6);
@@ -743,6 +810,7 @@ function updatePhysics(dt) {
                     GameState.stopPlug.active = true;
                     GameState.stopPlug.timer = 18.0;
                     audio.playPlugActive();
+                    broadcastSFX('save');
                     GameState.popups.push({
                         text: '¡STOP PLUG ACTIVO!',
                         x: 97,
@@ -773,7 +841,8 @@ function updatePhysics(dt) {
                     ball.vy = -180; // Salvada espectacular hacia arriba
 
                     sp.active = false; // Se consume tras salvar la bola
-                    audio.playSlingshot();
+                    audio.playPlugActive();
+                    broadcastSFX('save');
                     createSparks(sp.x, sp.y, '#ffea00', 14);
                     GameState.popups.push({
                         text: '¡SALVADA!',
@@ -792,13 +861,58 @@ function updatePhysics(dt) {
                     if (!lane.lit) {
                         lane.lit = true;
                         audio.playTarget();
+                        broadcastSFX('target');
                         addScore(lane.points, lane.x, lane.y);
                         createSparks(lane.x, lane.y, '#ffffff', 6);
                     }
                 }
             });
 
-            // 10. Salida del Plunger hacia la mesa
+            // 10. Chute Izquierdo Curvo (100 pts)
+            if (ball.x > 26 && ball.x < 48 && ball.y > 48 && ball.y < 72) {
+                if (!ball._inLeftChute) {
+                    ball._inLeftChute = true;
+                    ball.vx = Math.abs(ball.vx) + 35;
+                    ball.vy = -Math.abs(ball.vy) - 25;
+                    audio.playChute();
+                    broadcastSFX('chute');
+                    addScore(100, 36, 52);
+                    createSparks(ball.x, ball.y, '#00f5d4', 8);
+                }
+            } else {
+                ball._inLeftChute = false;
+            }
+
+            // 11. Chute Verde Derecho (500 pts)
+            if (ball.x > 146 && ball.x < 166 && ball.y > 40 && ball.y < 68) {
+                if (!ball._inRightChute) {
+                    ball._inRightChute = true;
+                    ball.vx = -45;
+                    ball.vy = 80;
+                    audio.playChute();
+                    broadcastSFX('chute');
+                    addScore(500, 157, 52);
+                    createSparks(ball.x, ball.y, '#3dff8a', 10);
+                }
+            } else {
+                ball._inRightChute = false;
+            }
+
+            // 12. Carril Rayado Rosado (Pink Ladder en pared derecha)
+            if (ball.x > 165 && ball.x < 174 && ball.y > 212 && ball.y < 248) {
+                if (!ball._inPinkLadder) {
+                    ball._inPinkLadder = true;
+                    ball.vx = -Math.abs(ball.vx) * 0.9 - 25;
+                    audio.playTarget();
+                    broadcastSFX('target');
+                    addScore(50, 168, ball.y);
+                    createSparks(ball.x, ball.y, '#ff007f', 6);
+                }
+            } else {
+                ball._inPinkLadder = false;
+            }
+
+            // 13. Salida del Plunger hacia la mesa
             if (ball.y < 38 && ball.x < 172 && ball.inPlunger) {
                 ball.inPlunger = false;
             }
@@ -946,6 +1060,10 @@ function collideBallWithFlipper(ball, flipper) {
             const restitution = 0.85;
             ball.vx = (relVx - 2 * dot * nx) * restitution + flipperVx;
             ball.vy = (relVy - 2 * dot * ny) * restitution + flipperVy;
+
+            // Sonido y broadcast de golpe en la pala del flipper
+            audio.playFlipperHit();
+            broadcastSFX('flipper_hit');
 
             // Impulso extra si el flipper se movió bruscamente hacia arriba
             if (flipper.active) {
