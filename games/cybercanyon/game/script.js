@@ -1,6 +1,6 @@
 // ==============================================================================
 // CYBER CANYON: QuestWorld 3D - Arcade Host Script
-// Inspirado en el cañón vectorial de QuestWorld / Tron en Canvas 2D
+// Motor 3D de Cañón Vectorial CRT en Canvas 2D
 // ==============================================================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -19,9 +19,9 @@ const iceRouteElement = document.getElementById('ice-route');
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
-const FOV = 260;
+const FOV = 230;
 
-// Estado Global del Juego
+// Estado Global de la Partida
 const GameState = {
     running: false,
     gameOver: false,
@@ -30,9 +30,9 @@ const GameState = {
     distance: 0,
     shields: 3,
     maxShields: 3,
-    speed: 130, // km/h
-    baseSpeed: 130,
-    maxSpeed: 380,
+    speed: 135, // km/h
+    baseSpeed: 135,
+    maxSpeed: 390,
     boost: false,
     currentNickname: 'PILOT',
     roomId: Math.random().toString(36).substring(2, 6).toUpperCase(),
@@ -41,16 +41,18 @@ const GameState = {
     glitchFlash: 0
 };
 
-// Nave / Cámara del Jugador
+// Nave / Cámara en Primera Persona (Coordenadas relativas al cañón)
 const Player = {
-    x: 0,
-    y: 0,
-    z: 0,
+    relX: 0, // Posición horizontal dentro del cañón (-halfWidth a +halfWidth)
+    relY: 0, // Posición vertical dentro del cañón (negativo = arriba/cielo, positivo = abajo/suelo)
+    z: 0,    // Distancia avanzada a lo largo del cañón
     vx: 0,
     vy: 0,
-    speed: 160,
-    roll: 0,
+    speed: 155,
+    roll: 0,       // Inclinación lateral (banking)
     targetRoll: 0,
+    pitch: 0,      // Inclinación vertical (cabeceo)
+    yaw: 0,        // Orientación de la cámara hacia la curva
     invulnerableTime: 0
 };
 
@@ -106,10 +108,9 @@ class CyberAudio {
             this.droneOsc = this.ctx.createOscillator();
             this.droneGain = this.ctx.createGain();
             this.droneOsc.type = 'sawtooth';
-            this.droneOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
+            this.droneOsc.frequency.setValueAtTime(50, this.ctx.currentTime);
             this.droneGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
 
-            // Filtro pasa-bajas para un rugido futurista suave
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.setValueAtTime(220, this.ctx.currentTime);
@@ -123,7 +124,7 @@ class CyberAudio {
 
     updateDroneSpeed(speedRatio) {
         if (!this.ctx || !this.droneOsc) return;
-        const targetFreq = 55 + speedRatio * 85;
+        const targetFreq = 50 + speedRatio * 85;
         this.droneOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.1);
     }
 
@@ -187,16 +188,17 @@ class CyberAudio {
 const audio = new CyberAudio();
 
 // ==============================================================================
-// GENERADOR PROCEDURAL DEL CAÑÓN VECTORIAL
+// MODELADO PROCEDURAL DE LAS MONTAÑAS Y EL CAÑÓN
 // ==============================================================================
 
-// Traza la curvatura central y dimensiones del cañón en cualquier distancia Z
+// Devuelve el centro del cañón y sus dimensiones en cualquier punto Z
 function getCanyonAt(z) {
-    const cX = 140 * Math.sin(z * 0.0028) + 70 * Math.sin(z * 0.0064 + 1.2);
-    const cY = 55 * Math.cos(z * 0.0024) + 35 * Math.sin(z * 0.0048);
-    const width = 105 + 25 * Math.sin(z * 0.0035);
-    const height = 95 + 20 * Math.cos(z * 0.0029);
-    return { cX, cY, width, height };
+    // Curvas armónicas amplias y suaves que permiten una navegación cinematográfica
+    const cX = 110 * Math.sin(z * 0.0031) + 60 * Math.sin(z * 0.0068 + 0.8);
+    const cY = 38 * Math.cos(z * 0.0024) + 24 * Math.sin(z * 0.0051);
+    const halfWidth = 85 + 15 * Math.sin(z * 0.0035); // Ancho de la garganta del cañón
+    const cliffHeight = 160 + 20 * Math.cos(z * 0.0028); // Altura de las paredes montañosas
+    return { cX, cY, halfWidth, cliffHeight };
 }
 
 // Compuertas / Anillos de datos cibernéticos
@@ -205,19 +207,17 @@ const GATE_INTERVAL = 140; // metros entre compuertas
 let nextGateZ = 200;
 
 function spawnGatesAhead(playerZ) {
-    while (nextGateZ < playerZ + 500) {
-        const canyon = getCanyonAt(nextGateZ);
+    while (nextGateZ < playerZ + 550) {
         GATES.push({
             z: nextGateZ,
-            x: canyon.cX + (Math.sin(nextGateZ * 0.01) * 20),
-            y: canyon.cY + (Math.cos(nextGateZ * 0.012) * 15),
-            radius: 40,
+            relX: (Math.sin(nextGateZ * 0.015) * 25),
+            relY: (Math.cos(nextGateZ * 0.012) * 18),
+            radius: 38,
             passed: false
         });
         nextGateZ += GATE_INTERVAL;
     }
-    // Limpiar compuertas dejadas atrás
-    while (GATES.length > 0 && GATES[0].z < playerZ - 80) {
+    while (GATES.length > 0 && GATES[0].z < playerZ - 60) {
         GATES.shift();
     }
 }
@@ -232,12 +232,8 @@ const pendingCandidates = new Map(); // playerId -> Array de candidatos ICE en e
 let socket = null;
 
 const signalingState = {
-    reconnectAttempts: 0,
-    maxAttempts: 10,
-    baseDelay: 1000,
     shouldReconnect: true,
-    manualClose: false,
-    reconnectTimer: null
+    manualClose: false
 };
 
 function setIceRouteText(text) {
@@ -276,8 +272,7 @@ function connectSignalingServer() {
 
     currentSocket.onopen = () => {
         if (socket !== currentSocket) return;
-        console.log(`Conectado al servidor de señalización (Sala: ${GameState.roomId})`);
-        document.getElementById('room-id').textContent = `ROOM: ${GameState.roomId}`;
+        document.getElementById('room-id').textContent = `ID: ${GameState.roomId}`;
         socket.send(JSON.stringify({ 
             type: 'register', 
             role: 'host', 
@@ -380,7 +375,6 @@ async function handleOffer(data) {
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
 
-    // Vaciar cola de candidatos ICE
     const queued = pendingCandidates.get(playerId) || [];
     for (const c of queued) {
         try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (err) {}
@@ -401,7 +395,8 @@ function handleControllerInput(input) {
     // Joystick analógico móvil x, y (-1 a 1)
     if (input.x !== undefined && input.y !== undefined) {
         Player.vx = input.x * Player.speed;
-        Player.vy = input.y * Player.speed;
+        // Inversión de nave para stick móvil: empujar arriba (y < 0) = picar (vy > 0), tirar abajo = trepar
+        Player.vy = -input.y * Player.speed;
     }
     if (input.boost !== undefined) {
         GameState.boost = Boolean(input.boost);
@@ -440,13 +435,15 @@ function resetGame() {
     GameState.screenShake = 0;
     GameState.glitchFlash = 0;
 
-    Player.x = 0;
-    Player.y = 0;
+    Player.relX = 0;
+    Player.relY = 0;
     Player.z = 0;
     Player.vx = 0;
     Player.vy = 0;
     Player.roll = 0;
     Player.targetRoll = 0;
+    Player.pitch = 0;
+    Player.yaw = 0;
     Player.invulnerableTime = 0;
 
     GATES.length = 0;
@@ -460,56 +457,65 @@ function resetGame() {
 function update(dt) {
     if (!GameState.running || GameState.gameOver) return;
 
-    // Calcular velocidad efectiva (Boost da un 50% extra)
-    const effectiveSpeed = (GameState.speed * (GameState.boost ? 1.5 : 1.0));
+    const effectiveSpeed = (GameState.speed * (GameState.boost ? 1.55 : 1.0));
     const speedRatio = (effectiveSpeed - GameState.baseSpeed) / (GameState.maxSpeed - GameState.baseSpeed);
     audio.updateDroneSpeed(speedRatio);
 
-    // Avanzar distancia en el cañón
-    const distDelta = (effectiveSpeed / 3.6) * dt; // km/h -> m/s
+    const distDelta = (effectiveSpeed / 3.6) * dt; // m/s
     GameState.distance += distDelta;
     Player.z += distDelta;
 
-    // Aumentar velocidad base poco a poco
     if (GameState.speed < GameState.maxSpeed) {
-        GameState.speed += dt * 3.5;
+        GameState.speed += dt * 3.2;
     }
 
-    // Puntos por distancia recorrida
     GameState.score += Math.floor(distDelta * (GameState.boost ? 2.5 : 1.0));
 
-    // Desplazamiento del jugador
-    Player.x += Player.vx * dt;
-    Player.y += Player.vy * dt;
+    // Desplazamiento del jugador DENTRO del cañón
+    Player.relX += Player.vx * dt;
+    Player.relY += Player.vy * dt;
 
-    // Inclinación visual (Roll / Banking)
-    Player.targetRoll = (Player.vx / Player.speed) * 0.35; // radianes
-    Player.roll += (Player.targetRoll - Player.roll) * 8 * dt;
+    // Dinámica de inclinación de vuelo:
+    // 1. Roll (Alabeo lateral al girar izq/der)
+    Player.targetRoll = (Player.vx / Player.speed) * 0.45; // hasta ~26 grados
+    Player.roll += (Player.targetRoll - Player.roll) * 7.5 * dt;
 
-    // Verificar colisión con el cañón en la posición frontal inmediata
-    const currentCanyon = getCanyonAt(Player.z + 10);
-    const relPlayerX = Player.x - currentCanyon.cX;
-    const relPlayerY = Player.y - currentCanyon.cY;
+    // 2. Pitch (Cabeceo vertical al subir/bajar)
+    const targetPitch = (-Player.vy / Player.speed) * 0.28;
+    Player.pitch += (targetPitch - Player.pitch) * 8.0 * dt;
 
-    const safeMarginX = currentCanyon.width - 24;
-    const safeMarginY = currentCanyon.height - 20;
+    // 3. Look-Ahead de la Cámara (Seguimiento predictivo de curvas):
+    // La cámara mira hacia el centro del cañón 50m adelante, evitando que las paredes se salgan de pantalla
+    const currentCanyon = getCanyonAt(Player.z);
+    const aheadCanyon = getCanyonAt(Player.z + 50);
+    const targetYaw = (aheadCanyon.cX - currentCanyon.cX) / 50;
+    Player.yaw += (targetYaw - Player.yaw) * 6.5 * dt;
 
-    // Reducir tiempo de invulnerabilidad tras un choque
+    // Límites de vuelo y colisiones con el cañón
+    const safeMarginX = currentCanyon.halfWidth - 20;
+    const safeMarginYTop = currentCanyon.cliffHeight * 0.40;
+    const safeMarginYBottom = currentCanyon.cliffHeight * 0.35;
+
     if (Player.invulnerableTime > 0) {
         Player.invulnerableTime -= dt;
     }
 
-    // Colisión con paredes
     let hitWall = false;
-    if (Math.abs(relPlayerX) > safeMarginX) {
+    // Pared izquierda o derecha
+    if (Math.abs(Player.relX) > safeMarginX) {
         hitWall = true;
-        Player.x = currentCanyon.cX + Math.sign(relPlayerX) * safeMarginX;
-        Player.vx = -Player.vx * 0.3;
+        Player.relX = Math.sign(Player.relX) * safeMarginX;
+        Player.vx = -Player.vx * 0.4;
     }
-    if (Math.abs(relPlayerY) > safeMarginY) {
+    // Techo o suelo del cañón
+    if (Player.relY < -safeMarginYTop) {
         hitWall = true;
-        Player.y = currentCanyon.cY + Math.sign(relPlayerY) * safeMarginY;
-        Player.vy = -Player.vy * 0.3;
+        Player.relY = -safeMarginYTop;
+        Player.vy = -Player.vy * 0.4;
+    } else if (Player.relY > safeMarginYBottom) {
+        hitWall = true;
+        Player.relY = safeMarginYBottom;
+        Player.vy = -Player.vy * 0.4;
     }
 
     if (hitWall && Player.invulnerableTime <= 0) {
@@ -525,21 +531,19 @@ function update(dt) {
         }
     }
 
-    // Spawn y verificación de compuertas cibernéticas
+    // Spawn y verificación de anillos cibernéticos
     spawnGatesAhead(Player.z);
     for (const gate of GATES) {
-        if (!gate.passed && gate.z <= Player.z + 6 && gate.z >= Player.z - 10) {
+        if (!gate.passed && gate.z <= Player.z + 8 && gate.z >= Player.z - 8) {
             gate.passed = true;
-            const distToGateCenter = Math.hypot(Player.x - gate.x, Player.y - gate.y);
-            if (distToGateCenter < gate.radius) {
-                // Atravesó el anillo exitosamente!
-                GameState.score += 250;
+            const distToGate = Math.hypot(Player.relX - gate.relX, Player.relY - gate.relY);
+            if (distToGate < gate.radius) {
+                GameState.score += 300;
                 audio.playPassGate();
             }
         }
     }
 
-    // Decaimiento del screen shake y glitch
     if (GameState.screenShake > 0) {
         GameState.screenShake = Math.max(0, GameState.screenShake - dt * 25);
     }
@@ -551,53 +555,59 @@ function update(dt) {
 }
 
 // ==============================================================================
-// RENDERIZADOR 3D VECTORIAL EN CANVAS 2D
+// RENDERIZADOR 3D: MONTAÑAS VECTORIALES CON LOOK-AHEAD Y CABINA INMERSIVA
 // ==============================================================================
 
 function draw() {
-    // Fondo negro profundo
     ctx.fillStyle = '#060a08';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Efecto de sacudida (Screen Shake)
+    const centerX = CANVAS_WIDTH / 2;
+    const centerY = CANVAS_HEIGHT / 2;
+
     ctx.save();
+
+    // Sacudida por impacto
     if (GameState.screenShake > 0) {
         const shakeX = (Math.random() - 0.5) * GameState.screenShake;
         const shakeY = (Math.random() - 0.5) * GameState.screenShake;
         ctx.translate(shakeX, shakeY);
     }
 
-    const centerX = CANVAS_WIDTH / 2;
-    const centerY = CANVAS_HEIGHT / 2;
-
-    // Aplicar inclinación (Roll) en torno al centro
+    // Rotación de alabeo (Roll) en el punto central de visión
     ctx.translate(centerX, centerY);
     ctx.rotate(-Player.roll);
     ctx.translate(-centerX, -centerY);
 
-    // Número de rebanadas en profundidad Z
-    const numSlices = 32;
+    // Rebanadas del cañón proyectadas en profundidad Z
+    const numSlices = 34;
     const sliceSpacing = 11;
     const maxZ = numSlices * sliceSpacing;
     const offsetZ = Player.z % sliceSpacing;
 
-    const projectedSlices = [];
+    const currentCanyon = getCanyonAt(Player.z);
 
-    // 1. Proyectar todas las rebanadas del cañón de adelante hacia atrás
+    // Recopilar cortes 3D
+    const projectedSlices = [];
     for (let i = numSlices; i >= 1; i--) {
         const relZ = (i * sliceSpacing) - offsetZ;
-        if (relZ <= 4) continue;
+        if (relZ <= 5) continue;
 
         const worldZ = Player.z + relZ;
         const canyon = getCanyonAt(worldZ);
 
-        const scale = FOV / relZ;
-        const px = centerX + (canyon.cX - Player.x) * scale;
-        const py = centerY + (canyon.cY - Player.y) * scale;
-        const pw = canyon.width * scale;
-        const ph = canyon.height * scale;
+        // Compensación de Look-Ahead (Mantiene las curvas centradas para no perder la pared opuesta)
+        const relCamX = (canyon.cX - currentCanyon.cX - Player.relX) - Player.yaw * relZ;
+        const relCamY = (canyon.cY - currentCanyon.cY - Player.relY) - Player.pitch * relZ;
 
-        const alpha = Math.max(0.12, Math.min(1.0, 1.0 - Math.pow(relZ / maxZ, 1.3)));
+        const scale = FOV / relZ;
+        const px = centerX + relCamX * scale;
+        const py = centerY + relCamY * scale;
+
+        const hw = canyon.halfWidth * scale;
+        const ch = canyon.cliffHeight * scale;
+
+        const alpha = Math.max(0.12, Math.min(1.0, 1.0 - Math.pow(relZ / maxZ, 1.25)));
 
         projectedSlices.push({
             relZ,
@@ -605,76 +615,90 @@ function draw() {
             scale,
             px,
             py,
-            pw,
-            ph,
+            hw,
+            ch,
             alpha
         });
     }
 
-    // 2. Dibujar líneas de contorno horizontal estilo Sonar / Tron (como en la referencia)
-    // Para cada rebanada, trazamos las paredes izquierda y derecha con curvaturas
+    // 1. DIBUJAR LAS MONTAÑAS Y PAREDES QUE DESCIENDEN (Curvas de contorno topográfico verticales/inclinadas)
     ctx.lineWidth = 1.6;
 
     for (let s = 0; s < projectedSlices.length; s++) {
         const slice = projectedSlices[s];
         const alpha = slice.alpha;
-
-        // Fósforo verde neón (#3dff8a)
         ctx.strokeStyle = `rgba(61, 255, 138, ${alpha})`;
 
-        const leftEdge = slice.px - slice.pw;
-        const rightEdge = slice.px + slice.pw;
-        const topEdge = slice.py - slice.ph;
-        const bottomEdge = slice.py + slice.ph;
+        const floorY = slice.py + slice.ch * 0.35;
+        const rimY = slice.py - slice.ch * 0.65;
+        const leftThroatX = slice.px - slice.hw;
+        const rightThroatX = slice.px + slice.hw;
 
-        // Anillo de contorno de la sección
-        ctx.beginPath();
-        // Pared izquierda ondulada
-        ctx.moveTo(-100, slice.py - slice.ph * 0.8);
-        ctx.bezierCurveTo(
-            leftEdge - 40 * slice.scale, slice.py - slice.ph * 0.5,
-            leftEdge - 20 * slice.scale, slice.py + slice.ph * 0.5,
-            leftEdge, bottomEdge
-        );
+        // Número de estratos montañosos que caen desde la cima al suelo
+        const numStrata = 7;
 
-        // Suelo del cañón
-        ctx.lineTo(rightEdge, bottomEdge);
+        // Pared Izquierda: Desciende desde el pico exterior hacia el lecho del cañón
+        for (let str = 0; str <= numStrata; str++) {
+            const ratio = str / numStrata;
+            const y = rimY + (floorY - rimY) * ratio;
 
-        // Pared derecha ondulada
-        ctx.bezierCurveTo(
-            rightEdge + 20 * slice.scale, slice.py + slice.ph * 0.5,
-            rightEdge + 40 * slice.scale, slice.py - slice.ph * 0.5,
-            CANVAS_WIDTH + 100, slice.py - slice.ph * 0.8
-        );
-        ctx.stroke();
+            // Ondulación rocosa orgánica
+            const ridgeW = Math.pow(1 - ratio, 1.35) * (180 * slice.scale) + (Math.sin(slice.worldZ * 0.05 + str) * 12 * slice.scale);
+            const peakX = leftThroatX - ridgeW;
 
-        // Líneas horizontales de estrato rocoso en los laterales (exactas a la imagen de referencia)
-        const strataSteps = 4;
-        for (let st = 1; st < strataSteps; st++) {
-            const hRatio = (st / strataSteps);
-            const strataY = slice.py - slice.ph + (slice.ph * 2 * hRatio);
-            
             ctx.beginPath();
-            // Izquierda
-            ctx.moveTo(-80, strataY);
-            ctx.lineTo(leftEdge + (st % 2 === 0 ? 10 : 0) * slice.scale, strataY);
-            // Derecha
-            ctx.moveTo(rightEdge - (st % 2 === 0 ? 10 : 0) * slice.scale, strataY);
-            ctx.lineTo(CANVAS_WIDTH + 80, strataY);
+            // Trazo de la ladera montañosa que baja
+            ctx.moveTo(peakX - (30 * slice.scale), y - (10 * slice.scale));
+            ctx.quadraticCurveTo(
+                peakX, y,
+                leftThroatX + (str === numStrata ? 0 : (str % 2 === 0 ? 8 : -4) * slice.scale), y
+            );
             ctx.stroke();
         }
+
+        // Suelo del Cañón: Línea de base que une ambas laderas
+        ctx.beginPath();
+        ctx.moveTo(leftThroatX, floorY);
+        ctx.lineTo(rightThroatX, floorY);
+        ctx.stroke();
+
+        // Pared Derecha: Sube desde el lecho del cañón hacia el pico exterior derecho
+        for (let str = 0; str <= numStrata; str++) {
+            const ratio = str / numStrata;
+            const y = rimY + (floorY - rimY) * ratio;
+
+            const ridgeW = Math.pow(1 - ratio, 1.35) * (180 * slice.scale) + (Math.cos(slice.worldZ * 0.05 + str) * 12 * slice.scale);
+            const peakX = rightThroatX + ridgeW;
+
+            ctx.beginPath();
+            ctx.moveTo(rightThroatX - (str === numStrata ? 0 : (str % 2 === 0 ? 8 : -4) * slice.scale), y);
+            ctx.quadraticCurveTo(
+                peakX, y,
+                peakX + (30 * slice.scale), y - (10 * slice.scale)
+            );
+            ctx.stroke();
+        }
+
+        // Línea de cresta vertical (une los bordes de la garganta)
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(61, 255, 138, ${alpha * 0.6})`;
+        ctx.moveTo(leftThroatX, rimY);
+        ctx.lineTo(leftThroatX, floorY);
+        ctx.moveTo(rightThroatX, rimY);
+        ctx.lineTo(rightThroatX, floorY);
+        ctx.stroke();
     }
 
-    // 3. Líneas longitudinales que se extienden hacia el horizonte en el fondo del cañón
+    // 2. Líneas longitudinales que van hacia el fondo en el lecho del cañón
     if (projectedSlices.length > 2) {
-        const floorLines = [-0.6, -0.2, 0.2, 0.6];
-        floorLines.forEach(ratio => {
+        const floorTrackRatios = [-0.65, -0.25, 0.25, 0.65];
+        floorTrackRatios.forEach(r => {
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(61, 255, 138, 0.25)';
+            ctx.strokeStyle = 'rgba(61, 255, 138, 0.28)';
             for (let i = 0; i < projectedSlices.length; i++) {
                 const sl = projectedSlices[i];
-                const x = sl.px + (sl.pw * ratio);
-                const y = sl.py + sl.ph;
+                const x = sl.px + (sl.hw * r);
+                const y = sl.py + (sl.ch * 0.35);
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
@@ -682,23 +706,26 @@ function draw() {
         });
     }
 
-    // 4. Dibujar compuertas / anillos cibernéticos
+    // 3. Anillos / Compuertas de datos hexagonales
     for (const gate of GATES) {
         const relZ = gate.z - Player.z;
         if (relZ > 5 && relZ < maxZ) {
             const scale = FOV / relZ;
-            const gx = centerX + (gate.x - Player.x) * scale;
-            const gy = centerY + (gate.y - Player.y) * scale;
+            const canyonAtGate = getCanyonAt(gate.z);
+            const relCamX = (canyonAtGate.cX + gate.relX - (currentCanyon.cX + Player.relX)) - Player.yaw * relZ;
+            const relCamY = (canyonAtGate.cY + gate.relY - (currentCanyon.cY + Player.relY)) - Player.pitch * relZ;
+
+            const gx = centerX + relCamX * scale;
+            const gy = centerY + relCamY * scale;
             const gr = gate.radius * scale;
             const alpha = Math.max(0.2, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
             ctx.save();
             ctx.lineWidth = Math.max(2, 3.5 * scale);
             ctx.strokeStyle = gate.passed 
-                ? `rgba(61, 255, 138, ${alpha * 0.4})` 
-                : `rgba(255, 183, 3, ${alpha})`; // Ámbar neón para compuertas activas
+                ? `rgba(61, 255, 138, ${alpha * 0.35})` 
+                : `rgba(255, 183, 3, ${alpha})`; // Ámbar neón
 
-            // Hexágono vectorial
             ctx.beginPath();
             for (let a = 0; a < 6; a++) {
                 const angle = (a * Math.PI / 3);
@@ -709,52 +736,69 @@ function draw() {
             }
             ctx.closePath();
             ctx.stroke();
-
-            // Puntos guía en los vértices
-            ctx.fillStyle = ctx.strokeStyle;
-            for (let a = 0; a < 6; a++) {
-                const angle = (a * Math.PI / 3);
-                ctx.beginPath();
-                ctx.arc(gx + Math.cos(angle) * gr, gy + Math.sin(angle) * gr, 2.5 * scale, 0, Math.PI * 2);
-                ctx.fill();
-            }
             ctx.restore();
         }
     }
 
-    // 5. Retícula de Vuelo en Primera Persona (HUD Crosshair minimalista)
-    ctx.restore(); // Restaurar rotación y sacudida para el HUD de cabina fijo
-
+    // 4. CABINA INMERSIVA DE VUELO (Rota con la nave y responde al cabeceo)
+    // Dibuja el horizonte artificial y la retícula de vuelo que giran con la visual
     ctx.save();
-    ctx.strokeStyle = Player.invulnerableTime > 0 
-        ? 'rgba(255, 77, 109, 0.85)' 
-        : (GameState.boost ? 'rgba(255, 183, 3, 0.85)' : 'rgba(61, 255, 138, 0.7)');
+    const hudColor = Player.invulnerableTime > 0 
+        ? 'rgba(255, 77, 109, 0.9)' 
+        : (GameState.boost ? 'rgba(255, 183, 3, 0.9)' : 'rgba(61, 255, 138, 0.75)');
+
+    ctx.strokeStyle = hudColor;
+    ctx.fillStyle = hudColor;
     ctx.lineWidth = 1.5;
 
-    // Cruz central
+    // Barra de Horizonte Artificial Móvil (indica la inclinación y cabeceo real)
+    const horizonY = centerY - (Player.pitch * 90);
     ctx.beginPath();
-    ctx.moveTo(centerX - 12, centerY);
-    ctx.lineTo(centerX - 4, centerY);
-    ctx.moveTo(centerX + 4, centerY);
+    ctx.setLineDash([8, 6]);
+    ctx.moveTo(centerX - 85, horizonY);
+    ctx.lineTo(centerX - 25, horizonY);
+    ctx.moveTo(centerX + 25, horizonY);
+    ctx.lineTo(centerX + 85, horizonY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Retícula de vuelo en primera persona (Crosshair con alas de inclinación)
+    ctx.beginPath();
+    // Centro
+    ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Ala izquierda de cabina
+    ctx.moveTo(centerX - 35, centerY);
+    ctx.lineTo(centerX - 12, centerY);
+    ctx.lineTo(centerX - 12, centerY + 6);
+    // Ala derecha de cabina
+    ctx.moveTo(centerX + 35, centerY);
     ctx.lineTo(centerX + 12, centerY);
-    ctx.moveTo(centerX, centerY - 12);
-    ctx.lineTo(centerX, centerY - 4);
-    ctx.moveTo(centerX, centerY + 4);
-    ctx.lineTo(centerX, centerY + 12);
+    ctx.lineTo(centerX + 12, centerY + 6);
     ctx.stroke();
 
-    // Círculo de puntería
+    // Marco exterior de la cabina (Bordes angulares de HUD QuestWorld)
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.35)';
     ctx.beginPath();
-    ctx.arc(centerX, centerY, 18, 0, Math.PI * 2);
+    // Esquina superior izquierda
+    ctx.moveTo(25, 60); ctx.lineTo(25, 25); ctx.lineTo(60, 25);
+    // Esquina superior derecha
+    ctx.moveTo(CANVAS_WIDTH - 25, 60); ctx.lineTo(CANVAS_WIDTH - 25, 25); ctx.lineTo(CANVAS_WIDTH - 60, 25);
+    // Esquina inferior izquierda
+    ctx.moveTo(25, CANVAS_HEIGHT - 60); ctx.lineTo(25, CANVAS_HEIGHT - 25); ctx.lineTo(60, CANVAS_HEIGHT - 25);
+    // Esquina inferior derecha
+    ctx.moveTo(CANVAS_WIDTH - 25, CANVAS_HEIGHT - 60); ctx.lineTo(CANVAS_WIDTH - 25, CANVAS_HEIGHT - 25); ctx.lineTo(CANVAS_WIDTH - 60, CANVAS_HEIGHT - 25);
     ctx.stroke();
 
-    // Destello de daño (Glitch Flash)
+    ctx.restore();
+
+    ctx.restore(); // Fin de la transformación de cámara / roll
+
+    // Destello de daño en pantalla (Glitch Flash)
     if (GameState.glitchFlash > 0) {
         ctx.fillStyle = `rgba(255, 77, 109, ${GameState.glitchFlash * 0.35})`;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     }
-
-    ctx.restore();
 }
 
 function gameLoop(timestamp) {
@@ -776,7 +820,6 @@ function endGame() {
     notifyGameOver();
     submitScore(GameState.currentNickname, GameState.score);
 
-    // Cierre de canales y preparación para nueva partida
     setTimeout(() => {
         gameOverOverlay.classList.add('hidden');
         waitingOverlay.classList.remove('hidden');
@@ -799,15 +842,13 @@ function updateUI() {
     scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(4, '0')}`;
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(4, '0')}`;
     
-    // Indicador visual de escudos
     let shieldBars = '';
     for (let i = 0; i < GameState.maxShields; i++) {
         shieldBars += (i < GameState.shields) ? '▰' : '▱';
     }
     shieldsCountElement.textContent = shieldBars;
 
-    // Indicador de velocidad
-    const currentSpeed = Math.round(GameState.speed * (GameState.boost ? 1.5 : 1.0));
+    const currentSpeed = Math.round(GameState.speed * (GameState.boost ? 1.55 : 1.0));
     speedIndicator.textContent = `${currentSpeed} KM/H${GameState.boost ? ' [BOOST]' : ''}`;
 }
 
@@ -877,7 +918,6 @@ function submitScore(nickname, score) {
     } catch (e) {}
 }
 
-// Auto-Escalado reactivo
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
@@ -899,7 +939,7 @@ function autoScale() {
 }
 
 // ==============================================================================
-// CONTROLES DE TECLADO (SOPORTE 100% PRE-PUSH)
+// CONTROLES DE TECLADO (INVERSIÓN TIPO NAVE / SIMULADOR DE VUELO)
 // ==============================================================================
 
 const keyState = {
@@ -915,8 +955,12 @@ function updateKeyboardVelocity() {
     let vy = 0;
     if (keyState.left) vx -= Player.speed;
     if (keyState.right) vx += Player.speed;
-    if (keyState.up) vy -= Player.speed;
-    if (keyState.down) vy += Player.speed;
+    
+    // INVERSIÓN ESTILO NAVE:
+    // Flecha Arriba / W = Empujar palanca / Bajar morro (Dive hacia el suelo -> vy positivo)
+    // Flecha Abajo / S = Tirar de palanca / Subir morro (Climb hacia el cielo -> vy negativo)
+    if (keyState.up) vy += Player.speed;
+    if (keyState.down) vy -= Player.speed;
 
     Player.vx = vx;
     Player.vy = vy;
@@ -958,7 +1002,6 @@ mainScreen.addEventListener('click', () => {
     }
 });
 
-// Inicialización de la pantalla Arcade
 window.addEventListener('DOMContentLoaded', () => {
     fetchRanking();
     updateUI();
