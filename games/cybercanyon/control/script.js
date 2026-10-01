@@ -314,6 +314,9 @@ const endBoost = (e) => {
     }
 };
 
+boostBtn.addEventListener('pointerup', endBoost);
+boostBtn.addEventListener('pointercancel', endBoost);
+
 // Botón de Disparo
 if (fireBtn) {
     fireBtn.addEventListener('pointerdown', (e) => {
