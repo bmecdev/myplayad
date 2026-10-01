@@ -41,6 +41,9 @@ const GameState = {
     glitchFlash: 0
 };
 
+let gameOverTimeout = null;
+let gameOverTime = 0;
+
 // Nave / Cámara del Jugador (Vuelo libre 3D en cabina)
 const Player = {
     x: 0,          // Posición X en el mundo
@@ -512,7 +515,7 @@ function handleControllerDisconnect(playerId) {
     dataChannels.delete(playerId);
     pendingCandidates.delete(playerId);
 
-    if (peerConnections.size === 0 && !GameState.running) {
+    if (peerConnections.size === 0 && !GameState.running && GameState.gameOver) {
         waitingOverlay.classList.remove('hidden');
     }
 }
@@ -615,6 +618,10 @@ function notifyGameOver() {
 // ==============================================================================
 
 function resetGame() {
+    if (gameOverTimeout) {
+        clearTimeout(gameOverTimeout);
+        gameOverTimeout = null;
+    }
     audio.init();
     GameState.running = true;
     GameState.gameOver = false;
@@ -1354,29 +1361,39 @@ function gameLoop(timestamp) {
 }
 
 function endGame() {
+    if (gameOverTimeout) {
+        clearTimeout(gameOverTimeout);
+        gameOverTimeout = null;
+    }
+
     audio.playCrash();
     GameState.gameOver = true;
     GameState.running = false;
+    gameOverTime = performance.now();
     gameOverOverlay.classList.remove('hidden');
+    waitingOverlay.classList.add('hidden');
     notifyGameOver();
     submitScore(GameState.currentNickname, GameState.score);
 
-    setTimeout(() => {
-        gameOverOverlay.classList.add('hidden');
-        waitingOverlay.classList.remove('hidden');
-        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-        document.getElementById('room-id').textContent = `ID: ${GameState.roomId}`;
-        updateQrCode();
+    // Solo transiciona al QR si la partida sigue en Game Over y no se ha reiniciado
+    gameOverTimeout = setTimeout(() => {
+        if (!GameState.running && GameState.gameOver) {
+            gameOverOverlay.classList.add('hidden');
+            waitingOverlay.classList.remove('hidden');
+            GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+            document.getElementById('room-id').textContent = `ID: ${GameState.roomId}`;
+            updateQrCode();
 
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ 
-                type: 'register', 
-                role: 'host', 
-                roomId: GameState.roomId,
-                maxPlayers: CONFIG.MAX_PLAYERS 
-            }));
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ 
+                    type: 'register', 
+                    role: 'host', 
+                    roomId: GameState.roomId,
+                    maxPlayers: CONFIG.MAX_PLAYERS 
+                }));
+            }
         }
-    }, 12000);
+    }, 10000);
 }
 
 function updateUI() {
@@ -1522,8 +1539,10 @@ window.addEventListener('keydown', (e) => {
     updateKeyboardVelocity();
 
     if (!GameState.running || GameState.gameOver) {
-        if (['Space', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code)) {
-            resetGame();
+        if (performance.now() - gameOverTime > 800) {
+            if (['Space', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code)) {
+                resetGame();
+            }
         }
     }
 });
@@ -1542,7 +1561,9 @@ window.addEventListener('keyup', (e) => {
 mainScreen.addEventListener('click', () => {
     audio.init();
     if (!GameState.running || GameState.gameOver) {
-        resetGame();
+        if (performance.now() - gameOverTime > 800) {
+            resetGame();
+        }
     }
 });
 
