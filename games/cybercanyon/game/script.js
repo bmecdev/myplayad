@@ -601,6 +601,7 @@ function draw() {
         if (relZ <= 5) continue;
 
         const worldZ = Player.z + relZ;
+        const canyon = getCanyonAt(worldZ);
         // Posición relativa a la cámara del piloto (con compensación de yaw y pitch)
         const relCamX = (canyon.cX - Player.x) - Player.yaw * relZ;
         const relCamY = (canyon.cY - Player.y) - Player.pitch * relZ;
