@@ -213,33 +213,62 @@ body {
     letter-spacing: 2px;
 }
 
-/* Botón de Turbo Boost */
+/* Botones Táctiles de Acción (Fuego y Turbo) */
 .flight-actions {
     width: 100%;
-    max-width: 280px;
+    max-width: 320px;
+    display: flex;
+    gap: 12px;
+}
+
+.fire-button {
+    flex: 1.2;
+    padding: 16px 12px;
+    background: linear-gradient(180deg, #ff4d6d, #b51739);
+    border: 3px solid #ffccd5;
+    border-radius: 12px;
+    color: #ffffff;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 0 25px rgba(255, 77, 109, 0.55);
+    transition: all 0.08s;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.fire-button:active, .fire-button.active {
+    background: #ff0055;
+    border-color: #ffffff;
+    box-shadow: 0 0 35px rgba(255, 0, 85, 0.95);
+    transform: scale(0.95);
 }
 
 .boost-button {
-    width: 100%;
-    padding: 18px 24px;
+    flex: 1;
+    padding: 16px 10px;
     background: linear-gradient(180deg, #ffb703, #d48b00);
     border: 3px solid #ffe6a7;
     border-radius: 12px;
     color: #060b08;
     font-family: 'Press Start 2P', monospace;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     cursor: pointer;
     box-shadow: 0 0 25px rgba(255, 183, 3, 0.5);
-    transition: all 0.1s;
+    transition: all 0.08s;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .boost-button:active, .boost-button.active {
     background: #ff5722;
     border-color: #ffccbc;
     box-shadow: 0 0 35px rgba(255, 87, 34, 0.9);
-    transform: scale(0.96);
+    transform: scale(0.95);
 }
 
 /* Pantalla de Agradecimiento */

@@ -12,6 +12,7 @@ const thanksScreen = document.getElementById('thanks-screen');
 const joystickBase = document.getElementById('joystick-base');
 const joystickKnob = document.getElementById('joystick-knob');
 const boostBtn = document.getElementById('boost-btn');
+const fireBtn = document.getElementById('fire-btn');
 
 let pc = null;
 let dataChannel = null;
@@ -25,6 +26,7 @@ const flightState = {
     x: 0,
     y: 0,
     boost: false,
+    fire: false,
     activePointerId: null
 };
 
@@ -220,7 +222,8 @@ function sendFlightInput() {
             dataChannel.send(JSON.stringify({
                 x: flightState.x,
                 y: flightState.y,
-                boost: flightState.boost
+                boost: flightState.boost,
+                fire: flightState.fire
             }));
             lastSend = now;
         }
@@ -311,8 +314,28 @@ const endBoost = (e) => {
     }
 };
 
-boostBtn.addEventListener('pointerup', endBoost);
-boostBtn.addEventListener('pointercancel', endBoost);
+// Botón de Disparo
+if (fireBtn) {
+    fireBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        flightState.fire = true;
+        fireBtn.classList.add('active');
+        sendFlightInput();
+        haptic([25, 20]);
+    });
+
+    const endFire = (e) => {
+        if (flightState.fire) {
+            e.preventDefault();
+            flightState.fire = false;
+            fireBtn.classList.remove('active');
+            sendFlightInput();
+        }
+    };
+
+    fireBtn.addEventListener('pointerup', endFire);
+    fireBtn.addEventListener('pointercancel', endFire);
+}
 
 // Botón de Inicio
 connectBtn.addEventListener('click', connectToHost);
