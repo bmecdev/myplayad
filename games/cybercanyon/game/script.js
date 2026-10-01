@@ -148,6 +148,24 @@ class CyberAudio {
         broadcastSFX('gate');
     }
 
+    playEnemyLaser() {
+        if (!this.ctx) return;
+        this.resume();
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(850, t);
+        osc.frequency.exponentialRampToValueAtTime(140, t + 0.16);
+        gain.gain.setValueAtTime(0.22, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.18);
+        broadcastSFX('laser');
+    }
+
     playWallHit() {
         if (!this.ctx) return;
         this.resume();
@@ -212,7 +230,6 @@ function spawnGatesAhead(playerZ) {
         const canyon = getCanyonAt(nextGateZ);
         GATES.push({
             z: nextGateZ,
-            // Las compuertas siguen la altitud y trayectoria del cañón invitando al piloto a volar por ellas
             x: canyon.cX + (Math.sin(nextGateZ * 0.015) * 20),
             y: canyon.cY + (Math.cos(nextGateZ * 0.012) * 14),
             radius: 36,
@@ -224,6 +241,80 @@ function spawnGatesAhead(playerZ) {
         GATES.shift();
     }
 }
+
+// Obstáculos estáticos del cañón (Monolitos y barreras láser)
+const OBSTACLES = [];
+const OBSTACLE_INTERVAL = 240;
+let nextObstacleZ = 220;
+
+function spawnObstaclesAhead(playerZ) {
+    while (nextObstacleZ < playerZ + 550) {
+        const canyon = getCanyonAt(nextObstacleZ);
+        const isPillar = (Math.floor(nextObstacleZ / OBSTACLE_INTERVAL) % 2 === 0);
+        if (isPillar) {
+            const laneOffsets = [-36, 0, 36];
+            const chosenX = laneOffsets[Math.floor(Math.random() * laneOffsets.length)];
+            OBSTACLES.push({
+                type: 'pillar',
+                z: nextObstacleZ,
+                relX: chosenX,
+                x: canyon.cX + chosenX,
+                y: canyon.cY + (canyon.wallHeight * 0.35) - 35,
+                width: 24,
+                height: 80,
+                passed: false
+            });
+        } else {
+            const isHigh = Math.random() > 0.5;
+            const barrierRelY = isHigh ? -(canyon.wallHeight * 0.38) : (canyon.wallHeight * 0.12);
+            OBSTACLES.push({
+                type: 'barrier',
+                z: nextObstacleZ,
+                relX: 0,
+                x: canyon.cX,
+                y: canyon.cY + barrierRelY,
+                width: canyon.halfWidth * 1.5,
+                height: 16,
+                passed: false
+            });
+        }
+        nextObstacleZ += OBSTACLE_INTERVAL;
+    }
+    while (OBSTACLES.length > 0 && OBSTACLES[0].z < playerZ - 60) {
+        OBSTACLES.shift();
+    }
+}
+
+// Enemigos estáticos (Torretas centinela con disparos de plasma)
+const ENEMIES = [];
+const ENEMY_INTERVAL = 280;
+let nextEnemyZ = 320;
+
+function spawnEnemiesAhead(playerZ) {
+    while (nextEnemyZ < playerZ + 550) {
+        const canyon = getCanyonAt(nextEnemyZ);
+        const wallOffsets = [-40, 40, 0];
+        const chosenOffset = wallOffsets[Math.floor(Math.random() * wallOffsets.length)];
+        ENEMIES.push({
+            id: Math.random(),
+            type: 'turret',
+            z: nextEnemyZ,
+            relX: chosenOffset,
+            x: canyon.cX + chosenOffset,
+            y: canyon.cY + (Math.sin(nextEnemyZ * 0.02) * 16),
+            radius: 16,
+            hasShot: false,
+            passed: false
+        });
+        nextEnemyZ += ENEMY_INTERVAL;
+    }
+    while (ENEMIES.length > 0 && ENEMIES[0].z < playerZ - 60) {
+        ENEMIES.shift();
+    }
+}
+
+// Proyectiles de plasma enemigos
+const PROJECTILES = [];
 
 // ==============================================================================
 // RED WEBRTC Y SEÑALIZACIÓN
@@ -452,6 +543,14 @@ function resetGame() {
     GATES.length = 0;
     nextGateZ = 160;
 
+    OBSTACLES.length = 0;
+    nextObstacleZ = 220;
+
+    ENEMIES.length = 0;
+    nextEnemyZ = 320;
+
+    PROJECTILES.length = 0;
+
     gameOverOverlay.classList.add('hidden');
     waitingOverlay.classList.add('hidden');
     updateUI();
@@ -549,6 +648,128 @@ function update(dt) {
                 GameState.score += 300;
                 audio.playPassGate();
             }
+        }
+    }
+
+    // Spawn y verificación de obstáculos estáticos (monolitos y barreras láser)
+    spawnObstaclesAhead(Player.z);
+    for (const obs of OBSTACLES) {
+        const relZ = obs.z - Player.z;
+        if (!obs.passed && relZ <= 8 && relZ >= -8) {
+            let hit = false;
+            if (obs.type === 'pillar') {
+                const dx = Math.abs(Player.x - obs.x);
+                const dy = Math.abs(Player.y - obs.y);
+                if (dx < (obs.width / 2 + 8) && dy < (obs.height / 2 + 8)) {
+                    hit = true;
+                }
+            } else if (obs.type === 'barrier') {
+                const dy = Math.abs(Player.y - obs.y);
+                const dx = Math.abs(Player.x - obs.x);
+                if (dy < (obs.height / 2 + 8) && dx < (obs.width / 2)) {
+                    hit = true;
+                }
+            }
+
+            if (hit && Player.invulnerableTime <= 0) {
+                GameState.shields--;
+                Player.invulnerableTime = 1.0;
+                GameState.screenShake = 16;
+                GameState.glitchFlash = 1.0;
+                audio.playWallHit();
+
+                if (GameState.shields <= 0) {
+                    endGame();
+                    return;
+                }
+            }
+
+            if (relZ <= -6) {
+                obs.passed = true;
+                if (!hit) {
+                    GameState.score += 150; // Bonificación por esquivar obstáculo estático
+                }
+            }
+        }
+    }
+
+    // Spawn y verificación de enemigos estáticos (torretas que disparan proyectiles)
+    spawnEnemiesAhead(Player.z);
+    for (const enemy of ENEMIES) {
+        const relZ = enemy.z - Player.z;
+
+        // Disparo de plasma cuando el jugador entra en rango visual
+        if (!enemy.hasShot && relZ <= 260 && relZ >= 70) {
+            enemy.hasShot = true;
+            audio.playEnemyLaser();
+
+            const vClose = (effectiveSpeed / 3.6) + 75; // velocidad relativa de cierre
+            const tArrival = Math.max(0.6, relZ / vClose);
+            const vx = (Player.x - enemy.x) / tArrival;
+            const vy = (Player.y - enemy.y) / tArrival;
+
+            PROJECTILES.push({
+                x: enemy.x,
+                y: enemy.y,
+                z: enemy.z,
+                vx: Math.max(-45, Math.min(45, vx)),
+                vy: Math.max(-45, Math.min(45, vy)),
+                vz: -75,
+                radius: 8
+            });
+        }
+
+        // Colisión física contra la torreta estática
+        if (!enemy.passed && relZ <= 8 && relZ >= -8) {
+            const dist = Math.hypot(Player.x - enemy.x, Player.y - enemy.y);
+            if (dist < (enemy.radius + 12) && Player.invulnerableTime <= 0) {
+                GameState.shields--;
+                Player.invulnerableTime = 1.0;
+                GameState.screenShake = 16;
+                GameState.glitchFlash = 1.0;
+                audio.playWallHit();
+
+                if (GameState.shields <= 0) {
+                    endGame();
+                    return;
+                }
+            }
+
+            if (relZ <= -6) {
+                enemy.passed = true;
+                GameState.score += 200; // Puntos por evadir al centinela
+            }
+        }
+    }
+
+    // Actualización y colisiones de proyectiles enemigos
+    for (let p = PROJECTILES.length - 1; p >= 0; p--) {
+        const proj = PROJECTILES[p];
+        proj.z += proj.vz * dt;
+        proj.x += proj.vx * dt;
+        proj.y += proj.vy * dt;
+
+        const relZ = proj.z - Player.z;
+        if (relZ <= 7 && relZ >= -7) {
+            const dist = Math.hypot(Player.x - proj.x, Player.y - proj.y);
+            if (dist < 20 && Player.invulnerableTime <= 0) {
+                GameState.shields--;
+                Player.invulnerableTime = 1.0;
+                GameState.screenShake = 16;
+                GameState.glitchFlash = 1.0;
+                audio.playWallHit();
+                PROJECTILES.splice(p, 1);
+
+                if (GameState.shields <= 0) {
+                    endGame();
+                    return;
+                }
+                continue;
+            }
+        }
+
+        if (proj.z < Player.z - 25) {
+            PROJECTILES.splice(p, 1);
         }
     }
 
@@ -726,7 +947,118 @@ function draw() {
         }
     }
 
-    // 4. CABINA INMERSIVA DE VUELO (Rota con la nave y responde al cabeceo del piloto)
+    // 4. OBSTÁCULOS ESTÁTICOS (Monolitos y barreras láser)
+    for (const obs of OBSTACLES) {
+        const relZ = obs.z - Player.z;
+        if (relZ > 5 && relZ < maxZ) {
+            const scale = FOV / relZ;
+            const ox = centerX + (obs.x - Player.x - Player.yaw * relZ) * scale;
+            const oy = centerY + (obs.y - Player.y - Player.pitch * relZ) * scale;
+            const alpha = Math.max(0.25, Math.min(1.0, 1.0 - Math.pow(relZ / maxZ, 1.2)));
+
+            ctx.save();
+            if (obs.type === 'pillar') {
+                const pw = obs.width * scale;
+                const ph = obs.height * scale;
+                ctx.strokeStyle = `rgba(255, 183, 3, ${alpha})`; // Ámbar neón
+                ctx.lineWidth = Math.max(1.5, 3.5 * scale);
+                ctx.strokeRect(ox - pw / 2, oy - ph / 2, pw, ph);
+
+                // Rejilla interna del monolito
+                ctx.beginPath();
+                ctx.moveTo(ox - pw / 2, oy);
+                ctx.lineTo(ox + pw / 2, oy);
+                ctx.moveTo(ox, oy - ph / 2);
+                ctx.lineTo(ox, oy + ph / 2);
+                ctx.stroke();
+            } else if (obs.type === 'barrier') {
+                const bw = obs.width * scale;
+                const bh = obs.height * scale;
+                ctx.strokeStyle = `rgba(255, 77, 109, ${alpha})`; // Carmesí peligro
+                ctx.lineWidth = Math.max(2, 3.8 * scale);
+
+                // Viga horizontal láser y emisores verticales
+                ctx.beginPath();
+                ctx.moveTo(ox - bw / 2, oy);
+                ctx.lineTo(ox + bw / 2, oy);
+                ctx.moveTo(ox - bw / 2, oy - bh);
+                ctx.lineTo(ox - bw / 2, oy + bh);
+                ctx.moveTo(ox + bw / 2, oy - bh);
+                ctx.lineTo(ox + bw / 2, oy + bh);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+    }
+
+    // 5. ENEMIGOS ESTÁTICOS (Torretas Centinela Tron)
+    for (const enemy of ENEMIES) {
+        const relZ = enemy.z - Player.z;
+        if (relZ > 5 && relZ < maxZ) {
+            const scale = FOV / relZ;
+            const ex = centerX + (enemy.x - Player.x - Player.yaw * relZ) * scale;
+            const ey = centerY + (enemy.y - Player.y - Player.pitch * relZ) * scale;
+            const er = enemy.radius * scale;
+            const alpha = Math.max(0.25, Math.min(1.0, 1.0 - (relZ / maxZ)));
+
+            ctx.save();
+            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha})`; // Carmesí neón
+            ctx.lineWidth = Math.max(2, 3.5 * scale);
+
+            // Diamante / Octaedro flotante
+            ctx.beginPath();
+            ctx.moveTo(ex, ey - er * 1.3);
+            ctx.lineTo(ex + er, ey);
+            ctx.lineTo(ex, ey + er * 1.3);
+            ctx.lineTo(ex - er, ey);
+            ctx.closePath();
+            ctx.stroke();
+
+            // Núcleo / Ojo cañón del centinela (parpadea antes de disparar)
+            const eyeColor = (!enemy.hasShot && relZ <= 290) 
+                ? (Math.floor(Date.now() / 120) % 2 === 0 ? '#ffb703' : '#ff4d6d')
+                : `rgba(255, 77, 109, ${alpha * 0.7})`;
+            ctx.fillStyle = eyeColor;
+            ctx.beginPath();
+            ctx.arc(ex, ey, Math.max(2.5, 4.5 * scale), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // 6. PROYECTILES DE PLASMA ENEMIGOS
+    for (const proj of PROJECTILES) {
+        const relZ = proj.z - Player.z;
+        if (relZ > 2 && relZ < maxZ) {
+            const scale = FOV / relZ;
+            const px = centerX + (proj.x - Player.x - Player.yaw * relZ) * scale;
+            const py = centerY + (proj.y - Player.y - Player.pitch * relZ) * scale;
+            const pr = Math.max(3, proj.radius * scale);
+            const alpha = Math.max(0.35, Math.min(1.0, 1.0 - (relZ / maxZ)));
+
+            ctx.save();
+            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha})`;
+            ctx.fillStyle = '#ffffff';
+            ctx.lineWidth = Math.max(1.8, 3.2 * scale);
+
+            // Rombo energético de plasma
+            ctx.beginPath();
+            ctx.moveTo(px, py - pr * 1.4);
+            ctx.lineTo(px + pr, py);
+            ctx.lineTo(px, py + pr * 1.4);
+            ctx.lineTo(px - pr, py);
+            ctx.closePath();
+            ctx.stroke();
+
+            // Núcleo blanco incandescente
+            ctx.beginPath();
+            ctx.arc(px, py, pr * 0.45, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // 7. CABINA INMERSIVA DE VUELO (Rota con la nave y responde al cabeceo del piloto)
     ctx.save();
     const hudColor = Player.invulnerableTime > 0 
         ? 'rgba(255, 77, 109, 0.9)' 

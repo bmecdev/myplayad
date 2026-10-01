@@ -154,6 +154,7 @@ async function initPeerConnection() {
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
                 if (data.sound === 'hit') haptic([60, 40, 80]);
+                else if (data.sound === 'laser') haptic([30, 25, 30]);
                 else if (data.sound === 'gate') haptic(35);
                 else if (data.sound === 'crash') haptic(250);
             }
