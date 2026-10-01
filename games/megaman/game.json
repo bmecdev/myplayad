@@ -1,0 +1,8 @@
+{
+  "name": "Mega Man Arcade",
+  "slug": "megaman",
+  "icon": "🤖",
+  "genre": "Action / Run & Gun",
+  "description": "El clásico bombardero azul de Capcom en formato arcade: corre, salta, dispara el Mega Buster cargable y derrota a los Robot Masters.",
+  "controls": "D-Pad direccional / Botones Salto, Mega Buster cargable y Deslizamiento (Slide)"
+}

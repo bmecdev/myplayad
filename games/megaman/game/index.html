@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mega Man Arcade - Retro NES Platformer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div class="container">
+        <!-- Consola Retro Arcade -->
+        <div class="console-bezel">
+            <div class="lcd-screen" id="main-screen">
+                <div class="scanlines"></div>
+                
+                <div class="game-header">
+                    <div class="header-left">
+                        <span id="player-nick">PLAYER: ----</span>
+                        <span id="score">SCORE: 000000</span>
+                    </div>
+                    <div id="lives-container">
+                        LIVES: <span id="lives-count">3</span>
+                    </div>
+                    <div class="header-right">
+                        <span id="high-score">HI: 000000</span>
+                        <div class="room-ice-row">
+                            <span id="room-id">ID: ----</span>
+                            <span id="ice-route">ICE: --</span>
+                            <button id="audio-toggle-btn" class="audio-toggle-btn muted" title="Activar/Silenciar Audio">🔊 AUDIO</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="gameCanvas" width="200" height="160"></canvas>
+                </div>
+                
+                <!-- Mensaje de Fin de Juego -->
+                <div id="game-over-overlay" class="hidden">
+                    <div class="overlay-content">
+                        <h2 class="blink" id="game-over-title">GAME OVER</h2>
+                        <div id="ranking-container">
+                            <h3>HALL OF FAME</h3>
+                            <ul id="ranking-list"></ul>
+                        </div>
+                        <p class="instruction">CLICK O ESPACIO PARA REINICIAR</p>
+                    </div>
+                </div>
+
+                <!-- Overlay de Espera / Código QR -->
+                <div id="waiting-overlay">
+                    <div class="overlay-content">
+                        <h2 class="arcade-title">MEGA MAN <span>ARCADE</span></h2>
+                        
+                        <div class="quick-play-box">
+                            <button id="instant-play-btn" class="arcade-start-btn blink" type="button">
+                                ▶ JUGAR CON TECLADO [ESPACIO / D]
+                            </button>
+                            <p class="controls-guide">
+                                ◀ ▶ FLECHAS: Correr &nbsp;|&nbsp; ESPACIO: Salto &nbsp;|&nbsp; D: Disparo / Cargar
+                            </p>
+                        </div>
+
+                        <div class="qr-divider">
+                            <span>O ESCANEA CON TU CELULAR</span>
+                        </div>
+
+                        <div class="qr-wrapper">
+                            <div id="qrcode"></div>
+                        </div>
+                        <p class="status-text" id="status-text">ESPERANDO CONTROL MÓVIL...</p>
+                        <p class="sub-hint">CLIC O CUALQUIER TECLA PARA JUGAR INMEDIATAMENTE</p>
+                    </div>
+                </div>
+
+            </div>
+            <div class="console-footer">
+                <div class="speaker-grille"></div>
+                <div class="model-number">MEGAMAN-NES-87</div>
+                <div class="speaker-grille"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="qrcode.min.js"></script>
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+</body>
+</html>
