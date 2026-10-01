@@ -1259,34 +1259,41 @@ function draw() {
         }
     }
 
-    // 6. PROYECTILES DE PLASMA ENEMIGOS
+    // 6. PROYECTILES DE PLASMA ENEMIGOS (Esferas circulares de plasma, claramente diferenciadas de las torretas romboides)
     for (const proj of PROJECTILES) {
         const relZ = proj.z - Player.z;
         if (relZ > 2 && relZ < maxZ) {
             const scale = FOV / relZ;
             const px = centerX + (proj.x - Player.x - Player.yaw * relZ) * scale;
             const py = centerY + (proj.y - Player.y - Player.pitch * relZ) * scale;
-            const pr = Math.max(3, proj.radius * scale);
-            const alpha = Math.max(0.35, Math.min(1.0, 1.0 - (relZ / maxZ)));
+            const pr = Math.max(3.5, proj.radius * scale);
+            const alpha = Math.max(0.4, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
             ctx.save();
-            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha})`;
-            ctx.fillStyle = '#ffffff';
-            ctx.lineWidth = Math.max(1.8, 3.2 * scale);
-
-            // Rombo energético de plasma
+            // Anillo / halo de radiación de plasma
+            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha * 0.7})`;
+            ctx.lineWidth = Math.max(1.2, 2.5 * scale);
             ctx.beginPath();
-            ctx.moveTo(px, py - pr * 1.4);
-            ctx.lineTo(px + pr, py);
-            ctx.lineTo(px, py + pr * 1.4);
-            ctx.lineTo(px - pr, py);
-            ctx.closePath();
+            ctx.arc(px, py, pr * 1.35, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Núcleo blanco incandescente
+            // Esfera de energía de plasma principal (cuerpo redondo relleno)
+            ctx.fillStyle = `rgba(255, 60, 80, ${alpha * 0.85})`;
             ctx.beginPath();
-            ctx.arc(px, py, pr * 0.45, 0, Math.PI * 2);
+            ctx.arc(px, py, pr, 0, Math.PI * 2);
             ctx.fill();
+
+            // Borde corona de energía ámbar/fuego
+            ctx.strokeStyle = `rgba(255, 183, 3, ${alpha})`;
+            ctx.lineWidth = Math.max(1.2, 2.2 * scale);
+            ctx.stroke();
+
+            // Núcleo esférico blanco incandescente
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(px, py, Math.max(1.5, pr * 0.45), 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.restore();
         }
     }
