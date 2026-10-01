@@ -666,8 +666,77 @@ function initStage() {
     GameState.particles = [];
 }
 
+let gameOverTimer = null;
+let gameOverInterval = null;
+
+function clearGameOverTimers() {
+    if (gameOverTimer) {
+        clearTimeout(gameOverTimer);
+        gameOverTimer = null;
+    }
+    if (gameOverInterval) {
+        clearInterval(gameOverInterval);
+        gameOverInterval = null;
+    }
+}
+
+function returnToQrCode() {
+    clearGameOverTimers();
+
+    GameState.running = false;
+    GameState.gameOver = false;
+    GameState.victory = false;
+    GameState.score = 0;
+    GameState.lives = 3;
+    GameState.level = 1;
+    GameState.levelClearBanner = null;
+    GameState.currentNickname = 'PILOT';
+    GameState.cameraX = 0;
+
+    audio.stopChargeHum();
+
+    // Ocultar Game Over y mostrar pantalla de espera con código QR
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+
+    // Cerrar canales de datos y conexiones P2P previas
+    try {
+        dataChannels.forEach(dc => {
+            try { dc.close(); } catch (_) {}
+        });
+        dataChannels.clear();
+        peerConnections.forEach(pc => {
+            try { pc.close(); } catch (_) {}
+        });
+        peerConnections.clear();
+    } catch (_) {}
+
+    // Generar un nuevo Room ID para la siguiente partida limpia
+    GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+    if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
+    updateQrCode();
+
+    // Notificar al servidor WebSocket de señalización sobre la nueva sala
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try {
+            socket.send(JSON.stringify({
+                type: 'register',
+                role: 'host',
+                roomId: GameState.roomId,
+                maxPlayers: CONFIG.MAX_PLAYERS || 1
+            }));
+        } catch (_) {}
+    }
+
+    initStage();
+    updateUI();
+    renderHallOfFame();
+}
+
 // Iniciar nueva partida
 function startNewGame() {
+    clearGameOverTimers();
+
     GameState.running = true;
     GameState.gameOver = false;
     GameState.victory = false;
@@ -700,6 +769,8 @@ function startNewGame() {
 }
 
 function endGame(isVictory = false) {
+    clearGameOverTimers();
+
     GameState.running = false;
     GameState.gameOver = true;
     GameState.victory = isVictory;
@@ -722,6 +793,27 @@ function endGame(isVictory = false) {
     }
 
     gameOverOverlay.classList.remove('hidden');
+
+    // Iniciar cuenta regresiva visible de 3s para retorno automático al QR
+    let secondsLeft = 3;
+    const cdEl = document.getElementById('return-countdown');
+    if (cdEl) cdEl.textContent = secondsLeft;
+
+    gameOverInterval = setInterval(() => {
+        secondsLeft--;
+        if (cdEl) cdEl.textContent = Math.max(0, secondsLeft);
+        if (secondsLeft <= 0) {
+            if (gameOverInterval) {
+                clearInterval(gameOverInterval);
+                gameOverInterval = null;
+            }
+        }
+    }, 1000);
+
+    // Retorno automático rápido al QR tras 3.5 segundos
+    gameOverTimer = setTimeout(() => {
+        returnToQrCode();
+    }, 3500);
 
     // Notificar a los mandos móviles
     dataChannels.forEach(ch => {
@@ -2088,8 +2180,17 @@ window.addEventListener('keydown', (e) => {
     audio.init();
     const key = e.key.toLowerCase();
 
-    // Inicio instantáneo / bypass si está en pantalla de espera o Game Over
-    if (!GameState.running || GameState.gameOver) {
+    // Si estamos en pantalla de Game Over, cualquier interacción vuelve de inmediato al QR
+    if (GameState.gameOver) {
+        if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'space', 'd', 'x', 'enter', 'z'].includes(key) || e.code === 'Space') {
+            e.preventDefault();
+            returnToQrCode();
+            return;
+        }
+    }
+
+    // Inicio instantáneo / bypass local si está en pantalla de espera con código QR
+    if (!GameState.running) {
         if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'space', 'd', 'x', 'enter', 'z'].includes(key) || e.code === 'Space') {
             e.preventDefault();
             startNewGame();
@@ -2150,17 +2251,29 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// Clic directo en pantalla para bypass de QR y arranque instantáneo
+// Clic directo en pantalla para volver al QR si es Game Over, o arrancar juego local si es pantalla de espera
 if (mainScreen) {
     mainScreen.addEventListener('click', () => {
         audio.init();
-        if (!GameState.running || GameState.gameOver) startNewGame();
+        if (GameState.gameOver) {
+            returnToQrCode();
+        } else if (!GameState.running) {
+            startNewGame();
+        }
+    });
+}
+if (gameOverOverlay) {
+    gameOverOverlay.addEventListener('click', () => {
+        audio.init();
+        if (GameState.gameOver) {
+            returnToQrCode();
+        }
     });
 }
 if (waitingOverlay) {
     waitingOverlay.addEventListener('click', () => {
         audio.init();
-        if (!GameState.running || GameState.gameOver) startNewGame();
+        if (!GameState.running) startNewGame();
     });
 }
 
@@ -2203,6 +2316,7 @@ function initSignaling() {
 
                 if (data.type === 'controller_connected') {
                     waitingOverlay.classList.add('hidden');
+                    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
                 } else if (data.type === 'offer') {
                     await handleOffer(data);
                 } else if (data.type === 'candidate') {
@@ -2285,6 +2399,7 @@ async function handleOffer(data) {
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
         waitingOverlay.classList.add('hidden');
+        if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     };
 
     channel.onmessage = (e) => {
@@ -2339,13 +2454,14 @@ function setupDataChannel(channel, playerId) {
 
 function handleControllerDisconnect(playerId) {
     const pc = peerConnections.get(playerId);
-    if (pc) pc.close();
+    if (pc) {
+        try { pc.close(); } catch (_) {}
+    }
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    if (peerConnections.size === 0 && !GameState.gameOver) {
-        waitingOverlay.classList.remove('hidden');
-        GameState.running = false;
+    if (peerConnections.size === 0) {
+        returnToQrCode();
     }
 }
 

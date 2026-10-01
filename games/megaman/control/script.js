@@ -7,6 +7,7 @@ const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
+const playAgainBtn = document.getElementById('play-again-btn');
 
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
@@ -494,6 +495,17 @@ window.addEventListener('DOMContentLoaded', () => {
             }
 
             initConnection();
+        });
+    }
+
+    if (playAgainBtn) {
+        playAgainBtn.addEventListener('click', () => {
+            try {
+                if (dataChannel) dataChannel.close();
+                if (pc) pc.close();
+                if (socket) socket.close();
+            } catch (_) {}
+            window.location.href = window.location.pathname;
         });
     }
 });
