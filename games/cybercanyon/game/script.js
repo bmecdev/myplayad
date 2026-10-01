@@ -41,18 +41,18 @@ const GameState = {
     glitchFlash: 0
 };
 
-// Nave / Cámara del Jugador (Vuelo libre dentro del cañón)
+// Nave / Cámara del Jugador (Vuelo libre 3D en cabina)
 const Player = {
-    relX: 0, // Posición horizontal dentro del cañón (-halfWidth a +halfWidth)
-    relY: 0, // Posición vertical dentro del cañón (negativo = arriba/cielo, positivo = abajo/suelo)
-    z: 0,    // Distancia avanzada a lo largo del cañón
+    x: 0,          // Posición X en el mundo
+    y: 0,          // Posición Y en el mundo (altitud de vuelo)
+    z: 0,          // Distancia avanzada a lo largo del cañón
     vx: 0,
     vy: 0,
-    speed: 150,
+    speed: 160,
     roll: 0,       // Inclinación lateral (banking)
     targetRoll: 0,
-    pitch: 0,      // Cabeceo de vuelo (solo de la nave, sin montaña rusa)
-    yaw: 0,        // Orientación hacia la curva horizontal
+    pitch: 0,      // Cabeceo de vuelo (morro arriba/abajo)
+    yaw: 0,        // Orientación hacia las curvas
     invulnerableTime: 0
 };
 
@@ -188,29 +188,33 @@ class CyberAudio {
 const audio = new CyberAudio();
 
 // ==============================================================================
-// MODELADO PROCEDURAL DEL CAÑÓN (SUELO NIVELADO, SIN MONTAÑA RUSA)
+// MODELADO PROCEDURAL DEL CAÑÓN (ELEVACIÓN DINÁMICA 3D Y CURVAS)
 // ==============================================================================
 
 function getCanyonAt(z) {
-    // Curvas horizontales suaves de cañón (plano en Y, sin caídas ni subidas de montaña rusa)
-    const cX = 75 * Math.sin(z * 0.0022);
-    const cY = 0; // Suelo y lecho del cañón completamente estables y nivelados
-    const halfWidth = 85; // Ancho constante y espacioso de vuelo
-    const wallHeight = 150; // Altura de las paredes verticales
+    // Curvas horizontales del cañón (giros y meandros de la fosa)
+    const cX = 75 * Math.sin(z * 0.0022) + 25 * Math.sin(z * 0.0048);
+    // Elevación dinámica del cañón (el fondo sube en colinas y baja en valles pronunciados)
+    // En coordenadas de pantalla: negativo = hacia el cielo (colina elevada), positivo = hacia el suelo (valle profundo)
+    const cY = -48 * Math.sin(z * 0.0028) - 22 * Math.sin(z * 0.0062);
+    const halfWidth = 85; // Ancho de vuelo
+    const wallHeight = 140; // Altura de las paredes verticales
     return { cX, cY, halfWidth, wallHeight };
 }
 
 // Compuertas / Anillos de datos cibernéticos
 const GATES = [];
 const GATE_INTERVAL = 140;
-let nextGateZ = 200;
+let nextGateZ = 160;
 
 function spawnGatesAhead(playerZ) {
     while (nextGateZ < playerZ + 550) {
+        const canyon = getCanyonAt(nextGateZ);
         GATES.push({
             z: nextGateZ,
-            relX: (Math.sin(nextGateZ * 0.012) * 25),
-            relY: (Math.cos(nextGateZ * 0.010) * 15),
+            // Las compuertas siguen la altitud y trayectoria del cañón invitando al piloto a volar por ellas
+            x: canyon.cX + (Math.sin(nextGateZ * 0.015) * 20),
+            y: canyon.cY + (Math.cos(nextGateZ * 0.012) * 14),
             radius: 36,
             passed: false
         });
@@ -433,8 +437,9 @@ function resetGame() {
     GameState.screenShake = 0;
     GameState.glitchFlash = 0;
 
-    Player.relX = 0;
-    Player.relY = 0;
+    const startCanyon = getCanyonAt(0);
+    Player.x = startCanyon.cX;
+    Player.y = startCanyon.cY;
     Player.z = 0;
     Player.vx = 0;
     Player.vy = 0;
@@ -445,7 +450,7 @@ function resetGame() {
     Player.invulnerableTime = 0;
 
     GATES.length = 0;
-    nextGateZ = 200;
+    nextGateZ = 160;
 
     gameOverOverlay.classList.add('hidden');
     waitingOverlay.classList.add('hidden');
@@ -469,53 +474,62 @@ function update(dt) {
 
     GameState.score += Math.floor(distDelta * (GameState.boost ? 2.5 : 1.0));
 
-    // Desplazamiento libre del jugador DENTRO del cañón
-    Player.relX += Player.vx * dt;
-    Player.relY += Player.vy * dt;
+    // Desplazamiento libre de vuelo en coordenadas de mundo
+    Player.x += Player.vx * dt;
+    Player.y += Player.vy * dt;
 
-    // Alabeo reactivo (Roll): La cabina se inclina en los giros
+    // Alabeo reactivo (Roll): La cabina se inclina en los giros laterales
     Player.targetRoll = (Player.vx / Player.speed) * 0.40;
     Player.roll += (Player.targetRoll - Player.roll) * 8.0 * dt;
 
-    // Cabeceo de vuelo (Pitch): Inclinación propia de la nave al subir/bajar (sin efecto montaña rusa)
+    // Cabeceo de vuelo (Pitch): Inclinación reactiva del morro al subir/bajar
     const targetPitch = (-Player.vy / Player.speed) * 0.16;
     Player.pitch += (targetPitch - Player.pitch) * 8.0 * dt;
 
-    // Orientación predictiva suave hacia las curvas horizontales (mantiene ambas paredes centradas)
+    // Orientación predictiva suave hacia las curvas (mantiene el cañón centrado en la vista)
     const currentCanyon = getCanyonAt(Player.z);
     const aheadCanyon = getCanyonAt(Player.z + 55);
     const targetYaw = (aheadCanyon.cX - currentCanyon.cX) / 55;
     Player.yaw += (targetYaw - Player.yaw) * 4.5 * dt;
 
-    // Límites de vuelo dentro del cañón
-    const safeMarginX = currentCanyon.halfWidth - 18;
-    const safeMarginYTop = currentCanyon.wallHeight * 0.45;
-    const safeMarginYBottom = currentCanyon.wallHeight * 0.25;
+    // Posición del jugador relativa a la fosa en el punto actual
+    const relX = Player.x - currentCanyon.cX;
+    const relY = Player.y - currentCanyon.cY;
+
+    const safeMarginX = currentCanyon.halfWidth - 14;
+    const safeMarginYFloor = currentCanyon.wallHeight * 0.35 - 8; // Suelo del cañón
+    const safeMarginYRim = currentCanyon.wallHeight * 0.65 - 8;   // Techo / Cresta
 
     if (Player.invulnerableTime > 0) {
         Player.invulnerableTime -= dt;
     }
 
     let hitWall = false;
-    if (Math.abs(Player.relX) > safeMarginX) {
+
+    // Colisión lateral (Paredes del cañón si no gira a tiempo en las curvas)
+    if (Math.abs(relX) > safeMarginX) {
         hitWall = true;
-        Player.relX = Math.sign(Player.relX) * safeMarginX;
+        Player.x = currentCanyon.cX + Math.sign(relX) * safeMarginX;
         Player.vx = -Player.vx * 0.35;
     }
-    if (Player.relY < -safeMarginYTop) {
+
+    // Colisión vertical: Suelo del cañón (si el fondo sube en colina y la nave no asciende a tiempo)
+    if (relY > safeMarginYFloor) {
         hitWall = true;
-        Player.relY = -safeMarginYTop;
-        Player.vy = -Player.vy * 0.35;
-    } else if (Player.relY > safeMarginYBottom) {
+        Player.y = currentCanyon.cY + safeMarginYFloor;
+        Player.vy = -Math.abs(Player.vy) * 0.35 - 25; // Rebote hacia arriba
+    }
+    // Colisión vertical: Techo / Cresta (si la nave vuela demasiado alto o no desciende en el valle)
+    else if (relY < -safeMarginYRim) {
         hitWall = true;
-        Player.relY = safeMarginYBottom;
-        Player.vy = -Player.vy * 0.35;
+        Player.y = currentCanyon.cY - safeMarginYRim;
+        Player.vy = Math.abs(Player.vy) * 0.35 + 25; // Rebote hacia abajo
     }
 
     if (hitWall && Player.invulnerableTime <= 0) {
         GameState.shields--;
         Player.invulnerableTime = 1.0;
-        GameState.screenShake = 12;
+        GameState.screenShake = 14;
         GameState.glitchFlash = 1.0;
         audio.playWallHit();
 
@@ -530,7 +544,7 @@ function update(dt) {
     for (const gate of GATES) {
         if (!gate.passed && gate.z <= Player.z + 8 && gate.z >= Player.z - 8) {
             gate.passed = true;
-            const distToGate = Math.hypot(Player.relX - gate.relX, Player.relY - gate.relY);
+            const distToGate = Math.hypot(Player.x - gate.x, Player.y - gate.y);
             if (distToGate < gate.radius) {
                 GameState.score += 300;
                 audio.playPassGate();
@@ -587,11 +601,9 @@ function draw() {
         if (relZ <= 5) continue;
 
         const worldZ = Player.z + relZ;
-        const canyon = getCanyonAt(worldZ);
-
-        // Posición relativa compensada con Look-Ahead horizontal (y suelo estable en Y)
-        const relCamX = (canyon.cX - currentCanyon.cX - Player.relX) - Player.yaw * relZ;
-        const relCamY = -Player.relY - Player.pitch * relZ;
+        // Posición relativa a la cámara del piloto (con compensación de yaw y pitch)
+        const relCamX = (canyon.cX - Player.x) - Player.yaw * relZ;
+        const relCamY = (canyon.cY - Player.y) - Player.pitch * relZ;
 
         const scale = FOV / relZ;
         const px = centerX + relCamX * scale;
@@ -602,70 +614,66 @@ function draw() {
 
         const alpha = Math.max(0.12, Math.min(1.0, 1.0 - Math.pow(relZ / maxZ, 1.3)));
 
+        const floorY = py + wh * 0.35;
+        const rimY = py - wh * 0.65;
+        const leftX = px - hw;
+        const rightX = px + hw;
+
         projectedSlices.push({
-            relZ,
             worldZ,
             scale,
             px,
             py,
             hw,
             wh,
+            floorY,
+            rimY,
+            leftX,
+            rightX,
             alpha
         });
     }
 
     ctx.lineWidth = 1.6;
 
-    // 1. DIBUJAR CORTES DEL CAÑÓN: SOLO LÍNEAS VERTICALES EN LAS PAREDES
+    // 1. DIBUJAR CORTES DEL CAÑÓN: SOLO LÍNEAS VERTICALES SUPERFICIALES EN LAS PAREDES
     for (let s = 0; s < projectedSlices.length; s++) {
         const slice = projectedSlices[s];
         const alpha = slice.alpha;
         ctx.strokeStyle = `rgba(61, 255, 138, ${alpha})`;
 
-        const floorY = slice.py + slice.wh * 0.35;
-        const rimY = slice.py - slice.wh * 0.65;
-        const leftX = slice.px - slice.hw;
-        const rightX = slice.px + slice.hw;
-
-        // Línea del lecho/suelo del cañón
+        // Línea del lecho/suelo transversal
         ctx.beginPath();
-        ctx.moveTo(leftX, floorY);
-        ctx.lineTo(rightX, floorY);
+        ctx.moveTo(slice.leftX, slice.floorY);
+        ctx.lineTo(slice.rightX, slice.floorY);
         ctx.stroke();
 
-        // PARED IZQUIERDA: ÚNICAMENTE LÍNEAS VERTICALES (Columnas y pilares de cañón)
-        const tiers = 3;
-        for (let t = 0; t < tiers; t++) {
-            const tierX = leftX - (t * 24 * slice.scale);
-            const tierTopY = rimY - (t * 16 * slice.scale);
-            ctx.beginPath();
-            ctx.moveTo(tierX, floorY);
-            ctx.lineTo(tierX, tierTopY);
-            ctx.stroke();
-        }
+        // PARED IZQUIERDA: ÚNICAMENTE LÍNEA VERTICAL SUPERFICIAL
+        ctx.beginPath();
+        ctx.moveTo(slice.leftX, slice.floorY);
+        ctx.lineTo(slice.leftX, slice.rimY);
+        ctx.stroke();
 
-        // PARED DERECHA: ÚNICAMENTE LÍNEAS VERTICALES (Columnas y pilares de cañón)
-        for (let t = 0; t < tiers; t++) {
-            const tierX = rightX + (t * 24 * slice.scale);
-            const tierTopY = rimY - (t * 16 * slice.scale);
-            ctx.beginPath();
-            ctx.moveTo(tierX, floorY);
-            ctx.lineTo(tierX, tierTopY);
-            ctx.stroke();
-        }
+        // PARED DERECHA: ÚNICAMENTE LÍNEA VERTICAL SUPERFICIAL
+        ctx.beginPath();
+        ctx.moveTo(slice.rightX, slice.floorY);
+        ctx.lineTo(slice.rightX, slice.rimY);
+        ctx.stroke();
     }
 
     // 2. LÍNEAS LONGITUDINALES QUE VAN HACIA EL FONDO (Horizonte, lecho y crestas)
     if (projectedSlices.length > 2) {
-        // Líneas longitudinales del lecho del cañón
+        // Líneas longitudinales del lecho del cañón (suelo enrejado que sube y baja)
         const floorTracks = [-1, -0.5, 0, 0.5, 1];
         floorTracks.forEach(r => {
             ctx.beginPath();
-            ctx.strokeStyle = (Math.abs(r) === 1) ? 'rgba(61, 255, 138, 0.55)' : 'rgba(61, 255, 138, 0.22)';
+            ctx.strokeStyle = (Math.abs(r) === 1) 
+                ? 'rgba(61, 255, 138, 0.60)' 
+                : 'rgba(61, 255, 138, 0.22)';
             for (let i = 0; i < projectedSlices.length; i++) {
                 const sl = projectedSlices[i];
                 const x = sl.px + (sl.hw * r);
-                const y = sl.py + (sl.wh * 0.35);
+                const y = sl.floorY;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
@@ -675,11 +683,11 @@ function draw() {
         // Líneas longitudinales en la cresta superior de las paredes
         [-1, 1].forEach(dir => {
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(61, 255, 138, 0.45)';
+            ctx.strokeStyle = 'rgba(61, 255, 138, 0.50)';
             for (let i = 0; i < projectedSlices.length; i++) {
                 const sl = projectedSlices[i];
                 const x = sl.px + (sl.hw * dir);
-                const y = sl.py - (sl.wh * 0.65);
+                const y = sl.rimY;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
@@ -692,12 +700,8 @@ function draw() {
         const relZ = gate.z - Player.z;
         if (relZ > 5 && relZ < maxZ) {
             const scale = FOV / relZ;
-            const canyonAtGate = getCanyonAt(gate.z);
-            const relCamX = (canyonAtGate.cX + gate.relX - (currentCanyon.cX + Player.relX)) - Player.yaw * relZ;
-            const relCamY = gate.relY - Player.relY - Player.pitch * relZ;
-
-            const gx = centerX + relCamX * scale;
-            const gy = centerY + relCamY * scale;
+            const gx = centerX + (gate.x - Player.x - Player.yaw * relZ) * scale;
+            const gy = centerY + (gate.y - Player.y - Player.pitch * relZ) * scale;
             const gr = gate.radius * scale;
             const alpha = Math.max(0.2, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
@@ -950,8 +954,8 @@ window.addEventListener('keydown', (e) => {
 
     updateKeyboardVelocity();
 
-    if (e.code === 'Space' || e.code === 'Enter') {
-        if (!GameState.running || GameState.gameOver) {
+    if (!GameState.running || GameState.gameOver) {
+        if (['Space', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code)) {
             resetGame();
         }
     }
