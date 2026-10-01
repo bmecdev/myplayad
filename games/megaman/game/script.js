@@ -407,8 +407,8 @@ const GameState = {
         vy: 0,
         w: 20,
         h: 26,
-        hp: MAX_HP,
-        maxHp: MAX_HP,
+        hp: 10,
+        maxHp: 10,
         active: false,
         onGround: true,
         facing: -1,
@@ -442,7 +442,7 @@ const GameState = {
 // ==========================================
 function initStage() {
     const lvl = GameState.level || 1;
-    const bossMaxHp = MAX_HP + (lvl - 1) * 6; // Escalamiento de vida del jefe por nivel
+    const bossMaxHp = 10 + (lvl - 1) * 2; // Barra de vida reducida y balanceada (Nivel 1: 10 HP, Nivel 2: 12 HP, etc.)
 
     GameState.platforms = [
         // Suelo principal inicial
@@ -787,13 +787,13 @@ function updatePhysics(dt) {
                 gate.state = 'CLOSING';
                 audio.playGate();
 
-                // Activar Cut Man de inmediato al entrar en la arena
+                // Activar Cut Man de inmediato al entrar en la arena (sin salto)
                 if (!GameState.bossActive && !GameState.victory) {
                     GameState.bossActive = true;
                     if (GameState.boss) {
                         GameState.boss.active = true;
-                        GameState.boss.y = 80;
-                        GameState.boss.vy = -160;
+                        GameState.boss.y = 110;
+                        GameState.boss.vy = 0;
                     }
                     GameState.bossIntroTimer = 1.5;
                     audio.playBossAlarm();
@@ -1044,32 +1044,19 @@ function updateBoss(dt) {
     b.stateTimer -= dt;
     b.facing = p.x < b.x ? -1 : 1;
 
-    // Gravedad del Boss
-    b.vy += GRAVITY * dt;
+    // Cut Man permanece siempre en el suelo sin saltar
+    b.vy = 0;
+    b.y = 136 - b.h;
+    b.onGround = true;
     b.x += b.vx * dt;
-    b.y += b.vy * dt;
 
-    // Suelo de la arena
-    if (b.y + b.h >= 136) {
-        b.y = 136 - b.h;
-        b.vy = 0;
-        b.onGround = true;
-    }
+    const speedBonus = (lvl - 1) * 16;
+    const cooldownMult = Math.max(0.45, 1.0 - (lvl - 1) * 0.12);
 
-    const speedBonus = (lvl - 1) * 18;
-    const cooldownMult = Math.max(0.42, 1.0 - (lvl - 1) * 0.12);
-
-    // Patrón de ataque de Robot Master con dificultad progresiva
+    // Patrón de ataque terrestre de Robot Master (sin saltar)
     if (b.stateTimer <= 0) {
         const rand = Math.random();
-        if (rand < 0.35 && b.onGround) {
-            // Salto alto hacia Mega Man
-            b.actionState = 'JUMP';
-            b.vy = -310 - (lvl - 1) * 15;
-            b.vx = (p.x < b.x ? -1 : 1) * (85 + speedBonus);
-            b.onGround = false;
-            b.stateTimer = 1.3 * cooldownMult;
-        } else if (rand < 0.70) {
+        if (rand < 0.50) {
             // Lanzar Cuchilla Rolling Cutter / Disparo Boss
             b.actionState = 'THROW';
             b.vx = 0;
@@ -1078,7 +1065,7 @@ function updateBoss(dt) {
                 x: b.x + (b.facing === -1 ? -6 : b.w + 2),
                 y: b.y + 6,
                 vx: cutterSpeed,
-                vy: -20,
+                vy: -15,
                 w: 10,
                 h: 10,
                 isBlade: true
@@ -1092,7 +1079,7 @@ function updateBoss(dt) {
                             x: b.x + (b.facing === -1 ? -6 : b.w + 2),
                             y: b.y + 2,
                             vx: cutterSpeed * 0.9,
-                            vy: 25,
+                            vy: 20,
                             w: 10,
                             h: 10,
                             isBlade: true
@@ -1105,9 +1092,9 @@ function updateBoss(dt) {
             audio.playDeflect();
             b.stateTimer = 0.9 * cooldownMult;
         } else {
-            // Dash / Carrera rápida
+            // Carrera rápida terrestre hacia el jugador (Dash por el suelo)
             b.actionState = 'DASH';
-            b.vx = (p.x < b.x ? -1 : 1) * (120 + speedBonus);
+            b.vx = (p.x < b.x ? -1 : 1) * (115 + speedBonus);
             b.stateTimer = 0.8 * cooldownMult;
         }
     }
@@ -1729,19 +1716,23 @@ function renderHUD() {
     ctx.textAlign = 'center';
     ctx.fillText(`STAGE ${GameState.level || 1}`, CANVAS_WIDTH / 2, 10);
 
-    // Barra de Vida del Boss (Si está activo o presente)
+    // Barra de Vida del Boss (Si está activo o presente - barra más baja y compacta)
     if (GameState.boss && GameState.boss.hp > 0 && GameState.bossActive) {
         const bossBarX = CANVAS_WIDTH - 12;
+        const bossMaxHp = GameState.boss.maxHp || 10;
+        const bossBarH = Math.min(32, Math.max(18, bossMaxHp * 2.4)); // Barra visiblemente más baja y compacta
+        const bossBarY = barY + barH - bossBarH; // Alineada en la base inferior (más baja en la pantalla)
+
         ctx.fillStyle = '#020617';
-        ctx.fillRect(bossBarX - 1, barY - 1, 6, barH + 2);
+        ctx.fillRect(bossBarX - 1, bossBarY - 1, 6, bossBarH + 2);
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 1;
-        ctx.strokeRect(bossBarX - 1, barY - 1, 6, barH + 2);
+        ctx.strokeRect(bossBarX - 1, bossBarY - 1, 6, bossBarH + 2);
 
-        const bossMaxHp = GameState.boss.maxHp || MAX_HP;
-        const fillSegments = Math.round((GameState.boss.hp / bossMaxHp) * MAX_HP);
-        for (let i = 0; i < MAX_HP; i++) {
-            const segY = barY + barH - (i + 1) * 2;
+        const totalSegments = Math.round(bossBarH / 2);
+        const fillSegments = Math.round((GameState.boss.hp / bossMaxHp) * totalSegments);
+        for (let i = 0; i < totalSegments; i++) {
+            const segY = bossBarY + bossBarH - (i + 1) * 2;
             if (i < fillSegments) {
                 ctx.fillStyle = '#f59e0b';
                 ctx.fillRect(bossBarX, segY, 4, 1.5);
@@ -1751,7 +1742,7 @@ function renderHUD() {
         ctx.font = '5px "Press Start 2P"';
         ctx.fillStyle = '#f59e0b';
         ctx.textAlign = 'center';
-        ctx.fillText('C', bossBarX + 2, barY - 4);
+        ctx.fillText('C', bossBarX + 2, bossBarY - 4);
     }
 }
 
