@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mega Man Arcade Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div id="status">INGRESA TU NICKNAME</div>
+    
+    <!-- Pantalla de Bienvenida / Nickname -->
+    <div id="room-selection" class="welcome-container">
+        <div class="header-logo">
+            <div class="megaman-helm-icon">🤖</div>
+            <h1>MEGA MAN<span>ARCADE</span></h1>
+        </div>
+        
+        <div class="input-group">
+            <p class="welcome-text">¡Bienvenido! Ingresa tu Nickname para pilotar a Mega Man.</p>
+            <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10">
+            <input type="text" id="room-input" style="display: none;">
+            <button id="connect-btn">EMPEZAR A JUGAR</button>
+        </div>
+        
+        <p class="footer-hint">◀ ▶ Moverse • A: Salto • B: Buster • SLIDE: Barrida</p>
+    </div>
+
+    <!-- Pantalla de Agradecimiento (Game Over) -->
+    <div id="thanks-screen" class="thanks-container" style="display: none;">
+        <div class="header-logo">
+            <h1>¡MISIÓN FINALIZADA!</h1>
+        </div>
+        <p id="thanks-message">¡Gran partida!</p>
+        <p class="small">Vuelve a escanear el código QR para jugar de nuevo.</p>
+        <button id="play-again-btn" style="margin-top: 18px; padding: 14px 20px; font-family: 'Press Start 2P', monospace; font-size: 11px; background: var(--primary, #00d2ff); color: #020617; border: 2px solid #ffffff; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 0 #0284c7;">🔄 ESCANEAR DE NUEVO</button>
+    </div>
+
+    <!-- Interfaz de Controles Táctiles -->
+    <div class="controls-container" id="controls-container" style="display: none;">
+        <!-- Botones de Dirección (Solo Izquierda y Derecha) -->
+        <div class="dir-wrapper">
+            <button class="dir-btn dir-left" id="btn-left" data-dir="left">
+                <span class="dir-arrow">◀</span>
+                <span class="dir-label">IZQ</span>
+            </button>
+            <button class="dir-btn dir-right" id="btn-right" data-dir="right">
+                <span class="dir-arrow">▶</span>
+                <span class="dir-label">DER</span>
+            </button>
+        </div>
+
+        <!-- Botones de Acción a la derecha -->
+        <div class="actions-wrapper">
+            <div class="slide-row">
+                <button id="btn-slide" class="action-btn btn-slide">SLIDE</button>
+            </div>
+            <div class="ab-buttons-row">
+                <!-- Botón B (Buster / Disparo / Carga) -->
+                <button id="btn-buster" class="action-btn btn-buster">
+                    <span class="btn-letter">B</span>
+                    <span class="btn-subtext">BUSTER</span>
+                    <div class="charge-gauge" id="charge-gauge"></div>
+                </button>
+                <!-- Botón A (Jump / Salto) -->
+                <button id="btn-jump" class="action-btn btn-jump">
+                    <span class="btn-letter">A</span>
+                    <span class="btn-subtext">JUMP</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+</body>
+</html>

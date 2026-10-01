@@ -1,0 +1,434 @@
+:root {
+    --bg-deep: #060a0f;
+    --panel: #0a141f;
+    --panel-edge: #15273b;
+    --phosphor: #00d2ff;
+    --phosphor-dim: #0077aa;
+    --cyan: #38bdf8;
+    --blue: #2563eb;
+    --amber: #ffb703;
+    --danger: #ff4d6d;
+    --text-dim: #7fb0d6;
+    --white: #f0f9ff;
+}
+
+body {
+    background: var(--bg-deep);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    font-family: 'VT323', monospace;
+    color: var(--white);
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    transform-origin: center center;
+}
+
+/* Consola Bezel */
+.console-bezel {
+    background: linear-gradient(180deg, #152230, #0a111a);
+    padding: 16px 18px 8px 18px;
+    border-radius: 20px;
+    border: 4px solid #233b54;
+    box-shadow: 0 0 0 2px #04080d, 0 25px 70px rgba(0,0,0,.8), inset 0 0 40px rgba(0,210,255,.05);
+    position: relative;
+    user-select: none;
+}
+
+.console-bezel::before {
+    content: "● ● ●";
+    display: block;
+    text-align: right;
+    color: #233b54;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    letter-spacing: 6px;
+    padding: 0 6px 8px;
+}
+
+.lcd-screen {
+    background: radial-gradient(ellipse at 50% 0%, #0a1624 0%, #04080e 100%);
+    width: 440px;
+    height: 400px;
+    min-height: 400px;
+    padding: 8px 12px;
+    border: 3px solid #04080e;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.lcd-screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,.18) 3px
+    );
+    pointer-events: none;
+    animation: flicker 6s infinite;
+}
+
+@keyframes flicker {
+    0%,97%,100% { opacity: 1; }
+    98% { opacity: .85; }
+}
+
+/* Efecto de Scanlines */
+.scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+            rgba(0, 0, 0, 0.06) 50%);
+    background-size: 100% 2px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--phosphor-dim);
+    padding-bottom: 4px;
+    gap: 8px;
+}
+
+.header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#lives-container {
+    color: var(--phosphor);
+    font-size: 10px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.room-ice-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+#ice-route {
+    font-size: 8px;
+    color: var(--amber);
+    font-weight: bold;
+}
+
+.audio-toggle-btn {
+    background: #06111c;
+    border: 1px solid var(--phosphor);
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.audio-toggle-btn.muted {
+    border-color: var(--amber);
+    color: var(--amber);
+    animation: audioBlinker 1.2s infinite;
+}
+
+.audio-toggle-btn:hover {
+    background: var(--phosphor);
+    color: var(--bg-deep);
+}
+
+@keyframes audioBlinker {
+    0%, 100% { opacity: 1; box-shadow: 0 0 3px var(--amber); }
+    50% { opacity: 0.5; box-shadow: none; }
+}
+
+.canvas-wrapper {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    padding: 0;
+    width: 100%;
+}
+
+#gameCanvas {
+    background-color: transparent;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 400px;
+    height: 320px;
+}
+
+/* Overlays Retro */
+#game-over-overlay,
+#waiting-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(4, 8, 14, 0.95);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--phosphor);
+}
+
+.overlay-content {
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.arcade-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 17px;
+    margin: 0 0 8px 0;
+    color: var(--phosphor);
+    text-shadow: 0 0 8px var(--phosphor);
+    letter-spacing: 2px;
+}
+
+.arcade-title span {
+    color: var(--amber);
+    font-size: 14px;
+    margin-left: 4px;
+}
+
+.quick-play-box {
+    margin: 4px 0 6px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.arcade-start-btn {
+    background: linear-gradient(180deg, #00d2ff, #0284c7);
+    color: #020617;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8.5px;
+    padding: 7px 12px;
+    border: 2px solid #ffffff;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.6);
+    text-transform: uppercase;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.arcade-start-btn:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 16px rgba(0, 210, 255, 0.9);
+}
+
+.controls-guide {
+    font-family: 'VT323', monospace;
+    font-size: 13px;
+    color: var(--amber);
+    margin: 4px 0 0 0;
+    letter-spacing: 0.5px;
+}
+
+.qr-divider {
+    display: flex;
+    align-items: center;
+    width: 80%;
+    margin: 4px 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: 'Press Start 2P', monospace;
+}
+
+.qr-divider span {
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+}
+
+.pulse-text {
+    margin: 4px 0 8px 0;
+    font-size: 11px;
+    font-family: 'Press Start 2P', monospace;
+    text-transform: uppercase;
+    animation: pulse 1.2s ease-in-out infinite;
+    display: inline-block;
+    color: var(--cyan);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+}
+
+.qr-wrapper {
+    background: white;
+    padding: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--phosphor);
+    border-radius: 8px;
+    margin: 6px 0;
+    box-shadow: 0 0 16px rgba(0, 210, 255, 0.35);
+}
+
+#qrcode, #qr-code-img {
+    width: 160px;
+    height: 160px;
+    display: block;
+    margin: 0 auto;
+}
+
+#qrcode canvas, #qrcode img {
+    display: block;
+    width: 160px !important;
+    height: 160px !important;
+}
+
+.status-text {
+    font-size: 10px;
+    margin: 6px 0 0 0;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+}
+
+.sub-hint {
+    font-size: 7px;
+    font-family: 'Press Start 2P', monospace;
+    color: var(--amber);
+    margin: 6px 0 0 0;
+    letter-spacing: 0.5px;
+    opacity: 0.85;
+}
+
+/* Ranking Table Style */
+#ranking-container {
+    margin-top: 6px;
+    width: 85%;
+    max-width: 320px;
+}
+
+h2.blink {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    color: var(--danger);
+    margin: 0 0 8px 0;
+    text-shadow: 0 0 8px var(--danger);
+}
+
+h3 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    margin: 6px 0;
+    color: var(--amber);
+    border-bottom: 1px solid var(--amber);
+    padding-bottom: 4px;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 16px;
+    font-family: 'VT323', monospace;
+}
+
+li {
+    white-space: pre;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px dashed rgba(0, 210, 255, 0.2);
+}
+
+.blink {
+    animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+    50% { opacity: 0; }
+}
+
+.instruction {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    margin-top: 14px;
+    color: var(--phosphor);
+}
+
+/* Footer de Consola */
+.console-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding: 0 8px;
+}
+
+.speaker-grille {
+    width: 50px;
+    height: 12px;
+    background-image: radial-gradient(#000 25%, transparent 25%);
+    background-size: 5px 5px;
+}
+
+.model-number {
+    font-size: 9px;
+    color: #4b7899;
+    font-family: 'Press Start 2P', monospace;
+    letter-spacing: 1px;
+}
+
+.hidden {
+    display: none !important;
+}
