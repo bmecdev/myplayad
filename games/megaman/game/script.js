@@ -409,13 +409,13 @@ const GameState = {
         h: 26,
         hp: 10,
         maxHp: 10,
+        bossType: 'cutman',
         active: false,
         onGround: true,
         facing: -1,
         stateTimer: 1.5,
         actionState: 'WAITING',
-        invulnTimer: 0,
-        scissors: []
+        invulnTimer: 0
     },
 
     bossGate: {
@@ -434,67 +434,195 @@ const GameState = {
     pickups: [],
     particles: [],
     platforms: [],
-    spikes: []
+    spikes: [],
+    stageConfig: null
 };
 
 // ==========================================
-// 🏗️ Generación del Escenario NES Industrial
+// 🌌 Catálogo de Escenarios y Robot Masters
+// ==========================================
+const STAGES = {
+    1: {
+        name: 'CUT MAN',
+        bossType: 'cutman',
+        bossLetter: 'C',
+        bossColor: '#f59e0b',
+        bgColor: '#060f18',
+        bgCityColor: '#0b1b29',
+        bgBeamColor: '#10283d',
+        platformGround: '#1e3a5f',
+        platformBorder: '#38bdf8',
+        hazardType: 'spikes',
+        hazardColor: '#ef4444',
+        bossBaseHp: 10
+    },
+    2: {
+        name: 'FIRE MAN',
+        bossType: 'fireman',
+        bossLetter: 'F',
+        bossColor: '#ef4444',
+        bgColor: '#180404',
+        bgCityColor: '#2d0707',
+        bgBeamColor: '#450a0a',
+        platformGround: '#3b1111',
+        platformBorder: '#f97316',
+        hazardType: 'lava',
+        hazardColor: '#ff3b00',
+        bossBaseHp: 12
+    },
+    3: {
+        name: 'GUTS MAN',
+        bossType: 'gutsman',
+        bossLetter: 'G',
+        bossColor: '#84cc16',
+        bgColor: '#0c170d',
+        bgCityColor: '#152617',
+        bgBeamColor: '#1f3822',
+        platformGround: '#283c29',
+        platformBorder: '#4ade80',
+        hazardType: 'spikes',
+        hazardColor: '#facc15',
+        bossBaseHp: 14
+    }
+};
+
+function getStageConfig(lvl) {
+    const stageNum = ((lvl - 1) % 3) + 1;
+    const loop = Math.floor((lvl - 1) / 3);
+    const base = STAGES[stageNum];
+    return {
+        ...base,
+        stageNum,
+        loop,
+        title: loop > 0 ? `${base.name} EX` : base.name,
+        bossHp: base.bossBaseHp + loop * 3
+    };
+}
+
+// ==========================================
+// 🏗️ Generación del Escenario Dinámico por Nivel
 // ==========================================
 function initStage() {
     const lvl = GameState.level || 1;
-    const bossMaxHp = 10 + (lvl - 1) * 2; // Barra de vida reducida y balanceada (Nivel 1: 10 HP, Nivel 2: 12 HP, etc.)
+    const cfg = getStageConfig(lvl);
+    GameState.stageConfig = cfg;
 
-    GameState.platforms = [
-        // Suelo principal inicial
-        { x: 0, y: 136, w: 280, h: 24, type: 'ground' },
-        // Foso con plataformas flotantes
-        { x: 210, y: 106, w: 45, h: 8, type: 'metal' },
-        { x: 290, y: 84,  w: 50, h: 8, type: 'metal' },
-        { x: 375, y: 106, w: 45, h: 8, type: 'metal' },
-        
-        // Segundo tramo de suelo con tuberías elevadas
-        { x: 450, y: 136, w: 320, h: 24, type: 'ground' },
-        { x: 500, y: 92,  w: 60, h: 10, type: 'pipe' },
-        { x: 620, y: 80,  w: 70, h: 10, type: 'pipe' },
-        { x: 730, y: 104, w: 55, h: 8, type: 'metal' },
+    if (cfg.stageNum === 2) {
+        // --- NIVEL 2: FUNDICIÓN VOLCÁNICA (FIRE MAN) ---
+        GameState.platforms = [
+            { x: 0, y: 136, w: 220, h: 24, type: 'ground' },
+            { x: 240, y: 108, w: 45, h: 8, type: 'metal' },
+            { x: 310, y: 88,  w: 50, h: 8, type: 'metal' },
+            { x: 380, y: 108, w: 45, h: 8, type: 'metal' },
+            { x: 445, y: 136, w: 250, h: 24, type: 'ground' },
+            { x: 490, y: 96,  w: 55, h: 10, type: 'pipe' },
+            { x: 590, y: 80,  w: 60, h: 10, type: 'pipe' },
+            { x: 715, y: 106, w: 55, h: 8, type: 'metal' },
+            { x: 790, y: 88,  w: 50, h: 8, type: 'metal' },
+            { x: 860, y: 136, w: 256, h: 24, type: 'ground' },
+            { x: 910, y: 108, w: 36, h: 28, type: 'block' },
+            { x: 980, y: 86,  w: 38, h: 50, type: 'block' },
+            { x: 1040, y: 72, w: 45, h: 8,  type: 'metal' },
+            { x: 1116, y: 136, w: 204, h: 24, type: 'ground' },
+            { x: 1165, y: 102, w: 35, h: 8,  type: 'metal' },
+            { x: 1240, y: 86,  w: 35, h: 8,  type: 'metal' },
+            { x: 1306, y: 0,   w: 14, h: 160, type: 'wall' }
+        ];
 
-        // Tramo de obstáculos y escalones industriales hacia el jefe
-        { x: 810, y: 136, w: 306, h: 24, type: 'ground' }, // Suelo continuo hasta la compuerta
-        { x: 860, y: 110, w: 36, h: 26, type: 'block' },
-        { x: 940, y: 92,  w: 36, h: 44, type: 'block' },
-        { x: 1000, y: 76, w: 45, h: 8,  type: 'metal' },
+        // Lagos de lava ardiente
+        GameState.spikes = [
+            { x: 220, y: 148, w: 225, h: 12 },
+            { x: 695, y: 148, w: 165, h: 12 }
+        ];
 
-        // Arena del Boss (Robot Master "Cut Man")
-        { x: 1116, y: 136, w: 204, h: 24, type: 'ground' }, // Suelo de la arena
-        { x: 1160, y: 104, w: 35,  h: 8,  type: 'metal' },
-        { x: 1235, y: 88,  w: 35,  h: 8,  type: 'metal' },
-        { x: 1306, y: 0,   w: 14,  h: 160, type: 'wall' } // Pared final derecha
-    ];
+        // Enemigos de Fuego
+        GameState.enemies = [
+            { id: 1, type: 'metool', subtype: 'fire', x: 150, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 2, type: 'metool', subtype: 'fire', x: 520, y: 84,  vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.5, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 3, type: 'metool', subtype: 'fire', x: 890, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 4, type: 'metool', subtype: 'fire', x: 1030, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.8, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 5, type: 'blader', subtype: 'fire', x: 330, y: 45,  vx: -40 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 45, t: 0, hp: 1, hurtTimer: 0 },
+            { id: 6, type: 'blader', subtype: 'fire', x: 650, y: 40,  vx: -45 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 40, t: 1.2, hp: 1, hurtTimer: 0 },
+            { id: 7, type: 'blader', subtype: 'fire', x: 950, y: 42,  vx: -40 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 42, t: 0.5, hp: 1, hurtTimer: 0 },
+            { id: 8, type: 'spikey', subtype: 'fire', x: 620, y: 124, vx: -55 - (lvl - 1) * 10, vy: 0, w: 14, h: 12, minX: 470, maxX: 680, hp: 2, hurtTimer: 0 }
+        ];
+    } else if (cfg.stageNum === 3) {
+        // --- NIVEL 3: CANTERA Y MINA PESADA (GUTS MAN) ---
+        GameState.platforms = [
+            { x: 0, y: 136, w: 260, h: 24, type: 'ground' },
+            { x: 230, y: 102, w: 40, h: 8, type: 'metal' },
+            { x: 295, y: 80,  w: 45, h: 8, type: 'metal' },
+            { x: 365, y: 102, w: 45, h: 8, type: 'metal' },
+            { x: 430, y: 136, w: 300, h: 24, type: 'ground' },
+            { x: 470, y: 94,  w: 50, h: 20, type: 'block' },
+            { x: 560, y: 76,  w: 60, h: 10, type: 'pipe' },
+            { x: 660, y: 98,  w: 50, h: 8, type: 'metal' },
+            { x: 750, y: 136, w: 366, h: 24, type: 'ground' },
+            { x: 810, y: 110, w: 40, h: 26, type: 'block' },
+            { x: 890, y: 88,  w: 40, h: 48, type: 'block' },
+            { x: 970, y: 70,  w: 50, h: 8,  type: 'metal' },
+            { x: 1116, y: 136, w: 204, h: 24, type: 'ground' },
+            { x: 1160, y: 104, w: 35, h: 8,  type: 'metal' },
+            { x: 1235, y: 88,  w: 35, h: 8,  type: 'metal' },
+            { x: 1306, y: 0,   w: 14, h: 160, type: 'wall' }
+        ];
 
-    // Pinchos mortales en los fosos anteriores
-    GameState.spikes = [
-        { x: 280, y: 152, w: 170, h: 8 },
-        { x: 770, y: 152, w: 40,  h: 8 }
-    ];
+        // Precipicios y pinchos de cuarzo
+        GameState.spikes = [
+            { x: 260, y: 152, w: 170, h: 8 },
+            { x: 730, y: 152, w: 20,  h: 8 }
+        ];
 
-    // Enemigos colocados estratégicamente estilo NES (con hurtTimer y HP balanceado)
-    GameState.enemies = [
-        // Metools (Mets con casco que se asoman y disparan)
-        { id: 1, type: 'metool', x: 160, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1, hurtTimer: 0 },
-        { id: 2, type: 'metool', x: 530, y: 80,  vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.5, hp: 1, facing: -1, hurtTimer: 0 },
-        { id: 3, type: 'metool', x: 840, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.2, hp: 1, facing: -1, hurtTimer: 0 },
-        { id: 4, type: 'metool', x: 990, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.8, hp: 1, facing: -1, hurtTimer: 0 },
+        // Enemigos de Mina
+        GameState.enemies = [
+            { id: 1, type: 'metool', subtype: 'miner', x: 170, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.2, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 2, type: 'metool', subtype: 'miner', x: 540, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.6, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 3, type: 'metool', subtype: 'miner', x: 860, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 4, type: 'metool', subtype: 'miner', x: 1020, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.7, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 5, type: 'blader', subtype: 'quarry', x: 350, y: 48, vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 48, t: 0, hp: 1, hurtTimer: 0 },
+            { id: 6, type: 'blader', subtype: 'quarry', x: 680, y: 42, vx: -40 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 42, t: 1.4, hp: 1, hurtTimer: 0 },
+            { id: 7, type: 'blader', subtype: 'quarry', x: 920, y: 45, vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 45, t: 0.9, hp: 1, hurtTimer: 0 },
+            { id: 8, type: 'spikey', subtype: 'boulder', x: 640, y: 124, vx: -45 - (lvl - 1) * 10, vy: 0, w: 14, h: 12, minX: 480, maxX: 710, hp: 2, hurtTimer: 0 }
+        ];
+    } else {
+        // --- NIVEL 1: TORRE INDUSTRIAL (CUT MAN) ---
+        GameState.platforms = [
+            { x: 0, y: 136, w: 280, h: 24, type: 'ground' },
+            { x: 210, y: 106, w: 45, h: 8, type: 'metal' },
+            { x: 290, y: 84,  w: 50, h: 8, type: 'metal' },
+            { x: 375, y: 106, w: 45, h: 8, type: 'metal' },
+            { x: 450, y: 136, w: 320, h: 24, type: 'ground' },
+            { x: 500, y: 92,  w: 60, h: 10, type: 'pipe' },
+            { x: 620, y: 80,  w: 70, h: 10, type: 'pipe' },
+            { x: 730, y: 104, w: 55, h: 8, type: 'metal' },
+            { x: 810, y: 136, w: 306, h: 24, type: 'ground' },
+            { x: 860, y: 110, w: 36, h: 26, type: 'block' },
+            { x: 940, y: 92,  w: 36, h: 44, type: 'block' },
+            { x: 1000, y: 76, w: 45, h: 8,  type: 'metal' },
+            { x: 1116, y: 136, w: 204, h: 24, type: 'ground' },
+            { x: 1160, y: 104, w: 35,  h: 8,  type: 'metal' },
+            { x: 1235, y: 88,  w: 35,  h: 8,  type: 'metal' },
+            { x: 1306, y: 0,   w: 14,  h: 160, type: 'wall' }
+        ];
 
-        // Bladers (Drones voladores con hélice)
-        { id: 5, type: 'blader', x: 340, y: 50,  vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 50, t: 0, hp: 1, hurtTimer: 0 },
-        { id: 6, type: 'blader', x: 670, y: 40,  vx: -40 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 40, t: 1.5, hp: 1, hurtTimer: 0 },
-        { id: 7, type: 'blader', x: 910, y: 45,  vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 45, t: 0.8, hp: 1, hurtTimer: 0 },
+        GameState.spikes = [
+            { x: 280, y: 152, w: 170, h: 8 },
+            { x: 770, y: 152, w: 40,  h: 8 }
+        ];
 
-        // Spikey (Rueda mecánica rápida)
-        { id: 8, type: 'spikey', x: 660, y: 124, vx: -50 - (lvl - 1) * 10, vy: 0, w: 14, h: 12, minX: 580, maxX: 740, hp: 2, hurtTimer: 0 }
-    ];
+        GameState.enemies = [
+            { id: 1, type: 'metool', subtype: 'normal', x: 160, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 2, type: 'metool', subtype: 'normal', x: 530, y: 80,  vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.5, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 3, type: 'metool', subtype: 'normal', x: 840, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.2, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 4, type: 'metool', subtype: 'normal', x: 990, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.8, hp: 1, facing: -1, hurtTimer: 0 },
+            { id: 5, type: 'blader', subtype: 'normal', x: 340, y: 50,  vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 50, t: 0, hp: 1, hurtTimer: 0 },
+            { id: 6, type: 'blader', subtype: 'normal', x: 670, y: 40,  vx: -40 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 40, t: 1.5, hp: 1, hurtTimer: 0 },
+            { id: 7, type: 'blader', subtype: 'normal', x: 910, y: 45,  vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 45, t: 0.8, hp: 1, hurtTimer: 0 },
+            { id: 8, type: 'spikey', subtype: 'normal', x: 660, y: 124, vx: -50 - (lvl - 1) * 10, vy: 0, w: 14, h: 12, minX: 580, maxX: 740, hp: 2, hurtTimer: 0 }
+        ];
+    }
 
-    // Cápsulas de energía para recoger
+    // Cápsulas de energía
     GameState.pickups = [
         { x: 310, y: 72, type: 'health_s', w: 8, h: 8, collected: false },
         { x: 645, y: 68, type: 'health_l', w: 12, h: 12, collected: false },
@@ -512,23 +640,23 @@ function initStage() {
         sealed: false
     };
 
-    // Reiniciar Boss Cut Man con escalamiento de vida por nivel
+    // Reiniciar Boss específico del nivel (permanece en el suelo sin saltar)
     GameState.boss = {
         x: 1250,
         y: 110,
         vx: 0,
         vy: 0,
-        w: 20,
-        h: 26,
-        hp: bossMaxHp,
-        maxHp: bossMaxHp,
+        w: cfg.bossType === 'gutsman' ? 24 : 20,
+        h: cfg.bossType === 'gutsman' ? 28 : 26,
+        hp: cfg.bossHp,
+        maxHp: cfg.bossHp,
+        bossType: cfg.bossType,
         active: false,
         onGround: true,
         facing: -1,
         stateTimer: 1.5,
         actionState: 'WAITING',
-        invulnTimer: 0,
-        scissors: []
+        invulnTimer: 0
     };
 
     GameState.bossActive = false;
@@ -620,7 +748,8 @@ function updateUI() {
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(6, '0')}`;
     livesCountElement.textContent = GameState.lives;
     if (stageLevelElement) {
-        stageLevelElement.textContent = GameState.level || 1;
+        const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
+        stageLevelElement.textContent = `${GameState.level || 1} (${cfg.name})`;
     }
 }
 
@@ -1044,58 +1173,126 @@ function updateBoss(dt) {
     b.stateTimer -= dt;
     b.facing = p.x < b.x ? -1 : 1;
 
-    // Cut Man permanece siempre en el suelo sin saltar
+    // TODOS los jefes permanecen siempre en el suelo sin saltar
     b.vy = 0;
     b.y = 136 - b.h;
     b.onGround = true;
     b.x += b.vx * dt;
 
-    const speedBonus = (lvl - 1) * 16;
-    const cooldownMult = Math.max(0.45, 1.0 - (lvl - 1) * 0.12);
+    const speedBonus = (lvl - 1) * 14;
+    const cooldownMult = Math.max(0.45, 1.0 - (lvl - 1) * 0.10);
 
-    // Patrón de ataque terrestre de Robot Master (sin saltar)
+    // Patrón de ataque terrestre específico por Robot Master (sin saltos)
     if (b.stateTimer <= 0) {
         const rand = Math.random();
-        if (rand < 0.50) {
-            // Lanzar Cuchilla Rolling Cutter / Disparo Boss
-            b.actionState = 'THROW';
-            b.vx = 0;
-            const cutterSpeed = (160 + (lvl - 1) * 25) * b.facing;
-            GameState.enemyBullets.push({
-                x: b.x + (b.facing === -1 ? -6 : b.w + 2),
-                y: b.y + 6,
-                vx: cutterSpeed,
-                vy: -15,
-                w: 10,
-                h: 10,
-                isBlade: true
-            });
 
-            // En niveles superiores (>= 2), Cut Man lanza una segunda cuchilla rodante
-            if (lvl >= 2) {
-                setTimeout(() => {
-                    if (GameState.running && GameState.boss && GameState.boss.hp > 0) {
-                        GameState.enemyBullets.push({
-                            x: b.x + (b.facing === -1 ? -6 : b.w + 2),
-                            y: b.y + 2,
-                            vx: cutterSpeed * 0.9,
-                            vy: 20,
-                            w: 10,
-                            h: 10,
-                            isBlade: true
-                        });
-                        audio.playDeflect();
-                    }
-                }, 200);
+        if (b.bossType === 'fireman') {
+            // --- FIRE MAN: Ráfagas de Fuego Terrestres y Cargas de Magma ---
+            if (rand < 0.55) {
+                b.actionState = 'THROW';
+                b.vx = 0;
+                // Bola de fuego ardiente por el suelo
+                GameState.enemyBullets.push({
+                    x: b.x + (b.facing === -1 ? -8 : b.w + 2),
+                    y: 136 - 12,
+                    vx: b.facing * (165 + speedBonus),
+                    vy: 0,
+                    w: 10,
+                    h: 10,
+                    isFire: true
+                });
+                audio.playChargedShot();
+                createSparks(b.x + b.w / 2, 136 - 6, '#f97316', 8);
+
+                // En niveles avanzados, dispara fuego en ráfaga
+                if (lvl >= 2) {
+                    setTimeout(() => {
+                        if (GameState.running && GameState.boss && GameState.boss.hp > 0) {
+                            GameState.enemyBullets.push({
+                                x: b.x + (b.facing === -1 ? -8 : b.w + 2),
+                                y: 136 - 12,
+                                vx: b.facing * (150 + speedBonus),
+                                vy: 0,
+                                w: 10,
+                                h: 10,
+                                isFire: true
+                            });
+                            audio.playChargedShot();
+                        }
+                    }, 220);
+                }
+                b.stateTimer = 0.9 * cooldownMult;
+            } else {
+                b.actionState = 'DASH';
+                b.vx = (p.x < b.x ? -1 : 1) * (115 + speedBonus);
+                createSparks(b.x + b.w / 2, 136, '#f97316', 5);
+                b.stateTimer = 0.8 * cooldownMult;
             }
-
-            audio.playDeflect();
-            b.stateTimer = 0.9 * cooldownMult;
+        } else if (b.bossType === 'gutsman') {
+            // --- GUTS MAN: Rocas Rodantes de Cantera y Embestida Sísmica ---
+            if (rand < 0.50) {
+                b.actionState = 'THROW';
+                b.vx = 0;
+                // Roca pesada que rueda por el suelo
+                GameState.enemyBullets.push({
+                    x: b.x + (b.facing === -1 ? -12 : b.w + 2),
+                    y: 136 - 14,
+                    vx: b.facing * (135 + speedBonus),
+                    vy: 0,
+                    w: 12,
+                    h: 12,
+                    isBoulder: true
+                });
+                audio.playLand();
+                createSparks(b.x + b.w / 2, 136 - 8, '#a1a1aa', 10);
+                b.stateTimer = 1.0 * cooldownMult;
+            } else {
+                b.actionState = 'DASH';
+                b.vx = (p.x < b.x ? -1 : 1) * (105 + speedBonus);
+                audio.playLand();
+                createSparks(b.x + b.w / 2, 136, '#71717a', 6);
+                b.stateTimer = 0.85 * cooldownMult;
+            }
         } else {
-            // Carrera rápida terrestre hacia el jugador (Dash por el suelo)
-            b.actionState = 'DASH';
-            b.vx = (p.x < b.x ? -1 : 1) * (115 + speedBonus);
-            b.stateTimer = 0.8 * cooldownMult;
+            // --- CUT MAN: Cuchillas Rodantes y Carrera Terrestre ---
+            if (rand < 0.50) {
+                b.actionState = 'THROW';
+                b.vx = 0;
+                const cutterSpeed = (160 + (lvl - 1) * 25) * b.facing;
+                GameState.enemyBullets.push({
+                    x: b.x + (b.facing === -1 ? -6 : b.w + 2),
+                    y: b.y + 6,
+                    vx: cutterSpeed,
+                    vy: -15,
+                    w: 10,
+                    h: 10,
+                    isBlade: true
+                });
+
+                if (lvl >= 2) {
+                    setTimeout(() => {
+                        if (GameState.running && GameState.boss && GameState.boss.hp > 0) {
+                            GameState.enemyBullets.push({
+                                x: b.x + (b.facing === -1 ? -6 : b.w + 2),
+                                y: b.y + 2,
+                                vx: cutterSpeed * 0.9,
+                                vy: 20,
+                                w: 10,
+                                h: 10,
+                                isBlade: true
+                            });
+                            audio.playDeflect();
+                        }
+                    }, 200);
+                }
+
+                audio.playDeflect();
+                b.stateTimer = 0.9 * cooldownMult;
+            } else {
+                b.actionState = 'DASH';
+                b.vx = (p.x < b.x ? -1 : 1) * (115 + speedBonus);
+                b.stateTimer = 0.8 * cooldownMult;
+            }
         }
     }
 
@@ -1112,6 +1309,8 @@ function updateBoss(dt) {
 function defeatBoss() {
     GameState.boss.hp = 0;
     const currentLvl = GameState.level || 1;
+    const cfg = GameState.stageConfig || getStageConfig(currentLvl);
+    const nextCfg = getStageConfig(currentLvl + 1);
     const bonusScore = 10000 * currentLvl;
     GameState.score += bonusScore;
     GameState.lives++; // ¡Vida extra de recompensa por vencer al jefe!
@@ -1129,15 +1328,17 @@ function defeatBoss() {
             y: GameState.boss.y + GameState.boss.h / 2,
             vx: Math.cos(ang) * spd,
             vy: Math.sin(ang) * spd,
-            color: Math.random() > 0.5 ? '#ffffff' : '#38bdf8',
+            color: Math.random() > 0.5 ? '#ffffff' : (cfg.bossColor || '#38bdf8'),
             life: 1.0 + Math.random() * 0.5,
             size: 3
         });
     }
 
-    // Banner de nivel superado
+    // Banner de nivel superado con nombres de jefes
     GameState.levelClearBanner = {
         level: currentLvl,
+        bossName: cfg.name,
+        nextName: nextCfg.name,
         timer: 2.8
     };
 
@@ -1293,50 +1494,61 @@ function render() {
     // 10. HUD Superior (Barras de Vida Estilo NES en pantalla fija)
     renderHUD();
 
-    // 11. Banner de Nivel Superado
+    // 11. Banner de Nivel Superado con nombres de jefes
     if (GameState.levelClearBanner) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.font = '8px "Press Start 2P"';
         ctx.fillStyle = '#3dff8a';
         ctx.textAlign = 'center';
-        ctx.fillText(`STAGE ${GameState.levelClearBanner.level} CLEAR!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 12);
+        ctx.fillText(`${GameState.levelClearBanner.bossName} DEFEATED!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 14);
         ctx.font = '6px "Press Start 2P"';
         ctx.fillStyle = '#ffea00';
-        ctx.fillText(`+1UP BONUS!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 4);
+        ctx.fillText(`STAGE ${GameState.levelClearBanner.level} CLEAR! +1UP BONUS`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 2);
         ctx.fillStyle = '#38bdf8';
-        ctx.fillText(`NEXT: LEVEL ${GameState.levelClearBanner.level + 1}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
+        ctx.fillText(`NEXT: ${GameState.levelClearBanner.nextName}!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
     }
 }
 
 function renderBackground() {
-    // Fondo de cielo nocturno industrial
-    ctx.fillStyle = '#060f18';
+    const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
+
+    // Fondo de cielo según el escenario
+    ctx.fillStyle = cfg.bgColor;
     ctx.fillRect(GameState.cameraX, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Siluetas de fábricas y edificios distantes (Parallax 0.25)
-    ctx.fillStyle = '#0b1b29';
+    // Siluetas distantes
+    ctx.fillStyle = cfg.bgCityColor;
     for (let bx = 0; bx < STAGE_LENGTH; bx += 32) {
         const h = 40 + ((bx * 13) % 45);
         ctx.fillRect(bx - GameState.cameraX * 0.15, 136 - h, 28, h);
     }
 
-    // Tuberías y vigas de fondo (Parallax 0.5)
-    ctx.fillStyle = '#10283d';
+    // Tuberías, vigas o chimeneas
+    ctx.fillStyle = cfg.bgBeamColor;
     for (let px = 0; px < STAGE_LENGTH; px += 80) {
         ctx.fillRect(px - GameState.cameraX * 0.35, 20, 8, 116);
         ctx.fillRect(px - 10 - GameState.cameraX * 0.35, 45, 28, 6);
     }
+
+    // Si es escenario de lava (Fire Man), brillo cálido en la base
+    if (cfg.hazardType === 'lava') {
+        ctx.fillStyle = 'rgba(255, 69, 0, 0.15)';
+        const pulse = Math.sin(Date.now() / 250) * 8;
+        ctx.fillRect(GameState.cameraX, 136 - 10 - pulse, CANVAS_WIDTH, pulse + 34);
+    }
 }
 
 function renderPlatforms() {
+    const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
+
     GameState.platforms.forEach(plat => {
         if (plat.type === 'ground' || plat.type === 'block') {
-            ctx.fillStyle = '#1e3a5f';
+            ctx.fillStyle = cfg.platformGround;
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
-            // Borde superior brillante de plataforma metálica
-            ctx.fillStyle = '#38bdf8';
+            // Borde superior brillante
+            ctx.fillStyle = cfg.platformBorder;
             ctx.fillRect(plat.x, plat.y, plat.w, 2);
 
             // Patrón de remaches de acero NES
@@ -1345,21 +1557,21 @@ function renderPlatforms() {
                 ctx.fillRect(rx, plat.y + 6, 2, 2);
             }
         } else if (plat.type === 'pipe') {
-            ctx.fillStyle = '#16a34a';
+            ctx.fillStyle = cfg.hazardType === 'lava' ? '#b91c1c' : '#16a34a';
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = '#4ade80';
+            ctx.fillStyle = cfg.hazardType === 'lava' ? '#f87171' : '#4ade80';
             ctx.fillRect(plat.x, plat.y + 1, plat.w, 2);
-            ctx.fillStyle = '#14532d';
+            ctx.fillStyle = '#0f172a';
             ctx.fillRect(plat.x, plat.y + plat.h - 2, plat.w, 2);
         } else if (plat.type === 'metal') {
-            ctx.fillStyle = '#334155';
+            ctx.fillStyle = cfg.hazardType === 'lava' ? '#451a03' : '#334155';
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = '#64748b';
+            ctx.fillStyle = cfg.hazardType === 'lava' ? '#d97706' : '#64748b';
             ctx.fillRect(plat.x, plat.y, plat.w, 1.5);
         } else if (plat.type === 'wall') {
-            ctx.fillStyle = '#1e3a5f';
+            ctx.fillStyle = cfg.platformGround;
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = '#38bdf8';
+            ctx.fillStyle = cfg.platformBorder;
             ctx.fillRect(plat.x, plat.y, 2, plat.h);
             ctx.fillStyle = '#0f172a';
             for (let ry = 8; ry < plat.h; ry += 16) {
@@ -1416,17 +1628,39 @@ function renderBossGate() {
 }
 
 function renderSpikes() {
-    GameState.spikes.forEach(sp => {
-        ctx.fillStyle = '#ef4444';
-        for (let sx = sp.x; sx < sp.x + sp.w; sx += 6) {
-            ctx.beginPath();
-            ctx.moveTo(sx, sp.y + sp.h);
-            ctx.lineTo(sx + 3, sp.y);
-            ctx.lineTo(sx + 6, sp.y + sp.h);
-            ctx.closePath();
-            ctx.fill();
-        }
-    });
+    const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
+
+    if (cfg.hazardType === 'lava') {
+        GameState.spikes.forEach(sp => {
+            // Fondo de lava volcánica ardiente
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(sp.x, sp.y, sp.w, sp.h);
+            ctx.fillStyle = '#f97316';
+            ctx.fillRect(sp.x, sp.y, sp.w, 4);
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(sp.x, sp.y, sp.w, 1.5);
+
+            // Burbujas de magma animadas
+            const t = Date.now() / 150;
+            for (let bx = sp.x + 4; bx < sp.x + sp.w; bx += 14) {
+                const bOffset = Math.sin(t + bx) * 2;
+                ctx.fillStyle = '#ffea00';
+                ctx.fillRect(bx, sp.y + bOffset, 3, 2);
+            }
+        });
+    } else {
+        GameState.spikes.forEach(sp => {
+            ctx.fillStyle = cfg.hazardColor || '#ef4444';
+            for (let sx = sp.x; sx < sp.x + sp.w; sx += 6) {
+                ctx.beginPath();
+                ctx.moveTo(sx, sp.y + sp.h);
+                ctx.lineTo(sx + 3, sp.y);
+                ctx.lineTo(sx + 6, sp.y + sp.h);
+                ctx.closePath();
+                ctx.fill();
+            }
+        });
+    }
 }
 
 function renderPickups() {
@@ -1564,28 +1798,93 @@ function renderBoss() {
     // Parpadeo blanco al recibir daño
     const isFlashing = b.invulnTimer > 0 && Math.floor(Date.now() / 40) % 2 === 0;
 
-    // Cuerpo de Cut Man
-    ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b'; // Naranja / Ámbar
-    ctx.fillRect(2, 4, 16, 12);
+    if (b.bossType === 'fireman') {
+        // --- FIRE MAN (Nivel 2) ---
+        // Cuerpo rojo carmesí
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#dc2626';
+        ctx.fillRect(2, 4, 16, 12);
 
-    // Cabeza
-    ctx.fillStyle = isFlashing ? '#ffffff' : '#fcd34d';
-    ctx.fillRect(4, 0, 12, 10);
+        // Pecho / Coraza dorada de llama
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
+        ctx.fillRect(6, 6, 8, 8);
 
-    // Cuchilla tijera en la cabeza (Cut Blade)
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(6, -8, 3, 9);
-    ctx.fillRect(11, -8, 3, 9);
-    ctx.fillRect(8, -9, 4, 2);
+        // Cabeza
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#ef4444';
+        ctx.fillRect(4, 0, 12, 8);
 
-    // Ojos
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(5, 3, 2, 3);
+        // Antorcha de fuego en la cabeza (llama oscilante)
+        const flameOffset = Math.floor(Date.now() / 80) % 2;
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(7, -8, 6, 8);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(8 + flameOffset, -6, 4, 6);
 
-    // Botas
-    ctx.fillStyle = isFlashing ? '#ffffff' : '#b45309';
-    ctx.fillRect(2, 16, 6, 10);
-    ctx.fillRect(11, 16, 6, 10);
+        // Ojos
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(6, 3, 2, 2);
+
+        // Cañones de fuego en las manos
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
+        ctx.fillRect(0, 7, 4, 6);
+        ctx.fillRect(16, 7, 4, 6);
+
+        // Botas
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#991b1b';
+        ctx.fillRect(2, 16, 6, 10);
+        ctx.fillRect(11, 16, 6, 10);
+    } else if (b.bossType === 'gutsman') {
+        // --- GUTS MAN (Nivel 3) ---
+        // Cuerpo masivo marrón
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#5c3d1e';
+        ctx.fillRect(1, 4, 20, 13);
+
+        // Coraza verde musgo
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#65a30d';
+        ctx.fillRect(5, 5, 12, 8);
+
+        // Casco pesado de construcción
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#eab308';
+        ctx.fillRect(4, -2, 14, 9);
+        ctx.fillRect(3, 4, 16, 3);
+
+        // Ojos visor
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(7, 2, 3, 2);
+
+        // Hombros gigantescos
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#84cc16';
+        ctx.fillRect(-2, 3, 5, 8);
+        ctx.fillRect(19, 3, 5, 8);
+
+        // Botas de acero macizo
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#334155';
+        ctx.fillRect(2, 16, 7, 12);
+        ctx.fillRect(13, 16, 7, 12);
+    } else {
+        // --- CUT MAN (Nivel 1) ---
+        // Cuerpo
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
+        ctx.fillRect(2, 4, 16, 12);
+
+        // Cabeza
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#fcd34d';
+        ctx.fillRect(4, 0, 12, 10);
+
+        // Cuchilla tijera en la cabeza (Cut Blade)
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(6, -8, 3, 9);
+        ctx.fillRect(11, -8, 3, 9);
+        ctx.fillRect(8, -9, 4, 2);
+
+        // Ojos
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(5, 3, 2, 3);
+
+        // Botas
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#b45309';
+        ctx.fillRect(2, 16, 6, 10);
+        ctx.fillRect(11, 16, 6, 10);
+    }
 
     ctx.restore();
 }
@@ -1598,42 +1897,39 @@ function renderEnemies() {
         const isHurt = e.hurtTimer > 0;
 
         if (e.type === 'metool') {
-            // Metool clásico
-            ctx.fillStyle = isHurt ? '#ffffff' : '#facc15'; // Casco de construcción amarillo
+            const helmColor = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#ea580c' : e.subtype === 'miner' ? '#78350f' : '#facc15');
+            ctx.fillStyle = helmColor;
             ctx.beginPath();
             ctx.arc(7, 6, 7, Math.PI, 0);
             ctx.fill();
             ctx.fillRect(0, 6, 14, 4);
 
             if (e.state === 'ATTACKING') {
-                // Asoma los ojos
                 ctx.fillStyle = isHurt ? '#ffffff' : '#0f172a';
                 ctx.fillRect(2, 7, 10, 4);
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(3, 8, 2, 2);
                 ctx.fillRect(8, 8, 2, 2);
             }
-            // Pies marrones
-            ctx.fillStyle = isHurt ? '#ffffff' : '#78350f';
+            ctx.fillStyle = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#991b1b' : '#78350f');
             ctx.fillRect(1, 10, 4, 2);
             ctx.fillRect(9, 10, 4, 2);
         } else if (e.type === 'blader') {
-            // Drone con hélice
-            ctx.fillStyle = isHurt ? '#ffffff' : '#38bdf8';
+            const bodyColor = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#ef4444' : e.subtype === 'quarry' ? '#65a30d' : '#38bdf8');
+            ctx.fillStyle = bodyColor;
             ctx.fillRect(2, 4, 10, 8);
-            ctx.fillStyle = isHurt ? '#ffffff' : '#ef4444';
-            ctx.fillRect(4, 6, 4, 3); // Ojo visor rojo
-            // Hélice giratoria
+            ctx.fillStyle = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#facc15' : '#ef4444');
+            ctx.fillRect(4, 6, 4, 3);
             ctx.fillStyle = '#ffffff';
             const hRot = Math.floor(Date.now() / 40) % 2;
             ctx.fillRect(hRot ? 0 : 3, 1, hRot ? 14 : 8, 2);
         } else if (e.type === 'spikey') {
-            // Rueda de púas
-            ctx.fillStyle = isHurt ? '#ffffff' : '#64748b';
+            const wheelColor = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#dc2626' : e.subtype === 'boulder' ? '#475569' : '#64748b');
+            ctx.fillStyle = wheelColor;
             ctx.beginPath();
             ctx.arc(7, 6, 6, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = isHurt ? '#ffffff' : '#f87171';
+            ctx.fillStyle = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#fef08a' : '#f87171');
             ctx.fillRect(4, 4, 6, 4);
         }
 
@@ -1670,6 +1966,29 @@ function renderBullets() {
             ctx.rotate(Date.now() / 60);
             ctx.fillRect(-5, -2, 10, 4);
             ctx.fillRect(-2, -5, 4, 10);
+            ctx.restore();
+        } else if (eb.isFire) {
+            // Fuego de Fire Man
+            ctx.save();
+            ctx.translate(eb.x + 5, eb.y + 5);
+            ctx.fillStyle = '#f97316';
+            ctx.beginPath();
+            ctx.arc(0, 0, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fde047';
+            ctx.fillRect(-2, -2, 4, 4);
+            ctx.restore();
+        } else if (eb.isBoulder) {
+            // Roca rodante de Guts Man
+            ctx.save();
+            ctx.translate(eb.x + 6, eb.y + 6);
+            ctx.rotate(Date.now() / 100);
+            ctx.fillStyle = '#78716c';
+            ctx.fillRect(-6, -6, 12, 12);
+            ctx.fillStyle = '#44403c';
+            ctx.fillRect(-4, -4, 8, 8);
+            ctx.fillStyle = '#d6d3d1';
+            ctx.fillRect(-2, -2, 4, 4);
             ctx.restore();
         } else {
             ctx.fillStyle = '#f97316';
@@ -1710,11 +2029,12 @@ function renderHUD() {
     ctx.fillStyle = '#00d2ff';
     ctx.fillRect(barX, barY - 7, 4, 4);
 
-    // Indicador de Nivel Actual
+    // Indicador de Nivel Actual y Nombre de Escenario
+    const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
     ctx.font = '5px "Press Start 2P"';
     ctx.fillStyle = '#3dff8a';
     ctx.textAlign = 'center';
-    ctx.fillText(`STAGE ${GameState.level || 1}`, CANVAS_WIDTH / 2, 10);
+    ctx.fillText(`STAGE ${GameState.level || 1}: ${cfg.name}`, CANVAS_WIDTH / 2, 10);
 
     // Barra de Vida del Boss (Si está activo o presente - barra más baja y compacta)
     if (GameState.boss && GameState.boss.hp > 0 && GameState.bossActive) {
@@ -1725,7 +2045,7 @@ function renderHUD() {
 
         ctx.fillStyle = '#020617';
         ctx.fillRect(bossBarX - 1, bossBarY - 1, 6, bossBarH + 2);
-        ctx.strokeStyle = '#f59e0b';
+        ctx.strokeStyle = cfg.bossColor || '#f59e0b';
         ctx.lineWidth = 1;
         ctx.strokeRect(bossBarX - 1, bossBarY - 1, 6, bossBarH + 2);
 
@@ -1734,15 +2054,15 @@ function renderHUD() {
         for (let i = 0; i < totalSegments; i++) {
             const segY = bossBarY + bossBarH - (i + 1) * 2;
             if (i < fillSegments) {
-                ctx.fillStyle = '#f59e0b';
+                ctx.fillStyle = cfg.bossColor || '#f59e0b';
                 ctx.fillRect(bossBarX, segY, 4, 1.5);
             }
         }
-        // Letra 'C' de Cut Man
+        // Letra identificadora del Boss arriba de su barra ('C', 'F', 'G')
         ctx.font = '5px "Press Start 2P"';
-        ctx.fillStyle = '#f59e0b';
+        ctx.fillStyle = cfg.bossColor || '#f59e0b';
         ctx.textAlign = 'center';
-        ctx.fillText('C', bossBarX + 2, bossBarY - 4);
+        ctx.fillText(cfg.bossLetter || 'B', bossBarX + 2, bossBarY - 4);
     }
 }
 
