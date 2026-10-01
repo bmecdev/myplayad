@@ -854,10 +854,52 @@ function update(dt) {
     // Actualización y colisiones de proyectiles enemigos
     for (let p = PROJECTILES.length - 1; p >= 0; p--) {
         const proj = PROJECTILES[p];
+        const oldZ = proj.z;
         proj.z += proj.vz * dt;
         proj.x += proj.vx * dt;
         proj.y += proj.vy * dt;
 
+        // 1. Colisión contra obstáculos estáticos (Monolitos y barreras bloquean proyectiles enemigos)
+        let blockedByObstacle = false;
+        for (const obs of OBSTACLES) {
+            const minZ = Math.min(oldZ, proj.z) - 8;
+            const maxZ = Math.max(oldZ, proj.z) + 8;
+            if (obs.z >= minZ && obs.z <= maxZ) {
+                if (obs.type === 'pillar') {
+                    const dx = Math.abs(proj.x - obs.x);
+                    const dy = Math.abs(proj.y - obs.y);
+                    if (dx < (obs.width / 2 + proj.radius) && dy < (obs.height / 2 + proj.radius)) {
+                        blockedByObstacle = true;
+                        break;
+                    }
+                } else if (obs.type === 'barrier') {
+                    const dy = Math.abs(proj.y - obs.y);
+                    const dx = Math.abs(proj.x - obs.x);
+                    if (dy < (obs.height / 2 + proj.radius) && dx < (obs.width / 2)) {
+                        blockedByObstacle = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (blockedByObstacle) {
+            spawnExplosion(proj.x, proj.y, proj.z, '#ff4d6d', 8);
+            PROJECTILES.splice(p, 1);
+            continue;
+        }
+
+        // 2. Colisión contra paredes y suelo del cañón
+        const canyonAtProj = getCanyonAt(proj.z);
+        const relProjX = Math.abs(proj.x - canyonAtProj.cX);
+        const relProjY = proj.y - canyonAtProj.cY;
+        if (relProjX > canyonAtProj.halfWidth || relProjY > canyonAtProj.wallHeight * 0.52 || relProjY < -canyonAtProj.wallHeight * 0.52) {
+            spawnExplosion(proj.x, proj.y, proj.z, '#ff4d6d', 6);
+            PROJECTILES.splice(p, 1);
+            continue;
+        }
+
+        // 3. Colisión contra el jugador
         const relZ = proj.z - Player.z;
         if (relZ <= 7 && relZ >= -7) {
             const dist = Math.hypot(Player.x - proj.x, Player.y - proj.y);
