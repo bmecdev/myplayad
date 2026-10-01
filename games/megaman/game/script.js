@@ -11,6 +11,7 @@ const CANVAS_HEIGHT = 160;
 const playerNickElement = document.getElementById('player-nick');
 const scoreElement = document.getElementById('score');
 const livesCountElement = document.getElementById('lives-count');
+const stageLevelElement = document.getElementById('stage-level');
 const highScoreElement = document.getElementById('high-score');
 const roomIdElement = document.getElementById('room-id');
 const iceRouteElement = document.getElementById('ice-route');
@@ -369,6 +370,8 @@ const GameState = {
     score: 0,
     highScore: parseInt(localStorage.getItem('megaman_highscore') || '0', 10),
     lives: 3,
+    level: 1,
+    levelClearBanner: null,
     currentNickname: 'MEGAMAN',
     roomId: '----',
     cameraX: 0,
@@ -399,18 +402,18 @@ const GameState = {
 
     boss: {
         x: 1250,
-        y: 100,
+        y: 110,
         vx: 0,
         vy: 0,
-        w: 22,
+        w: 20,
         h: 26,
         hp: MAX_HP,
         maxHp: MAX_HP,
         active: false,
-        onGround: false,
+        onGround: true,
         facing: -1,
-        stateTimer: 0,
-        actionState: 'IDLE', // IDLE, JUMP, THROW, DASH, HURT
+        stateTimer: 1.5,
+        actionState: 'WAITING',
         invulnTimer: 0,
         scissors: []
     },
@@ -438,6 +441,9 @@ const GameState = {
 // 🏗️ Generación del Escenario NES Industrial
 // ==========================================
 function initStage() {
+    const lvl = GameState.level || 1;
+    const bossMaxHp = MAX_HP + (lvl - 1) * 6; // Escalamiento de vida del jefe por nivel
+
     GameState.platforms = [
         // Suelo principal inicial
         { x: 0, y: 136, w: 280, h: 24, type: 'ground' },
@@ -471,21 +477,21 @@ function initStage() {
         { x: 770, y: 152, w: 40,  h: 8 }
     ];
 
-    // Enemigos colocados estratégicamente estilo NES
+    // Enemigos colocados estratégicamente estilo NES (con hurtTimer y HP balanceado)
     GameState.enemies = [
-        // Metools (Mets con casco que se esconden)
-        { id: 1, type: 'metool', x: 160, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1 },
-        { id: 2, type: 'metool', x: 530, y: 80,  vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.5, hp: 1, facing: -1 },
-        { id: 3, type: 'metool', x: 840, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.2, hp: 1, facing: -1 },
-        { id: 4, type: 'metool', x: 990, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.8, hp: 1, facing: -1 },
+        // Metools (Mets con casco que se asoman y disparan)
+        { id: 1, type: 'metool', x: 160, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.0, hp: 1, facing: -1, hurtTimer: 0 },
+        { id: 2, type: 'metool', x: 530, y: 80,  vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.5, hp: 1, facing: -1, hurtTimer: 0 },
+        { id: 3, type: 'metool', x: 840, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 2.2, hp: 1, facing: -1, hurtTimer: 0 },
+        { id: 4, type: 'metool', x: 990, y: 124, vx: 0, vy: 0, w: 14, h: 12, state: 'HIDING', timer: 1.8, hp: 1, facing: -1, hurtTimer: 0 },
 
         // Bladers (Drones voladores con hélice)
-        { id: 5, type: 'blader', x: 340, y: 50,  vx: -35, vy: 0, w: 14, h: 12, startY: 50, t: 0, hp: 2 },
-        { id: 6, type: 'blader', x: 670, y: 40,  vx: -40, vy: 0, w: 14, h: 12, startY: 40, t: 1.5, hp: 2 },
-        { id: 7, type: 'blader', x: 910, y: 45,  vx: -35, vy: 0, w: 14, h: 12, startY: 45, t: 0.8, hp: 2 },
+        { id: 5, type: 'blader', x: 340, y: 50,  vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 50, t: 0, hp: 1, hurtTimer: 0 },
+        { id: 6, type: 'blader', x: 670, y: 40,  vx: -40 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 40, t: 1.5, hp: 1, hurtTimer: 0 },
+        { id: 7, type: 'blader', x: 910, y: 45,  vx: -35 - (lvl - 1) * 8, vy: 0, w: 14, h: 12, startY: 45, t: 0.8, hp: 1, hurtTimer: 0 },
 
         // Spikey (Rueda mecánica rápida)
-        { id: 8, type: 'spikey', x: 660, y: 124, vx: -50, vy: 0, w: 14, h: 12, minX: 580, maxX: 740, hp: 3 }
+        { id: 8, type: 'spikey', x: 660, y: 124, vx: -50 - (lvl - 1) * 10, vy: 0, w: 14, h: 12, minX: 580, maxX: 740, hp: 2, hurtTimer: 0 }
     ];
 
     // Cápsulas de energía para recoger
@@ -506,20 +512,20 @@ function initStage() {
         sealed: false
     };
 
-    // Reiniciar Boss
+    // Reiniciar Boss Cut Man con escalamiento de vida por nivel
     GameState.boss = {
         x: 1250,
-        y: 100,
+        y: 110,
         vx: 0,
         vy: 0,
         w: 20,
         h: 26,
-        hp: MAX_HP,
-        maxHp: MAX_HP,
+        hp: bossMaxHp,
+        maxHp: bossMaxHp,
         active: false,
-        onGround: false,
+        onGround: true,
         facing: -1,
-        stateTimer: 2.0,
+        stateTimer: 1.5,
         actionState: 'WAITING',
         invulnTimer: 0,
         scissors: []
@@ -539,6 +545,8 @@ function startNewGame() {
     GameState.victory = false;
     GameState.score = 0;
     GameState.lives = 3;
+    GameState.level = 1;
+    GameState.levelClearBanner = null;
     GameState.cameraX = 0;
 
     initStage();
@@ -611,6 +619,9 @@ function updateUI() {
     scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(6, '0')}`;
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(6, '0')}`;
     livesCountElement.textContent = GameState.lives;
+    if (stageLevelElement) {
+        stageLevelElement.textContent = GameState.level || 1;
+    }
 }
 
 // ==========================================
@@ -771,10 +782,22 @@ function updatePhysics(dt) {
             }
 
             // Al cruzar la puerta e ingresar a la arena del jefe
-            if (p.x >= 1134) {
+            if (p.x >= 1118) {
                 gate.sealed = true;
                 gate.state = 'CLOSING';
                 audio.playGate();
+
+                // Activar Cut Man de inmediato al entrar en la arena
+                if (!GameState.bossActive && !GameState.victory) {
+                    GameState.bossActive = true;
+                    if (GameState.boss) {
+                        GameState.boss.active = true;
+                        GameState.boss.y = 80;
+                        GameState.boss.vy = -160;
+                    }
+                    GameState.bossIntroTimer = 1.5;
+                    audio.playBossAlarm();
+                }
             }
         } else {
             // Cerrando y sellando compuerta tras entrar
@@ -784,11 +807,11 @@ function updatePhysics(dt) {
                     gate.currentY = 0;
                     gate.state = 'SEALED';
                     audio.playLand();
-                    // Activar el Boss Cut Man
+                    // Asegurar que el Boss Cut Man esté activo
                     if (!GameState.bossActive && !GameState.victory) {
                         GameState.bossActive = true;
-                        GameState.boss.active = true;
-                        GameState.bossIntroTimer = 2.0;
+                        if (GameState.boss) GameState.boss.active = true;
+                        GameState.bossIntroTimer = 1.5;
                         audio.playBossAlarm();
                     }
                 }
@@ -846,35 +869,21 @@ function updatePhysics(dt) {
             continue;
         }
 
-        // Colisión con enemigos
+        // Colisión con enemigos (Todos reciben daño de cualquier disparo)
         let bulletDestroyed = false;
         for (let j = GameState.enemies.length - 1; j >= 0; j--) {
             const e = GameState.enemies[j];
             if (b.x + b.w > e.x && b.x < e.x + e.w && b.y + b.h > e.y && b.y < e.y + e.h) {
-                // Metool escondido rebota disparos normales pero es vulnerable a tiros cargados
-                if (e.type === 'metool' && e.state === 'HIDING') {
-                    if (b.charged || b.damage >= 2) {
-                        e.hp -= b.damage;
-                        createSparks(e.x + e.w / 2, e.y + e.h / 2, '#ffea00', 8);
-                        if (e.hp <= 0) {
-                            audio.playEnemyExplode();
-                            createSparks(e.x + e.w / 2, e.y + e.h / 2, '#38bdf8', 12);
-                            GameState.score += 150;
-                            updateUI();
-                            GameState.enemies.splice(j, 1);
-                        }
-                    } else {
-                        audio.playDeflect();
-                        createSparks(b.x, b.y, '#ffffff', 4);
-                        e.state = 'ATTACKING';
-                        e.timer = 1.0;
-                    }
-                    bulletDestroyed = true;
-                    break;
-                }
-
                 e.hp -= b.damage;
+                e.hurtTimer = 0.15; // Destello blanco visual instantáneo
+                audio.playDamage();
                 createSparks(e.x + e.w / 2, e.y + e.h / 2, '#ffea00', 6);
+
+                // Si es Metool escondido, se despierta al ser impactado
+                if (e.type === 'metool' && e.state === 'HIDING') {
+                    e.state = 'ATTACKING';
+                    e.timer = 1.0;
+                }
 
                 if (e.hp <= 0) {
                     audio.playEnemyExplode();
@@ -892,9 +901,15 @@ function updatePhysics(dt) {
         }
 
         // Colisión con Boss (Cut Man)
-        if (!bulletDestroyed && GameState.bossActive && GameState.boss.hp > 0) {
+        if (!bulletDestroyed && GameState.boss && GameState.boss.hp > 0) {
             const boss = GameState.boss;
             if (b.x + b.w > boss.x && b.x < boss.x + boss.w && b.y + b.h > boss.y && b.y < boss.y + boss.h) {
+                if (!GameState.bossActive && !GameState.victory) {
+                    GameState.bossActive = true;
+                    boss.active = true;
+                    audio.playBossAlarm();
+                }
+
                 if (boss.invulnTimer <= 0) {
                     boss.hp = Math.max(0, boss.hp - b.damage);
                     boss.invulnTimer = 0.28;
@@ -933,6 +948,8 @@ function updatePhysics(dt) {
 
     // 9. Comportamiento de Enemigos
     GameState.enemies.forEach(e => {
+        if (e.hurtTimer > 0) e.hurtTimer -= dt;
+
         if (e.type === 'metool') {
             e.timer -= dt;
             if (e.state === 'HIDING') {
@@ -990,8 +1007,12 @@ function updatePhysics(dt) {
     });
 
     // 11. Lógica del Boss (Robot Master Cut Man)
-    if (GameState.bossActive && GameState.boss.hp > 0) {
+    if (GameState.boss && GameState.boss.hp > 0 && GameState.bossActive) {
         updateBoss(dt);
+    }
+
+    if (GameState.levelClearBanner) {
+        GameState.levelClearBanner.timer -= dt;
     }
 
     // 12. Cámara dinámica (Scroll suave hacia adelante)
@@ -1016,6 +1037,7 @@ function updatePhysics(dt) {
 function updateBoss(dt) {
     const b = GameState.boss;
     const p = GameState.player;
+    const lvl = GameState.level || 1;
 
     if (b.invulnTimer > 0) b.invulnTimer -= dt;
 
@@ -1034,36 +1056,59 @@ function updateBoss(dt) {
         b.onGround = true;
     }
 
-    // Patrón de ataque de Robot Master
+    const speedBonus = (lvl - 1) * 18;
+    const cooldownMult = Math.max(0.42, 1.0 - (lvl - 1) * 0.12);
+
+    // Patrón de ataque de Robot Master con dificultad progresiva
     if (b.stateTimer <= 0) {
         const rand = Math.random();
         if (rand < 0.35 && b.onGround) {
             // Salto alto hacia Mega Man
             b.actionState = 'JUMP';
-            b.vy = -310;
-            b.vx = (p.x < b.x ? -1 : 1) * 85;
+            b.vy = -310 - (lvl - 1) * 15;
+            b.vx = (p.x < b.x ? -1 : 1) * (85 + speedBonus);
             b.onGround = false;
-            b.stateTimer = 1.4;
+            b.stateTimer = 1.3 * cooldownMult;
         } else if (rand < 0.70) {
             // Lanzar Cuchilla Rolling Cutter / Disparo Boss
             b.actionState = 'THROW';
             b.vx = 0;
+            const cutterSpeed = (160 + (lvl - 1) * 25) * b.facing;
             GameState.enemyBullets.push({
                 x: b.x + (b.facing === -1 ? -6 : b.w + 2),
                 y: b.y + 6,
-                vx: b.facing * 160,
+                vx: cutterSpeed,
                 vy: -20,
                 w: 10,
                 h: 10,
                 isBlade: true
             });
+
+            // En niveles superiores (>= 2), Cut Man lanza una segunda cuchilla rodante
+            if (lvl >= 2) {
+                setTimeout(() => {
+                    if (GameState.running && GameState.boss && GameState.boss.hp > 0) {
+                        GameState.enemyBullets.push({
+                            x: b.x + (b.facing === -1 ? -6 : b.w + 2),
+                            y: b.y + 2,
+                            vx: cutterSpeed * 0.9,
+                            vy: 25,
+                            w: 10,
+                            h: 10,
+                            isBlade: true
+                        });
+                        audio.playDeflect();
+                    }
+                }, 200);
+            }
+
             audio.playDeflect();
-            b.stateTimer = 0.9;
+            b.stateTimer = 0.9 * cooldownMult;
         } else {
             // Dash / Carrera rápida
             b.actionState = 'DASH';
-            b.vx = (p.x < b.x ? -1 : 1) * 120;
-            b.stateTimer = 0.8;
+            b.vx = (p.x < b.x ? -1 : 1) * (120 + speedBonus);
+            b.stateTimer = 0.8 * cooldownMult;
         }
     }
 
@@ -1079,28 +1124,62 @@ function updateBoss(dt) {
 
 function defeatBoss() {
     GameState.boss.hp = 0;
-    GameState.victory = true;
-    GameState.score += 10000;
+    const currentLvl = GameState.level || 1;
+    const bonusScore = 10000 * currentLvl;
+    GameState.score += bonusScore;
+    GameState.lives++; // ¡Vida extra de recompensa por vencer al jefe!
     updateUI();
 
+    audio.playVictory();
+    broadcastSFX('charged');
+
     // Círculo expansivo de explosiones de Robot Master
-    for (let i = 0; i < 20; i++) {
-        const ang = (i / 20) * Math.PI * 2;
-        const spd = 40 + Math.random() * 60;
+    for (let i = 0; i < 28; i++) {
+        const ang = (i / 28) * Math.PI * 2;
+        const spd = 40 + Math.random() * 80;
         GameState.particles.push({
             x: GameState.boss.x + GameState.boss.w / 2,
             y: GameState.boss.y + GameState.boss.h / 2,
             vx: Math.cos(ang) * spd,
             vy: Math.sin(ang) * spd,
             color: Math.random() > 0.5 ? '#ffffff' : '#38bdf8',
-            life: 0.8 + Math.random() * 0.4,
+            life: 1.0 + Math.random() * 0.5,
             size: 3
         });
     }
 
+    // Banner de nivel superado
+    GameState.levelClearBanner = {
+        level: currentLvl,
+        timer: 2.8
+    };
+
     setTimeout(() => {
-        endGame(true);
-    }, 1800);
+        startNextLevel();
+    }, 2800);
+}
+
+function startNextLevel() {
+    GameState.level = (GameState.level || 1) + 1;
+    GameState.levelClearBanner = null;
+
+    initStage();
+
+    const p = GameState.player;
+    p.x = 40;
+    p.y = 110;
+    p.vx = 0;
+    p.vy = 0;
+    p.hp = MAX_HP;
+    p.facing = 1;
+    p.isSliding = false;
+    p.chargeTime = 0;
+    p.isCharging = false;
+    p.invulnTimer = 2.0;
+
+    GameState.cameraX = 0;
+    audio.stopChargeHum();
+    updateUI();
 }
 
 function respawnPlayerAtStart() {
@@ -1208,8 +1287,8 @@ function render() {
     // 5. Enemigos
     renderEnemies();
 
-    // 6. Boss (Robot Master)
-    if (GameState.bossActive) {
+    // 6. Boss (Robot Master) - Visible en la arena siempre que tenga vida
+    if (GameState.boss && GameState.boss.hp > 0) {
         renderBoss();
     }
 
@@ -1226,6 +1305,21 @@ function render() {
 
     // 10. HUD Superior (Barras de Vida Estilo NES en pantalla fija)
     renderHUD();
+
+    // 11. Banner de Nivel Superado
+    if (GameState.levelClearBanner) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.font = '8px "Press Start 2P"';
+        ctx.fillStyle = '#3dff8a';
+        ctx.textAlign = 'center';
+        ctx.fillText(`STAGE ${GameState.levelClearBanner.level} CLEAR!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 12);
+        ctx.font = '6px "Press Start 2P"';
+        ctx.fillStyle = '#ffea00';
+        ctx.fillText(`+1UP BONUS!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 4);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(`NEXT: LEVEL ${GameState.levelClearBanner.level + 1}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 18);
+    }
 }
 
 function renderBackground() {
@@ -1514,9 +1608,11 @@ function renderEnemies() {
         ctx.save();
         ctx.translate(Math.round(e.x), Math.round(e.y));
 
+        const isHurt = e.hurtTimer > 0;
+
         if (e.type === 'metool') {
             // Metool clásico
-            ctx.fillStyle = '#facc15'; // Casco de construcción amarillo
+            ctx.fillStyle = isHurt ? '#ffffff' : '#facc15'; // Casco de construcción amarillo
             ctx.beginPath();
             ctx.arc(7, 6, 7, Math.PI, 0);
             ctx.fill();
@@ -1524,21 +1620,21 @@ function renderEnemies() {
 
             if (e.state === 'ATTACKING') {
                 // Asoma los ojos
-                ctx.fillStyle = '#0f172a';
+                ctx.fillStyle = isHurt ? '#ffffff' : '#0f172a';
                 ctx.fillRect(2, 7, 10, 4);
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(3, 8, 2, 2);
                 ctx.fillRect(8, 8, 2, 2);
             }
             // Pies marrones
-            ctx.fillStyle = '#78350f';
+            ctx.fillStyle = isHurt ? '#ffffff' : '#78350f';
             ctx.fillRect(1, 10, 4, 2);
             ctx.fillRect(9, 10, 4, 2);
         } else if (e.type === 'blader') {
             // Drone con hélice
-            ctx.fillStyle = '#38bdf8';
+            ctx.fillStyle = isHurt ? '#ffffff' : '#38bdf8';
             ctx.fillRect(2, 4, 10, 8);
-            ctx.fillStyle = '#ef4444';
+            ctx.fillStyle = isHurt ? '#ffffff' : '#ef4444';
             ctx.fillRect(4, 6, 4, 3); // Ojo visor rojo
             // Hélice giratoria
             ctx.fillStyle = '#ffffff';
@@ -1546,11 +1642,11 @@ function renderEnemies() {
             ctx.fillRect(hRot ? 0 : 3, 1, hRot ? 14 : 8, 2);
         } else if (e.type === 'spikey') {
             // Rueda de púas
-            ctx.fillStyle = '#64748b';
+            ctx.fillStyle = isHurt ? '#ffffff' : '#64748b';
             ctx.beginPath();
             ctx.arc(7, 6, 6, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#f87171';
+            ctx.fillStyle = isHurt ? '#ffffff' : '#f87171';
             ctx.fillRect(4, 4, 6, 4);
         }
 
@@ -1627,8 +1723,14 @@ function renderHUD() {
     ctx.fillStyle = '#00d2ff';
     ctx.fillRect(barX, barY - 7, 4, 4);
 
-    // Barra de Vida del Boss (Si está activo)
-    if (GameState.bossActive && GameState.boss.hp > 0) {
+    // Indicador de Nivel Actual
+    ctx.font = '5px "Press Start 2P"';
+    ctx.fillStyle = '#3dff8a';
+    ctx.textAlign = 'center';
+    ctx.fillText(`STAGE ${GameState.level || 1}`, CANVAS_WIDTH / 2, 10);
+
+    // Barra de Vida del Boss (Si está activo o presente)
+    if (GameState.boss && GameState.boss.hp > 0 && GameState.bossActive) {
         const bossBarX = CANVAS_WIDTH - 12;
         ctx.fillStyle = '#020617';
         ctx.fillRect(bossBarX - 1, barY - 1, 6, barH + 2);
@@ -1636,9 +1738,11 @@ function renderHUD() {
         ctx.lineWidth = 1;
         ctx.strokeRect(bossBarX - 1, barY - 1, 6, barH + 2);
 
+        const bossMaxHp = GameState.boss.maxHp || MAX_HP;
+        const fillSegments = Math.round((GameState.boss.hp / bossMaxHp) * MAX_HP);
         for (let i = 0; i < MAX_HP; i++) {
             const segY = barY + barH - (i + 1) * 2;
-            if (i < GameState.boss.hp) {
+            if (i < fillSegments) {
                 ctx.fillStyle = '#f59e0b';
                 ctx.fillRect(bossBarX, segY, 4, 1.5);
             }
