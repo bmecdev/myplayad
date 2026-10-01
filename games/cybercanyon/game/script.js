@@ -53,7 +53,10 @@ const Player = {
     targetRoll: 0,
     pitch: 0,      // Cabeceo de vuelo (morro arriba/abajo)
     yaw: 0,        // Orientación hacia las curvas
-    invulnerableTime: 0
+    invulnerableTime: 0,
+    fireCooldown: 0,
+    fireRate: 0.16,
+    isFiring: false
 };
 
 // Sistema de Audio Web Audio API Sintetizado
@@ -164,6 +167,42 @@ class CyberAudio {
         osc.start(t);
         osc.stop(t + 0.18);
         broadcastSFX('laser');
+    }
+
+    playPlayerLaser() {
+        if (!this.ctx) return;
+        this.resume();
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(1150, t);
+        osc.frequency.exponentialRampToValueAtTime(220, t + 0.12);
+        gain.gain.setValueAtTime(0.24, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.14);
+        broadcastSFX('player_laser');
+    }
+
+    playExplosion() {
+        if (!this.ctx) return;
+        this.resume();
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(35, t + 0.35);
+        gain.gain.setValueAtTime(0.38, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.38);
+        broadcastSFX('explosion');
     }
 
     playWallHit() {
@@ -315,6 +354,62 @@ function spawnEnemiesAhead(playerZ) {
 
 // Proyectiles de plasma enemigos
 const PROJECTILES = [];
+
+// Disparos láser de la nave del jugador
+const PLAYER_LASERS = [];
+
+// Sistema de partículas de explosión vectorial CRT
+const PARTICLES = [];
+
+function firePlayerLaser() {
+    audio.playPlayerLaser();
+    const forwardSpeed = (GameState.speed * (GameState.boost ? 1.55 : 1.0)) / 3.6;
+    const laserSpeed = forwardSpeed + 260; // m/s
+    const launchZ = Player.z + 10;
+
+    // Disparo gemelo (ala izquierda y ala derecha de la nave)
+    PLAYER_LASERS.push({
+        x: Player.x - 14,
+        y: Player.y + 4,
+        z: launchZ,
+        vx: Player.yaw * 110,
+        vy: Player.pitch * 110,
+        vz: laserSpeed,
+        radius: 6,
+        life: 1.5
+    });
+
+    PLAYER_LASERS.push({
+        x: Player.x + 14,
+        y: Player.y + 4,
+        z: launchZ,
+        vx: Player.yaw * 110,
+        vy: Player.pitch * 110,
+        vz: laserSpeed,
+        radius: 6,
+        life: 1.5
+    });
+}
+
+function spawnExplosion(x, y, z, color = '#3dff8a', count = 16) {
+    audio.playExplosion();
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const spd = 25 + Math.random() * 55;
+        PARTICLES.push({
+            x: x,
+            y: y,
+            z: z,
+            vx: Math.cos(angle) * spd,
+            vy: Math.sin(angle) * spd,
+            vz: (Math.random() - 0.5) * 45,
+            color: color,
+            life: 0.55,
+            maxLife: 0.55,
+            size: 3 + Math.random() * 3.5
+        });
+    }
+}
 
 // ==============================================================================
 // RED WEBRTC Y SEÑALIZACIÓN
@@ -494,6 +589,9 @@ function handleControllerInput(input) {
     if (input.boost !== undefined) {
         GameState.boost = Boolean(input.boost);
     }
+    if (input.fire !== undefined) {
+        Player.isFiring = Boolean(input.fire);
+    }
 }
 
 function broadcastSFX(sfxType) {
@@ -550,6 +648,10 @@ function resetGame() {
     nextEnemyZ = 320;
 
     PROJECTILES.length = 0;
+    PLAYER_LASERS.length = 0;
+    PARTICLES.length = 0;
+    Player.fireCooldown = 0;
+    Player.isFiring = false;
 
     gameOverOverlay.classList.add('hidden');
     waitingOverlay.classList.add('hidden');
@@ -770,6 +872,109 @@ function update(dt) {
 
         if (proj.z < Player.z - 25) {
             PROJECTILES.splice(p, 1);
+        }
+    }
+
+    // Gestión de disparo de la nave del jugador (cañones gemelos)
+    if (keyState.fire || Player.isFiring) {
+        Player.fireCooldown -= dt;
+        if (Player.fireCooldown <= 0) {
+            firePlayerLaser();
+            Player.fireCooldown = Player.fireRate;
+        }
+    } else {
+        Player.fireCooldown = Math.max(0, Player.fireCooldown - dt);
+    }
+
+    // Actualización de láseres del jugador y detección de impactos 3D
+    for (let l = PLAYER_LASERS.length - 1; l >= 0; l--) {
+        const laser = PLAYER_LASERS[l];
+        laser.z += laser.vz * dt;
+        laser.x += laser.vx * dt;
+        laser.y += laser.vy * dt;
+        laser.life -= dt;
+
+        let laserConsumed = false;
+
+        // 1. Impacto contra torretas enemigas
+        for (let e = ENEMIES.length - 1; e >= 0; e--) {
+            const enemy = ENEMIES[e];
+            const dz = Math.abs(laser.z - enemy.z);
+            if (dz < 16) {
+                const dist = Math.hypot(laser.x - enemy.x, laser.y - enemy.y);
+                if (dist < enemy.radius + 12) {
+                    spawnExplosion(enemy.x, enemy.y, enemy.z, '#ff4d6d', 20);
+                    ENEMIES.splice(e, 1);
+                    laserConsumed = true;
+                    GameState.score += 500;
+                    break;
+                }
+            }
+        }
+
+        // 2. Interceptación de proyectiles enemigos de plasma en el aire
+        if (!laserConsumed) {
+            for (let p = PROJECTILES.length - 1; p >= 0; p--) {
+                const proj = PROJECTILES[p];
+                const dz = Math.abs(laser.z - proj.z);
+                if (dz < 14) {
+                    const dist = Math.hypot(laser.x - proj.x, laser.y - proj.y);
+                    if (dist < 18) {
+                        spawnExplosion(proj.x, proj.y, proj.z, '#ffb703', 10);
+                        PROJECTILES.splice(p, 1);
+                        laserConsumed = true;
+                        GameState.score += 200;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 3. Impacto contra monolitos y barreras
+        if (!laserConsumed) {
+            for (let o = OBSTACLES.length - 1; o >= 0; o--) {
+                const obs = OBSTACLES[o];
+                const dz = Math.abs(laser.z - obs.z);
+                if (dz < 16) {
+                    let hitObs = false;
+                    if (obs.type === 'pillar') {
+                        const dx = Math.abs(laser.x - obs.x);
+                        const dy = Math.abs(laser.y - obs.y);
+                        if (dx < (obs.width / 2 + 10) && dy < (obs.height / 2 + 10)) {
+                            hitObs = true;
+                        }
+                    } else if (obs.type === 'barrier') {
+                        const dy = Math.abs(laser.y - obs.y);
+                        const dx = Math.abs(laser.x - obs.x);
+                        if (dy < (obs.height / 2 + 10) && dx < (obs.width / 2)) {
+                            hitObs = true;
+                        }
+                    }
+                    if (hitObs) {
+                        spawnExplosion(obs.x, obs.y, obs.z, '#ffb703', 16);
+                        OBSTACLES.splice(o, 1);
+                        laserConsumed = true;
+                        GameState.score += 350;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (laserConsumed || laser.life <= 0 || laser.z > Player.z + 450) {
+            PLAYER_LASERS.splice(l, 1);
+        }
+    }
+
+    // Actualización de partículas de explosión
+    for (let pt = PARTICLES.length - 1; pt >= 0; pt--) {
+        const p = PARTICLES[pt];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        p.life -= dt;
+        if (p.life <= 0) {
+            PARTICLES.splice(pt, 1);
         }
     }
 
@@ -1058,7 +1263,55 @@ function draw() {
         }
     }
 
-    // 7. CABINA INMERSIVA DE VUELO (Rota con la nave y responde al cabeceo del piloto)
+    // 7. LÁSERES DE LA NAVE DEL JUGADOR
+    for (const laser of PLAYER_LASERS) {
+        const relZ = laser.z - Player.z;
+        if (relZ > 2 && relZ < maxZ) {
+            const scale = FOV / relZ;
+            const lx = centerX + (laser.x - Player.x - Player.yaw * relZ) * scale;
+            const ly = centerY + (laser.y - Player.y - Player.pitch * relZ) * scale;
+            const lr = Math.max(2.5, laser.radius * scale);
+            const alpha = Math.max(0.4, Math.min(1.0, 1.0 - (relZ / maxZ)));
+
+            ctx.save();
+            ctx.strokeStyle = `rgba(61, 255, 138, ${alpha})`; // Fósforo verde neón
+            ctx.fillStyle = '#ffffff';
+            ctx.lineWidth = Math.max(2, 3.5 * scale);
+
+            // Perno láser alargado
+            const boltLength = Math.max(7, 20 * scale);
+            ctx.beginPath();
+            ctx.moveTo(lx, ly - boltLength);
+            ctx.lineTo(lx, ly + boltLength);
+            ctx.stroke();
+
+            // Núcleo blanco brillante
+            ctx.beginPath();
+            ctx.arc(lx, ly, lr * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // 8. PARTÍCULAS DE EXPLOSIÓN VECTORIALES CRT
+    for (const p of PARTICLES) {
+        const relZ = p.z - Player.z;
+        if (relZ > 2 && relZ < maxZ) {
+            const scale = FOV / relZ;
+            const px = centerX + (p.x - Player.x - Player.yaw * relZ) * scale;
+            const py = centerY + (p.y - Player.y - Player.pitch * relZ) * scale;
+            const pSize = Math.max(1.8, p.size * scale);
+            const alpha = Math.max(0.1, p.life / p.maxLife);
+
+            ctx.save();
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = alpha;
+            ctx.fillRect(px - pSize / 2, py - pSize / 2, pSize, pSize);
+            ctx.restore();
+        }
+    }
+
+    // 9. CABINA INMERSIVA DE VUELO (Rota con la nave y responde al cabeceo del piloto)
     ctx.save();
     const hudColor = Player.invulnerableTime > 0 
         ? 'rgba(255, 77, 109, 0.9)' 
@@ -1256,7 +1509,8 @@ const keyState = {
     down: false,
     left: false,
     right: false,
-    boost: false
+    boost: false,
+    fire: false
 };
 
 function updateKeyboardVelocity() {
@@ -1284,6 +1538,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowUp' || e.code === 'KeyW') keyState.up = true;
     if (e.code === 'ArrowDown' || e.code === 'KeyS') keyState.down = true;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyX') keyState.boost = true;
+    if (e.code === 'Space' || e.code === 'KeyZ' || e.code === 'Enter') keyState.fire = true;
 
     updateKeyboardVelocity();
 
@@ -1300,6 +1555,7 @@ window.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowUp' || e.code === 'KeyW') keyState.up = false;
     if (e.code === 'ArrowDown' || e.code === 'KeyS') keyState.down = false;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyX') keyState.boost = false;
+    if (e.code === 'Space' || e.code === 'KeyZ' || e.code === 'Enter') keyState.fire = false;
 
     updateKeyboardVelocity();
 });
