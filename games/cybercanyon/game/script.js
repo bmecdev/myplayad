@@ -586,8 +586,8 @@ async function handleOffer(data) {
 function handleControllerInput(input) {
     if (input.x !== undefined && input.y !== undefined) {
         Player.vx = input.x * Player.speed;
-        // Inversión de nave para joystick móvil: empujar arriba (input.y < 0) = picar hacia el suelo (vy > 0)
-        Player.vy = -input.y * Player.speed;
+        // Control intuitivo: Stick arriba (input.y < 0) = Subir/Ascender (vy < 0); Stick abajo = Bajar/Descender (vy > 0)
+        Player.vy = input.y * Player.speed;
     }
     if (input.boost !== undefined) {
         GameState.boost = Boolean(input.boost);
@@ -1564,11 +1564,11 @@ function updateKeyboardVelocity() {
     if (keyState.left) vx -= Player.speed;
     if (keyState.right) vx += Player.speed;
     
-    // Inversión tipo nave:
-    // Flecha Arriba / W = Empujar palanca / Bajar morro (Dive hacia el suelo -> vy positivo)
-    // Flecha Abajo / S = Tirar palanca / Subir morro (Climb hacia el cielo -> vy negativo)
-    if (keyState.up) vy += Player.speed;
-    if (keyState.down) vy -= Player.speed;
+    // Control intuitivo:
+    // Flecha Arriba / W = Subir / Ascender hacia el cielo (vy negativo)
+    // Flecha Abajo / S = Bajar / Descender hacia el suelo (vy positivo)
+    if (keyState.up) vy -= Player.speed;
+    if (keyState.down) vy += Player.speed;
 
     Player.vx = vx;
     Player.vy = vy;
