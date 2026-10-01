@@ -896,7 +896,7 @@ function update(dt) {
 
         let laserConsumed = false;
 
-        // 1. Impacto contra torretas enemigas
+        // 1. Impacto contra torretas enemigas (ÚNICO elemento destructible)
         for (let e = ENEMIES.length - 1; e >= 0; e--) {
             const enemy = ENEMIES[e];
             const dz = Math.abs(laser.z - enemy.z);
@@ -912,49 +912,28 @@ function update(dt) {
             }
         }
 
-        // 2. Interceptación de proyectiles enemigos de plasma en el aire
+        // 2. Chocar contra monolitos y barreras (El obstáculo es indestructible, el láser se disipa con chispas)
         if (!laserConsumed) {
-            for (let p = PROJECTILES.length - 1; p >= 0; p--) {
-                const proj = PROJECTILES[p];
-                const dz = Math.abs(laser.z - proj.z);
-                if (dz < 14) {
-                    const dist = Math.hypot(laser.x - proj.x, laser.y - proj.y);
-                    if (dist < 18) {
-                        spawnExplosion(proj.x, proj.y, proj.z, '#ffb703', 10);
-                        PROJECTILES.splice(p, 1);
-                        laserConsumed = true;
-                        GameState.score += 200;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 3. Impacto contra monolitos y barreras
-        if (!laserConsumed) {
-            for (let o = OBSTACLES.length - 1; o >= 0; o--) {
-                const obs = OBSTACLES[o];
+            for (const obs of OBSTACLES) {
                 const dz = Math.abs(laser.z - obs.z);
                 if (dz < 16) {
                     let hitObs = false;
                     if (obs.type === 'pillar') {
                         const dx = Math.abs(laser.x - obs.x);
                         const dy = Math.abs(laser.y - obs.y);
-                        if (dx < (obs.width / 2 + 10) && dy < (obs.height / 2 + 10)) {
+                        if (dx < (obs.width / 2 + 8) && dy < (obs.height / 2 + 8)) {
                             hitObs = true;
                         }
                     } else if (obs.type === 'barrier') {
                         const dy = Math.abs(laser.y - obs.y);
                         const dx = Math.abs(laser.x - obs.x);
-                        if (dy < (obs.height / 2 + 10) && dx < (obs.width / 2)) {
+                        if (dy < (obs.height / 2 + 8) && dx < (obs.width / 2)) {
                             hitObs = true;
                         }
                     }
                     if (hitObs) {
-                        spawnExplosion(obs.x, obs.y, obs.z, '#ffb703', 16);
-                        OBSTACLES.splice(o, 1);
+                        spawnExplosion(laser.x, laser.y, laser.z, '#ffb703', 5);
                         laserConsumed = true;
-                        GameState.score += 350;
                         break;
                     }
                 }
