@@ -690,8 +690,8 @@ function update(dt) {
     Player.targetRoll = (Player.vx / Player.speed) * 0.40;
     Player.roll += (Player.targetRoll - Player.roll) * 8.0 * dt;
 
-    // Cabeceo de vuelo (Pitch): Inclinación reactiva del morro al subir/bajar
-    const targetPitch = (-Player.vy / Player.speed) * 0.16;
+    // Cabeceo de vuelo (Pitch): Inclinación reactiva del morro al subir/bajar (arriba=cielo, abajo=suelo)
+    const targetPitch = (Player.vy / Player.speed) * 0.16;
     Player.pitch += (targetPitch - Player.pitch) * 8.0 * dt;
 
     // Orientación predictiva suave hacia las curvas (mantiene el cañón centrado en la vista)
