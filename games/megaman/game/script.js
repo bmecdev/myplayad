@@ -1884,6 +1884,17 @@ function setupDataChannel(channel, playerId) {
                 if (msg.cmd === 'right') inputKeys.right = !!msg.val;
                 if (msg.cmd === 'up') inputKeys.up = !!msg.val;
                 if (msg.cmd === 'down') inputKeys.down = !!msg.val;
+                if (msg.cmd === 'jump') {
+                    inputKeys.jump = !!msg.val;
+                    if (msg.val) {
+                        const p = GameState.player;
+                        if (p.onGround && !p.isSliding) {
+                            p.vy = -280;
+                            p.onGround = false;
+                            audio.playJump();
+                        }
+                    }
+                }
                 if (msg.cmd === 'buster_down') {
                     if (!inputKeys.buster) {
                         inputKeys.buster = true;

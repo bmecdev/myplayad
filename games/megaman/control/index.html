@@ -25,7 +25,7 @@
             <button id="connect-btn">EMPEZAR A JUGAR</button>
         </div>
         
-        <p class="footer-hint">D-Pad: Moverse • A: Salto • B: Buster (Mantén para cargar)</p>
+        <p class="footer-hint">◀ ▶ Moverse • A: Salto • B: Buster • SLIDE: Barrida</p>
     </div>
 
     <!-- Pantalla de Agradecimiento (Game Over) -->
@@ -39,17 +39,16 @@
 
     <!-- Interfaz de Controles Táctiles -->
     <div class="controls-container" id="controls-container" style="display: none;">
-        <!-- D-PAD Direccional a la izquierda -->
-        <div class="dpad-wrapper">
-            <div class="dpad">
-                <button class="dpad-btn dpad-up" id="btn-up" data-dir="up">▲</button>
-                <div class="dpad-middle">
-                    <button class="dpad-btn dpad-left" id="btn-left" data-dir="left">◀</button>
-                    <div class="dpad-center"></div>
-                    <button class="dpad-btn dpad-right" id="btn-right" data-dir="right">▶</button>
-                </div>
-                <button class="dpad-btn dpad-down" id="btn-down" data-dir="down">▼</button>
-            </div>
+        <!-- Botones de Dirección (Solo Izquierda y Derecha) -->
+        <div class="dir-wrapper">
+            <button class="dir-btn dir-left" id="btn-left" data-dir="left">
+                <span class="dir-arrow">◀</span>
+                <span class="dir-label">IZQ</span>
+            </button>
+            <button class="dir-btn dir-right" id="btn-right" data-dir="right">
+                <span class="dir-arrow">▶</span>
+                <span class="dir-label">DER</span>
+            </button>
         </div>
 
         <!-- Botones de Acción a la derecha -->

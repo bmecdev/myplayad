@@ -144,69 +144,52 @@ body {
     background: radial-gradient(circle at center, #091522 0%, #03060a 100%);
 }
 
-/* D-PAD */
-.dpad-wrapper {
+/* Botones de Dirección (Solo Izquierda y Derecha) */
+.dir-wrapper {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 16px;
     z-index: 10;
 }
 
-.dpad {
-    width: 150px;
-    height: 150px;
+.dir-btn {
+    width: 78px;
+    height: 78px;
+    background: linear-gradient(180deg, #162a3f, #0d1a29);
+    border: 3px solid var(--primary);
+    border-radius: 18px;
+    color: var(--primary);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    position: relative;
-}
-
-.dpad-middle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-}
-
-.dpad-btn {
-    background: #142233;
-    border: 2px solid var(--primary-dark);
-    color: var(--primary);
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     touch-action: none;
     user-select: none;
-    transition: background 0.1s, transform 0.05s;
+    -webkit-user-select: none;
+    box-shadow: 0 4px 15px rgba(0, 210, 255, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.15);
     outline: none;
+    transition: transform 0.08s, box-shadow 0.08s;
 }
 
-.dpad-btn:active, .dpad-btn.pressed {
-    background: var(--primary);
-    color: #04080e;
-    box-shadow: 0 0 14px var(--primary);
-    transform: scale(0.95);
+.dir-btn:active, .dir-btn.pressed {
+    background: linear-gradient(180deg, var(--primary), var(--blue));
+    color: #03060a;
+    box-shadow: 0 0 22px var(--primary);
+    transform: scale(0.93);
 }
 
-.dpad-up, .dpad-down {
-    width: 50px;
-    height: 48px;
-    border-radius: 8px;
+.dir-arrow {
+    font-size: 26px;
+    line-height: 1;
+    pointer-events: none;
 }
 
-.dpad-left, .dpad-right {
-    width: 48px;
-    height: 50px;
-    border-radius: 8px;
-}
-
-.dpad-center {
-    width: 50px;
-    height: 50px;
-    background: #0f1a26;
-    border: 1px solid #1a2e44;
+.dir-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
 }
 
 /* Botones de Acción */

@@ -8,8 +8,6 @@ const roomSelection = document.getElementById('room-selection');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 
-const btnUp = document.getElementById('btn-up');
-const btnDown = document.getElementById('btn-down');
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 const btnJump = document.getElementById('btn-jump');
@@ -334,47 +332,63 @@ function sendCommand(cmd, value = true) {
 function bindDirectionButton(btn, directionName) {
     if (!btn) return;
     
+    let isPressed = false;
     const startHandler = (e) => {
         e.preventDefault();
+        if (isPressed) return;
+        isPressed = true;
         btn.classList.add('pressed');
         sendCommand(directionName, true);
-        if (navigator.vibrate) navigator.vibrate(10);
+        if (navigator.vibrate) navigator.vibrate(12);
     };
 
     const endHandler = (e) => {
         e.preventDefault();
+        if (!isPressed) return;
+        isPressed = false;
         btn.classList.remove('pressed');
         sendCommand(directionName, false);
     };
 
     btn.addEventListener('pointerdown', startHandler);
+    btn.addEventListener('touchstart', startHandler, { passive: false });
     btn.addEventListener('pointerup', endHandler);
+    btn.addEventListener('touchend', endHandler, { passive: false });
     btn.addEventListener('pointercancel', endHandler);
+    btn.addEventListener('touchcancel', endHandler, { passive: false });
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-bindDirectionButton(btnUp, 'up');
-bindDirectionButton(btnDown, 'down');
 bindDirectionButton(btnLeft, 'left');
 bindDirectionButton(btnRight, 'right');
 
 // Botón A: Salto
 if (btnJump) {
-    btnJump.addEventListener('pointerdown', (e) => {
+    let isJumpPressed = false;
+    const startJump = (e) => {
         e.preventDefault();
+        if (isJumpPressed) return;
+        isJumpPressed = true;
         btnJump.classList.add('pressed');
         sendCommand('jump', true);
         mobileAudio.play('jump');
-        if (navigator.vibrate) navigator.vibrate(15);
-    });
+        if (navigator.vibrate) navigator.vibrate(18);
+    };
 
     const endJump = (e) => {
         e.preventDefault();
+        if (!isJumpPressed) return;
+        isJumpPressed = false;
         btnJump.classList.remove('pressed');
         sendCommand('jump', false);
     };
+
+    btnJump.addEventListener('pointerdown', startJump);
+    btnJump.addEventListener('touchstart', startJump, { passive: false });
     btnJump.addEventListener('pointerup', endJump);
+    btnJump.addEventListener('touchend', endJump, { passive: false });
     btnJump.addEventListener('pointercancel', endJump);
+    btnJump.addEventListener('touchcancel', endJump, { passive: false });
 }
 
 // Botón B: Mega Buster (Tap = Disparo normal, Hold = Carga de Mega Buster)
