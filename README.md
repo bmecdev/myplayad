@@ -1,6 +1,6 @@
 # MyPlayAd - Interactive Digital Signage & Retro Games
 
-Este repositorio contiene el código fuente completo del sistema MyPlayAd, una plataforma de publicidad interactiva y cartelería digital (Digital Signage) que combina reproducción de videos con minijuegos retro (Arkanoid Clon, Galaga Clon, Space Invaders Clon, Mega Man Arcade, OutRun Clon, Pacman Clon, Pinball Arcade, Skyroads Clon, Snake Clon) controlados en tiempo real desde los teléfonos de los usuarios.
+Este repositorio contiene el código fuente completo del sistema MyPlayAd, una plataforma de publicidad interactiva y cartelería digital (Digital Signage) que combina reproducción de videos con minijuegos retro (Arkanoid Clon, Cyber Canyon, Galaga Clon, Space Invaders Clon, Mega Man Arcade, OutRun Clon, Pacman Clon, Pinball Arcade, Skyroads Clon, Snake Clon) controlados en tiempo real desde los teléfonos de los usuarios.
 
 ## Arquitectura del Proyecto
 
@@ -14,11 +14,12 @@ El proyecto está dividido en tres componentes principales:
 ## 🕹️ Catálogo de Minijuegos Disponibles en Producción
 
 <!-- GAMES_CATALOG_START -->
-Actualmente la rama principal (`main`) cuenta con **9 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
+Actualmente la rama principal (`main`) cuenta con **10 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
 
 | Juego | Género | Mecánica & Descripción | Controles Móviles / Teclado | Producción | Staging (Dev) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **🧱 Arkanoid Clon**<br>`arkanoid` | Breakout / Arcade | Clásico rompe-bloques con paleta deflectora, física de rebote balístico y potenciadores. | Deslizador táctil horizontal / Flechas y teclas A-D | 🖥️ [Pantalla](https://myplayad.com/arkanoid/)<br>📱 [Control](https://controllers.myplayad.com/arkanoid/) | 🖥️ [Pantalla](https://dev.myplayad.com/arkanoid/)<br>📱 [Control](https://dev-controllers.myplayad.com/arkanoid/) |
+| **🚀 Cyber Canyon**<br>`cybercanyon` | Simulador / Vuelo 3D | Vuelo supersónico en primera persona a través de un cañón cibernético de vectores CRT inspirado en QuestWorld. | Joystick virtual 360° / Flechas de cursor y WASD | 🖥️ [Pantalla](https://myplayad.com/cybercanyon/)<br>📱 [Control](https://controllers.myplayad.com/cybercanyon/) | 🖥️ [Pantalla](https://dev.myplayad.com/cybercanyon/)<br>📱 [Control](https://dev-controllers.myplayad.com/cybercanyon/) |
 | **🚀 Galaga Clon**<br>`galaga` | Space Shooter | Shooter espacial clásico contra escuadrones de insectoides alienígenas en formación dinámica. | Deslizador horizontal y botón de disparo táctil / Flechas y Espacio | 🖥️ [Pantalla](https://myplayad.com/galaga/)<br>📱 [Control](https://controllers.myplayad.com/galaga/) | 🖥️ [Pantalla](https://dev.myplayad.com/galaga/)<br>📱 [Control](https://dev-controllers.myplayad.com/galaga/) |
 | **👾 Space Invaders Clon**<br>`invaders` | Fixed Shooter | Defensa de la Tierra contra oleadas alienígenas descendentes con búnkeres de protección destructibles. | Botones de dirección y disparo láser táctil / Flechas y Espacio | 🖥️ [Pantalla](https://myplayad.com/invaders/)<br>📱 [Control](https://controllers.myplayad.com/invaders/) | 🖥️ [Pantalla](https://dev.myplayad.com/invaders/)<br>📱 [Control](https://dev-controllers.myplayad.com/invaders/) |
 | **🤖 Mega Man Arcade**<br>`megaman` | Action / Run & Gun | El clásico bombardero azul de Capcom en formato arcade: corre, salta, dispara el Mega Buster cargable y derrota a los Robot Masters. | D-Pad direccional / Botones Salto, Mega Buster cargable y Deslizamiento (Slide) | 🖥️ [Pantalla](https://myplayad.com/megaman/)<br>📱 [Control](https://controllers.myplayad.com/megaman/) | 🖥️ [Pantalla](https://dev.myplayad.com/megaman/)<br>📱 [Control](https://dev-controllers.myplayad.com/megaman/) |
