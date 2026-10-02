@@ -18,7 +18,7 @@ let pc = null;
 let dataChannel = null;
 let socket = null;
 let currentRoomId = null;
-let nickname = 'PILOT';
+let nickname = '';
 let pendingCandidates = [];
 
 // Estado de control
@@ -74,9 +74,21 @@ async function connectToHost() {
         return;
     }
 
-    nickname = (nicknameInput.value.trim() || 'PILOT').toUpperCase();
+    const rawNick = nicknameInput.value.trim();
+    if (!rawNick || rawNick.length < 2) {
+        status.textContent = rawNick.length === 0 ? '¡DEBES INGRESAR TU NICKNAME!' : 'MÍNIMO 2 CARACTERES';
+        status.style.color = '#ff4d6d';
+        nicknameInput.focus();
+        nicknameInput.classList.add('input-error');
+        setTimeout(() => nicknameInput.classList.remove('input-error'), 600);
+        haptic([40, 30, 40]);
+        return;
+    }
+
+    nickname = rawNick.toUpperCase();
     status.textContent = 'ENLAZANDO CON EL CAÑÓN...';
     connectBtn.disabled = true;
+    connectBtn.classList.add('disabled');
 
     const serverIp = CONFIG.SIGNALING_SERVER_IP || window.location.hostname;
     const serverPort = CONFIG.SIGNALING_SERVER_PORT || '8080';
@@ -340,8 +352,53 @@ if (fireBtn) {
     fireBtn.addEventListener('pointercancel', endFire);
 }
 
-// Botón de Inicio
-connectBtn.addEventListener('click', connectToHost);
-nicknameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') connectToHost();
+// Validación y activación del botón de Despegar
+function validateNickname() {
+    const raw = nicknameInput.value.trim();
+    if (raw.length >= 2) {
+        connectBtn.disabled = false;
+        connectBtn.classList.remove('disabled');
+        status.textContent = 'LISTO PARA DESPEGAR';
+        status.style.color = '#3dff8a';
+        return true;
+    } else {
+        connectBtn.disabled = true;
+        connectBtn.classList.add('disabled');
+        if (raw.length === 0) {
+            status.textContent = 'INGRESA TU NICKNAME';
+            status.style.color = '#b8e2cc';
+        } else {
+            status.textContent = 'MÍNIMO 2 CARACTERES';
+            status.style.color = '#ffb703';
+        }
+        return false;
+    }
+}
+
+nicknameInput.addEventListener('input', validateNickname);
+
+connectBtn.addEventListener('click', () => {
+    if (validateNickname()) {
+        connectToHost();
+    } else {
+        nicknameInput.focus();
+        nicknameInput.classList.add('input-error');
+        setTimeout(() => nicknameInput.classList.remove('input-error'), 500);
+        haptic([40, 30, 40]);
+    }
 });
+
+nicknameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        if (validateNickname()) {
+            connectToHost();
+        } else {
+            nicknameInput.classList.add('input-error');
+            setTimeout(() => nicknameInput.classList.remove('input-error'), 500);
+            haptic([40, 30, 40]);
+        }
+    }
+});
+
+// Inicializar estado deshabilitado
+validateNickname();
