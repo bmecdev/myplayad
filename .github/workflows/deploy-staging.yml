@@ -77,7 +77,7 @@ jobs:
             if command -v certbot >/dev/null 2>&1; then
               killall -9 certbot 2>/dev/null || true
               rm -f /var/lib/letsencrypt/.certbot.lock /tmp/.certbot.lock /etc/letsencrypt/.certbot.lock 2>/dev/null || true
-              if [ ! -f /etc/letsencrypt/live/dev-videos.myplayad.com/fullchain.pem ]; then
+              if [ ! -f /etc/letsencrypt/live/dev-videos.myplayad.com/fullchain.pem ] && getent hosts dev-videos.myplayad.com >/dev/null 2>&1; then
                 certbot --nginx -d dev-videos.myplayad.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
               fi
             fi

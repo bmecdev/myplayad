@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Canyon - Control de Vuelo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div id="status">INGRESA TU NICKNAME</div>
+    
+    <!-- Pantalla de Bienvenida / Nickname -->
+    <div id="room-selection" class="welcome-container">
+        <div class="header-logo">
+            <div class="flight-icon">🚀</div>
+            <h1>CYBER<span>CANYON</span></h1>
+            <p class="subtitle">QUESTWORLD FLIGHT CONTROLLER</p>
+        </div>
+        
+        <div class="input-group">
+            <p class="welcome-text">Ingresa tu Nickname de piloto para iniciar la misión:</p>
+            <input type="text" id="nickname-input" placeholder="ESCRIBE TU APODO" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+            <input type="text" id="room-input" style="display: none;">
+            <button id="connect-btn" disabled class="disabled">DESPEGAR</button>
+        </div>
+        
+        <p class="footer-hint">Usa el stick para maniobrar y el botón BOOST para acelerar.</p>
+    </div>
+
+    <!-- Pantalla de Agradecimiento / Fin de Partida -->
+    <div id="thanks-screen" class="thanks-container" style="display: none;">
+        <div class="header-logo">
+            <h1>MISIÓN FINALIZADA</h1>
+        </div>
+        <p>Tu nave se ha desconectado del cañón.</p>
+        <p class="small">Escanea el código QR en la pantalla grande para un nuevo intento.</p>
+    </div>
+
+    <!-- Interfaz de Vuelo Móvil (Flight Stick) -->
+    <div class="flight-container" id="flight-container" style="display: none;">
+        <div class="flight-stick-area" id="joystick-area">
+            <div class="joystick-base" id="joystick-base">
+                <div class="crosshair-guide"></div>
+                <div class="joystick-knob" id="joystick-knob"></div>
+            </div>
+            <p class="stick-label">PALANCA DE VUELO 360°</p>
+        </div>
+
+        <div class="flight-actions">
+            <button id="fire-btn" class="fire-button">
+                <span>🔴 FUEGO</span>
+            </button>
+            <button id="boost-btn" class="boost-button">
+                <span>⚡ BOOST</span>
+            </button>
+        </div>
+    </div>
+
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+</body>
+</html>
