@@ -1,0 +1,352 @@
+:root {
+    --bg-deep: #060a0f;
+    --primary: #00d2ff;
+    --primary-dark: #0077aa;
+    --blue: #2563eb;
+    --cyan: #38bdf8;
+    --text: #f0f9ff;
+    --accent: #ffb703;
+    --danger: #ff4d6d;
+}
+
+body {
+    background-color: var(--bg-deep);
+    color: var(--text);
+    font-family: 'VT323', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+}
+
+#status {
+    position: fixed;
+    top: 8px;
+    font-size: 11px;
+    color: var(--text);
+    text-transform: uppercase;
+    font-family: 'Press Start 2P', monospace;
+    z-index: 100;
+    background: rgba(6, 10, 15, 0.85);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--primary-dark);
+}
+
+/* Pantalla de Bienvenida */
+.welcome-container, .thanks-container {
+    background: #0a141f;
+    padding: 24px;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    text-align: center;
+    width: 85%;
+    max-width: 340px;
+    border: 2px solid var(--primary-dark);
+}
+
+.header-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.megaman-helm-icon {
+    font-size: 38px;
+    filter: drop-shadow(0 0 10px var(--primary));
+}
+
+.header-logo h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 16px;
+    margin: 0;
+    color: var(--primary);
+    text-shadow: 0 0 8px var(--primary);
+    letter-spacing: 1px;
+}
+
+.header-logo h1 span {
+    color: var(--accent);
+    margin-left: 6px;
+}
+
+.welcome-text {
+    font-size: 16px;
+    line-height: 1.4;
+    margin: 16px 0;
+    color: #94a3b8;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#nickname-input {
+    background: #060e17;
+    border: 2px solid var(--primary-dark);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--text);
+    font-family: 'VT323', monospace;
+    font-size: 24px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+#nickname-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 10px rgba(0,210,255,0.4);
+}
+
+#connect-btn {
+    background: linear-gradient(180deg, var(--primary), var(--blue));
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 210, 255, 0.4);
+}
+
+#connect-btn:active {
+    transform: scale(0.97);
+}
+
+.footer-hint {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 16px;
+    line-height: 1.3;
+}
+
+/* Contenedor de Controles de Juego */
+.controls-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    box-sizing: border-box;
+    position: relative;
+    background: radial-gradient(circle at center, #091522 0%, #03060a 100%);
+}
+
+/* Botones de Dirección (Solo Izquierda y Derecha) */
+.dir-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 10;
+}
+
+.dir-btn {
+    width: 78px;
+    height: 78px;
+    background: linear-gradient(180deg, #162a3f, #0d1a29);
+    border: 3px solid var(--primary);
+    border-radius: 18px;
+    color: var(--primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 4px 15px rgba(0, 210, 255, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.15);
+    outline: none;
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.dir-btn:active, .dir-btn.pressed {
+    background: linear-gradient(180deg, var(--primary), var(--blue));
+    color: #03060a;
+    box-shadow: 0 0 22px var(--primary);
+    transform: scale(0.93);
+}
+
+.dir-arrow {
+    font-size: 26px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.dir-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+}
+
+/* Botones de Acción */
+.actions-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 14px;
+    z-index: 10;
+}
+
+.slide-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.btn-slide {
+    width: 130px;
+    height: 38px;
+    background: #102538;
+    border: 2px solid var(--cyan);
+    color: var(--cyan);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    border-radius: 20px;
+    box-shadow: 0 3px 10px rgba(56, 189, 248, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+
+.btn-slide:active, .btn-slide.pressed {
+    background: var(--cyan);
+    color: #03060a;
+    box-shadow: 0 0 16px var(--cyan);
+    transform: scale(0.95);
+}
+
+.ab-buttons-row {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+}
+
+.action-btn {
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    position: relative;
+    user-select: none;
+    touch-action: none;
+    transition: transform 0.08s;
+}
+
+.btn-letter {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.btn-subtext {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    margin-top: 4px;
+    opacity: 0.85;
+}
+
+/* Botón A (Jump) */
+.btn-jump {
+    width: 76px;
+    height: 76px;
+    background: radial-gradient(circle at 35% 35%, #00e5ff, #007799);
+    border: 3px solid #7df9ff;
+    color: #03141f;
+    box-shadow: 0 6px 18px rgba(0, 229, 255, 0.45);
+}
+
+.btn-jump:active, .btn-jump.pressed {
+    transform: scale(0.92);
+    box-shadow: 0 0 24px #7df9ff;
+}
+
+/* Botón B (Buster / Charge) */
+.btn-buster {
+    width: 82px;
+    height: 82px;
+    background: radial-gradient(circle at 35% 35%, #ffb703, #d97706);
+    border: 3px solid #fef08a;
+    color: #2b1100;
+    box-shadow: 0 6px 18px rgba(255, 183, 3, 0.45);
+    overflow: hidden;
+}
+
+.btn-buster:active, .btn-buster.pressed {
+    transform: scale(0.92);
+    box-shadow: 0 0 26px #ffea00;
+}
+
+/* Anillo indicador de carga en el botón Buster */
+.charge-gauge {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 4px solid #ffffff;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s, transform 0.15s;
+    pointer-events: none;
+}
+
+.charge-gauge.charging {
+    opacity: 0.85;
+    animation: chargeGlow 0.4s infinite alternate;
+}
+
+.charge-gauge.charged {
+    opacity: 1;
+    border-color: #00ffff;
+    box-shadow: inset 0 0 15px #00ffff, 0 0 20px #00ffff;
+    animation: fullCharged 0.2s infinite alternate;
+}
+
+@keyframes chargeGlow {
+    0% { transform: scale(0.85); border-color: #ffea00; }
+    100% { transform: scale(1.0); border-color: #ffffff; }
+}
+
+@keyframes fullCharged {
+    0% { transform: scale(0.9); border-color: #00ffff; }
+    100% { transform: scale(1.02); border-color: #ffffff; }
+}
+
+/* Modo vertical (teléfono en vertical) */
+@media (max-width: 600px) and (orientation: portrait) {
+    .controls-container {
+        flex-direction: column;
+        justify-content: flex-end;
+        padding-bottom: 30px;
+        gap: 30px;
+    }
+
+    .dpad-wrapper {
+        margin-bottom: 10px;
+    }
+
+    .actions-wrapper {
+        align-items: center;
+        width: 100%;
+    }
+
+    .ab-buttons-row {
+        justify-content: center;
+        gap: 30px;
+    }
+}
