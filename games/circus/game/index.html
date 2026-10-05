@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circus Charlie - Retro Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+    <div class="container">
+        <!-- Consola Arcade Retro -->
+        <div class="console-bezel">
+            <div class="lcd-screen" id="main-screen">
+                <div class="scanlines"></div>
+                
+                <div class="game-header">
+                    <div class="hud-top-row">
+                        <span id="score">000000</span>
+                        <span id="high-score">HI-020000</span>
+                        <span id="stage-display">STAGE-01</span>
+                    </div>
+                    <div class="hud-bottom-row">
+                        <div class="hud-bonus-lives">
+                            <span id="bonus-display" class="bonus-tag">BONUS-5000</span>
+                            <span id="lives-container" class="lives-container"></span>
+                        </div>
+                        <div class="hud-meta">
+                            <span id="player-nick">CHARLIE</span>
+                            <span id="room-id">ID: ----</span>
+                            <button id="audio-toggle-btn" class="audio-toggle-btn" title="Activar/Silenciar Música">🔊</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="gameCanvas" width="200" height="160"></canvas>
+                </div>
+                
+                <!-- Overlay de Fin de Juego (Game Over / Victoria) -->
+                <div id="game-over-overlay" class="hidden">
+                    <div class="overlay-content">
+                        <h2 class="danger" id="game-over-title">GAME OVER</h2>
+                        <div id="ranking-container">
+                            <h3>HALL OF FAME</h3>
+                            <ul id="ranking-list"></ul>
+                        </div>
+                        <p class="instruction" id="return-countdown-text">VOLVIENDO AL QR EN <span id="return-countdown">3</span>s...</p>
+                        <p class="sub-hint blink" style="cursor: pointer; margin-top: 6px; color: var(--amber);">▶ CLICK O ESPACIO PARA VOLVER YA</p>
+                    </div>
+                </div>
+
+                <!-- Overlay de Espera / Escaneo QR -->
+                <div id="waiting-overlay">
+                    <div class="overlay-content">
+                        <h2 class="arcade-title">CIRCUS <span>CHARLIE</span></h2>
+                        <p class="pulse-text">¡ESCANEA EL QR PARA MONTAR AL LEÓN!</p>
+                        <div class="qr-wrapper">
+                            <div id="qrcode"></div>
+                        </div>
+                        <p class="status-text">ESPERANDO DOMADOR...</p>
+                        <div class="arcade-banner-hint">
+                            <span>◀ FRENAR</span> • <span>ACELERAR ▶</span> • <span>▲ SALTO</span>
+                        </div>
+                        <button id="instant-play-btn" class="instant-btn">▶ PROBAR CON TECLADO</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grille inferior de la cabina arcade -->
+            <div class="console-footer">
+                <div class="speaker-grill">
+                    <span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="brand-text">MYPLAYAD ARCADE SYSTEM • CIRCUS CHARLIE</div>
+                <div class="speaker-grill">
+                    <span></span><span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="qrcode.min.js"></script>
+    <script src="config.js?v=1"></script>
+    <script src="script.js?v=1"></script>
+</body>
+</html>

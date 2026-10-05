@@ -1,0 +1,232 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+:root {
+    --bg-dark: #0a0f0d;
+    --panel-dark: #121e17;
+    --primary: #facc15;
+    --danger: #ef4444;
+    --cyan: #00e5ff;
+    --white: #ffffff;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--white);
+    font-family: 'Press Start 2P', monospace;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: none;
+}
+
+#status {
+    height: 38px;
+    background: #000000;
+    border-bottom: 2px solid #22362b;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 8px;
+    color: var(--primary);
+    letter-spacing: 1px;
+    z-index: 10;
+}
+
+/* Pantalla de Bienvenida */
+.welcome-container, .thanks-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    text-align: center;
+    gap: 16px;
+}
+
+.header-logo .circus-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+
+.header-logo h1 {
+    font-size: 16px;
+    color: var(--primary);
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+}
+
+.header-logo h1 span {
+    color: var(--danger);
+    display: block;
+    margin-top: 4px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 280px;
+}
+
+.welcome-text {
+    font-size: 8px;
+    line-height: 1.6;
+    color: #a7f3d0;
+}
+
+#nickname-input {
+    background: #000000;
+    border: 2px solid var(--primary);
+    color: #ffffff;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    padding: 12px;
+    text-align: center;
+    border-radius: 6px;
+    text-transform: uppercase;
+    outline: none;
+}
+
+#connect-btn, .play-again-btn {
+    background: var(--danger);
+    color: #ffffff;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 14px;
+    border: 2px solid #ffffff;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #7f1d1d;
+    transition: transform 0.05s ease;
+}
+
+#connect-btn:active, .play-again-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 #7f1d1d;
+}
+
+.footer-hint, .small {
+    font-size: 7px;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+/* Pantalla de Controles Táctiles */
+.controls-container {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    gap: 20px;
+    background: radial-gradient(circle at center, #16251c 0%, #0a0f0d 100%);
+}
+
+/* D-Pad Direccional en Cruz */
+.dpad-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    touch-action: none;
+}
+
+.dpad-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+}
+
+.dpad-center {
+    width: 60px;
+    height: 60px;
+    background: #101c15;
+    border-radius: 6px;
+    border: 2px dashed #1d3326;
+}
+
+.dpad-btn {
+    width: 68px;
+    height: 68px;
+    background: #1e3328;
+    border: 3px solid #2d523f;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    color: var(--white);
+    box-shadow: 0 5px 0 #0f1c15, inset 0 2px 4px rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    touch-action: none;
+}
+
+.dpad-btn.pressed {
+    background: var(--primary);
+    color: #000000;
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 #0f1c15;
+}
+
+.dpad-arrow {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.dpad-sub {
+    font-size: 6px;
+    font-weight: bold;
+}
+
+/* Botón de Salto Gigante */
+.actions-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.btn-jump {
+    width: 125px;
+    height: 125px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff6b6b 0%, #dc2626 65%, #991b1b 100%);
+    border: 5px solid var(--primary);
+    box-shadow: 0 8px 0 #5f0e0e, 0 0 20px rgba(239, 68, 68, 0.4);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    color: #ffffff;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.btn-jump.pressed {
+    transform: translateY(5px);
+    box-shadow: 0 3px 0 #5f0e0e;
+    background: radial-gradient(circle at 35% 35%, #ff8787 0%, #ef4444 65%, #b91c1c 100%);
+}
+
+.btn-icon {
+    font-size: 24px;
+}
+
+.btn-text {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}

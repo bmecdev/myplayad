@@ -1,0 +1,8 @@
+{
+  "name": "Circus Charlie",
+  "slug": "circus",
+  "icon": "🎪",
+  "genre": "Arcade / Platformer",
+  "description": "El inolvidable clásico de circo: en el Nivel 1 monta al león saltando sobre monitos de circo que corren hacia ti y vasijas de fuego, y en el Nivel 2 salta camas elásticas esquivando tragafuegos bajo el dirigible BONUS.",
+  "controls": "D-Pad 4 direcciones (▲ Subir, ▼ Bajar, ◀ Frenar, Avanzar ▶) y Botón de Salto ★ / Teclado: Flechas o WASD, Espacio / Teclas 1, 2 y 3 para elegir nivel"
+}
