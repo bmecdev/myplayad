@@ -9,8 +9,8 @@ on:
       - 'fix/**'
 
 concurrency:
-  group: staging-vps
-  cancel-in-progress: false
+  group: staging-vps-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   deploy-staging:
