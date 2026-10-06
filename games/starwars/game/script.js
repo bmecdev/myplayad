@@ -1,6 +1,7 @@
 // ==============================================================================
-// STAR WARS: FALCON - Retro Arcade Host Script (High-End 16-Bit Edition)
-// Inspirado en Super Star Wars (SNES) & Star Wars Arcade
+// STAR WARS: FALCON - Retro Arcade Host Script (Master 16-Bit Edition)
+// Todos los enemigos: Caza TIE Imperial auténtico
+// Gráficos de alta fidelidad inspirados en Super Star Wars (SNES) & Star Wars Arcade
 // ==============================================================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -34,7 +35,7 @@ const GameState = {
     shields: 4,
     maxShields: 4,
     kills: 0,
-    stage: 1, // 1: Tatooine Desert Canyon (Homage Ref), 2: Asteroid Belt, 3: Death Star Trench
+    stage: 1, // 1: Tatooine Desert Canyon, 2: Asteroid Belt, 3: Death Star Trench
     stageProgress: 0,
     speed: 280,
     boost: false,
@@ -55,14 +56,14 @@ const Player = {
     y: 35,         // -55 a +65
     vx: 0,
     vy: 0,
-    roll: 0,       // Inclinación lateral
+    roll: 0,       // Inclinación lateral (banking)
     targetRoll: 0,
     pitch: 0,
     recoil: 0,
     muzzleFlash: 0,
     isFiring: false,
     fireCooldown: 0,
-    fireRate: 0.13,
+    fireRate: 0.12,
     invulnerableTime: 0,
     shieldFlash: 0,
     spreadTimer: 0,
@@ -348,12 +349,14 @@ const audio = new StarWarsAudio();
 let stars = [];
 let lasers = [];        // Cañón cuádruple del Halcón
 let enemyLasers = [];   // Rayos verdes de los TIE
-let enemies = [];       // TIE Fighter, Interceptor, Sith
+let enemies = [];       // TODOS son Cazas TIE imperiales idénticos y auténticos
 let obstacles = [];     // Asteroides poligonales 3D
 let powerups = [];      // Cápsulas de escudo/láser
-let particles = [];     // Chispas, humo, fuego de explosiones
+let particles = [];     // Chispas, fuego y restos de naves
+let wingDebris = [];    // Paneles solares hexagonales de TIE destruidos que giran
 let dustPuffs = [];     // Polvo del desierto levantado por los motores
 let floatingScores = [];
+let canyonRocks = [];   // Rocas y monolitos gigantes del cañón a los lados
 
 // Inicializar estrellas del espacio profundo
 function initStars() {
@@ -369,30 +372,46 @@ function initStars() {
     }
 }
 
+// Inicializar monolitos del cañón desértico en los laterales
+function initCanyonRocks() {
+    canyonRocks = [];
+    for (let i = 0; i < 10; i++) {
+        const side = i % 2 === 0 ? -1 : 1;
+        canyonRocks.push({
+            x: side * (180 + Math.random() * 120),
+            y: 35 + Math.random() * 20,
+            z: (i * 90) + 100,
+            width: 35 + Math.random() * 25,
+            height: 90 + Math.random() * 40,
+            side: side
+        });
+    }
+}
+
 // Spawners de enemigos, asteroides y powerups
 let enemySpawnTimer = 0;
 let obstacleSpawnTimer = 0;
 
+// TODOS LOS ENEMIGOS SON EL MISMO Y GLORIOSO CAZA TIE
 function spawnEnemy() {
-    const types = ['tie', 'tie', 'tie_interceptor', 'sith_fighter'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const x = (Math.random() - 0.5) * 360;
-    const y = (Math.random() - 0.5) * 160;
-    const hp = type === 'sith_fighter' ? 3 : (type === 'tie_interceptor' ? 2 : 1);
-    const speed = type === 'tie_interceptor' ? 270 : (type === 'sith_fighter' ? 220 : 190);
+    const x = (Math.random() - 0.5) * 340;
+    const y = (Math.random() - 0.5) * 150;
+    const hp = 2; // Resistencia balanceada: 2 impactos láser
+    const speed = 210;
 
     enemies.push({
-        type: type,
+        type: 'tie',
         x: x,
         y: y,
         z: 880,
         hp: hp,
         maxHp: hp,
         speed: speed,
-        shootCooldown: Math.random() * 1.2 + 0.7,
+        shootCooldown: Math.random() * 1.1 + 0.7,
         swayAngle: Math.random() * Math.PI * 2,
         swaySpeed: Math.random() * 2 + 1.6,
-        roll: 0
+        roll: 0,
+        muzzleFlash: 0
     });
 
     if (Math.random() > 0.65) {
@@ -432,15 +451,48 @@ function spawnPowerup(x, y, z) {
     });
 }
 
-function createExplosion(x, y, z, count = 26, isBig = false) {
+function createExplosion(x, y, z, count = 28, isBig = false) {
     audio.playExplosion(isBig);
     GameState.screenShake = isBig ? 9 : 4.5;
+
+    // Onda de choque circular expansiva
+    particles.push({
+        type: 'shockwave',
+        x: x,
+        y: y,
+        z: z,
+        radius: 6,
+        maxRadius: isBig ? 65 : 42,
+        life: 0.35,
+        maxLife: 0.35,
+        color: '#fef08a'
+    });
+
+    // Fragmentos de paneles solares hexagonales del TIE que giran al destruirse
+    for (let w = 0; w < 2; w++) {
+        wingDebris.push({
+            x: x + (w === 0 ? -15 : 15),
+            y: y,
+            z: z,
+            vx: (w === 0 ? -1 : 1) * (Math.random() * 80 + 50),
+            vy: (Math.random() - 0.5) * 70,
+            vz: (Math.random() - 0.5) * 60,
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 9,
+            life: 0.7,
+            maxLife: 0.7,
+            size: Math.random() * 12 + 10
+        });
+    }
+
+    // Chispas de fuego ardientes
     for (let i = 0; i < count; i++) {
         const speed = Math.random() * 140 + 40;
         const angle = Math.random() * Math.PI * 2;
         const vz = (Math.random() - 0.5) * 90;
         const colors = ['#ffffff', '#fef08a', '#f59e0b', '#ef4444', '#b91c1c', '#38bdf8'];
         particles.push({
+            type: 'spark',
             x: x,
             y: y,
             z: z,
@@ -478,9 +530,8 @@ function project3D(x, y, z) {
 // RENDERIZADO VISUAL RETRO 16-BIT (ESTÁNDAR SUPER STAR WARS)
 // ==============================================================================
 
-// 1. DIBUJAR EL HUD ESTILO SUPER STAR WARS (Con Barra de Sable Láser)
+// 1. DIBUJAR EL HUD ESTILO SUPER STAR WARS (Con Barra de Sable Láser Radiante)
 function renderSuperStarWarsHUD() {
-    // A) Barra de Sable de Luz (Vida / Escudos del Halcón)
     const saberX = 14;
     const saberY = 16;
     const hiltW = 18;
@@ -488,10 +539,10 @@ function renderSuperStarWarsHUD() {
     const maxBladeW = 95;
     const currentBladeW = Math.max(0, (GameState.shields / GameState.maxShields) * maxBladeW);
 
-    // Empuñadura metálica cromada del sable de luz
+    // Empuñadura metálica cromada del sable de luz de Luke
     ctx.fillStyle = '#64748b';
     ctx.fillRect(saberX, saberY, hiltW, hiltH);
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.fillRect(saberX + 2, saberY + 1, hiltW - 4, 2);
     // Anillos negros de agarre
     ctx.fillStyle = '#0f172a';
@@ -502,11 +553,11 @@ function renderSuperStarWarsHUD() {
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(saberX + hiltW - 2, saberY - 1, 2, hiltH + 2);
 
-    // Hoja de plasma del sable de luz (Azul / Cian neón radiante)
+    // Hoja de plasma del sable de luz con pulsación de energía
     if (currentBladeW > 0) {
-        // Resplandor exterior (Aura de luz)
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 8;
+        ctx.save();
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 10;
         ctx.fillStyle = '#0284c7';
         ctx.beginPath();
         ctx.roundRect(saberX + hiltW, saberY + 1, currentBladeW, hiltH - 2, [0, 4, 4, 0]);
@@ -517,7 +568,7 @@ function renderSuperStarWarsHUD() {
         ctx.beginPath();
         ctx.roundRect(saberX + hiltW + 1, saberY + 2, currentBladeW - 2, hiltH - 4, [0, 3, 3, 0]);
         ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
     // Texto de Escudos
@@ -526,22 +577,22 @@ function renderSuperStarWarsHUD() {
     ctx.textAlign = 'left';
     ctx.fillText(`SHIELDS: ${GameState.shields}`, saberX + hiltW + maxBladeW + 8, saberY + 6);
 
-    // B) Marcador de Bajas Sith en la esquina superior derecha
+    // Marcador de Cazas TIE Destruidos
     ctx.fillStyle = '#ef4444';
     ctx.textAlign = 'right';
-    ctx.fillText(`SITH: ${String(GameState.kills).padStart(2, '0')}`, CANVAS_WIDTH - 14, saberY + 6);
+    ctx.fillText(`TIEs: ${String(GameState.kills).padStart(2, '0')}`, CANVAS_WIDTH - 14, saberY + 6);
 }
 
-// 2. FONDO Y TERRENO PLANETARIO ESTILO MODE 7 (Tatooine / Jakku / Estrella de la Muerte)
+// 2. FONDO Y TERRENO PLANETARIO ESTILO MODE 7 CON MONOLITOS LATERALES
 function renderEnvironment(dt) {
-    GameState.worldScroll += (GameState.boost ? 550 : 260) * dt;
+    GameState.worldScroll += (GameState.boost ? 560 : 270) * dt;
 
     if (GameState.stage === 1) {
-        // --- ETAPA 1: DESIERTO DE TATOOINE (Homage a la imagen de referencia) ---
+        // --- ETAPA 1: DESIERTO Y CAÑÓN DE TATOOINE ---
 
-        // 1. Cielo crepuscular desértico con gradiente cálido
+        // 1. Cielo crepuscular con gradiente cálido multicapa
         const skyGrad = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
-        skyGrad.addColorStop(0, '#2d1b36');    // Violeta oscuro arriba
+        skyGrad.addColorStop(0, '#2d1b36');    // Violeta espacial
         skyGrad.addColorStop(0.45, '#6b2d42'); // Magenta terracota
         skyGrad.addColorStop(0.85, '#b45309'); // Ámbar dorado
         skyGrad.addColorStop(1, '#d97706');    // Naranja horizonte
@@ -549,47 +600,43 @@ function renderEnvironment(dt) {
         ctx.fillRect(0, 0, CANVAS_WIDTH, HORIZON_Y);
 
         // 2. Soles gemelos de Tatooine
-        // Sol Mayor
+        ctx.save();
         ctx.shadowColor = '#fef08a';
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.fillStyle = '#fef9c3';
         ctx.beginPath();
         ctx.arc(CANVAS_WIDTH * 0.65, HORIZON_Y - 48, 15, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
 
-        // Sol Menor rojo
         ctx.shadowColor = '#ea580c';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
         ctx.fillStyle = '#fb923c';
         ctx.beginPath();
         ctx.arc(CANVAS_WIDTH * 0.74, HORIZON_Y - 36, 9, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.restore();
 
-        // 3. Montañas y cañones distantes con capas de paralaje
-        // Capa lejana de mesetas rocosas
+        // 3. Mesetas montañosas del cañón en el fondo
         ctx.fillStyle = '#5c2429';
         ctx.beginPath();
         ctx.moveTo(0, HORIZON_Y);
-        ctx.lineTo(0, HORIZON_Y - 14);
-        ctx.lineTo(40, HORIZON_Y - 26);
+        ctx.lineTo(0, HORIZON_Y - 15);
+        ctx.lineTo(40, HORIZON_Y - 28);
         ctx.lineTo(85, HORIZON_Y - 18);
-        ctx.lineTo(130, HORIZON_Y - 32);
-        ctx.lineTo(180, HORIZON_Y - 20);
-        ctx.lineTo(240, HORIZON_Y - 38);
-        ctx.lineTo(310, HORIZON_Y - 22);
-        ctx.lineTo(370, HORIZON_Y - 30);
+        ctx.lineTo(135, HORIZON_Y - 33);
+        ctx.lineTo(185, HORIZON_Y - 21);
+        ctx.lineTo(245, HORIZON_Y - 39);
+        ctx.lineTo(315, HORIZON_Y - 23);
+        ctx.lineTo(375, HORIZON_Y - 31);
         ctx.lineTo(CANVAS_WIDTH, HORIZON_Y - 16);
         ctx.lineTo(CANVAS_WIDTH, HORIZON_Y);
         ctx.closePath();
         ctx.fill();
 
-        // 4. Silueta del Sandcrawler de los Jawas en el horizonte
+        // 4. Sandcrawler de los Jawas en el horizonte
         const crawlerX = ((CANVAS_WIDTH * 0.42) - (Player.x * 0.08));
         const crawlerY = HORIZON_Y - 28;
         ctx.fillStyle = '#3a171b';
-        // Casco angular del Sandcrawler
         ctx.beginPath();
         ctx.moveTo(crawlerX - 22, HORIZON_Y);
         ctx.lineTo(crawlerX - 22, crawlerY + 6);
@@ -599,7 +646,6 @@ function renderEnvironment(dt) {
         ctx.lineTo(crawlerX + 26, HORIZON_Y);
         ctx.closePath();
         ctx.fill();
-        // Oruga inferior y ventanal iluminado
         ctx.fillStyle = '#200c0f';
         ctx.fillRect(crawlerX - 20, HORIZON_Y - 4, 44, 4);
         ctx.fillStyle = '#fde047';
@@ -614,11 +660,8 @@ function renderEnvironment(dt) {
         ctx.fillStyle = desertGrad;
         ctx.fillRect(0, HORIZON_Y, CANVAS_WIDTH, groundH);
 
-        // Bandas de textura pseudo Mode 7 que avanzan hacia el jugador
-        const scrollFactor = GameState.worldScroll % 40;
+        // Bandas de textura pseudo Mode 7
         for (let i = 0; i < groundH; i += 3) {
-            const depth = i / groundH; // 0 (horizonte) a 1 (primer plano)
-            const bandSpeed = Math.pow(depth, 1.8) * 80;
             const stripe = Math.sin((i * 1.5) + (GameState.worldScroll * 0.12));
             if (stripe > 0.3) {
                 ctx.fillStyle = 'rgba(254, 215, 170, 0.18)';
@@ -626,7 +669,7 @@ function renderEnvironment(dt) {
             }
         }
 
-        // Líneas de huella y perspectiva que se abren desde el centro
+        // Líneas de huella y perspectiva
         ctx.strokeStyle = 'rgba(124, 45, 18, 0.35)';
         ctx.lineWidth = 1.5;
         const centerOffset = -Player.x * 0.35;
@@ -637,12 +680,37 @@ function renderEnvironment(dt) {
             ctx.stroke();
         });
 
+        // 6. Monolitos gigantes de roca a los lados del cañón que pasan a toda velocidad
+        const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
+        canyonRocks.forEach(r => {
+            r.z -= currentSpeed * dt * 0.9;
+            if (r.z <= 15) {
+                r.z = 900;
+                r.x = r.side * (180 + Math.random() * 120);
+            }
+            const p = project3D(r.x, r.y, r.z);
+            if (p && p.scale > 0.1) {
+                const rw = r.width * p.scale;
+                const rh = r.height * p.scale;
+                ctx.fillStyle = '#7c2d12';
+                ctx.strokeStyle = '#431407';
+                ctx.lineWidth = Math.max(1, 1.5 * p.scale);
+                ctx.beginPath();
+                ctx.moveTo(p.x - rw / 2, p.y);
+                ctx.lineTo(p.x - rw * 0.3, p.y - rh);
+                ctx.lineTo(p.x + rw * 0.3, p.y - rh);
+                ctx.lineTo(p.x + rw / 2, p.y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+        });
+
     } else if (GameState.stage === 2) {
         // --- ETAPA 2: CAMPO DE ASTEROIDES & ESPACIO PROFUNDO ---
         ctx.fillStyle = '#020409';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Nebulosa cósmica azul/púrpura
         const nebGrad = ctx.createRadialGradient(CANVAS_WIDTH * 0.35, HORIZON_Y * 0.7, 10, CANVAS_WIDTH * 0.35, HORIZON_Y * 0.7, 140);
         nebGrad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
         nebGrad.addColorStop(0.5, 'rgba(139, 92, 246, 0.14)');
@@ -650,7 +718,7 @@ function renderEnvironment(dt) {
         ctx.fillStyle = nebGrad;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Silueta ominosa del Destructor Estelar Imperial en la lejanía
+        // Destructor Estelar
         const isdX = CANVAS_WIDTH * 0.72 - Player.x * 0.05;
         const isdY = HORIZON_Y - 35;
         ctx.fillStyle = '#0f172a';
@@ -663,19 +731,16 @@ function renderEnvironment(dt) {
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        // Puente de mando del Destructor
         ctx.fillRect(isdX - 10, isdY + 8, 20, 6);
 
     } else {
-        // --- ETAPA 3: LA TRINCHERA DE LA ESTRELLA DE LA MUERTE ---
+        // --- ETAPA 3: TRINCHERA DE LA ESTRELLA DE LA MUERTE ---
         ctx.fillStyle = '#030712';
         ctx.fillRect(0, 0, CANVAS_WIDTH, HORIZON_Y);
 
-        // Paredes de la trinchera
         ctx.fillStyle = '#1e293b';
         ctx.fillRect(0, HORIZON_Y - 25, CANVAS_WIDTH, CANVAS_HEIGHT - HORIZON_Y + 25);
 
-        // Rejilla metálica y torretas láser imperiales
         ctx.strokeStyle = '#0284c7';
         ctx.lineWidth = 1;
         for (let x = 30; x < CANVAS_WIDTH; x += 38) {
@@ -692,7 +757,6 @@ function renderEnvironment(dt) {
         if (p) {
             ctx.fillStyle = s.color;
             if (GameState.boost) {
-                // Trazas de túnel hiperespacial
                 const pPrev = project3D(s.x, s.y, s.z + 65);
                 if (pPrev) {
                     ctx.strokeStyle = s.color;
@@ -717,7 +781,7 @@ function renderMillenniumFalcon(dt) {
     const cx = (CANVAS_WIDTH / 2) + Player.x;
     const cy = (CANVAS_HEIGHT * 0.77) + Player.y;
 
-    // A) Sombra sobre el suelo (en etapa de Tatooine)
+    // Sombra en el suelo
     if (GameState.stage === 1) {
         const shadowY = Math.min(CANVAS_HEIGHT - 12, cy + 38);
         const shadowScale = Math.max(0.6, 1 - (Player.y + 40) / 200);
@@ -726,7 +790,6 @@ function renderMillenniumFalcon(dt) {
         ctx.ellipse(cx, shadowY, 46 * shadowScale, 14 * shadowScale, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Partículas de polvo levantadas por los motores repulsores sobre la arena
         Player.thrusterFlicker += dt * 30;
         if (Math.random() < 0.45) {
             dustPuffs.push({
@@ -745,12 +808,11 @@ function renderMillenniumFalcon(dt) {
     ctx.translate(cx, cy);
     ctx.rotate(Player.roll);
 
-    // Parpadeo de invulnerabilidad
     if (Player.invulnerableTime > 0 && Math.floor(Date.now() / 70) % 2 === 0) {
         ctx.globalAlpha = 0.4;
     }
 
-    // B) Escudo Deflector Holográfico (Malla de energía hexagonal brillante)
+    // Escudo holográfico
     if (Player.shieldFlash > 0 || GameState.boost) {
         ctx.save();
         ctx.strokeStyle = GameState.boost ? '#38bdf8' : '#ef4444';
@@ -766,27 +828,25 @@ function renderMillenniumFalcon(dt) {
         ctx.restore();
     }
 
-    // C) Franja Trasera del Motor Subluz Azul Cyan (Hiperdrive Glow)
+    // Motor subluz azul cyan
     const isBoost = GameState.boost;
     const engineGlowRadius = isBoost ? 20 : 10;
     ctx.save();
     ctx.shadowColor = '#00f0ff';
     ctx.shadowBlur = engineGlowRadius;
 
-    // Resplandor exterior cian
     ctx.fillStyle = '#06b6d4';
     ctx.beginPath();
     ctx.roundRect(-32, 16, 64, 6, [0, 0, 4, 4]);
     ctx.fill();
 
-    // Núcleo blanco caliente de propulsión
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.roundRect(-26, 17, 52, 4, [0, 0, 3, 3]);
     ctx.fill();
     ctx.restore();
 
-    // Llamas de escape de iones parpadeantes
+    // Llamas de plasma
     const flameColor = isBoost ? '#67e8f9' : '#38bdf8';
     ctx.fillStyle = flameColor;
     for (let i = -28; i <= 28; i += 7) {
@@ -794,47 +854,40 @@ function renderMillenniumFalcon(dt) {
         ctx.fillRect(i, 22, 4, flameLen);
     }
 
-    // D) Casco Principal Platillo del Halcón Milenario
-    // Borde inferior sombreado metálico
+    // Casco platillo
     ctx.fillStyle = '#475569';
     ctx.beginPath();
     ctx.ellipse(0, 0, 52, 33, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Placas de blindaje superior de duracero
     ctx.fillStyle = '#94a3b8';
     ctx.beginPath();
     ctx.ellipse(0, -3, 50, 30, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Brillo superior de metal
     ctx.fillStyle = '#cbd5e1';
     ctx.beginPath();
     ctx.ellipse(-4, -6, 42, 23, -0.1, 0, Math.PI * 2);
     ctx.fill();
 
-    // Paneles oscuros, marcas de batalla y orificios de mantenimiento
+    // Rejillas y marcas de batalla
     ctx.fillStyle = '#334155';
-    // Rejillas circulares traseras de ventilación de calor
     [-22, -11, 0, 11, 22].forEach(vx => {
         ctx.beginPath();
         ctx.arc(vx, 7, 3.5, 0, Math.PI * 2);
         ctx.fill();
     });
 
-    // Marcas de daño de batalla en rojo carmesí (clásicas del Halcón)
     ctx.fillStyle = '#b91c1c';
     ctx.fillRect(-18, -14, 8, 3);
     ctx.fillRect(14, -8, 6, 2.5);
 
-    // Anillos de atraque a babor y estribor
     ctx.fillStyle = '#475569';
     ctx.fillRect(-48, -7, 6, 9);
     ctx.fillRect(42, -7, 6, 9);
 
-    // E) Mandíbulas Delanteras de Carga (Forward Mandibles)
+    // Mandíbulas de carga
     ctx.fillStyle = '#94a3b8';
-    // Mandíbula izquierda
     ctx.beginPath();
     ctx.moveTo(-24, -20);
     ctx.lineTo(-26, -42);
@@ -846,7 +899,6 @@ function renderMillenniumFalcon(dt) {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Mandíbula derecha
     ctx.beginPath();
     ctx.moveTo(11, -20);
     ctx.lineTo(13, -42);
@@ -856,19 +908,16 @@ function renderMillenniumFalcon(dt) {
     ctx.fill();
     ctx.stroke();
 
-    // Hueco del trench central con cableado oscuro
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(-11, -38, 22, 18);
-    // Luces de navegación en la punta de las mandíbulas
     ctx.fillStyle = '#fef08a';
     ctx.fillRect(-24, -41, 3, 2);
     ctx.fillRect(21, -41, 3, 2);
 
-    // F) Tubo de Pasaje y Cabina Conical Desplazada a Estribor
+    // Cabina y tubo a estribor
     ctx.fillStyle = '#64748b';
-    ctx.fillRect(38, -20, 18, 11); // Tubo conector
+    ctx.fillRect(38, -20, 18, 11);
 
-    // Cabina cónica del piloto
     ctx.fillStyle = '#cbd5e1';
     ctx.beginPath();
     ctx.moveTo(45, -32);
@@ -880,7 +929,6 @@ function renderMillenniumFalcon(dt) {
     ctx.strokeStyle = '#334155';
     ctx.stroke();
 
-    // Parabrisas de cristal transparisteel facetado
     ctx.fillStyle = '#0284c7';
     ctx.beginPath();
     ctx.moveTo(46, -28);
@@ -889,13 +937,11 @@ function renderMillenniumFalcon(dt) {
     ctx.lineTo(44, -10);
     ctx.closePath();
     ctx.fill();
-
-    // Marco geométrico del parabrisas
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // G) Antena Sensora Parabólica Rectangular en Babor
+    // Antena sensora
     ctx.fillStyle = '#475569';
     ctx.fillRect(-31, -16, 6, 4);
     ctx.fillStyle = '#e2e8f0';
@@ -905,19 +951,18 @@ function renderMillenniumFalcon(dt) {
     ctx.strokeStyle = '#334155';
     ctx.stroke();
 
-    // H) Torreta Láser Cuádruple Central
+    // Torreta cuádruple
     ctx.fillStyle = '#334155';
     ctx.beginPath();
     ctx.arc(0, -7, 9, 0, Math.PI * 2);
     ctx.fill();
 
-    // Cañones duales/cuádruples
     ctx.fillStyle = '#f1f5f9';
     const recoilOffset = Player.recoil > 0 ? 3 : 0;
     ctx.fillRect(-4, -19 + recoilOffset, 2.5, 10);
     ctx.fillRect(1.5, -19 + recoilOffset, 2.5, 10);
 
-    // Destello de disparo en la boca del cañón (Muzzle Flash)
+    // Muzzle flash
     if (Player.muzzleFlash > 0) {
         ctx.save();
         ctx.shadowColor = '#38bdf8';
@@ -932,16 +977,13 @@ function renderMillenniumFalcon(dt) {
 
     ctx.restore();
 
-    // I) Retícula de Puntería Holográfica Star Wars (Targeting Computer HUD)
     renderTargetingHUD();
 }
 
-// Retícula de puntería avanzada con bloqueo de objetivo [ LOCK ]
 function renderTargetingHUD() {
     const crosshairX = CANVAS_WIDTH / 2 + Player.x * 0.45;
     const crosshairY = HORIZON_Y + Player.y * 0.35;
 
-    // Detectar si hay un caza enemigo en la mira
     let targetLocked = false;
     enemies.forEach(e => {
         if (e.z > 100 && e.z < 650) {
@@ -957,12 +999,10 @@ function renderTargetingHUD() {
     ctx.strokeStyle = reticleColor;
     ctx.lineWidth = 1.5;
 
-    // Círculo central
     ctx.beginPath();
     ctx.arc(crosshairX, crosshairY, 14, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Puntos cardinales de mira
     ctx.beginPath();
     ctx.moveTo(crosshairX - 20, crosshairY);
     ctx.lineTo(crosshairX - 5, crosshairY);
@@ -982,8 +1022,8 @@ function renderTargetingHUD() {
     }
 }
 
-// 4. RENDERIZADO DE ENEMIGOS (TIE FIGHTER, INTERCEPTOR Y SITH)
-function renderEnemy(e) {
+// 4. RENDERIZADO DEL CAZA TIE IMPERIAL (TODOS SON EL MISMO Y AUTÉNTICO CAZA TIE 3D)
+function renderTIEFighter(e) {
     const p = project3D(e.x, e.y, e.z);
     if (!p) return;
 
@@ -993,127 +1033,155 @@ function renderEnemy(e) {
 
     ctx.save();
     ctx.translate(cx, cy);
+    ctx.rotate(e.roll);
 
-    if (e.type === 'tie') {
-        // --- TIE FIGHTER CLÁSICO IMPERIAL ---
-        const wingW = Math.max(3, 7 * scale);
-        const wingH = Math.max(14, 46 * scale);
-        const span = Math.max(8, 30 * scale);
-        const ballR = Math.max(4, 10 * scale);
+    const span = Math.max(12, 32 * scale);      // Distancia entre alas
+    const wingRadius = Math.max(8, 26 * scale); // Radio del hexágono solar
+    const ballRadius = Math.max(4, 10 * scale); // Radio de la cabina esférica
 
-        // Puntales de soporte metálicos
-        ctx.fillStyle = '#64748b';
-        ctx.fillRect(-span, -2 * scale, span * 2, 4 * scale);
+    // 1. Pilones de conexión cilíndricos entre alas y cabina
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(-span, -2.5 * scale, span * 2, 5 * scale);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = Math.max(1, 1 * scale);
+    ctx.strokeRect(-span, -2.5 * scale, span * 2, 5 * scale);
 
-        // Panel solar izquierdo con estructura de radios
-        ctx.fillStyle = '#090d16';
-        ctx.fillRect(-span - wingW / 2, -wingH / 2, wingW, wingH);
+    // 2. Alas hexagonales (Izquierda y Derecha) con paneles fotovoltaicos y 6 radios
+    [-span, span].forEach(wingX => {
+        // Marco exterior hexagonal
+        ctx.save();
+        ctx.translate(wingX, 0);
+
+        // A) Fondo negro azabache de las celdas solares
+        ctx.fillStyle = '#050811';
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const ang = (i * Math.PI) / 3;
+            const hx = Math.sin(ang) * (wingRadius * 0.42); // Estrecho en perspectiva X
+            const hy = -Math.cos(ang) * wingRadius;
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // B) Borde exterior de titanio gris
         ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = Math.max(1, 1.6 * scale);
+        ctx.stroke();
+
+        // C) Los 6 radios estructurales que convergen en el centro
+        ctx.strokeStyle = '#64748b';
         ctx.lineWidth = Math.max(1, 1.2 * scale);
-        ctx.strokeRect(-span - wingW / 2, -wingH / 2, wingW, wingH);
+        for (let i = 0; i < 6; i++) {
+            const ang = (i * Math.PI) / 3;
+            const hx = Math.sin(ang) * (wingRadius * 0.42);
+            const hy = -Math.cos(ang) * wingRadius;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(hx, hy);
+            ctx.stroke();
+        }
 
-        // Panel solar derecho
-        ctx.fillRect(span - wingW / 2, -wingH / 2, wingW, wingH);
-        ctx.strokeRect(span - wingW / 2, -wingH / 2, wingW, wingH);
-
-        // Cabina esférica central
-        ctx.fillStyle = '#94a3b8';
-        ctx.beginPath();
-        ctx.arc(0, 0, ballR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Marco octogonal de la ventana
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.arc(0, 0, ballR * 0.65, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Ojo de buey rojo imperial
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.arc(0, 0, ballR * 0.35, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Motores iónicos gemelos en la popa
-        ctx.fillStyle = '#22c55e';
-        ctx.fillRect(-3 * scale, ballR * 0.7, 2 * scale, 2 * scale);
-        ctx.fillRect(1 * scale, ballR * 0.7, 2 * scale, 2 * scale);
-
-    } else if (e.type === 'tie_interceptor') {
-        // --- TIE INTERCEPTOR (ALAS EN DAGA) ---
-        const span = Math.max(10, 34 * scale);
-        const ballR = Math.max(4, 9 * scale);
-
-        ctx.fillStyle = '#475569';
-        ctx.fillRect(-span, -2 * scale, span * 2, 4 * scale);
-
-        ctx.fillStyle = '#020617';
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = Math.max(1, 1.3 * scale);
-
-        // Ala en punta izquierda
-        ctx.beginPath();
-        ctx.moveTo(-span, 0);
-        ctx.lineTo(-span - 15 * scale, -26 * scale);
-        ctx.lineTo(-span + 8 * scale, -10 * scale);
-        ctx.lineTo(-span + 8 * scale, 10 * scale);
-        ctx.lineTo(-span - 15 * scale, 26 * scale);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Ala en punta derecha
-        ctx.beginPath();
-        ctx.moveTo(span, 0);
-        ctx.lineTo(span + 15 * scale, -26 * scale);
-        ctx.lineTo(span - 8 * scale, -10 * scale);
-        ctx.lineTo(span - 8 * scale, 10 * scale);
-        ctx.lineTo(span + 15 * scale, 26 * scale);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Cabina
+        // D) Núcleo central del ala (Buje del pilón)
         ctx.fillStyle = '#cbd5e1';
         ctx.beginPath();
-        ctx.arc(0, 0, ballR, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 3.5 * scale, 3.5 * scale, 0, 0, Math.PI * 2);
         ctx.fill();
-
-        ctx.fillStyle = '#dc2626';
-        ctx.beginPath();
-        ctx.arc(0, 0, ballR * 0.45, 0, Math.PI * 2);
-        ctx.fill();
-
-    } else {
-        // --- CAZA SITH PESADO (ANGULAR CARMESÍ Y NEGRO) ---
-        const size = Math.max(8, 32 * scale);
-        ctx.fillStyle = '#7f1d1d';
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = Math.max(1, 1.5 * scale);
-
-        ctx.beginPath();
-        ctx.moveTo(0, -size * 0.75);
-        ctx.lineTo(-size, size * 0.65);
-        ctx.lineTo(0, size * 0.25);
-        ctx.lineTo(size, size * 0.65);
-        ctx.closePath();
-        ctx.fill();
+        ctx.strokeStyle = '#334155';
         ctx.stroke();
 
-        // Núcleo del reactor Sith brillante
-        ctx.fillStyle = '#ef4444';
-        ctx.shadowColor = '#ef4444';
-        ctx.shadowBlur = 6 * scale;
+        ctx.restore();
+    });
+
+    // 3. Cabina Esférica de Mando Central (Command Pod) con volumen 3D
+    const podGrad = ctx.createRadialGradient(-ballRadius * 0.35, -ballRadius * 0.35, ballRadius * 0.1, 0, 0, ballRadius);
+    podGrad.addColorStop(0, '#e2e8f0');
+    podGrad.addColorStop(0.5, '#94a3b8');
+    podGrad.addColorStop(1, '#334155');
+    ctx.fillStyle = podGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = Math.max(1, 1.2 * scale);
+    ctx.stroke();
+
+    // 4. Ventanal de Transparisteel Octogonal (El icónico ojo del TIE Fighter)
+    const windowR = ballRadius * 0.65;
+    ctx.fillStyle = '#090d16';
+    ctx.beginPath();
+    ctx.arc(0, 0, windowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Marco con radios del ventanal
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = Math.max(1, 1 * scale);
+    for (let i = 0; i < 8; i++) {
+        const ang = (i * Math.PI) / 4;
         ctx.beginPath();
-        ctx.arc(0, 0, 5 * scale, 0, Math.PI * 2);
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(ang) * windowR, Math.sin(ang) * windowR);
+        ctx.stroke();
+    }
+
+    // Punto rojo de mira / computadora de tiro imperial en el centro
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(1.5, 2.8 * scale), 0, Math.PI * 2);
+    ctx.fill();
+
+    // 5. Cañones Láser Gemelos SFS L-s1 montados debajo de la cabina
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(-3 * scale, ballRadius * 0.75, 2 * scale, 3.5 * scale);
+    ctx.fillRect(1 * scale, ballRadius * 0.75, 2 * scale, 3.5 * scale);
+
+    // Muzzle flash verde al disparar
+    if (e.muzzleFlash > 0) {
+        ctx.save();
+        ctx.shadowColor = '#22c55e';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-2 * scale, ballRadius * 0.95, 3.5 * scale, 0, Math.PI * 2);
+        ctx.arc(2 * scale, ballRadius * 0.95, 3.5 * scale, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.restore();
     }
 
     ctx.restore();
 }
 
-// 5. RENDERIZADO DE ASTEROIDES 3D POLIGONALES CON CRÁTERES Y RELIEVE
+// 5. RENDERIZADO DE RESTOS DE PANELES SOLARES DEL TIE
+function renderWingDebris() {
+    for (let i = wingDebris.length - 1; i >= 0; i--) {
+        const wd = wingDebris[i];
+        const p = project3D(wd.x, wd.y, wd.z);
+        if (p) {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(wd.rot);
+            const s = wd.size * p.scale;
+            ctx.fillStyle = '#090d16';
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = Math.max(1, 1.5 * p.scale);
+            ctx.beginPath();
+            for (let v = 0; v < 6; v++) {
+                const ang = (v * Math.PI) / 3;
+                const hx = Math.sin(ang) * (s * 0.4);
+                const hy = -Math.cos(ang) * s;
+                if (v === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+}
+
+// 6. RENDERIZADO DE ASTEROIDES 3D POLIGONALES CON CRÁTERES Y RELIEVE
 function renderObstacle(o) {
     const p = project3D(o.x, o.y, o.z);
     if (!p) return;
@@ -1125,7 +1193,6 @@ function renderObstacle(o) {
     ctx.translate(p.x, p.y);
     ctx.rotate(o.rot);
 
-    // Gradiente de sombreado 3D de roca espacial
     const rockGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
     rockGrad.addColorStop(0, '#64748b');
     rockGrad.addColorStop(0.7, '#334155');
@@ -1134,7 +1201,6 @@ function renderObstacle(o) {
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = Math.max(1, 1.6 * p.scale);
 
-    // Contorno poligonal accidentado
     ctx.beginPath();
     const vertices = 8;
     for (let i = 0; i < vertices; i++) {
@@ -1149,7 +1215,6 @@ function renderObstacle(o) {
     ctx.fill();
     ctx.stroke();
 
-    // Cráteres de impacto con sombra interior
     if (o.craters) {
         o.craters.forEach(c => {
             const cx = c.rx * r;
@@ -1167,7 +1232,7 @@ function renderObstacle(o) {
     ctx.restore();
 }
 
-// 6. RENDERIZADO DE POWER-UPS
+// 7. RENDERIZADO DE POWER-UPS
 function renderPowerup(pu) {
     const p = project3D(pu.x, pu.y, pu.z);
     if (!p) return;
@@ -1205,9 +1270,9 @@ function renderPowerup(pu) {
     ctx.restore();
 }
 
-// 7. RENDERIZADO DE LÁSERES RADIANTES CON RESPLANDOR
+// 8. RENDERIZADO DE LÁSERES RADIANTES
 function renderLasers() {
-    // A) Láseres del Halcón (Rojos/Azules brillantes con núcleo blanco)
+    // Láseres del Halcón
     lasers.forEach(l => {
         const p1 = project3D(l.x, l.y, l.z);
         const p2 = project3D(l.x, l.y, l.z + 50);
@@ -1223,7 +1288,6 @@ function renderLasers() {
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
 
-            // Núcleo blanco
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = Math.max(1, 1.8 * p1.scale);
             ctx.beginPath();
@@ -1234,7 +1298,7 @@ function renderLasers() {
         }
     });
 
-    // B) Láseres de los Cazas TIE (Verde Imperial)
+    // Láseres verdes de los Cazas TIE
     enemyLasers.forEach(el => {
         const p1 = project3D(el.x, el.y, el.z);
         const p2 = project3D(el.x, el.y, el.z + 45);
@@ -1260,22 +1324,34 @@ function renderLasers() {
     });
 }
 
-// 8. RENDERIZADO DE PARTÍCULAS, HUMO Y POLVO
+// 9. RENDERIZADO DE PARTÍCULAS, HUMO, ONDAS DE CHOQUE Y POLVO
 function renderParticles() {
-    // Chispas de fuego y explosiones
     particles.forEach(pt => {
         const p = project3D(pt.x, pt.y, pt.z);
         if (p) {
-            ctx.fillStyle = pt.color;
-            ctx.globalAlpha = Math.max(0.1, pt.life / pt.maxLife);
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(1.2, pt.size * p.scale), 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
+            if (pt.type === 'shockwave') {
+                const r = pt.radius * p.scale;
+                ctx.save();
+                ctx.strokeStyle = pt.color;
+                ctx.lineWidth = Math.max(1.5, 3 * p.scale);
+                ctx.globalAlpha = Math.max(0.1, pt.life / pt.maxLife);
+                ctx.shadowColor = pt.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            } else {
+                ctx.fillStyle = pt.color;
+                ctx.globalAlpha = Math.max(0.1, pt.life / pt.maxLife);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, Math.max(1.2, pt.size * p.scale), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
         }
     });
 
-    // Bocanadas de polvo en la arena del desierto
     dustPuffs.forEach(dp => {
         ctx.fillStyle = 'rgba(254, 215, 170, 0.4)';
         ctx.globalAlpha = Math.max(0.05, dp.life / dp.maxLife);
@@ -1285,7 +1361,6 @@ function renderParticles() {
         ctx.globalAlpha = 1.0;
     });
 
-    // Puntos flotantes con tipografía retro
     floatingScores.forEach(fs => {
         ctx.fillStyle = fs.color;
         ctx.font = '10px "Press Start 2P", monospace';
@@ -1310,7 +1385,6 @@ function fireFalconLasers() {
     const targetY = Player.y * 0.35;
 
     if (Player.spreadTimer > 0) {
-        // Disparo cuádruple disperso de iones
         [-24, -8, 8, 24].forEach(ox => {
             lasers.push({
                 x: Player.x + ox,
@@ -1322,7 +1396,6 @@ function fireFalconLasers() {
             });
         });
     } else {
-        // Disparo dual estándar del Halcón
         [-13, 13].forEach(ox => {
             lasers.push({
                 x: Player.x + ox,
@@ -1339,7 +1412,6 @@ function fireFalconLasers() {
 function update(dt) {
     if (!GameState.running || GameState.gameOver) return;
 
-    // Hiperespacio / Boost
     if (GameState.boost) {
         GameState.boostTimer -= dt;
         if (GameState.boostTimer <= 0) {
@@ -1349,7 +1421,6 @@ function update(dt) {
     const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
     audio.updateEngineSound(currentSpeed, GameState.boost);
 
-    // Movimiento del Halcón
     const moveSpeed = 195 * dt;
     let dx = 0;
     let dy = 0;
@@ -1357,7 +1428,7 @@ function update(dt) {
     if (Keys.left) dx -= 1;
     if (Keys.right) dx += 1;
     if (Keys.up) dy -= 1;
-    if (Keys.down) dy += 1;
+    if (Keys.down) dy -= 1;
 
     if (Player.vx !== 0) dx = Player.vx;
     if (Player.vy !== 0) dy = Player.vy;
@@ -1365,29 +1436,24 @@ function update(dt) {
     Player.x += dx * moveSpeed;
     Player.y += dy * moveSpeed;
 
-    // Límites de pantalla
     Player.x = Math.max(-140, Math.min(140, Player.x));
     Player.y = Math.max(-50, Math.min(65, Player.y));
 
-    // Banking dinámico (Roll)
     Player.targetRoll = dx * 0.40;
     Player.roll += (Player.targetRoll - Player.roll) * 12 * dt;
 
-    // Temporizadores de efectos
     if (Player.invulnerableTime > 0) Player.invulnerableTime -= dt;
     if (Player.shieldFlash > 0) Player.shieldFlash -= dt;
     if (Player.spreadTimer > 0) Player.spreadTimer -= dt;
     if (Player.recoil > 0) Player.recoil -= dt;
     if (Player.muzzleFlash > 0) Player.muzzleFlash -= dt;
 
-    // Disparo
     Player.fireCooldown -= dt;
     if ((Keys.fire || Player.isFiring) && Player.fireCooldown <= 0) {
         fireFalconLasers();
         Player.fireCooldown = Player.fireRate;
     }
 
-    // Actualizar estrellas
     stars.forEach(s => {
         s.z -= currentSpeed * dt;
         if (s.z <= 12) {
@@ -1405,7 +1471,7 @@ function update(dt) {
         l.y += l.vy * dt;
 
         let hit = false;
-        // Impacto contra cazas enemigos
+        // Impacto contra Cazas TIE
         for (let j = enemies.length - 1; j >= 0; j--) {
             const e = enemies[j];
             if (Math.abs(l.z - e.z) < 58) {
@@ -1414,13 +1480,13 @@ function update(dt) {
                     hit = true;
                     e.hp--;
                     if (e.hp <= 0) {
-                        const pts = e.type === 'sith_fighter' ? 500 : (e.type === 'tie_interceptor' ? 300 : 150);
+                        const pts = 250;
                         GameState.score += pts;
                         GameState.kills++;
                         killsCountElement.textContent = String(GameState.kills).padStart(2, '0');
                         scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
                         addFloatingScore(`+${pts}`, (CANVAS_WIDTH / 2) + e.x * (FOV / e.z), HORIZON_Y + e.y * (FOV / e.z));
-                        createExplosion(e.x, e.y, e.z, 28, e.type === 'sith_fighter');
+                        createExplosion(e.x, e.y, e.z, 30, true);
 
                         if (Math.random() < 0.3) {
                             spawnPowerup(e.x, e.y, e.z);
@@ -1463,11 +1529,11 @@ function update(dt) {
         }
     }
 
-    // Actualizar cazas enemigos
+    // Actualizar Cazas TIE
     enemySpawnTimer -= dt;
     if (enemySpawnTimer <= 0) {
         spawnEnemy();
-        enemySpawnTimer = Math.max(0.85, 2.1 - (GameState.kills * 0.04));
+        enemySpawnTimer = Math.max(0.85, 2.0 - (GameState.kills * 0.03));
     }
 
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -1475,14 +1541,18 @@ function update(dt) {
         e.z -= (e.speed + currentSpeed * 0.4) * dt;
         e.swayAngle += e.swaySpeed * dt;
         e.x += Math.sin(e.swayAngle) * 48 * dt;
+        e.roll = Math.cos(e.swayAngle) * 0.25; // Inclinación suave al maniobrar
+
+        if (e.muzzleFlash > 0) e.muzzleFlash -= dt;
 
         // Disparo de TIEs
         e.shootCooldown -= dt;
         if (e.shootCooldown <= 0 && e.z > 130 && e.z < 650) {
             audio.playTieLaser();
+            e.muzzleFlash = 0.08;
             enemyLasers.push({
                 x: e.x,
-                y: e.y,
+                y: e.y + 6,
                 z: e.z,
                 vx: (Player.x - e.x) * 0.65,
                 vy: (Player.y - e.y) * 0.65,
@@ -1528,7 +1598,7 @@ function update(dt) {
         }
     }
 
-    // Actualizar obstáculos (Asteroides)
+    // Actualizar obstáculos
     obstacleSpawnTimer -= dt;
     if (obstacleSpawnTimer <= 0) {
         spawnObstacle();
@@ -1574,13 +1644,28 @@ function update(dt) {
         }
     }
 
+    // Actualizar fragmentos de paneles TIE
+    for (let i = wingDebris.length - 1; i >= 0; i--) {
+        const wd = wingDebris[i];
+        wd.life -= dt;
+        wd.x += wd.vx * dt;
+        wd.y += wd.vy * dt;
+        wd.z += wd.vz * dt;
+        wd.rot += wd.rotSpeed * dt;
+        if (wd.life <= 0) wingDebris.splice(i, 1);
+    }
+
     // Actualizar partículas
     for (let i = particles.length - 1; i >= 0; i--) {
         const pt = particles[i];
         pt.life -= dt;
-        pt.x += pt.vx * dt;
-        pt.y += pt.vy * dt;
-        pt.z += pt.vz * dt;
+        if (pt.type === 'shockwave') {
+            pt.radius += (pt.maxRadius - pt.radius) * 10 * dt;
+        } else {
+            pt.x += pt.vx * dt;
+            pt.y += pt.vy * dt;
+            pt.z += pt.vz * dt;
+        }
         if (pt.life <= 0) particles.splice(i, 1);
     }
 
@@ -1602,13 +1687,12 @@ function update(dt) {
         if (fs.life <= 0) floatingScores.splice(i, 1);
     }
 
-    // Screen Shake
     if (GameState.screenShake > 0) {
         GameState.screenShake -= dt * 18;
         if (GameState.screenShake < 0) GameState.screenShake = 0;
     }
 
-    // Transición de fases
+    // Transición de etapas
     GameState.stageProgress += dt;
     if (GameState.kills >= 25 && GameState.stage === 1) {
         GameState.stage = 2;
@@ -1668,7 +1752,6 @@ function triggerGameOver() {
         localStorage.setItem('starwars_highscore', GameState.highScore);
     }
 
-    // Notificar al móvil
     dataChannels.forEach(dc => {
         try {
             dc.send(JSON.stringify({ type: 'game_over', score: GameState.score }));
@@ -1710,24 +1793,27 @@ function gameLoop(time) {
     // 1. Fondo planetario & estrellas
     renderEnvironment(dt);
 
-    // 2. Obstáculos y enemigos ordenados en profundidad 3D
+    // 2. Obstáculos y Cazas TIE ordenados por profundidad Z
     renderObstaclesAndEnemies();
 
-    // 3. Rayos láser
+    // 3. Paneles TIE destruidos que giran
+    renderWingDebris();
+
+    // 4. Rayos láser
     renderLasers();
 
-    // 4. Power-ups
+    // 5. Power-ups
     renderPowerups();
 
-    // 5. El Halcón Milenario
+    // 6. El Halcón Milenario
     if (GameState.running && !GameState.gameOver) {
         renderMillenniumFalcon(dt);
     }
 
-    // 6. Efectos de partículas y fuego
+    // 7. Efectos de partículas, shockwaves y polvo
     renderParticles();
 
-    // 7. HUD Super Star Wars con Sable de Luz
+    // 8. HUD Super Star Wars con Sable de Luz
     if (GameState.running && !GameState.gameOver) {
         renderSuperStarWarsHUD();
     }
@@ -1744,7 +1830,7 @@ function renderObstaclesAndEnemies() {
 
     list.sort((a, b) => b.z - a.z); // Pintor 3D: lejanos primero
     list.forEach(item => {
-        if (item.type === 'enemy') renderEnemy(item.obj);
+        if (item.type === 'enemy') renderTIEFighter(item.obj);
         else renderObstacle(item.obj);
     });
 }
@@ -1777,6 +1863,7 @@ function startNewGame() {
     obstacles = [];
     powerups = [];
     particles = [];
+    wingDebris = [];
     dustPuffs = [];
     floatingScores = [];
 
@@ -1788,6 +1875,7 @@ function startNewGame() {
     waitingOverlay.classList.add('hidden');
     gameOverOverlay.classList.add('hidden');
 
+    initCanyonRocks();
     audio.init();
     audio.playIntroFanfare();
 }
@@ -2070,6 +2158,7 @@ function autoScale() {
 // Arranque del juego
 window.addEventListener('DOMContentLoaded', () => {
     initStars();
+    initCanyonRocks();
     updateQrCode();
     autoScale();
     initSignaling();
