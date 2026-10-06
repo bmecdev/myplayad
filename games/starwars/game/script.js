@@ -1637,17 +1637,7 @@ function update(dt) {
             e.shootCooldown = Math.random() * 1.9 + 1.1;
         }
 
-        // Colisión con el Halcón
-        if (e.z <= 40 && e.z >= -10) {
-            const distXY = Math.hypot(e.x - Player.x, e.y - Player.y);
-            if (distXY < 42) {
-                damagePlayer();
-                createExplosion(e.x, e.y, e.z, 28, true);
-                enemies.splice(i, 1);
-                continue;
-            }
-        }
-
+        // Los cazas enemigos simplemente sobrevuelan y pasan de largo sin infligir daño por choque corporal
         if (e.z < -20) {
             enemies.splice(i, 1);
         }
