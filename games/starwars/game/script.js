@@ -962,16 +962,26 @@ function renderMillenniumFalcon(dt) {
     ctx.fillRect(-4, -19 + recoilOffset, 2.5, 10);
     ctx.fillRect(1.5, -19 + recoilOffset, 2.5, 10);
 
-    // Muzzle flash
+    // Destello de disparo en la boca del cañón (Muzzle Flash)
     if (Player.muzzleFlash > 0) {
         ctx.save();
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 12;
+        ctx.shadowColor = Player.spreadTimer > 0 ? '#38bdf8' : '#ef4444';
+        ctx.shadowBlur = 16;
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(-2.5, -20, 5, 0, Math.PI * 2);
-        ctx.arc(2.5, -20, 5, 0, Math.PI * 2);
-        ctx.fill();
+        // Cañones de la torreta central
+        [-2.75, 2.75].forEach(bx => {
+            ctx.beginPath();
+            ctx.arc(bx, -20, 5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        if (Player.spreadTimer > 0) {
+            // Mandíbulas exteriores en modo cuádruple
+            [-18, 18].forEach(mx => {
+                ctx.beginPath();
+                ctx.arc(mx, -42, 6, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
         ctx.restore();
     }
 
@@ -1274,34 +1284,53 @@ function renderPowerup(pu) {
 function renderLasers() {
     // Láseres del Halcón
     lasers.forEach(l => {
+        const boltLen = Math.min(52, l.speed * 0.048);
         const p1 = project3D(l.x, l.y, l.z);
-        const p2 = project3D(l.x, l.y, l.z + 50);
+        const p2 = project3D(
+            l.x + (l.vx / l.speed) * boltLen,
+            l.y + (l.vy / l.speed) * boltLen,
+            l.z + boltLen
+        );
+
         if (p1 && p2) {
             const laserColor = Player.spreadTimer > 0 ? '#38bdf8' : '#ef4444';
             ctx.save();
             ctx.strokeStyle = laserColor;
-            ctx.lineWidth = Math.max(2, 4.2 * p1.scale);
+            ctx.lineWidth = Math.max(2.2, 4.5 * p1.scale);
             ctx.shadowColor = laserColor;
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
 
+            // Núcleo blanco brillante de plasma
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = Math.max(1, 1.8 * p1.scale);
+            ctx.lineWidth = Math.max(1.2, 2.0 * p1.scale);
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
+
+            // Cabeza frontal luminosa
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(p2.x, p2.y, Math.max(1.5, 2.6 * p2.scale), 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
         }
     });
 
     // Láseres verdes de los Cazas TIE
     enemyLasers.forEach(el => {
+        const boltLen = Math.min(46, el.speed * 0.045);
         const p1 = project3D(el.x, el.y, el.z);
-        const p2 = project3D(el.x, el.y, el.z + 45);
+        const p2 = project3D(
+            el.x + (el.vx / el.speed) * boltLen,
+            el.y + (el.vy / el.speed) * boltLen,
+            el.z + boltLen
+        );
+
         if (p1 && p2) {
             ctx.save();
             ctx.strokeStyle = '#22c55e';
@@ -1376,37 +1405,75 @@ function renderParticles() {
 // LÓGICA DE ACTUALIZACIÓN DEL JUEGO (UPDATE)
 // ==============================================================================
 
+// Obtener la posición EXACTA en pantalla de cualquier punto local del Halcón
+function getShipScreenPos(localX, localY) {
+    const cx = (CANVAS_WIDTH / 2) + Player.x;
+    const cy = (CANVAS_HEIGHT * 0.77) + Player.y;
+    const cosR = Math.cos(Player.roll);
+    const sinR = Math.sin(Player.roll);
+    return {
+        x: cx + (localX * cosR - localY * sinR),
+        y: cy + (localX * sinR + localY * cosR)
+    };
+}
+
+// Convertir coordenadas de pantalla (sx, sy) a coordenadas de mundo 3D a profundidad z
+function screenToWorld(sx, sy, z) {
+    const scale = FOV / z;
+    return {
+        x: (sx - CANVAS_WIDTH / 2) / scale,
+        y: (sy - HORIZON_Y) / scale
+    };
+}
+
 function fireFalconLasers() {
     audio.playLaser();
     Player.recoil = 0.08;
-    Player.muzzleFlash = 0.06;
+    Player.muzzleFlash = 0.07;
 
-    const targetX = Player.x * 0.45;
-    const targetY = Player.y * 0.35;
+    const startZ = 45;
+    const targetZ = 850;
+    const speed = 1100;
+    const flightTime = (targetZ - startZ) / speed;
 
+    const crosshairX = CANVAS_WIDTH / 2 + Player.x * 0.45;
+    const crosshairY = HORIZON_Y + Player.y * 0.35;
+
+    // Puntos de salida de los cañones del Halcón Milenario
+    let cannonPoints = [];
     if (Player.spreadTimer > 0) {
-        [-24, -8, 8, 24].forEach(ox => {
-            lasers.push({
-                x: Player.x + ox,
-                y: Player.y - 14,
-                z: 42,
-                vx: (targetX - (Player.x + ox)) * 1.5,
-                vy: (targetY - (Player.y - 14)) * 1.5,
-                speed: 880
-            });
-        });
+        // Disparo cuádruple: mandíbulas exteriores + torreta central
+        cannonPoints = [
+            { lx: -18, ly: -42, spreadAngle: -35 },
+            { lx: -2.75, ly: -20, spreadAngle: -10 },
+            { lx: 2.75, ly: -20, spreadAngle: 10 },
+            { lx: 18, ly: -42, spreadAngle: 35 }
+        ];
     } else {
-        [-13, 13].forEach(ox => {
-            lasers.push({
-                x: Player.x + ox,
-                y: Player.y - 12,
-                z: 42,
-                vx: (targetX - (Player.x + ox)) * 1.25,
-                vy: (targetY - (Player.y - 12)) * 1.25,
-                speed: 840
-            });
-        });
+        // Disparo dual estándar: Cañones gemelos de la torreta central
+        cannonPoints = [
+            { lx: -2.75, ly: -20, spreadAngle: 0 },
+            { lx: 2.75, ly: -20, spreadAngle: 0 }
+        ];
     }
+
+    cannonPoints.forEach(cp => {
+        // 1. Posición exacta del cañón en pantalla
+        const screenPos = getShipScreenPos(cp.lx, cp.ly);
+        // 2. Proyección inversa a 3D a profundidad startZ
+        const startWorld = screenToWorld(screenPos.x, screenPos.y, startZ);
+        // 3. Proyección del objetivo (retícula de mira) a profundidad targetZ
+        const targetWorld = screenToWorld(crosshairX + cp.spreadAngle, crosshairY, targetZ);
+
+        lasers.push({
+            x: startWorld.x,
+            y: startWorld.y,
+            z: startZ,
+            vx: (targetWorld.x - startWorld.x) / flightTime,
+            vy: (targetWorld.y - startWorld.y) / flightTime,
+            speed: speed
+        });
+    });
 }
 
 function update(dt) {
@@ -1428,7 +1495,7 @@ function update(dt) {
     if (Keys.left) dx -= 1;
     if (Keys.right) dx += 1;
     if (Keys.up) dy -= 1;
-    if (Keys.down) dy -= 1;
+    if (Keys.down) dy += 1;
 
     if (Player.vx !== 0) dx = Player.vx;
     if (Player.vy !== 0) dy = Player.vy;
@@ -1471,12 +1538,16 @@ function update(dt) {
         l.y += l.vy * dt;
 
         let hit = false;
-        // Impacto contra Cazas TIE
+        // Impacto contra Cazas TIE (Chequeo 3D y en pantalla)
         for (let j = enemies.length - 1; j >= 0; j--) {
             const e = enemies[j];
-            if (Math.abs(l.z - e.z) < 58) {
+            if (Math.abs(l.z - e.z) < 65) {
                 const distXY = Math.hypot(l.x - e.x, l.y - e.y);
-                if (distXY < 30) {
+                const pl = project3D(l.x, l.y, l.z);
+                const pe = project3D(e.x, e.y, e.z);
+                const screenDist = (pl && pe) ? Math.hypot(pl.x - pe.x, pl.y - pe.y) : 999;
+
+                if (distXY < 35 || screenDist < Math.max(16, 32 * (pe?.scale || 1))) {
                     hit = true;
                     e.hp--;
                     if (e.hp <= 0) {
@@ -1504,9 +1575,13 @@ function update(dt) {
         if (!hit) {
             for (let k = obstacles.length - 1; k >= 0; k--) {
                 const o = obstacles[k];
-                if (Math.abs(l.z - o.z) < 65) {
+                if (Math.abs(l.z - o.z) < 70) {
                     const distXY = Math.hypot(l.x - o.x, l.y - o.y);
-                    if (distXY < o.radius + 6) {
+                    const pl = project3D(l.x, l.y, l.z);
+                    const po = project3D(o.x, o.y, o.z);
+                    const screenDist = (pl && po) ? Math.hypot(pl.x - po.x, pl.y - po.y) : 999;
+
+                    if (distXY < o.radius + 8 || screenDist < (o.radius * (po?.scale || 1) + 8)) {
                         hit = true;
                         o.hp--;
                         if (o.hp <= 0) {
