@@ -45,7 +45,8 @@ const GameState = {
     lastTime: 0,
     screenShake: 0,
     worldScroll: 0,
-    lockedTarget: null
+    lockedTarget: null,
+    isMobileSession: false
 };
 
 let gameOverTimeout = null;
@@ -1817,6 +1818,7 @@ function damagePlayer() {
 }
 
 function triggerGameOver() {
+    if (GameState.gameOver) return;
     GameState.gameOver = true;
     GameState.running = false;
     createExplosion(Player.x, Player.y, 10, 50, true);
@@ -1841,7 +1843,10 @@ function triggerGameOver() {
 
     if (gameOverTimeout) clearTimeout(gameOverTimeout);
     gameOverTimeout = setTimeout(() => {
-        resetSignalingAndRoom();
+        // Solo restaurar la sala si la partida no se ha reanudado
+        if (GameState.gameOver && !GameState.running) {
+            resetSignalingAndRoom();
+        }
     }, 15000);
 }
 
@@ -1914,9 +1919,14 @@ function renderPowerups() {
     powerups.forEach(pu => renderPowerup(pu));
 }
 
-function startNewGame() {
+function startNewGame(fromController = false) {
+    if (gameOverTimeout) {
+        clearTimeout(gameOverTimeout);
+        gameOverTimeout = null;
+    }
     GameState.running = true;
     GameState.gameOver = false;
+    GameState.isMobileSession = !!fromController;
     GameState.score = 0;
     GameState.shields = GameState.maxShields;
     GameState.kills = 0;
@@ -2139,6 +2149,7 @@ async function handleOffer(data) {
 
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
+        GameState.isMobileSession = true;
         waitingOverlay.classList.add('hidden');
     };
 
@@ -2148,7 +2159,7 @@ function setupDataChannel(channel, playerId) {
             if (msg.type === 'join' || msg.type === 'nickname') {
                 GameState.currentNickname = (msg.nickname || msg.value || 'PILOT').toUpperCase().substring(0, 10);
                 if (playerNickElement) playerNickElement.textContent = `PILOT: ${GameState.currentNickname}`;
-                startNewGame();
+                startNewGame(true);
             } else if (msg.type === 'move') {
                 Player.vx = (msg.x || 0);
                 Player.vy = (msg.y || 0);
@@ -2167,19 +2178,29 @@ function setupDataChannel(channel, playerId) {
 
 function handleControllerDisconnect(playerId) {
     const pc = peerConnections.get(playerId);
-    if (pc) pc.close();
+    if (pc) {
+        try { pc.close(); } catch (_) {}
+    }
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
-    if (peerConnections.size === 0 && !GameState.gameOver && GameState.running) {
+
+    // Solo si la sesión era estrictamente con mando móvil y ya no queda ningún móvil conectado
+    if (GameState.isMobileSession && peerConnections.size === 0 && !GameState.gameOver && GameState.running) {
         waitingOverlay.classList.remove('hidden');
         GameState.running = false;
     }
 }
 
 function resetSignalingAndRoom() {
+    // Si la partida está activa, ¡NUNCA interrumpirla ni mostrar el código QR!
+    if (GameState.running && !GameState.gameOver) {
+        return;
+    }
     GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
     updateQrCode();
-    waitingOverlay.classList.remove('hidden');
+    if (!GameState.running) {
+        waitingOverlay.classList.remove('hidden');
+    }
     gameOverOverlay.classList.add('hidden');
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
