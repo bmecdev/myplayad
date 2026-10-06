@@ -1,0 +1,11 @@
+name: Test Runner
+on:
+  push:
+    branches:
+      - 'game/circus'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping
+        run: echo "Runner is working!"
