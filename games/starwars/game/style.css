@@ -1,0 +1,369 @@
+:root {
+    --bg-deep: #05080c;
+    --panel: #0d131a;
+    --panel-edge: #1a2736;
+    --phosphor: #38bdf8;
+    --phosphor-dim: #0284c7;
+    --amber: #f59e0b;
+    --danger: #ef4444;
+    --laser-red: #ff2a2a;
+    --laser-green: #00ff66;
+    --text-dim: #94a3b8;
+    --white: #f8fafc;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: var(--bg-deep);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    font-family: 'VT323', monospace;
+    color: var(--white);
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    transform-origin: center center;
+}
+
+/* Consola Bezel */
+.console-bezel {
+    background: linear-gradient(180deg, #16202c, #0a0e14);
+    padding: 16px 18px 8px 18px;
+    border-radius: 20px;
+    border: 4px solid #233549;
+    box-shadow: 0 0 0 2px #040608, 0 25px 70px rgba(0,0,0,.85), inset 0 0 40px rgba(56, 189, 248, 0.08);
+    position: relative;
+    user-select: none;
+}
+
+.console-bezel::before {
+    content: "● ● ●";
+    display: block;
+    text-align: right;
+    color: #38bdf8;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    letter-spacing: 6px;
+    padding: 0 6px 8px;
+    opacity: 0.6;
+}
+
+.lcd-screen {
+    background: radial-gradient(ellipse at 50% 10%, #0c1624 0%, #020408 100%);
+    width: 440px;
+    height: 400px;
+    min-height: 400px;
+    padding: 8px 12px;
+    border: 3px solid #040608;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.lcd-screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,.22) 3px
+    );
+    pointer-events: none;
+    animation: flicker 6s infinite;
+}
+
+@keyframes flicker {
+    0%,97%,100% { opacity: 1; }
+    98% { opacity: .88; }
+}
+
+/* Efecto de Scanlines */
+.scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(18, 24, 32, 0) 50%, rgba(0, 0, 0, 0.12) 50%);
+    background-size: 100% 2px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--phosphor-dim);
+    padding-bottom: 4px;
+    gap: 6px;
+    z-index: 10;
+}
+
+.header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: left;
+}
+
+#player-nick {
+    color: var(--amber);
+    max-width: 105px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#status-mid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: center;
+    color: #e0f2fe;
+}
+
+#shields-container {
+    color: var(--phosphor);
+}
+
+#kills-container {
+    color: var(--danger);
+    font-size: 8px;
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: right;
+}
+
+.room-ice-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 8px;
+}
+
+.audio-toggle-btn {
+    background: #0f2744;
+    border: 1px solid var(--phosphor);
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.audio-toggle-btn.muted {
+    border-color: var(--text-dim);
+    color: var(--text-dim);
+    background: transparent;
+}
+
+.canvas-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background: #000;
+    border-radius: 4px;
+    border: 1px solid #1e293b;
+    overflow: hidden;
+}
+
+#gameCanvas {
+    background-color: transparent;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 400px;
+    height: 320px;
+}
+
+/* Overlays */
+#game-over-overlay, #waiting-overlay {
+    position: absolute;
+    inset: 8px 12px;
+    background: rgba(3, 7, 14, 0.94);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    border-radius: 8px;
+    backdrop-filter: blur(2px);
+    transition: opacity 0.3s ease;
+}
+
+#game-over-overlay.hidden, #waiting-overlay.hidden {
+    display: none !important;
+}
+
+.overlay-content {
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    color: var(--white);
+    padding: 10px;
+    max-width: 90%;
+}
+
+.arcade-title {
+    font-size: 16px;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+}
+
+.arcade-title span {
+    color: var(--amber);
+}
+
+.pulse-text {
+    font-size: 9px;
+    color: var(--phosphor);
+    margin-bottom: 12px;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.qr-wrapper {
+    background: white;
+    padding: 6px;
+    border-radius: 8px;
+    display: inline-block;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+    margin-bottom: 10px;
+}
+
+#qrcode, #qrcode canvas, #qrcode img {
+    width: 160px !important;
+    height: 160px !important;
+    display: block;
+    margin: 0 auto;
+}
+
+.status-text {
+    font-size: 8px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.keyboard-hint {
+    font-size: 7px;
+    color: var(--amber);
+    animation: blink 2s infinite;
+}
+
+.blink {
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+
+#game-over-title {
+    font-size: 16px;
+    color: var(--danger);
+    margin-bottom: 6px;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+}
+
+.sub-msg {
+    font-size: 8px;
+    color: var(--phosphor);
+    margin-bottom: 10px;
+}
+
+#ranking-container {
+    margin: 10px 0;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+#ranking-container h3 {
+    font-size: 9px;
+    color: var(--amber);
+    margin-bottom: 6px;
+}
+
+#ranking-list {
+    list-style: none;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    color: #cbd5e1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.instruction {
+    font-size: 7px;
+    color: var(--amber);
+    margin-top: 10px;
+}
+
+/* Footer de Consola */
+.console-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding: 0 8px;
+}
+
+.speaker-grille {
+    width: 50px;
+    height: 6px;
+    background: repeating-linear-gradient(
+        90deg,
+        #1e293b 0px,
+        #1e293b 3px,
+        transparent 3px,
+        transparent 6px
+    );
+    border-radius: 2px;
+}
+
+.model-number {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: #475569;
+    letter-spacing: 1px;
+}

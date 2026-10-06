@@ -1,0 +1,8 @@
+{
+  "name": "Star Wars: Falcon",
+  "slug": "starwars",
+  "icon": "🛸",
+  "genre": "Shooter Espacial 3D",
+  "description": "Pilota el legendario Halcón Milenario esquivando asteroides y combatiendo las escuadrillas de cazas Sith y del Imperio en perspectiva 3D retro.",
+  "controls": "Joystick virtual 360° y Cañón Láser / Flechas de cursor y Espacio"
+}
