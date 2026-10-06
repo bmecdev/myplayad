@@ -1324,31 +1324,41 @@ function renderLasers() {
 
     // Láseres verdes de los Cazas TIE
     enemyLasers.forEach(el => {
-        const boltLen = Math.min(46, el.speed * 0.045);
+        const vz = el.vz || el.speed;
+        const boltLen = Math.min(48, vz * 0.045);
         const p1 = project3D(el.x, el.y, el.z);
         const p2 = project3D(
-            el.x + (el.vx / el.speed) * boltLen,
-            el.y + (el.vy / el.speed) * boltLen,
+            el.x - (el.vx / vz) * boltLen,
+            el.y - (el.vy / vz) * boltLen,
             el.z + boltLen
         );
 
         if (p1 && p2) {
             ctx.save();
             ctx.strokeStyle = '#22c55e';
-            ctx.lineWidth = Math.max(2, 3.8 * p1.scale);
+            ctx.lineWidth = Math.max(2.2, 4.2 * p1.scale);
             ctx.shadowColor = '#22c55e';
-            ctx.shadowBlur = 8;
+            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
 
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = Math.max(1, 1.5 * p1.scale);
+            ctx.strokeStyle = '#eaffea';
+            ctx.lineWidth = Math.max(1, 1.8 * p1.scale);
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
+
+            // Cabeza frontal luminosa del proyectil avanzando hacia el Halcón
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#4ade80';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(p1.x, p1.y, Math.max(1.8, 3.2 * p1.scale), 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.restore();
         }
     });
@@ -1621,20 +1631,39 @@ function update(dt) {
 
         if (e.muzzleFlash > 0) e.muzzleFlash -= dt;
 
-        // Disparo de TIEs
+        // Disparo de Cazas TIE: proyectiles dirigidos directamente contra el Halcón Milenario
         e.shootCooldown -= dt;
-        if (e.shootCooldown <= 0 && e.z > 130 && e.z < 650) {
+        if (e.shootCooldown <= 0 && e.z > 140 && e.z < 680) {
             audio.playTieLaser();
-            e.muzzleFlash = 0.08;
-            enemyLasers.push({
-                x: e.x,
-                y: e.y + 6,
-                z: e.z,
-                vx: (Player.x - e.x) * 0.65,
-                vy: (Player.y - e.y) * 0.65,
-                speed: 430
+            e.muzzleFlash = 0.10;
+
+            const targetZ = 45; // Profundidad 3D en la que se encuentra el Halcón Milenario
+            const laserSpeedZ = 440 + currentSpeed * 0.25;
+            const flightTime = (e.z - targetZ) / laserSpeedZ;
+
+            // Obtener la posición del Halcón y proyectar al mundo 3D en targetZ
+            const falconScreen = getShipScreenPos(0, 0);
+            const targetWorld = screenToWorld(falconScreen.x, falconScreen.y, targetZ);
+
+            // Disparo gemelo auténtico desde los dos cañones inferiores del Caza TIE
+            [-2.2, 2.2].forEach(cannonOffsetX => {
+                const startX = e.x + cannonOffsetX;
+                const startY = e.y + 4.5;
+                const destX = targetWorld.x + (cannonOffsetX * 0.25);
+                const destY = targetWorld.y;
+
+                enemyLasers.push({
+                    x: startX,
+                    y: startY,
+                    z: e.z,
+                    vx: (destX - startX) / flightTime,
+                    vy: (destY - startY) / flightTime,
+                    vz: laserSpeedZ,
+                    speed: laserSpeedZ
+                });
             });
-            e.shootCooldown = Math.random() * 1.9 + 1.1;
+
+            e.shootCooldown = Math.random() * 1.8 + 1.1;
         }
 
         // Los cazas enemigos simplemente sobrevuelan y pasan de largo sin infligir daño por choque corporal
@@ -1644,22 +1673,35 @@ function update(dt) {
     }
 
     // Actualizar disparos enemigos
+    const falconScreenPos = getShipScreenPos(0, 0);
+
     for (let i = enemyLasers.length - 1; i >= 0; i--) {
         const el = enemyLasers[i];
-        el.z -= (el.speed + currentSpeed * 0.3) * dt;
+        const vz = el.vz || el.speed;
+        el.z -= vz * dt;
         el.x += el.vx * dt;
         el.y += el.vy * dt;
 
-        if (el.z <= 35 && el.z >= -15) {
-            const distXY = Math.hypot(el.x - Player.x, el.y - Player.y);
-            if (distXY < 35) {
-                damagePlayer();
-                enemyLasers.splice(i, 1);
-                continue;
+        // Comprobar colisión cuando el disparo cruza el plano de vuelo del Halcón
+        if (el.z <= 65 && el.z >= 20) {
+            const pl = project3D(el.x, el.y, el.z);
+            if (pl) {
+                const dx = pl.x - falconScreenPos.x;
+                const dy = (pl.y - falconScreenPos.y) * 1.45;
+                const distScreen = Math.hypot(dx, dy);
+
+                // El Halcón ocupa aproximadamente 38px de radio en pantalla
+                if (distScreen < 38) {
+                    damagePlayer();
+                    createExplosion(el.x, el.y, el.z, 16, false);
+                    enemyLasers.splice(i, 1);
+                    continue;
+                }
             }
         }
 
-        if (el.z < -25) {
+        // Eliminar disparos que ya rebasaron la cámara
+        if (el.z < 15) {
             enemyLasers.splice(i, 1);
         }
     }
@@ -1676,13 +1718,20 @@ function update(dt) {
         o.z -= (o.speed + currentSpeed * 0.5) * dt;
         o.rot += o.rotSpeed * dt;
 
-        if (o.z <= 40 && o.z >= -10) {
-            const distXY = Math.hypot(o.x - Player.x, o.y - Player.y);
-            if (distXY < o.radius + 30) {
-                damagePlayer();
-                createExplosion(o.x, o.y, o.z, 25, true);
-                obstacles.splice(i, 1);
-                continue;
+        if (o.z <= 65 && o.z >= 20) {
+            const po = project3D(o.x, o.y, o.z);
+            if (po) {
+                const dx = po.x - falconScreenPos.x;
+                const dy = (po.y - falconScreenPos.y) * 1.35;
+                const distScreen = Math.hypot(dx, dy);
+                const hitRadius = (o.radius * po.scale) + 26;
+
+                if (distScreen < hitRadius) {
+                    damagePlayer();
+                    createExplosion(o.x, o.y, o.z, 25, true);
+                    obstacles.splice(i, 1);
+                    continue;
+                }
             }
         }
 
@@ -1696,12 +1745,16 @@ function update(dt) {
         const pu = powerups[i];
         pu.z -= (pu.speed + currentSpeed * 0.4) * dt;
 
-        if (pu.z <= 40 && pu.z >= -10) {
-            const distXY = Math.hypot(pu.x - Player.x, pu.y - Player.y);
-            if (distXY < 42) {
-                applyPowerup(pu.type);
-                powerups.splice(i, 1);
-                continue;
+        if (pu.z <= 65 && pu.z >= 20) {
+            const ppu = project3D(pu.x, pu.y, pu.z);
+            if (ppu) {
+                const dx = ppu.x - falconScreenPos.x;
+                const dy = (ppu.y - falconScreenPos.y) * 1.35;
+                if (Math.hypot(dx, dy) < 45) {
+                    applyPowerup(pu.type);
+                    powerups.splice(i, 1);
+                    continue;
+                }
             }
         }
 
@@ -1811,7 +1864,9 @@ function triggerGameOver() {
     if (GameState.gameOver) return;
     GameState.gameOver = true;
     GameState.running = false;
-    createExplosion(Player.x, Player.y, 10, 50, true);
+    const falconScreen = getShipScreenPos(0, 0);
+    const falconWorld = screenToWorld(falconScreen.x, falconScreen.y, 45);
+    createExplosion(falconWorld.x, falconWorld.y, 45, 50, true);
 
     if (GameState.score > GameState.highScore) {
         GameState.highScore = GameState.score;
