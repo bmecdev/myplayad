@@ -340,6 +340,55 @@ class StarWarsAudio {
             });
         } catch (_) {}
     }
+
+    playBossAlert() {
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            for (let i = 0; i < 4; i++) {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                const freq = (i % 2 === 0) ? 680 : 490;
+                osc.frequency.setValueAtTime(freq, now + i * 0.20);
+                gain.gain.setValueAtTime(0.28, now + i * 0.20);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.20 + 0.17);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + i * 0.20);
+                osc.stop(now + i * 0.20 + 0.17);
+            }
+        } catch (_) {}
+    }
+
+    playVictoryFanfare() {
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            const notes = [
+                { f: 293.66, d: 0.20 }, // D4
+                { f: 392.00, d: 0.20 }, // G4
+                { f: 493.88, d: 0.20 }, // B4
+                { f: 587.33, d: 0.35 }, // D5
+                { f: 493.88, d: 0.18 }, // B4
+                { f: 587.33, d: 0.65 }  // D5 sostenido
+            ];
+            let offset = 0;
+            notes.forEach(n => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(n.f, now + offset);
+                gain.gain.setValueAtTime(0.28, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + offset + n.d);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + offset);
+                osc.stop(now + offset + n.d);
+                offset += n.d + 0.04;
+            });
+        } catch (_) {}
+    }
 }
 
 const audio = new StarWarsAudio();
@@ -362,6 +411,10 @@ let canyonRocks = [];   // Rocas, monolitos y arcos gigantes del cañón
 let ambientDust = [];   // Motas doradas de polvo ambiental en el desierto
 let groundPebbles = []; // Gravilla 3D de alta velocidad en el suelo Mode 7
 let distantFlak = [];   // Fuego antiaéreo y destellos en el horizonte
+let currentBoss = null;
+let bossWarningTimer = 0;
+let bossWarningText = '';
+let bossProjectiles = []; // Torpedos de protones y misiles de los jefes
 
 // Inicializar estrellas del espacio profundo
 function initStars() {
@@ -430,6 +483,243 @@ function initCanyonRocks() {
             color: Math.random() > 0.5 ? '#22c55e' : '#ef4444'
         });
     }
+}
+
+// ==============================================================================
+// SISTEMA DE JEFES DE NIVEL (BOSS BATTLES)
+// ==============================================================================
+
+function triggerBossWarning(type) {
+    bossWarningTimer = 3.2;
+    audio.playBossAlert();
+    if (type === 'tie_bomber') {
+        bossWarningText = '¡ALERTA! TIE BOMBER TITAN';
+    } else if (type === 'tie_advanced') {
+        bossWarningText = '¡PELIGRO! TIE ADVANCED - LORD VADER';
+    } else {
+        bossWarningText = '¡ALERTA MÁXIMA! NÚCLEO DEFENSIVO';
+    }
+}
+
+function spawnBoss(type) {
+    if (type === 'tie_bomber') {
+        currentBoss = {
+            type: 'tie_bomber',
+            name: 'TIE BOMBER TITAN',
+            x: 0,
+            y: -10,
+            z: 850,
+            targetZ: 310,
+            hp: 24,
+            maxHp: 24,
+            speed: 155,
+            swayAngle: 0,
+            shootCooldown: 1.8,
+            missileCooldown: 3.8,
+            roll: 0,
+            hitFlash: 0
+        };
+    } else if (type === 'tie_advanced') {
+        currentBoss = {
+            type: 'tie_advanced',
+            name: 'TIE ADVANCED x1 - LORD VADER',
+            x: 0,
+            y: -12,
+            z: 850,
+            targetZ: 275,
+            hp: 36,
+            maxHp: 36,
+            speed: 195,
+            swayAngle: 0,
+            shootCooldown: 1.2,
+            missileCooldown: 3.2,
+            roll: 0,
+            hitFlash: 0
+        };
+    } else {
+        currentBoss = {
+            type: 'death_star_core',
+            name: 'NÚCLEO DEFENSIVO ESTRELLA DE LA MUERTE',
+            x: 0,
+            y: 8,
+            z: 900,
+            targetZ: 330,
+            hp: 50,
+            maxHp: 50,
+            speed: 135,
+            swayAngle: 0,
+            shootCooldown: 1.0,
+            missileCooldown: 2.8,
+            roll: 0,
+            hitFlash: 0
+        };
+    }
+}
+
+function updateBoss(dt) {
+    if (!currentBoss) return;
+    const b = currentBoss;
+    const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
+
+    // Acercamiento inicial hasta distancia óptima de combate
+    if (b.z > b.targetZ) {
+        b.z -= (b.speed + currentSpeed * 0.4) * dt;
+        if (b.z < b.targetZ) b.z = b.targetZ;
+    }
+
+    // Maniobras de combate y balanceo 3D
+    b.swayAngle += (b.type === 'tie_advanced' ? 2.4 : 1.7) * dt;
+    const ampX = b.type === 'tie_advanced' ? 95 : 68;
+    const ampY = b.type === 'death_star_core' ? 12 : 22;
+    b.x = Math.sin(b.swayAngle) * ampX;
+    b.y = (Math.cos(b.swayAngle * 0.7) * ampY) - (b.type === 'death_star_core' ? -8 : 10);
+    b.roll = Math.cos(b.swayAngle) * (b.type === 'tie_advanced' ? 0.35 : 0.22);
+
+    if (b.hitFlash > 0) b.hitFlash -= dt;
+
+    // Disparos láser primarios del jefe
+    b.shootCooldown -= dt;
+    if (b.shootCooldown <= 0 && b.z <= b.targetZ + 80) {
+        audio.playTieLaser();
+        const falconScreen = getShipScreenPos(0, 0);
+        const targetWorld = screenToWorld(falconScreen.x, falconScreen.y, 45);
+        const flightTime = (b.z - 45) / 460;
+
+        // Ráfaga doble o cuádruple
+        const offsets = b.type === 'tie_advanced' ? [-5, -2, 2, 5] : [-4, 4];
+        offsets.forEach(ox => {
+            const sx = b.x + ox;
+            const sy = b.y + 4;
+            enemyLasers.push({
+                x: sx,
+                y: sy,
+                z: b.z,
+                vx: (targetWorld.x + ox * 0.2 - sx) / flightTime,
+                vy: (targetWorld.y - sy) / flightTime,
+                vz: 460,
+                speed: 460
+            });
+        });
+
+        b.shootCooldown = b.type === 'tie_advanced' ? 1.2 : 1.7;
+    }
+
+    // Ataque secundario: Torpedos de Protones / Misiles guiados
+    b.missileCooldown -= dt;
+    if (b.missileCooldown <= 0 && b.z <= b.targetZ + 80) {
+        audio.playTieRoar();
+        const falconScreen = getShipScreenPos(0, 0);
+        const targetWorld = screenToWorld(falconScreen.x, falconScreen.y, 45);
+        const flightTime = (b.z - 45) / 360;
+
+        bossProjectiles.push({
+            x: b.x,
+            y: b.y + 6,
+            z: b.z,
+            vx: (targetWorld.x - b.x) / flightTime,
+            vy: (targetWorld.y - (b.y + 6)) / flightTime,
+            vz: 360,
+            speed: 360,
+            radius: 8,
+            type: 'torpedo'
+        });
+
+        b.missileCooldown = b.type === 'tie_advanced' ? 3.0 : 4.0;
+    }
+}
+
+function updateBossProjectiles(dt) {
+    const falconScreenPos = getShipScreenPos(0, 0);
+
+    for (let i = bossProjectiles.length - 1; i >= 0; i--) {
+        const bp = bossProjectiles[i];
+        bp.z -= bp.vz * dt;
+        bp.x += bp.vx * dt;
+        bp.y += bp.vy * dt;
+
+        // Comprobar colisión con el Halcón Milenario
+        if (bp.z <= 65 && bp.z >= 20) {
+            const pl = project3D(bp.x, bp.y, bp.z);
+            if (pl) {
+                const dx = pl.x - falconScreenPos.x;
+                const dy = (pl.y - falconScreenPos.y) * 1.4;
+                if (Math.hypot(dx, dy) < 42) {
+                    damagePlayer();
+                    createExplosion(bp.x, bp.y, bp.z, 22, true);
+                    bossProjectiles.splice(i, 1);
+                    continue;
+                }
+            }
+        }
+
+        if (bp.z < 15) {
+            bossProjectiles.splice(i, 1);
+        }
+    }
+}
+
+function defeatBoss() {
+    if (!currentBoss) return;
+    const b = currentBoss;
+    const bossType = b.type;
+    const bx = b.x;
+    const by = b.y;
+    const bz = b.z;
+
+    // Cadena de explosiones múltiples
+    createExplosion(bx, by, bz, 50, true);
+    setTimeout(() => createExplosion(bx - 25, by + 10, bz, 35, true), 140);
+    setTimeout(() => createExplosion(bx + 25, by - 12, bz, 35, true), 280);
+
+    let pts = 2500;
+    if (bossType === 'tie_bomber') {
+        pts = 2500;
+        GameState.score += pts;
+        addFloatingScore(`+${pts} ¡JEFE DESTRUIDO!`, CANVAS_WIDTH / 2, 70, '#facc15');
+        addFloatingScore('NIVEL 1 COMPLETADO', CANVAS_WIDTH / 2, 92, '#38bdf8');
+        currentBoss = null;
+        setTimeout(() => {
+            GameState.stage = 2;
+            addFloatingScore('NIVEL 2: ASTEROID BELT', CANVAS_WIDTH / 2, 70, '#38bdf8');
+        }, 1600);
+    } else if (bossType === 'tie_advanced') {
+        pts = 4000;
+        GameState.score += pts;
+        addFloatingScore(`+${pts} ¡LORD VADER DERROTADO!`, CANVAS_WIDTH / 2, 70, '#facc15');
+        addFloatingScore('NIVEL 2 COMPLETADO', CANVAS_WIDTH / 2, 92, '#38bdf8');
+        currentBoss = null;
+        setTimeout(() => {
+            GameState.stage = 3;
+            addFloatingScore('NIVEL 3: DEATH STAR TRENCH', CANVAS_WIDTH / 2, 70, '#f43f5e');
+        }, 1600);
+    } else {
+        pts = 8000;
+        GameState.score += pts;
+        addFloatingScore(`+${pts} ¡ESTRELLA DE LA MUERTE DESTRUIDA!`, CANVAS_WIDTH / 2, 70, '#facc15');
+        currentBoss = null;
+        triggerVictory();
+    }
+
+    scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+}
+
+function triggerVictory() {
+    GameState.victory = true;
+    GameState.running = false;
+    audio.playVictoryFanfare();
+
+    gameOverTitle.textContent = '¡MISIÓN CUMPLIDA!';
+    gameOverTitle.style.color = '#38bdf8';
+    gameOverSubtitle.textContent = `¡LA ESTRELLA DE LA MUERTE HA SIDO DESTRUIDA!\nPUNTUACIÓN FINAL: ${GameState.score}`;
+    gameOverOverlay.classList.remove('hidden');
+
+    if (GameState.score > GameState.highScore) {
+        GameState.highScore = GameState.score;
+        highScoreElement.textContent = `HI: ${String(GameState.highScore).padStart(6, '0')}`;
+        localStorage.setItem('starwars_highscore', GameState.highScore);
+    }
+
+    submitScore(GameState.currentNickname, GameState.score);
 }
 
 // Spawners de enemigos, asteroides y powerups
@@ -1351,16 +1641,28 @@ function renderTargetingHUD() {
 
     let targetLocked = false;
     let lockedEnemy = null;
-    enemies.forEach(e => {
-        if (e.z > 100 && e.z < 650) {
-            const p = project3D(e.x, e.y, e.z);
-            if (p && Math.hypot(p.x - crosshairX, p.y - crosshairY) < 32) {
-                targetLocked = true;
-                lockedEnemy = { e, p };
-                GameState.lockedTarget = p;
-            }
+
+    if (currentBoss && currentBoss.z > 80 && currentBoss.z < 850) {
+        const pb = project3D(currentBoss.x, currentBoss.y, currentBoss.z);
+        if (pb && Math.hypot(pb.x - crosshairX, pb.y - crosshairY) < 55) {
+            targetLocked = true;
+            lockedEnemy = { e: currentBoss, p: pb, isBoss: true };
+            GameState.lockedTarget = pb;
         }
-    });
+    }
+
+    if (!targetLocked) {
+        enemies.forEach(e => {
+            if (e.z > 100 && e.z < 650) {
+                const p = project3D(e.x, e.y, e.z);
+                if (p && Math.hypot(p.x - crosshairX, p.y - crosshairY) < 32) {
+                    targetLocked = true;
+                    lockedEnemy = { e, p, isBoss: false };
+                    GameState.lockedTarget = p;
+                }
+            }
+        });
+    }
 
     const reticleColor = targetLocked ? '#ef4444' : 'rgba(56, 189, 248, 0.75)';
     ctx.save();
@@ -1388,7 +1690,7 @@ function renderTargetingHUD() {
 
     if (targetLocked && lockedEnemy) {
         const ep = lockedEnemy.p;
-        const boxR = Math.max(16, 28 * ep.scale);
+        const boxR = Math.max(16, (lockedEnemy.isBoss ? 45 : 28) * ep.scale);
         // Corchetes de computadora de tiro estilo Star Wars
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.5;
@@ -1410,7 +1712,8 @@ function renderTargetingHUD() {
         ctx.fillStyle = '#ef4444';
         ctx.font = '6px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`LOCK: ${Math.round(lockedEnemy.e.z)}m`, crosshairX, crosshairY - 26);
+        const lockText = lockedEnemy.isBoss ? `TARGET: ${lockedEnemy.e.name}` : `LOCK: ${Math.round(lockedEnemy.e.z)}m`;
+        ctx.fillText(lockText, crosshairX, crosshairY - 26);
     }
     ctx.restore();
 }
@@ -1571,6 +1874,331 @@ function renderWingDebris() {
             ctx.stroke();
             ctx.restore();
         }
+    }
+}
+
+// ==============================================================================
+// RENDERIZADO DE JEFES DE NIVEL (BOSSES 16-BIT 3D)
+// ==============================================================================
+
+function renderBoss(b) {
+    if (!b) return;
+    if (b.type === 'tie_bomber') renderTIEBomber(b);
+    else if (b.type === 'tie_advanced') renderTIEAdvanced(b);
+    else if (b.type === 'death_star_core') renderDeathStarCore(b);
+}
+
+// Jefe 1: TIE Bomber Titan (Doble Cápsula y Alas Curvas)
+function renderTIEBomber(b) {
+    const pb = project3D(b.x, b.y, b.z);
+    if (!pb) return;
+    const scale = pb.scale;
+
+    ctx.save();
+    ctx.translate(pb.x, pb.y);
+    ctx.rotate(b.roll);
+
+    const span = Math.max(16, 42 * scale);
+    const podR = Math.max(6, 12 * scale);
+    const podGap = Math.max(8, 16 * scale);
+
+    if (b.hitFlash > 0) {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#ffffff';
+    }
+
+    // 1. Pilón central conector entre ambas cápsulas y alas
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#475569';
+    ctx.fillRect(-span, -3 * scale, span * 2, 6 * scale);
+
+    // 2. Cápsula Izquierda: Cabina de Mando del Piloto
+    const leftPodX = -podGap * 0.6;
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#334155';
+    ctx.beginPath();
+    ctx.arc(leftPodX, 0, podR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = Math.max(1, 1.5 * scale);
+    ctx.stroke();
+
+    // Ventanal de piloto
+    ctx.fillStyle = '#0a0f1d';
+    ctx.beginPath();
+    ctx.arc(leftPodX, 0, podR * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(leftPodX, 0, Math.max(1.5, 3 * scale), 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Cápsula Derecha: Lanzador de Torpedos y Bahía de Bombas
+    const rightPodX = podGap * 0.6;
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#1e293b';
+    ctx.beginPath();
+    ctx.arc(rightPodX, 0, podR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Boca cóncava con cabezas rojas de misiles
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(rightPodX, 0, podR * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    for (let m = 0; m < 6; m++) {
+        const mang = (m * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.arc(rightPodX + Math.cos(mang) * podR * 0.45, Math.sin(mang) * podR * 0.45, Math.max(1, 2 * scale), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 4. Alas curvadas características del TIE Bomber
+    [-span, span].forEach(wx => {
+        ctx.save();
+        ctx.translate(wx, 0);
+        ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#050811';
+        ctx.beginPath();
+        const wingH = Math.max(12, 34 * scale);
+        const wingW = Math.max(7, 16 * scale);
+        ctx.moveTo(0, -wingH);
+        ctx.lineTo(wx < 0 ? wingW * 0.5 : -wingW * 0.5, -wingH * 0.75);
+        ctx.lineTo(wx < 0 ? wingW * 0.5 : -wingW * 0.5, wingH * 0.75);
+        ctx.lineTo(0, wingH);
+        ctx.lineTo(wx < 0 ? -wingW * 0.5 : wingW * 0.5, wingH * 0.75);
+        ctx.lineTo(wx < 0 ? -wingW * 0.5 : wingW * 0.5, -wingH * 0.75);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = Math.max(1, 1.8 * scale);
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    ctx.restore();
+}
+
+// Jefe 2: TIE Advanced x1 de Lord Vader
+function renderTIEAdvanced(b) {
+    const pb = project3D(b.x, b.y, b.z);
+    if (!pb) return;
+    const scale = pb.scale;
+
+    ctx.save();
+    ctx.translate(pb.x, pb.y);
+    ctx.rotate(b.roll);
+
+    const span = Math.max(18, 46 * scale);
+    const ballR = Math.max(6, 13 * scale);
+
+    if (b.hitFlash > 0) {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#ffffff';
+    }
+
+    // 1. Pilones y soporte de motor
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#334155';
+    ctx.fillRect(-span, -3 * scale, span * 2, 6 * scale);
+
+    // 2. Cabina de mando esférica reforzada de Darth Vader
+    const podGrad = ctx.createRadialGradient(-ballR * 0.3, -ballR * 0.3, 2, 0, 0, ballR);
+    podGrad.addColorStop(0, '#f1f5f9');
+    podGrad.addColorStop(0.6, '#475569');
+    podGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : podGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, ballR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = Math.max(1, 1.6 * scale);
+    ctx.stroke();
+
+    // Ventanal de transparisteel octogonal con mira roja de Vader
+    ctx.fillStyle = '#020617';
+    ctx.beginPath();
+    ctx.arc(0, 0, ballR * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(2, 3.5 * scale), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Toberas dobles de motor hiperespacial cyan
+    ctx.save();
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#00f0ff';
+    [-4 * scale, 4 * scale].forEach(ex => {
+        ctx.beginPath();
+        ctx.arc(ex, ballR * 0.5, 2.5 * scale, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.restore();
+
+    // 3. Alas anguladas dobladas del TIE Advanced x1
+    [-span, span].forEach(wx => {
+        ctx.save();
+        ctx.translate(wx, 0);
+        ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#030712';
+        ctx.beginPath();
+        const wingH = Math.max(14, 38 * scale);
+        const wingW = Math.max(9, 22 * scale);
+        const dir = wx < 0 ? -1 : 1;
+        ctx.moveTo(0, -wingH * 0.5);
+        ctx.lineTo(dir * wingW, -wingH);
+        ctx.lineTo(dir * wingW * 1.3, -wingH * 0.6);
+        ctx.lineTo(dir * wingW * 1.3, wingH * 0.6);
+        ctx.lineTo(dir * wingW, wingH);
+        ctx.lineTo(0, wingH * 0.5);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = Math.max(1, 1.8 * scale);
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    ctx.restore();
+}
+
+// Jefe 3: Núcleo Defensivo de la Trinchera y Puerto de Escape Térmico
+function renderDeathStarCore(b) {
+    const pb = project3D(b.x, b.y, b.z);
+    if (!pb) return;
+    const scale = pb.scale;
+
+    ctx.save();
+    ctx.translate(pb.x, pb.y);
+
+    const fortW = Math.max(30, 80 * scale);
+    const fortH = Math.max(20, 50 * scale);
+
+    // Escudo deflector de energía pulsante
+    ctx.save();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+    ctx.lineWidth = Math.max(1.5, 2.5 * scale);
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, fortW * 0.7, fortH * 0.75, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Bastión fortificado imperial
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#1e293b';
+    ctx.fillRect(-fortW / 2, -fortH / 2, fortW, fortH);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = Math.max(1, 2 * scale);
+    ctx.strokeRect(-fortW / 2, -fortH / 2, fortW, fortH);
+
+    // Torretas turboláser gemelas superiores
+    ctx.fillStyle = '#64748b';
+    [-fortW * 0.3, fortW * 0.3].forEach(tx => {
+        ctx.beginPath();
+        ctx.arc(tx, -fortH * 0.5, 6 * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(tx - 2 * scale, -fortH * 0.5 - 8 * scale, 4 * scale, 8 * scale);
+    });
+
+    // Puerto de Escape Térmico (Thermal Exhaust Port) radiante
+    const portR = Math.max(5, 14 * scale);
+    ctx.save();
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(0, fortH * 0.25, portR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.arc(0, fortH * 0.25, portR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+}
+
+// Renderizado de Proyectiles del Jefe (Torpedos de Protones)
+function renderBossProjectile(bp) {
+    const p = project3D(bp.x, bp.y, bp.z);
+    if (!p) return;
+
+    const r = Math.max(2.5, bp.radius * p.scale);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    // Resplandor del torpedo
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Núcleo brillante
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Estela de humo y plasma
+    ctx.fillStyle = 'rgba(249, 115, 22, 0.45)';
+    ctx.beginPath();
+    ctx.arc(0, r * 1.8, r * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+// HUD de Jefe de Nivel (Alerta y Barra de Vida)
+function renderBossHUD() {
+    if (bossWarningTimer > 0) {
+        const pulse = Math.floor(Date.now() / 180) % 2 === 0;
+        ctx.save();
+        ctx.fillStyle = pulse ? 'rgba(239, 68, 68, 0.90)' : 'rgba(245, 158, 11, 0.90)';
+        ctx.fillRect(0, 112, CANVAS_WIDTH, 26);
+        ctx.fillStyle = '#050811';
+        ctx.fillRect(0, 115, CANVAS_WIDTH, 20);
+        ctx.fillStyle = pulse ? '#ffffff' : '#fde047';
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(bossWarningText, CANVAS_WIDTH / 2, 129);
+        ctx.restore();
+    }
+
+    if (currentBoss) {
+        ctx.save();
+        const barW = 220;
+        const barH = 7;
+        const barX = (CANVAS_WIDTH - barW) / 2;
+        const barY = 28;
+
+        // Marco metálico imperial
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(barX - 3, barY - 3, barW + 6, barH + 6);
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(barX - 3, barY - 3, barW + 6, barH + 6);
+
+        // Barra de energía
+        const hpRatio = Math.max(0, currentBoss.hp / currentBoss.maxHp);
+        const fillW = hpRatio * barW;
+        const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+        barGrad.addColorStop(0, hpRatio < 0.3 ? '#ef4444' : '#f59e0b');
+        barGrad.addColorStop(1, hpRatio < 0.3 ? '#b91c1c' : '#ef4444');
+        ctx.fillStyle = barGrad;
+        ctx.fillRect(barX, barY, fillW, barH);
+
+        // Texto con nombre del Jefe
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '6px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 4;
+        ctx.fillText(currentBoss.name, CANVAS_WIDTH / 2, barY - 6);
+        ctx.restore();
     }
 }
 
@@ -2018,16 +2646,63 @@ function update(dt) {
             }
         }
 
+        // Impacto contra el Jefe de Nivel
+        if (!hit && currentBoss && currentBoss.z <= 700) {
+            const b = currentBoss;
+            if (Math.abs(l.z - b.z) < 70) {
+                const distXY = Math.hypot(l.x - b.x, l.y - b.y);
+                const pl = project3D(l.x, l.y, l.z);
+                const pb = project3D(b.x, b.y, b.z);
+                const screenDist = (pl && pb) ? Math.hypot(pl.x - pb.x, pl.y - pb.y) : 999;
+                const bossHitR = (b.type === 'tie_advanced' ? 38 : (b.type === 'death_star_core' ? 56 : 42)) * (pb?.scale || 1) + 14;
+
+                if (distXY < 48 || screenDist < bossHitR) {
+                    hit = true;
+                    b.hp--;
+                    b.hitFlash = 0.15;
+                    createExplosion(l.x, l.y, l.z, 14, false);
+                    audio.playShieldHit();
+                    if (b.hp <= 0) {
+                        defeatBoss();
+                    }
+                }
+            }
+        }
+
+        // Impacto contra torpedos / misiles del Jefe
+        if (!hit && bossProjectiles.length > 0) {
+            for (let pIdx = bossProjectiles.length - 1; pIdx >= 0; pIdx--) {
+                const bp = bossProjectiles[pIdx];
+                if (Math.abs(l.z - bp.z) < 55) {
+                    const distXY = Math.hypot(l.x - bp.x, l.y - bp.y);
+                    const pl = project3D(l.x, l.y, l.z);
+                    const pbp = project3D(bp.x, bp.y, bp.z);
+                    const screenDist = (pl && pbp) ? Math.hypot(pl.x - pbp.x, pl.y - pbp.y) : 999;
+
+                    if (distXY < 28 || screenDist < (bp.radius * (pbp?.scale || 1) + 12)) {
+                        hit = true;
+                        GameState.score += 75;
+                        scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+                        createExplosion(bp.x, bp.y, bp.z, 18, false);
+                        bossProjectiles.splice(pIdx, 1);
+                        break;
+                    }
+                }
+            }
+        }
+
         if (hit || l.z > 960) {
             lasers.splice(i, 1);
         }
     }
 
-    // Actualizar Cazas TIE
-    enemySpawnTimer -= dt;
-    if (enemySpawnTimer <= 0) {
-        spawnEnemy();
-        enemySpawnTimer = Math.max(0.85, 2.0 - (GameState.kills * 0.03));
+    // Actualizar Cazas TIE (solo aparecen si no hay un jefe activo ni en advertencia)
+    if (!currentBoss && bossWarningTimer <= 0) {
+        enemySpawnTimer -= dt;
+        if (enemySpawnTimer <= 0) {
+            spawnEnemy();
+            enemySpawnTimer = Math.max(0.85, 2.0 - (GameState.kills * 0.03));
+        }
     }
 
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -2219,15 +2894,39 @@ function update(dt) {
         if (GameState.screenShake < 0) GameState.screenShake = 0;
     }
 
-    // Transición de etapas
-    GameState.stageProgress += dt;
-    if (GameState.kills >= 25 && GameState.stage === 1) {
-        GameState.stage = 2;
-        addFloatingScore('NIVEL 2: ASTEROID BELT', CANVAS_WIDTH / 2, 70, '#38bdf8');
-    } else if (GameState.kills >= 55 && GameState.stage === 2) {
-        GameState.stage = 3;
-        addFloatingScore('NIVEL 3: DEATH STAR TRENCH', CANVAS_WIDTH / 2, 70, '#f43f5e');
+    // Gestión del temporizador de advertencia de jefe
+    if (bossWarningTimer > 0) {
+        bossWarningTimer -= dt;
+        if (bossWarningTimer <= 0) {
+            bossWarningTimer = 0;
+            if (GameState.stage === 1) {
+                spawnBoss('tie_bomber');
+            } else if (GameState.stage === 2) {
+                spawnBoss('tie_advanced');
+            } else if (GameState.stage === 3) {
+                spawnBoss('death_star_core');
+            }
+        }
     }
+
+    // Comprobación de activación de jefes al final de cada nivel
+    if (!currentBoss && bossWarningTimer <= 0) {
+        if (GameState.stage === 1 && GameState.kills >= 12) {
+            triggerBossWarning('tie_bomber');
+        } else if (GameState.stage === 2 && GameState.kills >= 26) {
+            triggerBossWarning('tie_advanced');
+        } else if (GameState.stage === 3 && GameState.kills >= 42) {
+            triggerBossWarning('death_star_core');
+        }
+    }
+
+    // Actualizar Jefe de Nivel y sus proyectiles
+    if (currentBoss) {
+        updateBoss(dt);
+    }
+    updateBossProjectiles(dt);
+
+    GameState.stageProgress += dt;
 }
 
 function applyPowerup(type) {
@@ -2346,9 +3045,10 @@ function gameLoop(time) {
     // 7. Efectos de partículas, shockwaves y polvo
     renderParticles();
 
-    // 8. HUD Super Star Wars con Sable de Luz
+    // 8. HUD Super Star Wars con Sable de Luz y Barra de Jefe
     if (GameState.running && !GameState.gameOver) {
         renderSuperStarWarsHUD();
+        renderBossHUD();
     }
 
     ctx.restore();
@@ -2360,11 +3060,15 @@ function renderObstaclesAndEnemies() {
     const list = [];
     enemies.forEach(e => list.push({ type: 'enemy', z: e.z, obj: e }));
     obstacles.forEach(o => list.push({ type: 'obstacle', z: o.z, obj: o }));
+    if (currentBoss) list.push({ type: 'boss', z: currentBoss.z, obj: currentBoss });
+    bossProjectiles.forEach(bp => list.push({ type: 'boss_projectile', z: bp.z, obj: bp }));
 
     list.sort((a, b) => b.z - a.z); // Pintor 3D: lejanos primero
     list.forEach(item => {
         if (item.type === 'enemy') renderTIEFighter(item.obj);
-        else renderObstacle(item.obj);
+        else if (item.type === 'obstacle') renderObstacle(item.obj);
+        else if (item.type === 'boss') renderBoss(item.obj);
+        else if (item.type === 'boss_projectile') renderBossProjectile(item.obj);
     });
 }
 
@@ -2386,6 +3090,13 @@ function startNewGame(fromController = false) {
     GameState.stage = 1;
     GameState.stageProgress = 0;
     GameState.boost = false;
+
+    currentBoss = null;
+    bossWarningTimer = 0;
+    bossWarningText = '';
+    bossProjectiles = [];
+    GameState.victory = false;
+    gameOverTitle.style.color = '';
 
     Player.x = 0;
     Player.y = 0;
