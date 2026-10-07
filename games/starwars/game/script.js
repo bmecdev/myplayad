@@ -358,12 +358,15 @@ let particles = [];     // Chispas, fuego y restos de naves
 let wingDebris = [];    // Paneles solares hexagonales de TIE destruidos que giran
 let dustPuffs = [];     // Polvo del desierto levantado por los motores
 let floatingScores = [];
-let canyonRocks = [];   // Rocas y monolitos gigantes del cañón a los lados
+let canyonRocks = [];   // Rocas, monolitos y arcos gigantes del cañón
+let ambientDust = [];   // Motas doradas de polvo ambiental en el desierto
+let groundPebbles = []; // Gravilla 3D de alta velocidad en el suelo Mode 7
+let distantFlak = [];   // Fuego antiaéreo y destellos en el horizonte
 
 // Inicializar estrellas del espacio profundo
 function initStars() {
     stars = [];
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 140; i++) {
         stars.push({
             x: (Math.random() - 0.5) * 640,
             y: (Math.random() - 0.5) * 480,
@@ -377,15 +380,54 @@ function initStars() {
 // Inicializar monolitos del cañón desértico en los laterales
 function initCanyonRocks() {
     canyonRocks = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 12; i++) {
         const side = i % 2 === 0 ? -1 : 1;
+        const isArch = (i === 4 || i === 9); // Arcos de piedra colosales bajo los que volar
         canyonRocks.push({
-            x: side * (180 + Math.random() * 120),
-            y: 35 + Math.random() * 20,
-            z: (i * 90) + 100,
-            width: 35 + Math.random() * 25,
-            height: 90 + Math.random() * 40,
-            side: side
+            type: isArch ? 'arch' : (i % 3 === 0 ? 'mesa' : 'spire'),
+            side: side,
+            x: isArch ? 0 : side * (170 + Math.random() * 110),
+            y: isArch ? -18 : (32 + Math.random() * 18),
+            z: (i * 75) + 110,
+            width: isArch ? 270 : (42 + Math.random() * 26),
+            height: isArch ? 135 : (95 + Math.random() * 45),
+            strataSeed: Math.random()
+        });
+    }
+
+    // Inicializar motas de polvo ambiental del desierto
+    ambientDust = [];
+    for (let i = 0; i < 35; i++) {
+        ambientDust.push({
+            x: Math.random() * CANVAS_WIDTH,
+            y: HORIZON_Y + Math.random() * (CANVAS_HEIGHT - HORIZON_Y),
+            size: Math.random() * 1.8 + 0.8,
+            speedX: -(Math.random() * 32 + 18),
+            speedY: (Math.random() - 0.5) * 8,
+            alpha: Math.random() * 0.45 + 0.2
+        });
+    }
+
+    // Guijarros y gravilla del suelo en perspectiva 3D
+    groundPebbles = [];
+    for (let i = 0; i < 40; i++) {
+        groundPebbles.push({
+            x: (Math.random() - 0.5) * 460,
+            y: 44 + Math.random() * 12,
+            z: Math.random() * 850 + 40,
+            size: Math.random() * 2.2 + 1.0,
+            color: Math.random() > 0.5 ? '#7c2d12' : '#b45309'
+        });
+    }
+
+    distantFlak = [];
+    for (let i = 0; i < 6; i++) {
+        distantFlak.push({
+            x: (Math.random() - 0.5) * 400,
+            y: (Math.random() - 0.5) * 60,
+            z: Math.random() * 600 + 300,
+            life: Math.random() * 1.5,
+            color: Math.random() > 0.5 ? '#22c55e' : '#ef4444'
         });
     }
 }
@@ -586,126 +628,291 @@ function renderSuperStarWarsHUD() {
 }
 
 // 2. FONDO Y TERRENO PLANETARIO ESTILO MODE 7 CON MONOLITOS LATERALES
+// 2. FONDO Y TERRENO PLANETARIO ESTILO MODE 7 CON MONOLITOS LATERALES Y ALTO DETALLE
 function renderEnvironment(dt) {
-    GameState.worldScroll += (GameState.boost ? 560 : 270) * dt;
+    const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
+    GameState.worldScroll += (GameState.boost ? 580 : 280) * dt;
 
     if (GameState.stage === 1) {
-        // --- ETAPA 1: DESIERTO Y CAÑÓN DE TATOOINE ---
+        // --- ETAPA 1: DESIERTO Y CAÑÓN DE TATOOINE (SUPER STAR WARS STYLE) ---
 
-        // 1. Cielo crepuscular con gradiente cálido multicapa
+        // 1. Cielo crepuscular con gradiente cálido atmosférico multicapa
         const skyGrad = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
-        skyGrad.addColorStop(0, '#2d1b36');    // Violeta espacial
-        skyGrad.addColorStop(0.45, '#6b2d42'); // Magenta terracota
-        skyGrad.addColorStop(0.85, '#b45309'); // Ámbar dorado
-        skyGrad.addColorStop(1, '#d97706');    // Naranja horizonte
+        skyGrad.addColorStop(0, '#1a0d24');    // Noche violeta espacial
+        skyGrad.addColorStop(0.35, '#481532'); // Terracota vino
+        skyGrad.addColorStop(0.68, '#7e2a14'); // Óxido ámbar
+        skyGrad.addColorStop(0.88, '#c2410c'); // Naranja atardecer
+        skyGrad.addColorStop(1, '#f59e0b');    // Calima dorada del horizonte
         ctx.fillStyle = skyGrad;
         ctx.fillRect(0, 0, CANVAS_WIDTH, HORIZON_Y);
 
-        // 2. Soles gemelos de Tatooine
-        ctx.save();
-        ctx.shadowColor = '#fef08a';
-        ctx.shadowBlur = 14;
-        ctx.fillStyle = '#fef9c3';
+        // Estrellas ténues en la alta estratosfera
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        [
+            { x: 45, y: 18 }, { x: 92, y: 32 }, { x: 154, y: 14 },
+            { x: 215, y: 26 }, { x: 288, y: 16 }, { x: 345, y: 28 }
+        ].forEach(st => ctx.fillRect(st.x, st.y, 1.2, 1.2));
+
+        // 2. Soles gemelos de Tatooine con corona radiante y destello anamórfico
+        const sun1X = CANVAS_WIDTH * 0.65;
+        const sun1Y = HORIZON_Y - 50;
+
+        // Resplandor anamórfico horizontal
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.15)';
+        ctx.fillRect(0, sun1Y - 1, CANVAS_WIDTH, 2);
+
+        // Tatoo I (Sol Principal Dorado)
+        const coronaGrad = ctx.createRadialGradient(sun1X, sun1Y, 3, sun1X, sun1Y, 42);
+        coronaGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+        coronaGrad.addColorStop(0.25, 'rgba(254, 240, 138, 0.85)');
+        coronaGrad.addColorStop(0.65, 'rgba(249, 115, 22, 0.35)');
+        coronaGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = coronaGrad;
         ctx.beginPath();
-        ctx.arc(CANVAS_WIDTH * 0.65, HORIZON_Y - 48, 15, 0, Math.PI * 2);
+        ctx.arc(sun1X, sun1Y, 42, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.shadowColor = '#ea580c';
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = '#fb923c';
+        // Núcleo nuclear blanco-oro de Tatoo I
+        ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(CANVAS_WIDTH * 0.74, HORIZON_Y - 36, 9, 0, Math.PI * 2);
+        ctx.arc(sun1X, sun1Y, 13, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
+        ctx.strokeStyle = '#fef08a';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
-        // 3. Mesetas montañosas del cañón en el fondo
-        ctx.fillStyle = '#5c2429';
+        // Tatoo II (Sol Secundario de Cobre)
+        const sun2X = CANVAS_WIDTH * 0.76;
+        const sun2Y = HORIZON_Y - 36;
+        const corona2 = ctx.createRadialGradient(sun2X, sun2Y, 2, sun2X, sun2Y, 22);
+        corona2.addColorStop(0, '#fed7aa');
+        corona2.addColorStop(0.5, 'rgba(234, 88, 12, 0.6)');
+        corona2.addColorStop(1, 'transparent');
+        ctx.fillStyle = corona2;
+        ctx.beginPath();
+        ctx.arc(sun2X, sun2Y, 22, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.arc(sun2X, sun2Y, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. Cordillera lejana de picos montañosos en paralaje (Capa 1)
+        const pFarOffset = -Player.x * 0.03;
+        ctx.fillStyle = '#2f0f1b';
         ctx.beginPath();
         ctx.moveTo(0, HORIZON_Y);
-        ctx.lineTo(0, HORIZON_Y - 15);
-        ctx.lineTo(40, HORIZON_Y - 28);
-        ctx.lineTo(85, HORIZON_Y - 18);
-        ctx.lineTo(135, HORIZON_Y - 33);
-        ctx.lineTo(185, HORIZON_Y - 21);
-        ctx.lineTo(245, HORIZON_Y - 39);
-        ctx.lineTo(315, HORIZON_Y - 23);
-        ctx.lineTo(375, HORIZON_Y - 31);
-        ctx.lineTo(CANVAS_WIDTH, HORIZON_Y - 16);
+        ctx.lineTo(0, HORIZON_Y - 8);
+        ctx.lineTo(35 + pFarOffset, HORIZON_Y - 24);
+        ctx.lineTo(75 + pFarOffset, HORIZON_Y - 14);
+        ctx.lineTo(125 + pFarOffset, HORIZON_Y - 30);
+        ctx.lineTo(170 + pFarOffset, HORIZON_Y - 18);
+        ctx.lineTo(235 + pFarOffset, HORIZON_Y - 34);
+        ctx.lineTo(290 + pFarOffset, HORIZON_Y - 16);
+        ctx.lineTo(345 + pFarOffset, HORIZON_Y - 28);
+        ctx.lineTo(CANVAS_WIDTH, HORIZON_Y - 12);
         ctx.lineTo(CANVAS_WIDTH, HORIZON_Y);
         ctx.closePath();
         ctx.fill();
 
-        // 4. Sandcrawler de los Jawas en el horizonte
-        const crawlerX = ((CANVAS_WIDTH * 0.42) - (Player.x * 0.08));
-        const crawlerY = HORIZON_Y - 28;
-        ctx.fillStyle = '#3a171b';
+        // 4. Mesetas y riscos del Cañón de Beggar (Capa 2 con facetas iluminadas)
+        const pMidOffset = -Player.x * 0.07;
+        ctx.fillStyle = '#501720';
         ctx.beginPath();
-        ctx.moveTo(crawlerX - 22, HORIZON_Y);
-        ctx.lineTo(crawlerX - 22, crawlerY + 6);
-        ctx.lineTo(crawlerX - 14, crawlerY);
-        ctx.lineTo(crawlerX + 18, crawlerY);
-        ctx.lineTo(crawlerX + 24, crawlerY + 12);
-        ctx.lineTo(crawlerX + 26, HORIZON_Y);
+        ctx.moveTo(0, HORIZON_Y);
+        ctx.lineTo(0, HORIZON_Y - 12);
+        ctx.lineTo(48 + pMidOffset, HORIZON_Y - 22);
+        ctx.lineTo(92 + pMidOffset, HORIZON_Y - 14);
+        ctx.lineTo(138 + pMidOffset, HORIZON_Y - 26);
+        ctx.lineTo(188 + pMidOffset, HORIZON_Y - 16);
+        ctx.lineTo(248 + pMidOffset, HORIZON_Y - 30);
+        ctx.lineTo(312 + pMidOffset, HORIZON_Y - 18);
+        ctx.lineTo(370 + pMidOffset, HORIZON_Y - 24);
+        ctx.lineTo(CANVAS_WIDTH, HORIZON_Y - 10);
+        ctx.lineTo(CANVAS_WIDTH, HORIZON_Y);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = '#200c0f';
-        ctx.fillRect(crawlerX - 20, HORIZON_Y - 4, 44, 4);
-        ctx.fillStyle = '#fde047';
-        ctx.fillRect(crawlerX - 12, crawlerY + 3, 6, 2);
 
-        // 5. Suelo del desierto estilo Mode 7 con bandas de textura y perspectiva
+        // Facetas rocosas iluminadas por los soles
+        ctx.fillStyle = '#7a2530';
+        [-30, 60, 150, 260, 350].forEach(fx => {
+            const rx = fx + pMidOffset;
+            ctx.beginPath();
+            ctx.moveTo(rx, HORIZON_Y);
+            ctx.lineTo(rx + 14, HORIZON_Y - 18);
+            ctx.lineTo(rx + 24, HORIZON_Y - 18);
+            ctx.lineTo(rx + 16, HORIZON_Y);
+            ctx.closePath();
+            ctx.fill();
+        });
+
+        // Condensadores de humedad (Moisture Vaporators) silueteados en los riscos
+        [70, 210, 335].forEach(vx => {
+            const vPos = vx + pMidOffset;
+            ctx.fillStyle = '#1c070c';
+            ctx.fillRect(vPos, HORIZON_Y - 18, 1.8, 18); // Mástil
+            ctx.fillRect(vPos - 2.5, HORIZON_Y - 14, 7, 1.5); // Disco 1
+            ctx.fillRect(vPos - 2, HORIZON_Y - 9, 6, 1.5);   // Disco 2
+            // Luz roja parpadeante de baliza en la punta
+            if (Math.floor(Date.now() / 350) % 2 === 0) {
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(vPos - 0.5, HORIZON_Y - 20, 3, 2);
+            }
+        });
+
+        // 5. Sandcrawler Jawa con orugas detalladas y polvo
+        const crawlerX = (CANVAS_WIDTH * 0.40) - (Player.x * 0.07);
+        const crawlerY = HORIZON_Y - 26;
+
+        // Polvareda detrás del Sandcrawler
+        ctx.fillStyle = 'rgba(234, 88, 12, 0.25)';
+        ctx.beginPath();
+        ctx.ellipse(crawlerX - 28, HORIZON_Y - 4, 16, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Casco angular marrón herrumbre
+        ctx.fillStyle = '#3a1318';
+        ctx.beginPath();
+        ctx.moveTo(crawlerX - 22, HORIZON_Y);
+        ctx.lineTo(crawlerX - 22, crawlerY + 5);
+        ctx.lineTo(crawlerX - 14, crawlerY);
+        ctx.lineTo(crawlerX + 16, crawlerY);
+        ctx.lineTo(crawlerX + 22, crawlerY + 10);
+        ctx.lineTo(crawlerX + 24, HORIZON_Y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Placas de blindaje y orugas
+        ctx.fillStyle = '#220a0d';
+        ctx.fillRect(crawlerX - 20, HORIZON_Y - 5, 42, 5);
+        // Ventanal de la cabina de mando iluminado
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(crawlerX - 12, crawlerY + 3, 7, 2);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(crawlerX - 14, crawlerY + 6, 4, 1.5);
+
+        // 6. Suelo del desierto estilo Mode 7 con dunas ondulantes y huellas
         const groundH = CANVAS_HEIGHT - HORIZON_Y;
         const desertGrad = ctx.createLinearGradient(0, HORIZON_Y, 0, CANVAS_HEIGHT);
         desertGrad.addColorStop(0, '#9a3412');
         desertGrad.addColorStop(0.35, '#c2410c');
-        desertGrad.addColorStop(1, '#ea580c');
+        desertGrad.addColorStop(0.80, '#ea580c');
+        desertGrad.addColorStop(1, '#f97316');
         ctx.fillStyle = desertGrad;
         ctx.fillRect(0, HORIZON_Y, CANVAS_WIDTH, groundH);
 
-        // Bandas de textura pseudo Mode 7
+        // Ondulaciones y bandas de dunas en perspectiva
         for (let i = 0; i < groundH; i += 3) {
-            const stripe = Math.sin((i * 1.5) + (GameState.worldScroll * 0.12));
-            if (stripe > 0.3) {
-                ctx.fillStyle = 'rgba(254, 215, 170, 0.18)';
+            const wave = Math.sin((i * 0.18) + (GameState.worldScroll * 0.05));
+            if (wave > 0.25) {
+                const alpha = Math.min(0.28, (i / groundH) * 0.35);
+                ctx.fillStyle = `rgba(254, 215, 170, ${alpha.toFixed(2)})`;
                 ctx.fillRect(0, HORIZON_Y + i, CANVAS_WIDTH, 2);
             }
         }
 
-        // Líneas de huella y perspectiva
-        ctx.strokeStyle = 'rgba(124, 45, 18, 0.35)';
+        // Huellas de landspeeder y cañón en perspectiva hacia el horizonte
+        ctx.strokeStyle = 'rgba(124, 45, 18, 0.40)';
         ctx.lineWidth = 1.5;
         const centerOffset = -Player.x * 0.35;
-        [-160, -90, -35, 35, 90, 160].forEach(lx => {
+        [-170, -100, -40, 40, 100, 170].forEach(lx => {
             ctx.beginPath();
             ctx.moveTo((CANVAS_WIDTH / 2) + centerOffset * 0.1, HORIZON_Y);
             ctx.lineTo((CANVAS_WIDTH / 2) + lx + centerOffset, CANVAS_HEIGHT);
             ctx.stroke();
         });
 
-        // 6. Monolitos gigantes de roca a los lados del cañón que pasan a toda velocidad
-        const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
+        // Gravilla y guijarros en 3D que pasan a toda velocidad sobre la arena
+        groundPebbles.forEach(gp => {
+            const p = project3D(gp.x, gp.y, gp.z);
+            if (p && p.y > HORIZON_Y) {
+                ctx.fillStyle = gp.color;
+                const r = Math.max(1, gp.size * p.scale * 1.5);
+                ctx.fillRect(p.x, p.y, r, Math.max(1, r * 0.7));
+            }
+        });
+
+        // 7. Monolitos de roca 3D y Arcos Naturales Gigantes
         canyonRocks.forEach(r => {
-            r.z -= currentSpeed * dt * 0.9;
-            if (r.z <= 15) {
+            r.z -= currentSpeed * dt * 0.88;
+            if (r.z <= 12) {
                 r.z = 900;
-                r.x = r.side * (180 + Math.random() * 120);
+                if (r.type !== 'arch') {
+                    r.x = r.side * (160 + Math.random() * 110);
+                }
             }
             const p = project3D(r.x, r.y, r.z);
-            if (p && p.scale > 0.1) {
-                const rw = r.width * p.scale;
-                const rh = r.height * p.scale;
-                ctx.fillStyle = '#7c2d12';
+            if (!p || p.scale <= 0.08) return;
+
+            const rw = r.width * p.scale;
+            const rh = r.height * p.scale;
+
+            if (r.type === 'arch') {
+                // Arco natural de piedra colosal: el Halcón vuela por debajo
+                ctx.save();
+                ctx.translate(p.x, p.y);
+
+                // Columna izquierda
+                ctx.fillStyle = '#651f1f';
+                ctx.fillRect(-rw / 2, -rh, rw * 0.22, rh);
+                // Columna derecha (iluminada por los soles)
+                ctx.fillStyle = '#8e2e25';
+                ctx.fillRect(rw / 2 - rw * 0.22, -rh, rw * 0.22, rh);
+
+                // Puente superior del arco
+                ctx.fillStyle = '#7a2522';
+                ctx.fillRect(-rw / 2, -rh, rw, rh * 0.28);
+                // Curvatura del arco interior
                 ctx.strokeStyle = '#431407';
-                ctx.lineWidth = Math.max(1, 1.5 * p.scale);
+                ctx.lineWidth = Math.max(1, 1.8 * p.scale);
+                ctx.strokeRect(-rw / 2, -rh, rw, rh * 0.28);
+
+                ctx.restore();
+            } else {
+                // Monolito / Aguja rocosa estratificada con bandas de sedimentos
+                const left = p.x - rw / 2;
+                const top = p.y - rh;
+
+                // Sombra en el lado izquierdo
+                ctx.fillStyle = '#4c151b';
                 ctx.beginPath();
-                ctx.moveTo(p.x - rw / 2, p.y);
-                ctx.lineTo(p.x - rw * 0.3, p.y - rh);
-                ctx.lineTo(p.x + rw * 0.3, p.y - rh);
-                ctx.lineTo(p.x + rw / 2, p.y);
+                ctx.moveTo(left, p.y);
+                ctx.lineTo(p.x - rw * 0.1, top);
+                ctx.lineTo(p.x, top);
+                ctx.lineTo(p.x, p.y);
                 ctx.closePath();
                 ctx.fill();
+
+                // Cara derecha iluminada por los soles
+                ctx.fillStyle = '#8f2c25';
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x, top);
+                ctx.lineTo(p.x + rw * 0.25, top);
+                ctx.lineTo(left + rw, p.y);
+                ctx.closePath();
+                ctx.fill();
+
+                // Bandas horizontales de estrato geológico
+                ctx.fillStyle = '#b45309';
+                ctx.fillRect(left + rw * 0.08, top + rh * 0.35, rw * 0.84, Math.max(1.5, 3.5 * p.scale));
+                ctx.fillStyle = '#5c1d1d';
+                ctx.fillRect(left + rw * 0.05, top + rh * 0.65, rw * 0.90, Math.max(1.5, 4.0 * p.scale));
+
+                // Borde chiseled
+                ctx.strokeStyle = '#320d12';
+                ctx.lineWidth = Math.max(1, 1.2 * p.scale);
                 ctx.stroke();
             }
+        });
+
+        // 8. Motas de polvo ambiental dorado flotando en el aire
+        ambientDust.forEach(ad => {
+            ctx.fillStyle = `rgba(254, 215, 170, ${ad.alpha.toFixed(2)})`;
+            ctx.beginPath();
+            ctx.arc(ad.x, ad.y, ad.size, 0, Math.PI * 2);
+            ctx.fill();
         });
 
     } else if (GameState.stage === 2) {
@@ -713,60 +920,192 @@ function renderEnvironment(dt) {
         ctx.fillStyle = '#020409';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        const nebGrad = ctx.createRadialGradient(CANVAS_WIDTH * 0.35, HORIZON_Y * 0.7, 10, CANVAS_WIDTH * 0.35, HORIZON_Y * 0.7, 140);
-        nebGrad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
-        nebGrad.addColorStop(0.5, 'rgba(139, 92, 246, 0.14)');
-        nebGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = nebGrad;
+        // Nebulosas cósmicas volumétricas en capas multicromáticas
+        const neb1 = ctx.createRadialGradient(CANVAS_WIDTH * 0.30, HORIZON_Y * 0.6, 8, CANVAS_WIDTH * 0.30, HORIZON_Y * 0.6, 160);
+        neb1.addColorStop(0, 'rgba(6, 182, 212, 0.25)'); // Cyan estelar
+        neb1.addColorStop(0.5, 'rgba(139, 92, 246, 0.16)'); // Violeta cósmico
+        neb1.addColorStop(1, 'transparent');
+        ctx.fillStyle = neb1;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Destructor Estelar
-        const isdX = CANVAS_WIDTH * 0.72 - Player.x * 0.05;
-        const isdY = HORIZON_Y - 35;
+        const neb2 = ctx.createRadialGradient(CANVAS_WIDTH * 0.75, HORIZON_Y * 0.9, 5, CANVAS_WIDTH * 0.75, HORIZON_Y * 0.9, 130);
+        neb2.addColorStop(0, 'rgba(236, 72, 153, 0.18)'); // Magenta galáctico
+        neb2.addColorStop(0.6, 'rgba(59, 130, 246, 0.10)');
+        neb2.addColorStop(1, 'transparent');
+        ctx.fillStyle = neb2;
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Planeta gigante gaseoso / Tatooine en órbita lejana
+        const planetX = CANVAS_WIDTH * 0.82 - Player.x * 0.04;
+        const planetY = 58;
+        const planetR = 28;
+
+        // Atmósfera exterior
+        ctx.save();
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 12;
         ctx.fillStyle = '#0f172a';
-        ctx.strokeStyle = '#334155';
+        ctx.beginPath();
+        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Gradiente superficial del planeta con media luna
+        const planetGrad = ctx.createLinearGradient(planetX - planetR, planetY - planetR, planetX + planetR, planetY + planetR);
+        planetGrad.addColorStop(0, '#38bdf8');
+        planetGrad.addColorStop(0.4, '#0369a1');
+        planetGrad.addColorStop(0.75, '#082f49');
+        planetGrad.addColorStop(1, '#020617');
+        ctx.fillStyle = planetGrad;
+        ctx.beginPath();
+        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Destructor Estelar Imperial (Imperial Star Destroyer) en el fondo
+        const isdX = CANVAS_WIDTH * 0.68 - Player.x * 0.05;
+        const isdY = HORIZON_Y - 32;
+
+        ctx.save();
+        // Casco principal triangular
+        ctx.fillStyle = '#1e293b';
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(isdX, isdY);
-        ctx.lineTo(isdX - 45, isdY + 18);
-        ctx.lineTo(isdX + 45, isdY + 18);
+        ctx.lineTo(isdX - 48, isdY + 20);
+        ctx.lineTo(isdX + 48, isdY + 20);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.fillRect(isdX - 10, isdY + 8, 20, 6);
+
+        // Torre de mando de puente y generadores de escudo
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(isdX - 12, isdY + 8, 24, 7);
+        // Cúpulas de escudo
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(isdX - 10, isdY + 6, 4, 3);
+        ctx.fillRect(isdX + 6, isdY + 6, 4, 3);
+
+        // Toberas de los 3 motores de iones cyan brillantes
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = '#00f0ff';
+        [-8, 0, 8].forEach(ex => {
+            ctx.beginPath();
+            ctx.arc(isdX + ex, isdY + 20, 2, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.restore();
+
+        // Destellos aleatorios de fuego antiaéreo distante (Flak)
+        if (Math.random() < 0.12) {
+            const fx = isdX + (Math.random() - 0.5) * 80;
+            const fy = isdY + (Math.random() - 0.5) * 40;
+            ctx.fillStyle = Math.random() > 0.5 ? '#22c55e' : '#ef4444';
+            ctx.fillRect(fx, fy, 2, 2);
+        }
 
     } else {
-        // --- ETAPA 3: TRINCHERA DE LA ESTRELLA DE LA MUERTE ---
-        ctx.fillStyle = '#030712';
+        // --- ETAPA 3: TRINCHERA DE LA ESTRELLA DE LA MUERTE (DEATH STAR TRENCH RUN) ---
+        ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, CANVAS_WIDTH, HORIZON_Y);
 
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, HORIZON_Y - 25, CANVAS_WIDTH, CANVAS_HEIGHT - HORIZON_Y + 25);
+        // Estrellas en el espacio exterior sobre la trinchera
+        ctx.fillStyle = '#ffffff';
+        [
+            { x: 30, y: 25 }, { x: 85, y: 15 }, { x: 140, y: 35 },
+            { x: 230, y: 20 }, { x: 310, y: 40 }, { x: 370, y: 15 }
+        ].forEach(st => ctx.fillRect(st.x, st.y, 1, 1));
 
-        ctx.strokeStyle = '#0284c7';
+        // Superficie exterior y murallas de la trinchera
+        const trenchTopY = HORIZON_Y - 20;
+
+        // Pared izquierda de la trinchera con greebles mecánicos
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.moveTo(0, trenchTopY);
+        ctx.lineTo(CANVAS_WIDTH * 0.30, HORIZON_Y);
+        ctx.lineTo(CANVAS_WIDTH * 0.12, CANVAS_HEIGHT);
+        ctx.lineTo(0, CANVAS_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+
+        // Pared derecha de la trinchera
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_WIDTH, trenchTopY);
+        ctx.lineTo(CANVAS_WIDTH * 0.70, HORIZON_Y);
+        ctx.lineTo(CANVAS_WIDTH * 0.88, CANVAS_HEIGHT);
+        ctx.lineTo(CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+
+        // Suelo metálico de la trinchera
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_WIDTH * 0.30, HORIZON_Y);
+        ctx.lineTo(CANVAS_WIDTH * 0.70, HORIZON_Y);
+        ctx.lineTo(CANVAS_WIDTH * 0.88, CANVAS_HEIGHT);
+        ctx.lineTo(CANVAS_WIDTH * 0.12, CANVAS_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+
+        // Canal central de escape térmico (Thermal Exhaust Channel)
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_WIDTH * 0.47, HORIZON_Y);
+        ctx.lineTo(CANVAS_WIDTH * 0.53, HORIZON_Y);
+        ctx.lineTo(CANVAS_WIDTH * 0.56, CANVAS_HEIGHT);
+        ctx.lineTo(CANVAS_WIDTH * 0.44, CANVAS_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+
+        // Rejillas de perspectiva y paneles greebles en el suelo
+        ctx.strokeStyle = '#0369a1';
         ctx.lineWidth = 1;
-        for (let x = 30; x < CANVAS_WIDTH; x += 38) {
+        for (let y = HORIZON_Y; y < CANVAS_HEIGHT; y += 14) {
+            const progress = (y - HORIZON_Y) / (CANVAS_HEIGHT - HORIZON_Y);
+            const xLeft = (CANVAS_WIDTH * 0.30) - (progress * 72);
+            const xRight = (CANVAS_WIDTH * 0.70) + (progress * 72);
             ctx.beginPath();
-            ctx.moveTo(CANVAS_WIDTH / 2, HORIZON_Y);
-            ctx.lineTo(x, CANVAS_HEIGHT);
+            ctx.moveTo(xLeft, y);
+            ctx.lineTo(xRight, y);
             ctx.stroke();
         }
+
+        // Balizas luminosas rojas y ámbar parpadeando en la cresta de la trinchera
+        const beaconPulse = Math.floor(Date.now() / 250) % 2 === 0;
+        ctx.fillStyle = beaconPulse ? '#ef4444' : '#f59e0b';
+        ctx.fillRect(CANVAS_WIDTH * 0.30, HORIZON_Y - 4, 3, 3);
+        ctx.fillRect(CANVAS_WIDTH * 0.70, HORIZON_Y - 4, 3, 3);
+        ctx.fillRect(CANVAS_WIDTH * 0.18, HORIZON_Y + 50, 4, 4);
+        ctx.fillRect(CANVAS_WIDTH * 0.82, HORIZON_Y + 50, 4, 4);
+
+        // Torres turboláser imperiales en las paredes
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(CANVAS_WIDTH * 0.85, HORIZON_Y + 70, 16, 12);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(CANVAS_WIDTH * 0.83, HORIZON_Y + 73, 8, 2.5);
     }
 
-    // Estrellas volando hacia el jugador
+    // Estrellas volando hacia el jugador con efecto warp durante el hiperespacio (Turbo)
     stars.forEach(s => {
         const p = project3D(s.x, s.y, s.z);
         if (p) {
             ctx.fillStyle = s.color;
             if (GameState.boost) {
-                const pPrev = project3D(s.x, s.y, s.z + 65);
+                const pPrev = project3D(s.x, s.y, s.z + 85);
                 if (pPrev) {
-                    ctx.strokeStyle = s.color;
-                    ctx.lineWidth = Math.max(1, p.scale * 2.2);
+                    ctx.save();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.shadowColor = '#00f0ff';
+                    ctx.shadowBlur = 8;
+                    ctx.lineWidth = Math.max(1.5, p.scale * 2.8);
                     ctx.beginPath();
                     ctx.moveTo(pPrev.x, pPrev.y);
                     ctx.lineTo(p.x, p.y);
                     ctx.stroke();
+                    ctx.restore();
                 }
             } else {
                 const r = Math.max(0.7, s.size * p.scale * 1.6);
@@ -1011,41 +1350,69 @@ function renderTargetingHUD() {
     const crosshairY = HORIZON_Y + Player.y * 0.35;
 
     let targetLocked = false;
+    let lockedEnemy = null;
     enemies.forEach(e => {
         if (e.z > 100 && e.z < 650) {
             const p = project3D(e.x, e.y, e.z);
-            if (p && Math.hypot(p.x - crosshairX, p.y - crosshairY) < 28) {
+            if (p && Math.hypot(p.x - crosshairX, p.y - crosshairY) < 32) {
                 targetLocked = true;
+                lockedEnemy = { e, p };
                 GameState.lockedTarget = p;
             }
         }
     });
 
-    const reticleColor = targetLocked ? '#ef4444' : 'rgba(56, 189, 248, 0.65)';
+    const reticleColor = targetLocked ? '#ef4444' : 'rgba(56, 189, 248, 0.75)';
+    ctx.save();
     ctx.strokeStyle = reticleColor;
     ctx.lineWidth = 1.5;
+    ctx.shadowColor = reticleColor;
+    ctx.shadowBlur = targetLocked ? 10 : 4;
 
+    // Círculo de mira central
     ctx.beginPath();
     ctx.arc(crosshairX, crosshairY, 14, 0, Math.PI * 2);
     ctx.stroke();
 
+    // Cruz de puntería con muescas vectoriales
     ctx.beginPath();
-    ctx.moveTo(crosshairX - 20, crosshairY);
+    ctx.moveTo(crosshairX - 22, crosshairY);
     ctx.lineTo(crosshairX - 5, crosshairY);
     ctx.moveTo(crosshairX + 5, crosshairY);
-    ctx.lineTo(crosshairX + 20, crosshairY);
-    ctx.moveTo(crosshairX, crosshairY - 20);
+    ctx.lineTo(crosshairX + 22, crosshairY);
+    ctx.moveTo(crosshairX, crosshairY - 22);
     ctx.lineTo(crosshairX, crosshairY - 5);
     ctx.moveTo(crosshairX, crosshairY + 5);
-    ctx.lineTo(crosshairX, crosshairY + 20);
+    ctx.lineTo(crosshairX, crosshairY + 22);
     ctx.stroke();
 
-    if (targetLocked) {
+    if (targetLocked && lockedEnemy) {
+        const ep = lockedEnemy.p;
+        const boxR = Math.max(16, 28 * ep.scale);
+        // Corchetes de computadora de tiro estilo Star Wars
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+
+        // Esquinas de blanco fijado
+        [-boxR, boxR].forEach(bx => {
+            [-boxR, boxR].forEach(by => {
+                const dirX = bx > 0 ? -6 : 6;
+                const dirY = by > 0 ? -6 : 6;
+                ctx.beginPath();
+                ctx.moveTo(ep.x + bx, ep.y + by + dirY);
+                ctx.lineTo(ep.x + bx, ep.y + by);
+                ctx.lineTo(ep.x + bx + dirX, ep.y + by);
+                ctx.stroke();
+            });
+        });
+
+        // Lectura de distancia digital
         ctx.fillStyle = '#ef4444';
         ctx.font = '6px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('[ LOCK ]', crosshairX, crosshairY - 22);
+        ctx.fillText(`LOCK: ${Math.round(lockedEnemy.e.z)}m`, crosshairX, crosshairY - 26);
     }
+    ctx.restore();
 }
 
 // 4. RENDERIZADO DEL CAZA TIE IMPERIAL (TODOS SON EL MISMO Y AUTÉNTICO CAZA TIE 3D)
@@ -1564,6 +1931,23 @@ function update(dt) {
             s.y = (Math.random() - 0.5) * 480;
         }
     });
+
+    if (GameState.stage === 1) {
+        groundPebbles.forEach(gp => {
+            gp.z -= currentSpeed * dt;
+            if (gp.z <= 12) {
+                gp.z = 850;
+                gp.x = (Math.random() - 0.5) * 460;
+            }
+        });
+        ambientDust.forEach(ad => {
+            ad.x += ad.speedX * dt;
+            ad.y += ad.speedY * dt;
+            if (ad.x < -10) ad.x = CANVAS_WIDTH + 10;
+            if (ad.y < HORIZON_Y) ad.y = CANVAS_HEIGHT;
+            if (ad.y > CANVAS_HEIGHT + 10) ad.y = HORIZON_Y;
+        });
+    }
 
     // Actualizar láseres del Halcón
     for (let i = lasers.length - 1; i >= 0; i--) {
