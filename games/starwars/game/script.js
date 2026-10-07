@@ -53,13 +53,14 @@ let gameOverTimeout = null;
 
 // Jugador: El Halcón Milenario (YT-1300)
 const Player = {
-    x: 0,          // -140 a +140
-    y: 35,         // -55 a +65
+    x: 0,          // -140 a +140 (desplazamiento horizontal)
+    y: 0,          // -110 (gran altitud / cielo abierto) a +48 (vuelo rasante sobre la arena)
     vx: 0,
     vy: 0,
     roll: 0,       // Inclinación lateral (banking)
     targetRoll: 0,
-    pitch: 0,
+    pitch: 0,      // Inclinación vertical (cabeceo de ascenso / descenso)
+    targetPitch: 0,
     recoil: 0,
     muzzleFlash: 0,
     isFiring: false,
@@ -782,32 +783,44 @@ function renderMillenniumFalcon(dt) {
     const cx = (CANVAS_WIDTH / 2) + Player.x;
     const cy = (CANVAS_HEIGHT * 0.77) + Player.y;
 
-    // Sombra en el suelo
+    // Sombra en el suelo según altitud (Etapa 1: Cañón del Desierto de Tatooine)
     if (GameState.stage === 1) {
-        const shadowY = Math.min(CANVAS_HEIGHT - 12, cy + 38);
-        const shadowScale = Math.max(0.6, 1 - (Player.y + 40) / 200);
-        ctx.fillStyle = 'rgba(67, 20, 7, 0.45)';
+        const groundY = CANVAS_HEIGHT - 18;
+        const altitude = Math.max(12, groundY - cy);
+        const altitudeFactor = Math.min(1, Math.max(0, (altitude - 15) / 150));
+        const shadowScale = Math.max(0.42, 1.0 - (altitudeFactor * 0.55));
+        const shadowAlpha = Math.max(0.12, 0.48 - (altitudeFactor * 0.34));
+        const shadowY = groundY + (Player.y * 0.08);
+
+        ctx.fillStyle = `rgba(67, 20, 7, ${shadowAlpha.toFixed(2)})`;
         ctx.beginPath();
-        ctx.ellipse(cx, shadowY, 46 * shadowScale, 14 * shadowScale, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, shadowY, 48 * shadowScale, 14 * shadowScale, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        Player.thrusterFlicker += dt * 30;
-        if (Math.random() < 0.45) {
-            dustPuffs.push({
-                x: cx + (Math.random() - 0.5) * 55,
-                y: shadowY + (Math.random() - 0.5) * 6,
-                vx: (Math.random() - 0.5) * 35,
-                vy: -Math.random() * 20 - 10,
-                life: 0.35,
-                maxLife: 0.35,
-                size: Math.random() * 4 + 2
-            });
+        // Ráfagas de polvo del motor cuando vuela rasante cerca del suelo
+        if (altitudeFactor < 0.35) {
+            Player.thrusterFlicker += dt * 30;
+            if (Math.random() < 0.45 * (1 - altitudeFactor / 0.35)) {
+                dustPuffs.push({
+                    x: cx + (Math.random() - 0.5) * 55,
+                    y: shadowY + (Math.random() - 0.5) * 6,
+                    vx: (Math.random() - 0.5) * 35,
+                    vy: -Math.random() * 20 - 10,
+                    life: 0.35,
+                    maxLife: 0.35,
+                    size: Math.random() * 4 + 2
+                });
+            }
         }
     }
 
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(Player.roll);
+
+    // Perspectiva y pitch al subir (ascenso) o bajar (descenso):
+    const pitchScaleY = 1.0 - (Player.pitch * 0.22);
+    ctx.scale(1 - Math.abs(Player.roll) * 0.08, pitchScaleY);
 
     if (Player.invulnerableTime > 0 && Math.floor(Date.now() / 70) % 2 === 0) {
         ctx.globalAlpha = 0.4;
@@ -829,9 +842,10 @@ function renderMillenniumFalcon(dt) {
         ctx.restore();
     }
 
-    // Motor subluz azul cyan
+    // Motor subluz azul cyan (mayor resplandor al ascender o con turbo)
+    const isClimbing = Player.pitch < -0.05;
     const isBoost = GameState.boost;
-    const engineGlowRadius = isBoost ? 20 : 10;
+    const engineGlowRadius = isBoost ? 22 : (isClimbing ? 15 : 10);
     ctx.save();
     ctx.shadowColor = '#00f0ff';
     ctx.shadowBlur = engineGlowRadius;
@@ -850,8 +864,9 @@ function renderMillenniumFalcon(dt) {
     // Llamas de plasma
     const flameColor = isBoost ? '#67e8f9' : '#38bdf8';
     ctx.fillStyle = flameColor;
+    const climbBonus = isClimbing ? 6 : 0;
     for (let i = -28; i <= 28; i += 7) {
-        const flameLen = (Math.sin(Player.thrusterFlicker + i) * 0.5 + 0.5) * (isBoost ? 18 : 8) + 5;
+        const flameLen = (Math.sin(Player.thrusterFlicker + i) * 0.5 + 0.5) * (isBoost ? 18 : 8) + 5 + climbBonus;
         ctx.fillRect(i, 22, 4, flameLen);
     }
 
@@ -1499,7 +1514,8 @@ function update(dt) {
     const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
     audio.updateEngineSound(currentSpeed, GameState.boost);
 
-    const moveSpeed = 195 * dt;
+    const moveSpeedX = 205 * dt;
+    const moveSpeedY = 185 * dt;
     let dx = 0;
     let dy = 0;
 
@@ -1511,14 +1527,22 @@ function update(dt) {
     if (Player.vx !== 0) dx = Player.vx;
     if (Player.vy !== 0) dy = Player.vy;
 
-    Player.x += dx * moveSpeed;
-    Player.y += dy * moveSpeed;
+    Player.x += dx * moveSpeedX;
+    Player.y += dy * moveSpeedY;
 
+    // Límites de pantalla:
+    // X: de -140 a +140
+    // Y: de -110 (alta altitud cerca del horizonte) a +48 (rasante sobre el suelo)
     Player.x = Math.max(-140, Math.min(140, Player.x));
-    Player.y = Math.max(-50, Math.min(65, Player.y));
+    Player.y = Math.max(-110, Math.min(48, Player.y));
 
+    // Inclinación lateral (Roll / Banking)
     Player.targetRoll = dx * 0.40;
     Player.roll += (Player.targetRoll - Player.roll) * 12 * dt;
+
+    // Cabeceo vertical (Pitch / Ascenso y Descenso)
+    Player.targetPitch = dy * 0.24;
+    Player.pitch += (Player.targetPitch - Player.pitch) * 10 * dt;
 
     if (Player.invulnerableTime > 0) Player.invulnerableTime -= dt;
     if (Player.shieldFlash > 0) Player.shieldFlash -= dt;
@@ -1980,10 +2004,13 @@ function startNewGame(fromController = false) {
     GameState.boost = false;
 
     Player.x = 0;
-    Player.y = 35;
+    Player.y = 0;
     Player.vx = 0;
     Player.vy = 0;
     Player.roll = 0;
+    Player.targetRoll = 0;
+    Player.pitch = 0;
+    Player.targetPitch = 0;
     Player.invulnerableTime = 2.0;
     Player.spreadTimer = 0;
 
@@ -2015,8 +2042,11 @@ function startNewGame(fromController = false) {
 // ==============================================================================
 
 window.addEventListener('keydown', (e) => {
-    if (audio.init) audio.init();
     const key = e.key.toLowerCase();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 's', 'a', 'd', ' ', 'enter'].includes(key) || e.code === 'Space') {
+        e.preventDefault();
+    }
+    if (audio.init) audio.init();
 
     if (key === 'arrowleft' || key === 'a') Keys.left = true;
     if (key === 'arrowright' || key === 'd') Keys.right = true;
