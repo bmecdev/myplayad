@@ -32,8 +32,8 @@ const GameState = {
     gameOver: false,
     score: 0,
     highScore: 0,
-    shields: 4,
-    maxShields: 4,
+    shields: 6,
+    maxShields: 6,
     kills: 0,
     stage: 1, // 1: Tatooine Desert Canyon, 2: Asteroid Belt, 3: Death Star Trench
     stageProgress: 0,
@@ -415,6 +415,7 @@ let currentBoss = null;
 let bossWarningTimer = 0;
 let bossWarningText = '';
 let bossProjectiles = []; // Torpedos de protones y misiles de los jefes
+let lifeSpawnTimer = 8;     // Temporizador para que aparezcan vidas periódicamente en cada nivel
 
 // Inicializar estrellas del espacio profundo
 function initStars() {
@@ -644,7 +645,7 @@ function updateBossProjectiles(dt) {
                 const dx = pl.x - falconScreenPos.x;
                 const dy = (pl.y - falconScreenPos.y) * 1.4;
                 if (Math.hypot(dx, dy) < 42) {
-                    damagePlayer();
+                    damagePlayer(0.7);
                     createExplosion(bp.x, bp.y, bp.z, 22, true);
                     bossProjectiles.splice(i, 1);
                     continue;
@@ -671,6 +672,9 @@ function defeatBoss() {
     setTimeout(() => createExplosion(bx - 25, by + 10, bz, 35, true), 140);
     setTimeout(() => createExplosion(bx + 25, by - 12, bz, 35, true), 280);
 
+    // Recompensa de vida garantizada al destruir al jefe
+    spawnLifeCapsule(bx, by, bz);
+
     let pts = 2500;
     if (bossType === 'tie_bomber') {
         pts = 2500;
@@ -681,6 +685,8 @@ function defeatBoss() {
         setTimeout(() => {
             GameState.stage = 2;
             addFloatingScore('NIVEL 2: ASTEROID BELT', CANVAS_WIDTH / 2, 70, '#38bdf8');
+            spawnLifeCapsule(0, 0, 750); // Cápsula de vida de bienvenida al nivel 2
+            lifeSpawnTimer = 6;
         }, 1600);
     } else if (bossType === 'tie_advanced') {
         pts = 4000;
@@ -691,6 +697,8 @@ function defeatBoss() {
         setTimeout(() => {
             GameState.stage = 3;
             addFloatingScore('NIVEL 3: DEATH STAR TRENCH', CANVAS_WIDTH / 2, 70, '#f43f5e');
+            spawnLifeCapsule(0, 0, 750); // Cápsula de vida de bienvenida al nivel 3
+            lifeSpawnTimer = 6;
         }, 1600);
     } else {
         pts = 8000;
@@ -773,9 +781,30 @@ function spawnObstacle() {
     });
 }
 
+function spawnLifeCapsule(x, y, z) {
+    powerups.push({
+        type: 'life',
+        x: x !== undefined ? x : (Math.random() - 0.5) * 220,
+        y: y !== undefined ? y : (Math.random() - 0.5) * 80,
+        z: z !== undefined ? z : 880,
+        speed: 160
+    });
+}
+
 function spawnPowerup(x, y, z) {
-    const types = ['shield', 'spread', 'turbo'];
-    const type = types[Math.floor(Math.random() * types.length)];
+    // Si la nave ha sufrido daños, priorizar cápsulas de vida para recuperar
+    const rand = Math.random();
+    let type = 'life';
+    if (GameState.shields < GameState.maxShields) {
+        if (rand < 0.60) type = 'life';
+        else if (rand < 0.82) type = 'spread';
+        else type = 'turbo';
+    } else {
+        if (rand < 0.35) type = 'life';
+        else if (rand < 0.70) type = 'spread';
+        else type = 'turbo';
+    }
+
     powerups.push({
         type: type,
         x: x,
@@ -905,11 +934,11 @@ function renderSuperStarWarsHUD() {
         ctx.restore();
     }
 
-    // Texto de Escudos
+    // Texto de Vidas / Escudos
     ctx.fillStyle = '#38bdf8';
     ctx.font = '7px "Press Start 2P", monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`SHIELDS: ${GameState.shields}`, saberX + hiltW + maxBladeW + 8, saberY + 6);
+    ctx.fillText(`VIDAS: ${Math.ceil(GameState.shields)}`, saberX + hiltW + maxBladeW + 8, saberY + 6);
 
     // Marcador de Cazas TIE Destruidos
     ctx.fillStyle = '#ef4444';
@@ -2253,18 +2282,21 @@ function renderObstacle(o) {
     ctx.restore();
 }
 
-// 7. RENDERIZADO DE POWER-UPS
+// 7. RENDERIZADO DE POWER-UPS Y CÁPSULAS DE VIDA
 function renderPowerup(pu) {
     const p = project3D(pu.x, pu.y, pu.z);
     if (!p) return;
 
-    const size = Math.max(6, 17 * p.scale);
+    const size = Math.max(7, 18 * p.scale);
     ctx.save();
     ctx.translate(p.x, p.y);
 
-    let color = '#38bdf8';
-    let icon = '🛡️';
-    if (pu.type === 'spread') {
+    let color = '#22c55e';
+    let icon = '❤️';
+    if (pu.type === 'shield') {
+        color = '#38bdf8';
+        icon = '🛡️';
+    } else if (pu.type === 'spread') {
         color = '#f59e0b';
         icon = '⚡';
     } else if (pu.type === 'turbo') {
@@ -2272,18 +2304,29 @@ function renderPowerup(pu) {
         icon = '🚀';
     }
 
+    // Aura pulsante de energía
+    const pulse = Math.sin(Date.now() * 0.009) * 0.18 + 0.95;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1.8, 2.6 * p.scale);
     ctx.shadowColor = color;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.shadowBlur = Math.max(8, 14 * p.scale);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
     ctx.beginPath();
-    ctx.arc(0, 0, size, 0, Math.PI * 2);
+    ctx.arc(0, 0, size * pulse, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
-    ctx.font = `${Math.max(8, Math.floor(size * 1.15))}px sans-serif`;
+    // Anillo orbital exterior brillante
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.65;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, (size + 4 * p.scale) * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+
+    ctx.shadowBlur = 0;
+    ctx.font = `${Math.max(9, Math.floor(size * 1.15))}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(icon, 0, 0);
@@ -2606,8 +2649,12 @@ function update(dt) {
                         addFloatingScore(`+${pts}`, (CANVAS_WIDTH / 2) + e.x * (FOV / e.z), HORIZON_Y + e.y * (FOV / e.z));
                         createExplosion(e.x, e.y, e.z, 30, true);
 
-                        if (Math.random() < 0.3) {
-                            spawnPowerup(e.x, e.y, e.z);
+                        if (Math.random() < 0.45) {
+                            if (GameState.shields < GameState.maxShields && Math.random() < 0.75) {
+                                spawnLifeCapsule(e.x, e.y, e.z);
+                            } else {
+                                spawnPowerup(e.x, e.y, e.z);
+                            }
                         }
                         enemies.splice(j, 1);
                     } else {
@@ -2636,6 +2683,9 @@ function update(dt) {
                             scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
                             addFloatingScore('+100', (CANVAS_WIDTH / 2) + o.x * (FOV / o.z), HORIZON_Y + o.y * (FOV / o.z));
                             createExplosion(o.x, o.y, o.z, 20, false);
+                            if (Math.random() < 0.35) {
+                                spawnLifeCapsule(o.x, o.y, o.z);
+                            }
                             obstacles.splice(k, 1);
                         } else {
                             createExplosion(l.x, l.y, l.z, 6, false);
@@ -2775,7 +2825,7 @@ function update(dt) {
 
                 // El Halcón ocupa aproximadamente 38px de radio en pantalla
                 if (distScreen < 38) {
-                    damagePlayer();
+                    damagePlayer(0.35); // Daño moderado para que no cause tanto daño
                     createExplosion(el.x, el.y, el.z, 16, false);
                     enemyLasers.splice(i, 1);
                     continue;
@@ -2810,7 +2860,7 @@ function update(dt) {
                 const hitRadius = (o.radius * po.scale) + 26;
 
                 if (distScreen < hitRadius) {
-                    damagePlayer();
+                    damagePlayer(0.65);
                     createExplosion(o.x, o.y, o.z, 25, true);
                     obstacles.splice(i, 1);
                     continue;
@@ -2926,20 +2976,28 @@ function update(dt) {
     }
     updateBossProjectiles(dt);
 
+    // Cápsulas periódicas de vida y recuperación en cada nivel
+    lifeSpawnTimer -= dt;
+    if (lifeSpawnTimer <= 0) {
+        spawnLifeCapsule();
+        // Cada 12 a 15 segundos aparece una nueva cápsula de recuperación
+        lifeSpawnTimer = Math.random() * 3 + 12;
+    }
+
     GameState.stageProgress += dt;
 }
 
 function applyPowerup(type) {
     audio.playPowerup();
-    if (type === 'shield') {
+    if (type === 'shield' || type === 'life') {
         if (GameState.shields < GameState.maxShields) {
-            GameState.shields++;
-            shieldsCountElement.textContent = GameState.shields;
-            addFloatingScore('+1 ESCUDO', CANVAS_WIDTH / 2, 80, '#38bdf8');
+            GameState.shields = Math.min(GameState.maxShields, GameState.shields + 1.0);
+            shieldsCountElement.textContent = Math.ceil(GameState.shields);
+            addFloatingScore('+1 VIDA', CANVAS_WIDTH / 2, 80, '#22c55e');
         } else {
-            GameState.score += 300;
+            GameState.score += 400;
             scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
-            addFloatingScore('+300 PTS', CANVAS_WIDTH / 2, 80, '#facc15');
+            addFloatingScore('+400 PTS (MAX)', CANVAS_WIDTH / 2, 80, '#facc15');
         }
     } else if (type === 'spread') {
         Player.spreadTimer = 10;
@@ -2952,15 +3010,15 @@ function applyPowerup(type) {
     }
 }
 
-function damagePlayer() {
+function damagePlayer(amount = 0.35) {
     if (Player.invulnerableTime > 0 || GameState.boost) return;
 
     audio.playShieldHit();
-    GameState.shields--;
-    shieldsCountElement.textContent = GameState.shields;
+    GameState.shields = Math.max(0, GameState.shields - amount);
+    shieldsCountElement.textContent = Math.ceil(GameState.shields);
     Player.shieldFlash = 0.45;
-    Player.invulnerableTime = 1.7;
-    GameState.screenShake = 12;
+    Player.invulnerableTime = 1.35;
+    GameState.screenShake = 9;
 
     if (GameState.shields <= 0) {
         triggerGameOver();
@@ -3128,6 +3186,8 @@ function startNewGame(fromController = false) {
     gameOverOverlay.classList.add('hidden');
 
     initCanyonRocks();
+    lifeSpawnTimer = 7;
+    spawnLifeCapsule(0, -10, 780); // Cápsula de vida inicial en nivel 1
     audio.init();
     audio.playIntroFanfare();
 }
