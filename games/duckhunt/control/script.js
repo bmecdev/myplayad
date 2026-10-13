@@ -273,3 +273,4 @@ fireBtn.addEventListener('pointerdown', (e) => {
 // Inicializar retícula centrada
 reticle.style.left = '50%';
 reticle.style.top = '50%';
+

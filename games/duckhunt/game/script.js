@@ -355,7 +355,8 @@ const Reticle = {
     vx: 0,
     vy: 0,
     visible: true,
-    lastFire: 0
+    lastFire: 0,
+    flashTimer: 0
 };
 
 // Perro Cazador (Dog)
@@ -396,21 +397,22 @@ class Duck {
         this.flightTimer = 6.2 - Math.min(2.5, round * 0.25); // Tiempo antes de escapar
         this.hitTimer = 0;
         this.points = this.type === 'red' ? 1500 : (this.type === 'blue' ? 1000 : 500);
-        this.width = 32;
-        this.height = 30;
+        this.width = 34;
+        this.height = 32;
         this.flapTimer = 0;
+        this.fallRotation = 0;
     }
 
     update(dt) {
         if (this.state === 'flying') {
             this.animTimer += dt;
-            if (this.animTimer > 0.12) {
+            if (this.animTimer > 0.09) {
                 this.animTimer = 0;
-                this.frame = (this.frame + 1) % 3;
+                this.frame = (this.frame + 1) % 4;
             }
 
             this.flapTimer += dt;
-            if (this.flapTimer > 0.25) {
+            if (this.flapTimer > 0.22) {
                 this.flapTimer = 0;
                 audio.playFlap();
             }
@@ -451,9 +453,9 @@ class Duck {
 
         } else if (this.state === 'fly_away') {
             this.animTimer += dt;
-            if (this.animTimer > 0.08) {
+            if (this.animTimer > 0.07) {
                 this.animTimer = 0;
-                this.frame = (this.frame + 1) % 3;
+                this.frame = (this.frame + 1) % 4;
             }
             this.y += this.vy * dt;
             if (this.y < -40) {
@@ -469,6 +471,7 @@ class Duck {
 
         } else if (this.state === 'falling') {
             this.y += 240 * dt;
+            this.fallRotation += 13 * dt;
             this.animTimer += dt;
             if (this.animTimer > 0.10) {
                 this.animTimer = 0;
@@ -479,7 +482,7 @@ class Duck {
                 this.y = GROUND_Y - 14;
                 this.state = 'dead';
                 audio.playThud();
-                createFeathers(this.x, this.y, 10);
+                createFeathers(this.x, this.y, 14);
             }
         }
     }
@@ -488,89 +491,266 @@ class Duck {
         ctx.save();
         ctx.translate(Math.round(this.x), Math.round(this.y));
 
-        // Determinar paleta según el tipo de pato
-        let headColor = '#22c55e'; // Mallard verde
-        let bodyColor = '#854d0e';
-        let wingColor = '#593208';
-        if (this.type === 'blue') {
-            headColor = '#0284c7';
-            bodyColor = '#475569';
-            wingColor = '#1e293b';
-        } else if (this.type === 'red') {
-            headColor = '#ef4444';
-            bodyColor = '#d97706';
-            wingColor = '#9a3412';
-        }
-
         const dir = this.vx >= 0 ? 1 : -1;
         ctx.scale(dir, 1);
 
+        // Paleta 16-bit por variedad de pato
+        let headDark = '#14532d';
+        let headLight = '#22c55e';
+        let headSheen = '#86efac';
+        let collarColor = '#ffffff';
+        let chestColor = '#7c2d12';
+        let bodyColor = '#57534e';
+        let bodyLight = '#78716c';
+        let wingBase = '#44403c';
+        let speculum = '#1d4ed8'; // Azul cobalto auténtico mallard
+        let specBorder = '#ffffff';
+        let beakColor = '#f59e0b';
+        let feetColor = '#ea580c';
+
+        if (this.type === 'blue') {
+            headDark = '#0369a1';
+            headLight = '#0284c7';
+            headSheen = '#38bdf8';
+            collarColor = '#e0f2fe';
+            chestColor = '#334155';
+            bodyColor = '#475569';
+            bodyLight = '#64748b';
+            wingBase = '#1e293b';
+            speculum = '#059669'; // Verde esmeralda
+            specBorder = '#ffffff';
+            beakColor = '#0f172a';
+            feetColor = '#f97316';
+        } else if (this.type === 'red') {
+            headDark = '#b91c1c';
+            headLight = '#ef4444';
+            headSheen = '#fca5a5';
+            collarColor = '#fef08a';
+            chestColor = '#9a3412';
+            bodyColor = '#b45309';
+            bodyLight = '#d97706';
+            wingBase = '#78350f';
+            speculum = '#7c3aed'; // Púrpura real
+            specBorder = '#fef08a';
+            beakColor = '#18181b';
+            feetColor = '#f97316';
+        }
+
         if (this.state === 'hit') {
-            // Pato congelado en shock al recibir el disparo
+            // ==========================================
+            // IMPACTO ZAPPER: ESTRELLA DE CHOQUE CARTOON
+            // ==========================================
+            // Destello de impacto exterior
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+                const angle = (i * Math.PI) / 4;
+                const r = (i % 2 === 0) ? 24 : 12;
+                const sx = Math.cos(angle) * r;
+                const sy = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(sx, sy);
+                else ctx.lineTo(sx, sy);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Centro blanco de choque
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(-12, -12, 24, 24);
-            ctx.fillStyle = headColor;
-            ctx.fillRect(-8, -8, 16, 16);
-            ctx.fillStyle = '#f97316'; // Pico abierto
-            ctx.fillRect(8, -4, 6, 4);
-            ctx.fillStyle = '#000000'; // Ojos en shock
-            ctx.fillRect(2, -6, 3, 3);
-            ctx.fillRect(-6, -6, 3, 3);
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+                const angle = (i * Math.PI) / 4 + Math.PI / 8;
+                const r = (i % 2 === 0) ? 14 : 7;
+                const sx = Math.cos(angle) * r;
+                const sy = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(sx, sy);
+                else ctx.lineTo(sx, sy);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Pato congelado en shock
+            ctx.fillStyle = chestColor;
+            ctx.fillRect(-10, -6, 18, 14);
+            ctx.fillStyle = bodyLight;
+            ctx.fillRect(-14, -4, 6, 8);
+
+            // Cabeza aturdida
+            ctx.fillStyle = headLight;
+            ctx.fillRect(2, -14, 12, 12);
+            ctx.fillStyle = collarColor;
+            ctx.fillRect(0, -3, 6, 3);
+
+            // Ojos con cruz de impacto ('X X')
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(6, -12, 6, 6);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(7, -11, 4, 1);
+            ctx.fillRect(8, -12, 2, 3);
+
+            // Pico abierto graznando
+            ctx.fillStyle = beakColor;
+            ctx.fillRect(14, -13, 7, 3); // Mandíbula sup
+            ctx.fillStyle = '#dc2626';  // Interior rojo boca
+            ctx.fillRect(14, -10, 5, 2);
+            ctx.fillStyle = beakColor;
+            ctx.fillRect(14, -8, 6, 2); // Mandíbula inf
+
+            // Patas temblando
+            ctx.fillStyle = feetColor;
+            ctx.fillRect(-6, 8, 4, 6);
+            ctx.fillRect(2, 8, 4, 6);
 
         } else if (this.state === 'falling') {
-            // Pato cayendo verticalmente dando vueltas
-            ctx.rotate(this.frame === 0 ? 0.3 : -0.3);
+            // ==========================================
+            // CAÍDA EN ESPIRAL VERTICAL CON VELOCIDAD
+            // ==========================================
+            ctx.rotate(this.fallRotation * dir);
+
+            // Estelas de viento de caída
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.fillRect(-12, -26, 2, 16);
+            ctx.fillRect(8, -30, 2, 20);
+
+            // Cuerpo en picada
+            ctx.fillStyle = chestColor;
+            ctx.fillRect(-7, -10, 14, 20);
             ctx.fillStyle = bodyColor;
-            ctx.fillRect(-7, -12, 14, 24);
-            ctx.fillStyle = headColor;
-            ctx.fillRect(-5, 8, 10, 8);
-            ctx.fillStyle = '#f97316';
-            ctx.fillRect(-3, 16, 6, 4);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(-10, -4, 4, 10);
-            ctx.fillRect(6, -4, 4, 10);
+            ctx.fillRect(-6, -14, 12, 6);
+
+            // Cabeza colgando hacia abajo
+            ctx.fillStyle = headLight;
+            ctx.fillRect(-5, 10, 10, 8);
+            ctx.fillStyle = collarColor;
+            ctx.fillRect(-4, 8, 8, 2);
+            ctx.fillStyle = beakColor;
+            ctx.fillRect(-3, 18, 6, 4);
+
+            // Ojos cerrados de caída (líneas)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(-3, 13, 6, 1);
+
+            // Alas descontroladas
+            ctx.fillStyle = wingBase;
+            if (this.frame === 0) {
+                ctx.fillRect(-15, -4, 8, 12);
+                ctx.fillRect(7, -4, 8, 12);
+            } else {
+                ctx.fillRect(-12, -10, 6, 14);
+                ctx.fillRect(6, -10, 6, 14);
+            }
+
+            // Patas extendidas flácidas
+            ctx.fillStyle = feetColor;
+            ctx.fillRect(-6, -18, 3, 6);
+            ctx.fillRect(3, -18, 3, 6);
 
         } else {
-            // Pato volando (3 frames de aleteo)
-            // 1. Cuerpo
+            // ==========================================
+            // VUELO 16-BIT AERODINÁMICO CON ESPECULO
+            // ==========================================
+            // Inclinación según ascenso/descenso
+            const tilt = Math.min(0.38, Math.max(-0.38, (this.vy / this.speed) * 0.42 * dir));
+            ctx.rotate(tilt);
+
+            // 1. Cola de pato con pluma negra rizada
+            ctx.fillStyle = '#1c1917';
+            ctx.fillRect(-16, -4, 6, 6);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(-18, -6, 4, 3); // Rizo ánade real
+
+            // 2. Torso y plumaje ventral
             ctx.fillStyle = bodyColor;
-            ctx.fillRect(-10, -4, 20, 10);
+            ctx.fillRect(-12, -3, 16, 9);
+            ctx.fillStyle = bodyLight;
+            ctx.fillRect(-8, 3, 10, 4); // Vientre claro
+            ctx.fillStyle = chestColor;
+            ctx.fillRect(0, -5, 8, 11); // Pecho castaño
 
-            // 2. Cuello y cabeza
-            ctx.fillStyle = headColor;
-            ctx.fillRect(4, -10, 10, 8);
-            ctx.fillStyle = '#ffffff'; // Collarín blanco
-            ctx.fillRect(3, -3, 3, 4);
+            // 3. Patas palmeadas recogidas en vuelo
+            ctx.fillStyle = feetColor;
+            ctx.fillRect(-6, 6, 5, 2);
 
-            // 3. Pico anaranjado
-            ctx.fillStyle = '#f97316';
-            ctx.fillRect(14, -8, 6, 4);
+            // 4. Cuello y cabeza estilizada
+            ctx.fillStyle = collarColor;
+            ctx.fillRect(6, -6, 3, 7); // Anillo blanco nupcial
+            ctx.fillStyle = headDark;
+            ctx.fillRect(7, -14, 12, 10);
+            ctx.fillStyle = headLight;
+            ctx.fillRect(9, -13, 8, 6); // Brillo verde esmeralda
+            ctx.fillStyle = headSheen;
+            ctx.fillRect(10, -14, 6, 2); // Corona brillante
 
-            // 4. Ojo
+            // 5. Pico anatómico con orificio nasal
+            ctx.fillStyle = beakColor;
+            ctx.fillRect(18, -10, 8, 4);
+            ctx.fillStyle = '#b45309';
+            ctx.fillRect(24, -8, 2, 2); // Punta
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(20, -10, 1, 1); // Fosa nasal
+
+            // 6. Ojo con destello especular
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(12, -12, 4, 4);
             ctx.fillStyle = '#000000';
-            ctx.fillRect(10, -9, 2, 2);
+            ctx.fillRect(13, -12, 2, 3);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(14, -12, 1, 1); // Brillo blanco pupila
 
-            // 5. Cola
-            ctx.fillStyle = wingColor;
-            ctx.fillRect(-14, -3, 4, 4);
-
-            // 6. Alas según frame de animación
-            ctx.fillStyle = wingColor;
+            // 7. Alas 16-bit con el auténtico ESPÉCULO azul
             if (this.frame === 0) {
-                // Alas arriba
-                ctx.fillRect(-6, -16, 12, 12);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(-4, -14, 8, 4);
+                // FASE 1: Alas alzadas en carrera ascendente
+                // Ala trasera
+                ctx.fillStyle = '#292524';
+                ctx.fillRect(-4, -20, 10, 14);
+                // Ala delantera
+                ctx.fillStyle = wingBase;
+                ctx.fillRect(-6, -24, 12, 18);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-4, -22, 8, 4); // Espéculo azul
+                ctx.fillStyle = specBorder;
+                ctx.fillRect(-5, -23, 10, 1); // Borde blanco superior
+                ctx.fillRect(-5, -17, 10, 1); // Borde blanco inferior
+                // Puntas de plumas primarias
+                ctx.fillStyle = '#1c1917';
+                ctx.fillRect(-2, -26, 6, 3);
+
             } else if (this.frame === 1) {
-                // Alas horizontales
-                ctx.fillRect(-8, -2, 16, 6);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(-6, -1, 12, 3);
+                // FASE 2: Planeo horizontal mostrando todo el perfil
+                ctx.fillStyle = wingBase;
+                ctx.fillRect(-12, -4, 20, 8);
+                // Banda del espéculo completa
+                ctx.fillStyle = specBorder;
+                ctx.fillRect(-8, -3, 14, 6);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-6, -2, 10, 4);
+                // Remeras primarias oscuras
+                ctx.fillStyle = '#1c1917';
+                ctx.fillRect(-16, -2, 5, 5);
+
+            } else if (this.frame === 2) {
+                // FASE 3: Golpe descendente de alas potente
+                ctx.fillStyle = wingBase;
+                ctx.fillRect(-6, 3, 14, 18);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-4, 6, 10, 4);
+                ctx.fillStyle = specBorder;
+                ctx.fillRect(-5, 5, 12, 1);
+                ctx.fillStyle = specBorder;
+                ctx.fillRect(-5, 11, 12, 1);
+                // Puntas empujando hacia abajo
+                ctx.fillStyle = '#1c1917';
+                ctx.fillRect(-2, 20, 6, 3);
+
             } else {
-                // Alas abajo
-                ctx.fillRect(-6, 4, 12, 12);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(-4, 6, 8, 4);
+                // FASE 4: Recogida ágil preparando el siguiente aleteo
+                ctx.fillStyle = wingBase;
+                ctx.fillRect(-8, -12, 16, 12);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-6, -10, 8, 4);
+                ctx.fillStyle = specBorder;
+                ctx.fillRect(-6, -11, 8, 1);
+                ctx.fillStyle = '#1c1917';
+                ctx.fillRect(-6, -6, 12, 4);
             }
         }
 
@@ -646,125 +826,394 @@ function drawDog() {
     ctx.save();
     ctx.translate(Math.round(Dog.x), Math.round(Dog.y));
 
-    // Paleta marrón retro del perro de Duck Hunt
-    const furBrown = '#c2410c';
-    const darkBrown = '#7c2d12';
-    const bellyTan = '#fed7aa';
+    // Paleta 16-bit del perro cazador arcade
+    const furMain = '#b45309';      // Castaño cálido
+    const furLight = '#d97706';     // Reflejo ámbar
+    const furDark = '#78350f';      // Sombra profunda
+    const earDark = '#451a03';      // Chocolate oscuro orejas y mancha
+    const bellyCream = '#fed7aa';   // Pecho, hocico y almohadillas crema
+    const muzzleLight = '#fef3c7';
     const noseBlack = '#0f172a';
+    const eyeWhite = '#ffffff';
+    const tonguePink = '#fb7185';
 
     if (Dog.state === 'walk') {
-        // Perro caminando hacia la derecha
-        ctx.fillStyle = furBrown;
-        ctx.fillRect(-14, -14, 28, 18); // Cuerpo
-        ctx.fillRect(8, -24, 16, 16);  // Cabeza
-        ctx.fillStyle = darkBrown;
-        ctx.fillRect(6, -20, 6, 12);   // Oreja caída
-        ctx.fillStyle = noseBlack;
-        ctx.fillRect(22, -18, 4, 4);   // Hocico
-        ctx.fillStyle = bellyTan;
-        ctx.fillRect(16, -14, 6, 6);   // Hocico claro
+        // ==========================================
+        // PERRO CAMINANDO: RÍTMICO CON COLA Y OREJAS
+        // ==========================================
+        const tailWag = Math.sin(Date.now() * 0.02) * 3;
+        const earBob = Math.sin(Date.now() * 0.015) * 2;
 
-        // Patas caminando
-        ctx.fillStyle = furBrown;
-        if (Dog.frame % 2 === 0) {
-            ctx.fillRect(-10, 4, 6, 10);
-            ctx.fillRect(6, 4, 6, 10);
+        // Cola alegre moviéndose
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-18, -16 + tailWag, 6, 4);
+        ctx.fillRect(-22, -20 + tailWag, 5, 4);
+
+        // Cuerpo con mancha dorsal y vientre crema
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-14, -14, 28, 18);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(-6, -14, 12, 8); // Mancha marrón oscura en el lomo
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-8, -2, 18, 6);   // Vientre claro
+
+        // Cabeza y hocico
+        ctx.fillStyle = furMain;
+        ctx.fillRect(8, -24, 16, 16);
+        ctx.fillStyle = furLight;
+        ctx.fillRect(10, -23, 12, 4); // Brillo corona
+        ctx.fillStyle = earDark;
+        ctx.fillRect(6, -22 + earBob, 6, 14); // Oreja caída ondeante
+
+        // Ojo entusiasta
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(16, -21, 4, 4);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(18, -20, 2, 3);
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(19, -21, 1, 1);
+
+        // Hocico con botón negro y bigotes
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(18, -16, 8, 7);
+        ctx.fillStyle = muzzleLight;
+        ctx.fillRect(20, -15, 5, 4);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(24, -17, 4, 4);
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(25, -17, 1, 1); // Brillo nariz
+
+        // Patas caminando en 4 tiempos con almohadillas
+        ctx.fillStyle = furMain;
+        if (Dog.frame === 0) {
+            ctx.fillRect(-12, 4, 5, 10); ctx.fillRect(8, 4, 5, 10);
+            ctx.fillStyle = bellyCream;
+            ctx.fillRect(-12, 12, 5, 2); ctx.fillRect(8, 12, 5, 2);
+        } else if (Dog.frame === 1) {
+            ctx.fillRect(-9, 4, 5, 10); ctx.fillRect(5, 4, 5, 10);
+            ctx.fillStyle = bellyCream;
+            ctx.fillRect(-9, 12, 5, 2); ctx.fillRect(5, 12, 5, 2);
+        } else if (Dog.frame === 2) {
+            ctx.fillRect(-6, 4, 5, 10); ctx.fillRect(11, 4, 5, 10);
+            ctx.fillStyle = bellyCream;
+            ctx.fillRect(-6, 12, 5, 2); ctx.fillRect(11, 12, 5, 2);
         } else {
-            ctx.fillRect(-6, 4, 6, 10);
-            ctx.fillRect(10, 4, 6, 10);
+            ctx.fillRect(-9, 4, 5, 10); ctx.fillRect(7, 4, 5, 10);
+            ctx.fillStyle = bellyCream;
+            ctx.fillRect(-9, 12, 5, 2); ctx.fillRect(7, 12, 5, 2);
         }
 
     } else if (Dog.state === 'sniff') {
-        // Perro oliendo el suelo
-        ctx.fillStyle = furBrown;
+        // ==========================================
+        // PERRO OLIENDO EL SUELO CURIOSO
+        // ==========================================
+        const sniffTwitch = Math.sin(Date.now() * 0.04) * 1.5;
+
+        // Cola baja vibrando
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-18, -10 + sniffTwitch, 6, 3);
+        ctx.fillRect(-22, -12 + sniffTwitch, 5, 3);
+
+        // Cuerpo agachado
+        ctx.fillStyle = furMain;
         ctx.fillRect(-14, -10, 28, 16);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(-4, -10, 10, 7);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-8, 0, 18, 5);
+
+        // Cabeza pegada a la hierba
+        ctx.fillStyle = furMain;
         ctx.fillRect(10, -12, 16, 14);
-        ctx.fillStyle = darkBrown;
-        ctx.fillRect(6, -14, 6, 14);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(6, -15, 6, 15); // Orejas hacia adelante
+
+        // Ojo olfateador enfocado hacia abajo
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(17, -10, 4, 4);
         ctx.fillStyle = noseBlack;
-        ctx.fillRect(24, -4, 4, 4);
-        ctx.fillStyle = bellyTan;
-        ctx.fillRect(16, -4, 8, 4);
-        ctx.fillStyle = furBrown;
-        ctx.fillRect(-10, 6, 6, 8);
-        ctx.fillRect(8, 6, 6, 8);
+        ctx.fillRect(19, -8, 2, 2);
+
+        // Hocico tocando el césped con temblor de olfato
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(18, -4 + sniffTwitch, 8, 5);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(25, -4 + sniffTwitch, 4, 4);
+
+        // Patas plantadas en el suelo
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-10, 6, 5, 8);
+        ctx.fillRect(8, 6, 5, 8);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-10, 12, 5, 2);
+        ctx.fillRect(8, 12, 5, 2);
 
     } else if (Dog.state === 'alert') {
-        // Perro sorprendido con signo de exclamación
-        ctx.fillStyle = furBrown;
-        ctx.fillRect(-14, -16, 28, 18);
-        ctx.fillRect(8, -28, 16, 16);
-        ctx.fillStyle = darkBrown;
-        ctx.fillRect(4, -34, 6, 14); // Orejas tiesas hacia arriba
-        ctx.fillStyle = noseBlack;
-        ctx.fillRect(22, -22, 4, 4);
+        // ==========================================
+        // PERRO EN ALERTA: OREJAS TIESAS Y '!' RETRO
+        // ==========================================
+        // Cola recta tiesa
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-18, -20, 5, 8);
 
-        // Signo de exclamación retro
+        // Cuerpo erguido
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-14, -16, 28, 18);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(-4, -16, 10, 8);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-6, -4, 16, 6);
+
+        // Cabeza alta
+        ctx.fillStyle = furMain;
+        ctx.fillRect(8, -28, 16, 16);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(6, -38, 5, 14); // Oreja izquierda erecta
+        ctx.fillRect(12, -38, 5, 14); // Oreja derecha erecta
+
+        // Ojos abiertos como platos con asombro
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(15, -26, 6, 6);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(17, -25, 3, 4);
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(18, -25, 1, 1);
+
+        // Hocico
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(18, -20, 7, 6);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(23, -21, 4, 4);
+
+        // Patas firmes listas para el salto
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-10, 2, 5, 12);
+        ctx.fillRect(8, 2, 5, 12);
+
+        // ¡SIGNO DE EXCLAMACIÓN RETRO LUMINOSO!
+        const pulse = Math.sin(Date.now() * 0.015) > 0 ? 1 : 0;
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.fillRect(12 - pulse, -52 - pulse, 6 + pulse * 2, 18 + pulse * 2);
+
         ctx.fillStyle = '#ef4444';
-        ctx.fillRect(12, -44, 4, 8);
-        ctx.fillRect(12, -34, 4, 3);
+        ctx.fillRect(13, -50, 4, 10);
+        ctx.fillRect(13, -37, 4, 4);
+
+        ctx.fillStyle = '#fef08a'; // Núcleo amarillo brillante
+        ctx.fillRect(14, -48, 2, 6);
+        ctx.fillRect(14, -36, 2, 2);
 
     } else if (Dog.state === 'jump') {
-        // Perro saltando en arco
-        ctx.fillStyle = furBrown;
-        ctx.fillRect(-16, -12, 32, 16);
-        ctx.fillRect(10, -22, 14, 14);
-        ctx.fillStyle = darkBrown;
-        ctx.fillRect(6, -26, 6, 12);
-        ctx.fillStyle = furBrown;
-        ctx.fillRect(-22, 2, 10, 6); // Patas traseras extendidas
-        ctx.fillRect(16, 2, 10, 6);  // Patas delanteras
+        // ==========================================
+        // SALTO OLÍMPICO EN ARCO SOBRE LA HIERBA
+        // ==========================================
+        // Silueta aerodinámica inclinada
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-18, -12, 34, 16);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(-6, -12, 12, 8);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-10, -2, 20, 6);
+
+        // Cabeza extendida hacia adelante
+        ctx.fillStyle = furMain;
+        ctx.fillRect(12, -22, 16, 14);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(6, -26, 6, 14); // Orejas flotando atrás con el viento
+
+        // Ojo decidido
+        ctx.fillStyle = eyeWhite;
+        ctx.fillRect(18, -20, 4, 4);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(20, -19, 2, 3);
+
+        // Hocico al frente
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(22, -16, 7, 6);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(27, -17, 4, 4);
+
+        // Patas extendidas: traseras hacia atrás, delanteras estiradas
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-26, 0, 12, 6); // Traseras
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-28, 2, 4, 4);
+
+        ctx.fillStyle = furMain;
+        ctx.fillRect(20, 0, 12, 6);  // Delanteras
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(30, 2, 4, 4);
+
+        // Cola estirada
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-24, -16, 8, 4);
 
     } else if (Dog.state === 'laugh') {
-        // La famosa risa del perro burlón de Duck Hunt
-        ctx.fillStyle = furBrown;
-        ctx.fillRect(-14, -22, 28, 22);
-        ctx.fillStyle = darkBrown;
-        ctx.fillRect(-18, -26, 8, 14);
-        ctx.fillRect(10, -26, 8, 14);
+        // ==========================================
+        // LA ICÓNICA RISA BURLONA DE DUCK HUNT
+        // ==========================================
+        // Sacudida rápida del vientre por la risa
+        const chuckle = Math.sin(Date.now() * 0.038) * 2;
 
-        // Ojos cerrados de risa
+        // Torso y cuello
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-14, -22 + chuckle, 28, 22);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-8, -12 + chuckle, 16, 12);
+
+        // Cabeza temblando de risa
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-12, -34 + chuckle, 24, 16);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(-18, -36 + chuckle, 8, 16); // Oreja izquierda
+        ctx.fillRect(10, -36 + chuckle, 8, 16);  // Oreja derecha
+
+        // Ojos cerrados burlones en ángulo (> <)
         ctx.fillStyle = noseBlack;
-        ctx.fillRect(-8, -18, 5, 2);
-        ctx.fillRect(3, -18, 5, 2);
+        ctx.fillRect(-8, -28 + chuckle, 5, 2);
+        ctx.fillRect(-9, -29 + chuckle, 2, 4);
+        ctx.fillRect(3, -28 + chuckle, 5, 2);
+        ctx.fillRect(7, -29 + chuckle, 2, 4);
 
-        // Boca abierta riéndose (animada)
-        const mouthOpen = Math.floor(Date.now() / 120) % 2 === 0;
+        // Mejillas sonrojadas de tanta risa
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.4)';
+        ctx.fillRect(-11, -25 + chuckle, 4, 3);
+        ctx.fillRect(7, -25 + chuckle, 4, 3);
+
+        // Patas tapándose la boca riéndose
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-8, -18 + chuckle, 6, 8);
+        ctx.fillRect(2, -18 + chuckle, 6, 8);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-8, -18 + chuckle, 6, 4);
+        ctx.fillRect(2, -18 + chuckle, 6, 4);
+
+        // Boca abierta riéndose con lengua
+        const mouthOpen = Math.floor(Date.now() / 110) % 2 === 0;
         ctx.fillStyle = '#000000';
-        ctx.fillRect(-5, -12, 10, mouthOpen ? 8 : 4);
-        ctx.fillStyle = '#ef4444'; // Lengua
-        ctx.fillRect(-3, -8, 6, 4);
+        ctx.fillRect(-4, -23 + chuckle, 8, mouthOpen ? 7 : 4);
+        ctx.fillStyle = tonguePink;
+        ctx.fillRect(-2, -20 + chuckle, 4, mouthOpen ? 4 : 2);
+
+        // Ondas de sonido de carcajada ("HA HA HA")
+        const laughWave = Math.floor(Date.now() / 140) % 2;
+        ctx.fillStyle = laughWave === 0 ? '#fde047' : '#ffffff';
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.fillText('HA', -28, -34 + chuckle);
+        ctx.fillText('HA!', 14, -34 + chuckle);
+
+        // Corchetes de sonido
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(-22, -28 + chuckle, 2, 6);
+        ctx.fillRect(-24, -26 + chuckle, 2, 2);
+        ctx.fillRect(20, -28 + chuckle, 2, 6);
+        ctx.fillRect(22, -26 + chuckle, 2, 2);
 
     } else if (Dog.state === 'caught_one' || Dog.state === 'caught_two') {
-        // Perro asomándose orgulloso sosteniendo patos
-        ctx.fillStyle = furBrown;
+        // ==========================================
+        // PERRO ORGULLOSO: SOSTENIENDO LOS PATOS CAZADOS
+        // ==========================================
+        // Torso asomando sobre la hierba
+        ctx.fillStyle = furMain;
         ctx.fillRect(-14, -24, 28, 24);
-        ctx.fillStyle = darkBrown;
-        ctx.fillRect(-18, -26, 8, 12);
-        ctx.fillRect(10, -26, 8, 12);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-8, -14, 16, 14);
+
+        // Cabeza con sonrisa victoriosa
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-12, -36, 24, 16);
+        ctx.fillStyle = earDark;
+        ctx.fillRect(-18, -36, 7, 14);
+        ctx.fillRect(11, -36, 7, 14);
+
+        // Ojos felices cerrados (^ ^)
         ctx.fillStyle = noseBlack;
-        ctx.fillRect(-3, -16, 6, 4);
+        ctx.fillRect(-8, -30, 4, 2);
+        ctx.fillRect(-9, -29, 2, 2);
+        ctx.fillRect(-5, -29, 2, 2);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(4, -30, 4, 2);
+        ctx.fillRect(3, -29, 2, 2);
+        ctx.fillRect(7, -29, 2, 2);
 
-        // Ojos felices
+        // Mejillas rosadas
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.4)';
+        ctx.fillRect(-10, -26, 4, 3);
+        ctx.fillRect(6, -26, 4, 3);
+
+        // Nariz y hocico sonriente
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-4, -26, 8, 6);
+        ctx.fillStyle = noseBlack;
+        ctx.fillRect(-2, -27, 4, 3);
+
+        // Destellos de victoria (✦)
+        const sparkBlink = Math.floor(Date.now() / 200) % 2 === 0;
+        if (sparkBlink) {
+            ctx.fillStyle = '#fde047';
+            ctx.fillRect(-20, -42, 2, 6); ctx.fillRect(-22, -40, 6, 2);
+            ctx.fillRect(16, -44, 2, 6); ctx.fillRect(14, -42, 6, 2);
+        }
+
+        // ==========================================
+        // PATO 1 SOSTENIDO EN SU PATA IZQUIERDA (MALLARD)
+        // ==========================================
+        // Pata del perro sujetando al pato
+        ctx.fillStyle = furMain;
+        ctx.fillRect(-20, -18, 8, 8);
+        ctx.fillStyle = bellyCream;
+        ctx.fillRect(-20, -18, 4, 4);
+
+        // Cuerpo flácido del pato cazado
+        ctx.fillStyle = '#7c2d12'; // Pecho castaño
+        ctx.fillRect(-30, -14, 12, 16);
+        ctx.fillStyle = '#1d4ed8'; // Espéculo azul auténtico en el ala flácida
+        ctx.fillRect(-28, -8, 6, 4);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-8, -20, 4, 4);
-        ctx.fillRect(4, -20, 4, 4);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(-6, -19, 2, 2);
-        ctx.fillRect(6, -19, 2, 2);
+        ctx.fillRect(-29, -9, 8, 1);
 
-        // Pato capturado sostenido en su pata izquierda
-        ctx.fillStyle = '#22c55e';
-        ctx.fillRect(-24, -14, 12, 14);
-        ctx.fillStyle = '#f97316';
-        ctx.fillRect(-26, -18, 4, 4);
+        // Cabeza verde colgando flácida
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-32, -18, 6, 2); // Collar blanco
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(-34, -24, 8, 8);
+        ctx.fillStyle = '#f59e0b'; // Pico amarillo colgando
+        ctx.fillRect(-38, -22, 6, 3);
+
+        // Patas naranjas colgando flácidas hacia abajo
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(-28, 2, 3, 6);
+        ctx.fillRect(-24, 2, 3, 6);
 
         if (Dog.state === 'caught_two') {
-            // Segundo pato sostenido en su pata derecha
+            // ==========================================
+            // PATO 2 SOSTENIDO EN SU PATA DERECHA (BLUE TEAL)
+            // ==========================================
+            ctx.fillStyle = furMain;
+            ctx.fillRect(12, -18, 8, 8);
+            ctx.fillStyle = bellyCream;
+            ctx.fillRect(16, -18, 4, 4);
+
+            // Cuerpo azul/gris flácido
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(18, -14, 12, 16);
+            ctx.fillStyle = '#059669'; // Espéculo verde esmeralda
+            ctx.fillRect(22, -8, 6, 4);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(21, -9, 8, 1);
+
+            // Cabeza azul cerúleo colgando
+            ctx.fillStyle = '#e0f2fe';
+            ctx.fillRect(26, -18, 6, 2);
             ctx.fillStyle = '#0284c7';
-            ctx.fillRect(12, -14, 12, 14);
+            ctx.fillRect(26, -24, 8, 8);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(32, -22, 6, 3);
+
+            // Patas flácidas
             ctx.fillStyle = '#f97316';
-            ctx.fillRect(22, -18, 4, 4);
+            ctx.fillRect(21, 2, 3, 6);
+            ctx.fillRect(25, 2, 3, 6);
         }
     }
 
@@ -776,56 +1225,317 @@ function drawDog() {
 // ==============================================================================
 
 function drawEnvironment() {
-    // 1. Cielo dinámico
-    ctx.fillStyle = GameState.skyColor;
+    // 1. Cielo con degradado atmosférico dinámico
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    if (GameState.targetSkyColor === '#ff8ea3') {
+        // Atardecer / Crepúsculo dramático al escapar el pato
+        skyGrad.addColorStop(0.0, '#3b0764'); // Violeta cósmico
+        skyGrad.addColorStop(0.35, '#9d174d'); // Rosa oscuro
+        skyGrad.addColorStop(0.70, '#ea580c'); // Naranja atardecer
+        skyGrad.addColorStop(1.0, '#fef08a'); // Amarillo horizonte cálido
+    } else {
+        // Día soleado retro arcade luminoso
+        skyGrad.addColorStop(0.0, '#1d4ed8'); // Azul arcade profundo
+        skyGrad.addColorStop(0.30, '#38bdf8'); // Celeste nítido
+        skyGrad.addColorStop(0.75, '#7dd3fc'); // Neblina celeste
+        skyGrad.addColorStop(1.0, '#dbeafe'); // Horizonte luminoso
+    }
+    ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
 
-    // 2. Nubes blancas pixeladas
-    ctx.fillStyle = '#ffffff';
-    [
-        { x: 50, y: 40, w: 48, h: 14 },
-        { x: 220, y: 30, w: 60, h: 16 },
-        { x: 330, y: 65, w: 42, h: 12 }
-    ].forEach(c => {
-        ctx.fillRect(c.x, c.y, c.w, c.h);
-        ctx.fillRect(c.x + 8, c.y - 6, c.w - 16, 8);
+    // 2. Sol radiante con halo y destellos (durante el día)
+    if (GameState.targetSkyColor !== '#ff8ea3') {
+        const sunX = 300;
+        const sunY = 46;
+
+        // Halo difuso
+        const halo = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 36);
+        halo.addColorStop(0, 'rgba(254, 240, 138, 0.45)');
+        halo.addColorStop(0.5, 'rgba(253, 224, 71, 0.15)');
+        halo.addColorStop(1, 'rgba(253, 224, 71, 0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 36, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Núcleo solar
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Destellos sutiles
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.6)';
+        ctx.fillRect(sunX - 18, sunY - 1, 36, 2);
+        ctx.fillRect(sunX - 1, sunY - 18, 2, 36);
+    }
+
+    // 3. Cadena montañosa distante (Capa de fondo 1 - Azul índigo en perspectiva)
+    ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#4a154b' : '#334155';
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(0, 202);
+    ctx.lineTo(35, 178);
+    ctx.lineTo(75, 196);
+    ctx.lineTo(130, 172);
+    ctx.lineTo(185, 192);
+    ctx.lineTo(245, 168);
+    ctx.lineTo(300, 188);
+    ctx.lineTo(355, 174);
+    ctx.lineTo(400, 190);
+    ctx.lineTo(400, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Aristas y nieve en picos lejanos
+    ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#701a75' : '#475569';
+    ctx.beginPath();
+    ctx.moveTo(35, 178); ctx.lineTo(45, 196); ctx.lineTo(25, 196); ctx.closePath(); ctx.fill();
+    ctx.moveTo(130, 172); ctx.lineTo(145, 192); ctx.lineTo(115, 192); ctx.closePath(); ctx.fill();
+    ctx.moveTo(245, 168); ctx.lineTo(262, 188); ctx.lineTo(230, 188); ctx.closePath(); ctx.fill();
+    ctx.moveTo(355, 174); ctx.lineTo(370, 190); ctx.lineTo(342, 190); ctx.closePath(); ctx.fill();
+
+    // 4. Colinas ondulantes en pradera (Capa de fondo 2 - Verde bosque en degradado)
+    ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#78350f' : '#14532d';
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(0, 218);
+    ctx.quadraticCurveTo(80, 204, 160, 220);
+    ctx.quadraticCurveTo(250, 206, 330, 224);
+    ctx.quadraticCurveTo(370, 212, 400, 216);
+    ctx.lineTo(400, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cresta soleada de las colinas
+    ctx.strokeStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#b45309' : '#16a34a';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 5. Nubes esponjosas 3D flotantes con relieve
+    const cloudShift = (Date.now() * 0.005) % (CANVAS_WIDTH + 140) - 70;
+    const clouds = [
+        { x: 30 + cloudShift * 0.8, y: 36, scale: 1.0 },
+        { x: 190 + cloudShift * 1.0, y: 28, scale: 1.2 },
+        { x: 340 + cloudShift * 0.6, y: 55, scale: 0.85 }
+    ];
+
+    clouds.forEach(c => {
+        let cx = c.x;
+        if (cx > CANVAS_WIDTH + 70) cx -= (CANVAS_WIDTH + 140);
+        if (cx < -70) cx += (CANVAS_WIDTH + 140);
+
+        ctx.save();
+        ctx.translate(Math.round(cx), Math.round(c.y));
+        ctx.scale(c.scale, c.scale);
+
+        // Sombra inferior de la nube
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.arc(0, 8, 14, 0, Math.PI * 2);
+        ctx.arc(18, 9, 13, 0, Math.PI * 2);
+        ctx.arc(-16, 9, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cuerpo blanco de la nube
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 3, 15, 0, Math.PI * 2);
+        ctx.arc(16, 5, 13, 0, Math.PI * 2);
+        ctx.arc(-14, 5, 12, 0, Math.PI * 2);
+        ctx.arc(6, -6, 12, 0, Math.PI * 2);
+        ctx.arc(-8, -4, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Base plana clásica
+        ctx.fillRect(-22, 4, 44, 8);
+
+        ctx.restore();
     });
 
-    // 3. Árbol clásico retorcido de Duck Hunt a la izquierda
-    // Tronco marrón
+    // 6. El icónico roble nudoso retorcido de Duck Hunt (a la izquierda)
+    // Raíces y base ensanchada
+    ctx.fillStyle = '#381a06'; // Sombra de corteza profunda
+    ctx.fillRect(32, GROUND_Y - 18, 38, 18);
+    ctx.fillStyle = '#78350f'; // Madera cálida
+    ctx.fillRect(34, GROUND_Y - 16, 32, 16);
+    ctx.fillStyle = '#9a3412'; // Luz en la raíz izquierda
+    ctx.fillRect(30, GROUND_Y - 8, 8, 8);
+
+    // Tronco principal con nudos y veta
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(44, 95, 18, GROUND_Y - 95);
     ctx.fillStyle = '#78350f';
-    ctx.fillRect(48, 90, 16, GROUND_Y - 90);
-    ctx.fillRect(42, 120, 10, 12);
-    ctx.fillRect(58, 145, 12, 10);
-    ctx.fillRect(40, GROUND_Y - 14, 32, 14);
+    ctx.fillRect(46, 95, 13, GROUND_Y - 95);
+    ctx.fillStyle = '#9a3412'; // Veta iluminada lateral
+    ctx.fillRect(46, 95, 4, GROUND_Y - 95);
 
-    // Copa frondosa verde
-    ctx.fillStyle = '#15803d';
-    ctx.fillRect(20, 48, 72, 54);
-    ctx.fillRect(32, 34, 48, 18);
+    // Curvatura del tronco
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(40, 125, 10, 16);
+    ctx.fillRect(56, 155, 10, 14);
+
+    // Agujero de nudo en el tronco
+    ctx.fillStyle = '#1c0d02';
+    ctx.beginPath();
+    ctx.ellipse(51, 165, 4, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#9a3412';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Ramas principales que se abren hacia la pantalla
+    ctx.fillStyle = '#5c2b09';
+    // Rama izquierda
+    ctx.fillRect(24, 108, 22, 8);
+    ctx.fillRect(18, 104, 10, 6);
+    // Rama derecha hacia el centro
+    ctx.fillRect(58, 112, 28, 9);
+    ctx.fillRect(78, 118, 14, 7);
+
+    // Copa frondosa del roble con 5 esferas de follaje 16-bit
+    const foliagePuffs = [
+        { x: 34, y: 72, r: 28 },
+        { x: 70, y: 64, r: 30 },
+        { x: 50, y: 44, r: 26 },
+        { x: 88, y: 85, r: 22 },
+        { x: 22, y: 92, r: 20 }
+    ];
+
+    foliagePuffs.forEach(p => {
+        // 1. Sombra interior profunda
+        ctx.fillStyle = '#14532d';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + 4, p.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Follaje verde esmeralda medio
+        ctx.fillStyle = '#16a34a';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. Brillo de luz solar en el domo superior
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath();
+        ctx.arc(p.x - 3, p.y - 4, p.r * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 4. Toques de luz lima pura
+        ctx.fillStyle = '#86efac';
+        ctx.fillRect(p.x - p.r * 0.4, p.y - p.r * 0.6, p.r * 0.5, 3);
+    });
+
+    // 7. Arbusto espeso con bayas silvestres rojas (a la derecha)
+    const bushX = 302;
+    const bushY = GROUND_Y - 42;
+
+    // Follaje del arbusto en 3 tonos
+    ctx.fillStyle = '#14532d';
+    ctx.beginPath();
+    ctx.arc(bushX + 16, bushY + 20, 22, 0, Math.PI * 2);
+    ctx.arc(bushX + 44, bushY + 20, 24, 0, Math.PI * 2);
+    ctx.arc(bushX + 30, bushY + 10, 20, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.fillStyle = '#16a34a';
-    ctx.fillRect(28, 54, 56, 38);
+    ctx.beginPath();
+    ctx.arc(bushX + 16, bushY + 18, 19, 0, Math.PI * 2);
+    ctx.arc(bushX + 44, bushY + 18, 20, 0, Math.PI * 2);
+    ctx.arc(bushX + 30, bushY + 9, 17, 0, Math.PI * 2);
+    ctx.fill();
 
-    // 4. Arbusto a la derecha
-    ctx.fillStyle = '#166534';
-    ctx.fillRect(305, GROUND_Y - 38, 54, 38);
     ctx.fillStyle = '#22c55e';
-    ctx.fillRect(312, GROUND_Y - 32, 40, 26);
+    ctx.beginPath();
+    ctx.arc(bushX + 14, bushY + 14, 13, 0, Math.PI * 2);
+    ctx.arc(bushX + 42, bushY + 14, 14, 0, Math.PI * 2);
+    ctx.arc(bushX + 28, bushY + 6, 12, 0, Math.PI * 2);
+    ctx.fill();
 
-    // 5. Suelo y césped alto de primer plano
-    // Tierra
-    ctx.fillStyle = '#713f12';
-    ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
+    // Racimos de bayas rojas silvestres brillantes
+    const berries = [
+        { x: bushX + 10, y: bushY + 12 },
+        { x: bushX + 14, y: bushY + 16 },
+        { x: bushX + 26, y: bushY + 8 },
+        { x: bushX + 32, y: bushY + 12 },
+        { x: bushX + 44, y: bushY + 14 },
+        { x: bushX + 50, y: bushY + 20 },
+        { x: bushX + 36, y: bushY + 24 }
+    ];
+    berries.forEach(b => {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(b.x, b.y, 4, 4);
+        ctx.fillStyle = '#fee2e2'; // Brillo blanco de la baya
+        ctx.fillRect(b.x, b.y, 1, 1);
+    });
 
-    // Césped base
+    // 8. Suelo estratificado 16-bit (Tierra, grava y subsuelo)
+    // Capa 1: Manto de humus vegetal
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, 18);
+    // Capa 2: Subsuelo arcilloso
+    ctx.fillStyle = '#5c2b09';
+    ctx.fillRect(0, GROUND_Y + 18, CANVAS_WIDTH, 26);
+    // Capa 3: Roca madre profunda
+    ctx.fillStyle = '#381a06';
+    ctx.fillRect(0, GROUND_Y + 44, CANVAS_WIDTH, CANVAS_HEIGHT - (GROUND_Y + 44));
+
+    // Guijarros y piedras incrustadas
+    [
+        { x: 30, y: GROUND_Y + 12, w: 4, h: 3 },
+        { x: 95, y: GROUND_Y + 26, w: 6, h: 4 },
+        { x: 175, y: GROUND_Y + 8, w: 5, h: 3 },
+        { x: 260, y: GROUND_Y + 34, w: 6, h: 4 },
+        { x: 340, y: GROUND_Y + 16, w: 4, h: 3 },
+        { x: 385, y: GROUND_Y + 48, w: 7, h: 4 }
+    ].forEach(s => {
+        ctx.fillStyle = '#78716c';
+        ctx.fillRect(s.x, s.y, s.w, s.h);
+        ctx.fillStyle = '#a8a29e';
+        ctx.fillRect(s.x, s.y, s.w - 1, 1);
+    });
+
+    // 9. Césped alto mecido por el viento con margaritas silvestres
+    // Línea base de césped
     ctx.fillStyle = '#84cc16';
-    ctx.fillRect(0, GROUND_Y - 10, CANVAS_WIDTH, 14);
+    ctx.fillRect(0, GROUND_Y - 4, CANVAS_WIDTH, 6);
 
-    // Briznas de hierba alta pixelada (ocultan al perro y a los patos al despegar)
-    ctx.fillStyle = '#4ade80';
-    for (let x = 0; x < CANVAS_WIDTH; x += 8) {
-        const h = (x % 16 === 0) ? 14 : 10;
-        ctx.fillRect(x, GROUND_Y - h, 4, h);
+    const windTime = Date.now() * 0.004;
+
+    // Mechones de hierba oscilantes en dos capas de profundidad
+    for (let x = 0; x < CANVAS_WIDTH; x += 6) {
+        const sway = Math.sin(windTime + x * 0.07) * 2.8;
+        const bladeHeight = (x % 18 === 0) ? 16 : ((x % 12 === 0) ? 12 : 9);
+
+        // Capa trasera de hierba (verde oscuro)
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(x, GROUND_Y - bladeHeight + 2, 3, bladeHeight);
+
+        // Capa delantera con inclinación por viento (verde lima radiante)
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath();
+        ctx.moveTo(x, GROUND_Y);
+        ctx.lineTo(x + 3, GROUND_Y);
+        ctx.lineTo(x + 2 + sway, GROUND_Y - bladeHeight);
+        ctx.lineTo(x + sway, GROUND_Y - bladeHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        // Margaritas silvestres en la pradera
+        if (x % 36 === 0 && x > 20 && x < 380) {
+            const flowerX = x + 2;
+            const flowerY = GROUND_Y - bladeHeight + 4;
+            // Pétalos blancos
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(flowerX - 2, flowerY, 5, 2);
+            ctx.fillRect(flowerX, flowerY - 2, 2, 5);
+            // Centro amarillo
+            ctx.fillStyle = '#facc15';
+            ctx.fillRect(flowerX, flowerY, 2, 2);
+        }
     }
 }
 
@@ -839,38 +1549,88 @@ function drawReticle() {
     ctx.save();
     ctx.translate(Math.round(Reticle.x), Math.round(Reticle.y));
 
-    // Círculo exterior rojo brillante
+    // Pulso sutil de la mira
+    const pulse = Math.sin(Date.now() * 0.008) * 1.5;
+
+    // Destello de disparo Zapper / Fogonazo
+    if (Reticle.flashTimer > 0) {
+        const flashAlpha = Math.min(1.0, Reticle.flashTimer / 0.15);
+        ctx.save();
+        // Anillo de expansión
+        ctx.strokeStyle = `rgba(254, 240, 138, ${flashAlpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 22 + (1 - flashAlpha) * 14, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Destello central en estrella
+        ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+            const angle = (i * Math.PI) / 4;
+            const r = (i % 2 === 0) ? 18 : 6;
+            const fx = Math.cos(angle) * r;
+            const fy = Math.sin(angle) * r;
+            if (i === 0) ctx.moveTo(fx, fy);
+            else ctx.lineTo(fx, fy);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // Anillo exterior de precisión con muescas cardinales
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.arc(0, 0, 14 + pulse * 0.4, 0.25, Math.PI * 0.5 - 0.25);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 14 + pulse * 0.4, Math.PI * 0.5 + 0.25, Math.PI - 0.25);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 14 + pulse * 0.4, Math.PI + 0.25, Math.PI * 1.5 - 0.25);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 14 + pulse * 0.4, Math.PI * 1.5 + 0.25, Math.PI * 2 - 0.25);
     ctx.stroke();
 
-    // Cruz de puntería
+    // Puntas cardinales
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(-20, -1, 10, 2);
-    ctx.fillRect(10, -1, 10, 2);
-    ctx.fillRect(-1, -20, 2, 10);
-    ctx.fillRect(-1, 10, 2, 10);
+    ctx.fillRect(-22, -1, 7, 2);
+    ctx.fillRect(15, -1, 7, 2);
+    ctx.fillRect(-1, -22, 2, 7);
+    ctx.fillRect(-1, 15, 2, 7);
 
-    // Punto central blanco
+    // Puntos diagonales de guía
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+    ctx.fillRect(-8, -8, 2, 2);
+    ctx.fillRect(7, -8, 2, 2);
+    ctx.fillRect(-8, 7, 2, 2);
+    ctx.fillRect(7, 7, 2, 2);
+
+    // Punto central láser blanco/rojo
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-2, -2, 4, 4);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(-1, -1, 2, 2);
 
     ctx.restore();
 }
 
-function createFeathers(x, y, count = 8) {
+function createFeathers(x, y, count = 12) {
     for (let i = 0; i < count; i++) {
         feathers.push({
             x: x,
             y: y,
-            vx: (Math.random() - 0.5) * 80,
-            vy: (Math.random() - 0.5) * 80 - 30,
-            color: Math.random() > 0.5 ? '#22c55e' : '#f97316',
-            life: 0.8,
-            maxLife: 0.8,
-            size: Math.random() * 3 + 2
+            vx: (Math.random() - 0.5) * 90,
+            vy: (Math.random() - 0.5) * 80 - 25,
+            color: Math.random() < 0.4 ? '#22c55e' : (Math.random() < 0.7 ? '#f59e0b' : '#38bdf8'),
+            life: 1.0,
+            maxLife: 1.0,
+            size: Math.random() * 3 + 2,
+            swayOffset: Math.random() * Math.PI * 2,
+            swaySpeed: 4 + Math.random() * 4
         });
     }
 }
@@ -879,20 +1639,25 @@ function updateFeathers(dt) {
     for (let i = feathers.length - 1; i >= 0; i--) {
         const f = feathers[i];
         f.life -= dt;
-        f.x += f.vx * dt;
+        f.x += (f.vx + Math.sin(Date.now() * 0.008 + f.swayOffset) * 26) * dt;
         f.y += f.vy * dt;
-        f.vy += 60 * dt; // Gravedad suave
+        f.vy += 55 * dt; // Gravedad suave flotante
         if (f.life <= 0) feathers.splice(i, 1);
     }
 }
 
 function drawFeathers() {
     feathers.forEach(f => {
+        const alpha = Math.max(0.1, f.life / f.maxLife);
+        ctx.save();
+        ctx.globalAlpha = alpha;
         ctx.fillStyle = f.color;
-        ctx.globalAlpha = Math.max(0.1, f.life / f.maxLife);
-        ctx.fillRect(Math.round(f.x), Math.round(f.y), f.size, f.size);
+        ctx.fillRect(Math.round(f.x), Math.round(f.y), f.size, f.size * 1.5);
+        // Punta blanca de pluma
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(Math.round(f.x), Math.round(f.y), 1, 1);
+        ctx.restore();
     });
-    ctx.globalAlpha = 1.0;
 }
 
 function addFloatingScore(text, x, y, color = '#facc15') {
@@ -932,58 +1697,81 @@ function updateAndDrawFloatingScores(dt) {
 // ==============================================================================
 
 function drawNESBottomHUD() {
-    // Caja del HUD inferior en la tierra
-    const hudY = CANVAS_HEIGHT - 26;
+    const hudY = CANVAS_HEIGHT - 28;
 
     ctx.save();
     ctx.font = '7px "Press Start 2P", monospace';
 
-    // 1. Contador de Balas / Cartuchos restantes
+    // 1. Contador de Balas / Cartuchos de escopeta 3D
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SHOT', 16, hudY + 8);
+    ctx.fillText('SHOT', 14, hudY + 8);
     for (let i = 0; i < 3; i++) {
+        const bx = 14 + i * 11;
         if (i < GameState.ammo) {
+            // Cartucho cargado 3D
+            // Cuerpo rojo
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(bx, hudY + 12, 7, 10);
             ctx.fillStyle = '#ef4444';
-            ctx.fillRect(16 + i * 9, hudY + 12, 6, 8);
+            ctx.fillRect(bx + 1, hudY + 13, 5, 2); // Brillo
+            // Base metálica de latón dorada
+            ctx.fillStyle = '#ca8a04';
+            ctx.fillRect(bx - 1, hudY + 20, 9, 3);
             ctx.fillStyle = '#fde047';
-            ctx.fillRect(17 + i * 9, hudY + 12, 4, 2);
+            ctx.fillRect(bx, hudY + 20, 7, 1);
         } else {
+            // Cartucho gastado (recámara vacía)
             ctx.strokeStyle = '#475569';
             ctx.lineWidth = 1;
-            ctx.strokeRect(16 + i * 9, hudY + 12, 6, 8);
+            ctx.strokeRect(bx, hudY + 12, 7, 11);
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(bx + 1, hudY + 13, 5, 9);
         }
     }
 
-    // 2. Barra de los 10 patos de la ronda
+    // 2. Barra de los 10 patos de la ronda (Siluetas pixel-art)
     ctx.fillStyle = '#ffffff';
     ctx.fillText('HIT', 110, hudY + 8);
+
     for (let i = 0; i < 10; i++) {
-        const x = 110 + i * 14;
+        const px = 110 + i * 15;
+        const py = hudY + 11;
         const res = GameState.roundHitsArray[i];
 
         if (res === true) {
-            // Pato cazado (Rojo radiante)
+            // Pato cazado: silueta roja brillante con ojo dorado
             ctx.fillStyle = '#ef4444';
-            ctx.fillRect(x, hudY + 12, 10, 8);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(x + 2, hudY + 14, 2, 2);
+            ctx.fillRect(px, py + 2, 11, 7);      // Torso
+            ctx.fillRect(px + 6, py - 1, 5, 4);   // Cabeza
+            ctx.fillRect(px + 10, py, 2, 2);      // Pico
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(px + 7, py, 1, 1);       // Ojo brillante
         } else if (res === false) {
-            // Pato escapado (Gris oscuro)
+            // Pato escapado: silueta gris carbón apagada
             ctx.fillStyle = '#334155';
-            ctx.fillRect(x, hudY + 12, 10, 8);
+            ctx.fillRect(px, py + 2, 11, 7);
+            ctx.fillRect(px + 6, py - 1, 5, 4);
         } else {
-            // Pato pendiente (Blanco/Cyan si es el actual parpadeando)
+            // Pato pendiente: animación de pulso si es el objetivo actual
             const isCurrent = (i === GameState.duckIndexInRound);
-            const blink = Math.floor(Date.now() / 150) % 2 === 0;
-            ctx.fillStyle = (isCurrent && blink) ? '#38bdf8' : '#64748b';
-            ctx.fillRect(x, hudY + 14, 10, 4);
+            if (isCurrent) {
+                const blink = Math.floor(Date.now() / 120) % 2 === 0;
+                ctx.fillStyle = blink ? '#38bdf8' : '#e0f2fe';
+                ctx.fillRect(px, py + 2, 11, 7);
+                ctx.fillRect(px + 6, py - 1, 5, 4);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(px + 2, py + 1, 4, 2); // Destello ala
+            } else {
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(px, py + 5, 10, 4);
+            }
         }
     }
 
-    // 3. Marcador de Ronda a la derecha
+    // 3. Marcador de Ronda a la derecha con insignia arcade
     ctx.fillStyle = '#22c55e';
     ctx.textAlign = 'right';
-    ctx.fillText(`R=${GameState.round}`, CANVAS_WIDTH - 16, hudY + 16);
+    ctx.fillText(`R=${GameState.round}`, CANVAS_WIDTH - 14, hudY + 16);
 
     ctx.restore();
 }
@@ -1000,6 +1788,7 @@ function fireShot(aimX, aimY) {
     audio.playGunshot();
     GameState.ammo--;
     GameState.whiteFlashTimer = 0.06; // Destello Zapper NES
+    Reticle.flashTimer = 0.15; // Destello Zapper arcade retícula
 
     // Sincronizar balas con el mando móvil
     broadcastAmmo();
@@ -1187,6 +1976,9 @@ function update(dt) {
     // Destello de Zapper
     if (GameState.whiteFlashTimer > 0) {
         GameState.whiteFlashTimer -= dt;
+    }
+    if (Reticle.flashTimer > 0) {
+        Reticle.flashTimer -= dt;
     }
 
     // Suavizado de transición de color de cielo
@@ -1609,3 +2401,4 @@ window.addEventListener('load', () => { updateQrCode(); autoScale(); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
 if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
+

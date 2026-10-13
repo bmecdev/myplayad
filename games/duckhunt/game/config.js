@@ -54,3 +54,4 @@ window.GAME_CONFIG.CONFIG = CONFIG;
 window.GAME_CONFIG.getIceConfig = getIceConfig;
 window.GAME_CONFIG.attachPCDiagnostics = attachPCDiagnostics;
 window.GAME_CONFIG.attachDataChannelDiagnostics = attachDataChannelDiagnostics;
+
