@@ -345,6 +345,10 @@ let gameOverTimeout = null;
 let activeDucks = [];
 let floatingScores = [];
 let feathers = [];
+let ambientParticles = [];
+let gunSmokes = [];
+let fallingLeaves = [];
+let screenShakeTimer = 0;
 
 // Mirilla / Retícula de la Zapper
 const Reticle = {
@@ -379,10 +383,10 @@ class Duck {
     constructor(round, slot = 0) {
         this.type = Math.random() < 0.25 ? 'red' : (Math.random() < 0.5 ? 'blue' : 'mallard');
         this.x = 80 + Math.random() * (CANVAS_WIDTH - 160);
-        this.y = GROUND_Y - 10;
+        this.y = GROUND_Y - 14;
         
         // Velocidad y agilidad según la ronda y el tipo
-        const baseSpeed = 110 + (round * 16);
+        const baseSpeed = 115 + (round * 16);
         const speedMultiplier = this.type === 'red' ? 1.45 : (this.type === 'blue' ? 1.25 : 1.0);
         this.speed = baseSpeed * speedMultiplier;
         
@@ -397,8 +401,8 @@ class Duck {
         this.flightTimer = 6.2 - Math.min(2.5, round * 0.25); // Tiempo antes de escapar
         this.hitTimer = 0;
         this.points = this.type === 'red' ? 1500 : (this.type === 'blue' ? 1000 : 500);
-        this.width = 34;
-        this.height = 32;
+        this.width = 44;
+        this.height = 38;
         this.flapTimer = 0;
         this.fallRotation = 0;
     }
@@ -406,13 +410,13 @@ class Duck {
     update(dt) {
         if (this.state === 'flying') {
             this.animTimer += dt;
-            if (this.animTimer > 0.09) {
+            if (this.animTimer > 0.08) {
                 this.animTimer = 0;
                 this.frame = (this.frame + 1) % 4;
             }
 
             this.flapTimer += dt;
-            if (this.flapTimer > 0.22) {
+            if (this.flapTimer > 0.20) {
                 this.flapTimer = 0;
                 audio.playFlap();
             }
@@ -421,24 +425,24 @@ class Duck {
             this.y += this.vy * dt;
 
             // Rebotar en bordes laterales y superior
-            if (this.x < 16) {
-                this.x = 16;
+            if (this.x < 20) {
+                this.x = 20;
                 this.vx = Math.abs(this.vx);
-            } else if (this.x > CANVAS_WIDTH - 16) {
-                this.x = CANVAS_WIDTH - 16;
+            } else if (this.x > CANVAS_WIDTH - 20) {
+                this.x = CANVAS_WIDTH - 20;
                 this.vx = -Math.abs(this.vx);
             }
 
-            if (this.y < 24) {
-                this.y = 24;
+            if (this.y < 26) {
+                this.y = 26;
                 this.vy = Math.abs(this.vy);
-            } else if (this.y > GROUND_Y - 20) {
-                this.y = GROUND_Y - 20;
+            } else if (this.y > GROUND_Y - 24) {
+                this.y = GROUND_Y - 24;
                 this.vy = -Math.abs(this.vy);
             }
 
             // Cambios de dirección aleatorios
-            if (Math.random() < 0.035) {
+            if (Math.random() < 0.038) {
                 this.vx = (Math.random() > 0.5 ? 1 : -1) * (this.speed * (0.6 + Math.random() * 0.6));
                 this.vy = (Math.random() > 0.5 ? 1 : -1) * (this.speed * (0.6 + Math.random() * 0.6));
             }
@@ -447,18 +451,18 @@ class Duck {
             if (this.flightTimer <= 0) {
                 this.state = 'fly_away';
                 this.vx = 0;
-                this.vy = -this.speed * 1.35;
-                GameState.targetSkyColor = '#ff8ea3'; // El cielo se torna crepúsculo al escapar
+                this.vy = -this.speed * 1.4;
+                GameState.targetSkyColor = '#ff8ea3';
             }
 
         } else if (this.state === 'fly_away') {
             this.animTimer += dt;
-            if (this.animTimer > 0.07) {
+            if (this.animTimer > 0.06) {
                 this.animTimer = 0;
                 this.frame = (this.frame + 1) % 4;
             }
             this.y += this.vy * dt;
-            if (this.y < -40) {
+            if (this.y < -45) {
                 this.state = 'dead';
             }
 
@@ -471,9 +475,9 @@ class Duck {
 
         } else if (this.state === 'falling') {
             this.y += 240 * dt;
-            this.fallRotation += 13 * dt;
+            this.fallRotation += 14 * dt;
             this.animTimer += dt;
-            if (this.animTimer > 0.10) {
+            if (this.animTimer > 0.09) {
                 this.animTimer = 0;
                 this.frame = (this.frame + 1) % 2;
             }
@@ -482,7 +486,7 @@ class Duck {
                 this.y = GROUND_Y - 14;
                 this.state = 'dead';
                 audio.playThud();
-                createFeathers(this.x, this.y, 14);
+                createFeathers(this.x, this.y, 16);
             }
         }
     }
@@ -494,45 +498,63 @@ class Duck {
         const dir = this.vx >= 0 ? 1 : -1;
         ctx.scale(dir, 1);
 
-        // Paleta 16-bit por variedad de pato
-        let headDark = '#14532d';
+        // Paleta 16-bit arcade de alta definición por variedad
+        let headDark = '#064e3b';
+        let headMid = '#15803d';
         let headLight = '#22c55e';
         let headSheen = '#86efac';
         let collarColor = '#ffffff';
-        let chestColor = '#7c2d12';
-        let bodyColor = '#57534e';
-        let bodyLight = '#78716c';
+        let chestDark = '#451a03';
+        let chestMid = '#7c2d12';
+        let chestLight = '#9a3412';
+        let bodyDark = '#292524';
+        let bodyMid = '#57534e';
+        let bodyLight = '#a8a29e';
         let wingBase = '#44403c';
-        let speculum = '#1d4ed8'; // Azul cobalto auténtico mallard
+        let wingDark = '#1c1917';
+        let speculum = '#1d4ed8'; // Azul cobalto auténtico ánade real
         let specBorder = '#ffffff';
         let beakColor = '#f59e0b';
+        let beakDark = '#b45309';
         let feetColor = '#ea580c';
 
         if (this.type === 'blue') {
-            headDark = '#0369a1';
+            headDark = '#082f49';
+            headMid = '#0369a1';
             headLight = '#0284c7';
             headSheen = '#38bdf8';
             collarColor = '#e0f2fe';
-            chestColor = '#334155';
-            bodyColor = '#475569';
-            bodyLight = '#64748b';
+            chestDark = '#0f172a';
+            chestMid = '#334155';
+            chestLight = '#475569';
+            bodyDark = '#1e293b';
+            bodyMid = '#475569';
+            bodyLight = '#94a3b8';
             wingBase = '#1e293b';
-            speculum = '#059669'; // Verde esmeralda
+            wingDark = '#0f172a';
+            speculum = '#059669'; // Verde cerceta esmeralda
             specBorder = '#ffffff';
             beakColor = '#0f172a';
+            beakDark = '#020617';
             feetColor = '#f97316';
         } else if (this.type === 'red') {
-            headDark = '#b91c1c';
+            headDark = '#7f1d1d';
+            headMid = '#b91c1c';
             headLight = '#ef4444';
             headSheen = '#fca5a5';
             collarColor = '#fef08a';
-            chestColor = '#9a3412';
-            bodyColor = '#b45309';
-            bodyLight = '#d97706';
+            chestDark = '#78350f';
+            chestMid = '#9a3412';
+            chestLight = '#c2410c';
+            bodyDark = '#451a03';
+            bodyMid = '#b45309';
+            bodyLight = '#fde047';
             wingBase = '#78350f';
+            wingDark = '#451a03';
             speculum = '#7c3aed'; // Púrpura real
             specBorder = '#fef08a';
             beakColor = '#18181b';
+            beakDark = '#ea580c';
             feetColor = '#f97316';
         }
 
@@ -541,11 +563,11 @@ class Duck {
             // IMPACTO ZAPPER: ESTRELLA DE CHOQUE CARTOON
             // ==========================================
             // Destello de impacto exterior
-            ctx.fillStyle = '#facc15';
+            ctx.fillStyle = '#fde047';
             ctx.beginPath();
-            for (let i = 0; i < 8; i++) {
-                const angle = (i * Math.PI) / 4;
-                const r = (i % 2 === 0) ? 24 : 12;
+            for (let i = 0; i < 10; i++) {
+                const angle = (i * Math.PI) / 5;
+                const r = (i % 2 === 0) ? 28 : 14;
                 const sx = Math.cos(angle) * r;
                 const sy = Math.sin(angle) * r;
                 if (i === 0) ctx.moveTo(sx, sy);
@@ -559,7 +581,7 @@ class Duck {
             ctx.beginPath();
             for (let i = 0; i < 8; i++) {
                 const angle = (i * Math.PI) / 4 + Math.PI / 8;
-                const r = (i % 2 === 0) ? 14 : 7;
+                const r = (i % 2 === 0) ? 16 : 8;
                 const sx = Math.cos(angle) * r;
                 const sy = Math.sin(angle) * r;
                 if (i === 0) ctx.moveTo(sx, sy);
@@ -569,188 +591,212 @@ class Duck {
             ctx.fill();
 
             // Pato congelado en shock
-            ctx.fillStyle = chestColor;
-            ctx.fillRect(-10, -6, 18, 14);
+            ctx.fillStyle = chestMid;
+            ctx.fillRect(-12, -8, 22, 16);
             ctx.fillStyle = bodyLight;
-            ctx.fillRect(-14, -4, 6, 8);
+            ctx.fillRect(-16, -5, 8, 10);
 
             // Cabeza aturdida
             ctx.fillStyle = headLight;
-            ctx.fillRect(2, -14, 12, 12);
+            ctx.fillRect(4, -16, 14, 14);
             ctx.fillStyle = collarColor;
-            ctx.fillRect(0, -3, 6, 3);
+            ctx.fillRect(2, -4, 6, 4);
 
             // Ojos con cruz de impacto ('X X')
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(6, -12, 6, 6);
+            ctx.fillRect(8, -14, 8, 8);
+            ctx.fillStyle = '#dc2626'; // Sangre cómica/venas
+            ctx.fillRect(9, -13, 6, 2);
+            ctx.fillRect(9, -9, 6, 2);
             ctx.fillStyle = '#000000';
-            ctx.fillRect(7, -11, 4, 1);
-            ctx.fillRect(8, -12, 2, 3);
+            ctx.fillRect(11, -14, 2, 8);
 
-            // Pico abierto graznando
+            // Pico abierto graznando con lengua
             ctx.fillStyle = beakColor;
-            ctx.fillRect(14, -13, 7, 3); // Mandíbula sup
+            ctx.fillRect(18, -15, 9, 4); // Mandíbula sup
             ctx.fillStyle = '#dc2626';  // Interior rojo boca
-            ctx.fillRect(14, -10, 5, 2);
+            ctx.fillRect(18, -11, 7, 3);
+            ctx.fillStyle = '#f43f5e';  // Lengua
+            ctx.fillRect(20, -10, 4, 2);
             ctx.fillStyle = beakColor;
-            ctx.fillRect(14, -8, 6, 2); // Mandíbula inf
+            ctx.fillRect(18, -8, 8, 3); // Mandíbula inf
 
-            // Patas temblando
+            // Patas temblando de miedo
             ctx.fillStyle = feetColor;
-            ctx.fillRect(-6, 8, 4, 6);
-            ctx.fillRect(2, 8, 4, 6);
+            ctx.fillRect(-8, 9, 5, 8);
+            ctx.fillRect(2, 9, 5, 8);
 
         } else if (this.state === 'falling') {
             // ==========================================
-            // CAÍDA EN ESPIRAL VERTICAL CON VELOCIDAD
+            // CAÍDA EN ESPIRAL VERTICAL 360° CON VIENTO
             // ==========================================
             ctx.rotate(this.fallRotation * dir);
 
             // Estelas de viento de caída
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-            ctx.fillRect(-12, -26, 2, 16);
-            ctx.fillRect(8, -30, 2, 20);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.fillRect(-15, -34, 3, 20);
+            ctx.fillRect(10, -38, 2, 24);
+            ctx.fillRect(-4, -28, 2, 14);
 
             // Cuerpo en picada
-            ctx.fillStyle = chestColor;
-            ctx.fillRect(-7, -10, 14, 20);
-            ctx.fillStyle = bodyColor;
-            ctx.fillRect(-6, -14, 12, 6);
+            ctx.fillStyle = chestMid;
+            ctx.fillRect(-9, -12, 18, 24);
+            ctx.fillStyle = bodyDark;
+            ctx.fillRect(-7, -16, 14, 7);
 
             // Cabeza colgando hacia abajo
             ctx.fillStyle = headLight;
-            ctx.fillRect(-5, 10, 10, 8);
+            ctx.fillRect(-6, 12, 12, 10);
             ctx.fillStyle = collarColor;
-            ctx.fillRect(-4, 8, 8, 2);
+            ctx.fillRect(-5, 9, 10, 3);
             ctx.fillStyle = beakColor;
-            ctx.fillRect(-3, 18, 6, 4);
+            ctx.fillRect(-4, 22, 8, 5);
 
-            // Ojos cerrados de caída (líneas)
+            // Ojos mareados en espiral
             ctx.fillStyle = '#000000';
-            ctx.fillRect(-3, 13, 6, 1);
+            ctx.fillRect(-4, 15, 8, 2);
 
             // Alas descontroladas
             ctx.fillStyle = wingBase;
             if (this.frame === 0) {
-                ctx.fillRect(-15, -4, 8, 12);
-                ctx.fillRect(7, -4, 8, 12);
+                ctx.fillRect(-18, -6, 10, 15);
+                ctx.fillRect(8, -6, 10, 15);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-16, -2, 6, 5);
+                ctx.fillRect(10, -2, 6, 5);
             } else {
-                ctx.fillRect(-12, -10, 6, 14);
-                ctx.fillRect(6, -10, 6, 14);
+                ctx.fillRect(-14, -14, 8, 18);
+                ctx.fillRect(6, -14, 8, 18);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-12, -10, 5, 6);
+                ctx.fillRect(8, -10, 5, 6);
             }
 
             // Patas extendidas flácidas
             ctx.fillStyle = feetColor;
-            ctx.fillRect(-6, -18, 3, 6);
-            ctx.fillRect(3, -18, 3, 6);
+            ctx.fillRect(-8, -22, 4, 8);
+            ctx.fillRect(4, -22, 4, 8);
 
         } else {
             // ==========================================
             // VUELO 16-BIT AERODINÁMICO CON ESPECULO
             // ==========================================
             // Inclinación según ascenso/descenso
-            const tilt = Math.min(0.38, Math.max(-0.38, (this.vy / this.speed) * 0.42 * dir));
+            const tilt = Math.min(0.42, Math.max(-0.42, (this.vy / this.speed) * 0.44 * dir));
             ctx.rotate(tilt);
 
-            // 1. Cola de pato con pluma negra rizada
-            ctx.fillStyle = '#1c1917';
-            ctx.fillRect(-16, -4, 6, 6);
+            // 1. Sombra de vientre y pluma rizada de la cola
+            ctx.fillStyle = bodyDark;
+            ctx.fillRect(-20, -5, 8, 8);
             ctx.fillStyle = '#0f172a';
-            ctx.fillRect(-18, -6, 4, 3); // Rizo ánade real
+            ctx.fillRect(-22, -8, 5, 4); // Rizo ánade real
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-20, -2, 6, 2); // Borde blanco supracaucal
 
-            // 2. Torso y plumaje ventral
-            ctx.fillStyle = bodyColor;
-            ctx.fillRect(-12, -3, 16, 9);
+            // 2. Torso anatómico con textura de escamas de pluma
+            ctx.fillStyle = bodyMid;
+            ctx.fillRect(-15, -4, 20, 11);
             ctx.fillStyle = bodyLight;
-            ctx.fillRect(-8, 3, 10, 4); // Vientre claro
-            ctx.fillStyle = chestColor;
-            ctx.fillRect(0, -5, 8, 11); // Pecho castaño
+            ctx.fillRect(-10, 4, 14, 5); // Vientre claro
+            ctx.fillStyle = chestDark;
+            ctx.fillRect(-1, -6, 10, 13); // Pecho castaño profundo
+            ctx.fillStyle = chestMid;
+            ctx.fillRect(1, -5, 8, 10);
+            ctx.fillStyle = chestLight;
+            ctx.fillRect(3, -4, 5, 6);  // Relieve de pecho
 
             // 3. Patas palmeadas recogidas en vuelo
             ctx.fillStyle = feetColor;
-            ctx.fillRect(-6, 6, 5, 2);
-
-            // 4. Cuello y cabeza estilizada
-            ctx.fillStyle = collarColor;
-            ctx.fillRect(6, -6, 3, 7); // Anillo blanco nupcial
-            ctx.fillStyle = headDark;
-            ctx.fillRect(7, -14, 12, 10);
-            ctx.fillStyle = headLight;
-            ctx.fillRect(9, -13, 8, 6); // Brillo verde esmeralda
-            ctx.fillStyle = headSheen;
-            ctx.fillRect(10, -14, 6, 2); // Corona brillante
-
-            // 5. Pico anatómico con orificio nasal
-            ctx.fillStyle = beakColor;
-            ctx.fillRect(18, -10, 8, 4);
+            ctx.fillRect(-7, 7, 7, 3);
             ctx.fillStyle = '#b45309';
-            ctx.fillRect(24, -8, 2, 2); // Punta
+            ctx.fillRect(-3, 8, 3, 2);
+
+            // 4. Cuello y cabeza estilizada con brillo iridiscente
+            ctx.fillStyle = collarColor;
+            ctx.fillRect(7, -7, 4, 9); // Anillo blanco nupcial
+            ctx.fillStyle = headDark;
+            ctx.fillRect(8, -17, 15, 13);
+            ctx.fillStyle = headMid;
+            ctx.fillRect(10, -16, 11, 8);
+            ctx.fillStyle = headLight;
+            ctx.fillRect(12, -15, 8, 6); // Brillo verde esmeralda
+            ctx.fillStyle = headSheen;
+            ctx.fillRect(13, -16, 7, 3); // Corona brillante
+
+            // 5. Pico anatómico con orificio nasal y comisura
+            ctx.fillStyle = beakColor;
+            ctx.fillRect(21, -12, 10, 5);
+            ctx.fillStyle = beakDark;
+            ctx.fillRect(28, -10, 3, 3); // Punta
             ctx.fillStyle = '#0f172a';
-            ctx.fillRect(20, -10, 1, 1); // Fosa nasal
+            ctx.fillRect(23, -12, 2, 2); // Fosa nasal
+            ctx.fillStyle = '#451a03';
+            ctx.fillRect(21, -9, 8, 1);  // Línea comisura
 
-            // 6. Ojo con destello especular
+            // 6. Ojo expresivo con destello especular
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(12, -12, 4, 4);
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(13, -12, 2, 3);
+            ctx.fillRect(14, -14, 5, 5);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(15, -14, 3, 4);
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(14, -12, 1, 1); // Brillo blanco pupila
+            ctx.fillRect(16, -14, 1, 2); // Brillo blanco pupila
 
-            // 7. Alas 16-bit con el auténtico ESPÉCULO azul
+            // 7. Alas 16-bit articuladas con el auténtico ESPÉCULO
             if (this.frame === 0) {
                 // FASE 1: Alas alzadas en carrera ascendente
                 // Ala trasera
-                ctx.fillStyle = '#292524';
-                ctx.fillRect(-4, -20, 10, 14);
+                ctx.fillStyle = wingDark;
+                ctx.fillRect(-6, -26, 12, 18);
                 // Ala delantera
                 ctx.fillStyle = wingBase;
-                ctx.fillRect(-6, -24, 12, 18);
-                ctx.fillStyle = speculum;
-                ctx.fillRect(-4, -22, 8, 4); // Espéculo azul
+                ctx.fillRect(-8, -30, 16, 24);
+                // Banda del espéculo
                 ctx.fillStyle = specBorder;
-                ctx.fillRect(-5, -23, 10, 1); // Borde blanco superior
-                ctx.fillRect(-5, -17, 10, 1); // Borde blanco inferior
-                // Puntas de plumas primarias
-                ctx.fillStyle = '#1c1917';
-                ctx.fillRect(-2, -26, 6, 3);
+                ctx.fillRect(-6, -27, 12, 6);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-5, -26, 10, 4);
+                // Puntas primarias oscuras separadas
+                ctx.fillStyle = wingDark;
+                ctx.fillRect(-4, -32, 4, 4);
+                ctx.fillRect(1, -32, 4, 4);
 
             } else if (this.frame === 1) {
                 // FASE 2: Planeo horizontal mostrando todo el perfil
                 ctx.fillStyle = wingBase;
-                ctx.fillRect(-12, -4, 20, 8);
-                // Banda del espéculo completa
+                ctx.fillRect(-15, -6, 26, 10);
+                // Banda del espéculo completa en el centro
                 ctx.fillStyle = specBorder;
-                ctx.fillRect(-8, -3, 14, 6);
+                ctx.fillRect(-10, -5, 18, 7);
                 ctx.fillStyle = speculum;
-                ctx.fillRect(-6, -2, 10, 4);
+                ctx.fillRect(-8, -4, 14, 5);
                 // Remeras primarias oscuras
-                ctx.fillStyle = '#1c1917';
-                ctx.fillRect(-16, -2, 5, 5);
+                ctx.fillStyle = wingDark;
+                ctx.fillRect(-20, -3, 6, 6);
+                ctx.fillRect(-18, 0, 5, 4);
 
             } else if (this.frame === 2) {
                 // FASE 3: Golpe descendente de alas potente
                 ctx.fillStyle = wingBase;
-                ctx.fillRect(-6, 3, 14, 18);
+                ctx.fillRect(-8, 4, 18, 22);
+                ctx.fillStyle = specBorder;
+                ctx.fillRect(-6, 7, 14, 6);
                 ctx.fillStyle = speculum;
-                ctx.fillRect(-4, 6, 10, 4);
-                ctx.fillStyle = specBorder;
-                ctx.fillRect(-5, 5, 12, 1);
-                ctx.fillStyle = specBorder;
-                ctx.fillRect(-5, 11, 12, 1);
+                ctx.fillRect(-5, 8, 12, 4);
                 // Puntas empujando hacia abajo
-                ctx.fillStyle = '#1c1917';
-                ctx.fillRect(-2, 20, 6, 3);
+                ctx.fillStyle = wingDark;
+                ctx.fillRect(-4, 24, 6, 4);
+                ctx.fillRect(3, 22, 5, 4);
 
             } else {
                 // FASE 4: Recogida ágil preparando el siguiente aleteo
                 ctx.fillStyle = wingBase;
-                ctx.fillRect(-8, -12, 16, 12);
-                ctx.fillStyle = speculum;
-                ctx.fillRect(-6, -10, 8, 4);
+                ctx.fillRect(-10, -15, 20, 15);
                 ctx.fillStyle = specBorder;
-                ctx.fillRect(-6, -11, 8, 1);
-                ctx.fillStyle = '#1c1917';
-                ctx.fillRect(-6, -6, 12, 4);
+                ctx.fillRect(-8, -13, 12, 6);
+                ctx.fillStyle = speculum;
+                ctx.fillRect(-7, -12, 10, 4);
+                ctx.fillStyle = wingDark;
+                ctx.fillRect(-8, -8, 15, 5);
             }
         }
 
@@ -1221,91 +1267,91 @@ function drawDog() {
 }
 
 // ==============================================================================
-// AMBIENTE Y ESCENARIO RETRO NES (ÁRBOL, HIERBA Y NUBES)
+// AMBIENTE Y ESCENARIO RETRO NES (FONDO, LAGO, ÁRBOL Y PRIMER PLANO)
 // ==============================================================================
 
-function drawEnvironment() {
-    // 1. Cielo con degradado atmosférico dinámico
+function drawBackgroundEnvironment() {
+    // 1. Cielo con degradado atmosférico dinámico celestial
     const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
     if (GameState.targetSkyColor === '#ff8ea3') {
-        // Atardecer / Crepúsculo dramático al escapar el pato
+        // Atardecer crepuscular dramático al escapar el pato
         skyGrad.addColorStop(0.0, '#3b0764'); // Violeta cósmico
         skyGrad.addColorStop(0.35, '#9d174d'); // Rosa oscuro
         skyGrad.addColorStop(0.70, '#ea580c'); // Naranja atardecer
         skyGrad.addColorStop(1.0, '#fef08a'); // Amarillo horizonte cálido
     } else {
         // Día soleado retro arcade luminoso
-        skyGrad.addColorStop(0.0, '#1d4ed8'); // Azul arcade profundo
-        skyGrad.addColorStop(0.30, '#38bdf8'); // Celeste nítido
+        skyGrad.addColorStop(0.0, '#1e40af'); // Azul arcade profundo
+        skyGrad.addColorStop(0.28, '#38bdf8'); // Celeste nítido
         skyGrad.addColorStop(0.75, '#7dd3fc'); // Neblina celeste
-        skyGrad.addColorStop(1.0, '#dbeafe'); // Horizonte luminoso
+        skyGrad.addColorStop(1.0, '#fef9c3'); // Calidez dorada del horizonte matutino
     }
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
 
     // 2. Sol radiante con halo y destellos (durante el día)
     if (GameState.targetSkyColor !== '#ff8ea3') {
-        const sunX = 300;
-        const sunY = 46;
+        const sunX = 305;
+        const sunY = 44;
 
         // Halo difuso
-        const halo = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 36);
-        halo.addColorStop(0, 'rgba(254, 240, 138, 0.45)');
-        halo.addColorStop(0.5, 'rgba(253, 224, 71, 0.15)');
+        const halo = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 42);
+        halo.addColorStop(0, 'rgba(254, 240, 138, 0.48)');
+        halo.addColorStop(0.5, 'rgba(253, 224, 71, 0.16)');
         halo.addColorStop(1, 'rgba(253, 224, 71, 0)');
         ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(sunX, sunY, 36, 0, Math.PI * 2);
+        ctx.arc(sunX, sunY, 42, 0, Math.PI * 2);
         ctx.fill();
 
         // Núcleo solar
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(sunX, sunY, 11, 0, Math.PI * 2);
+        ctx.arc(sunX, sunY, 12, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#fde047';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        // Destellos sutiles
-        ctx.fillStyle = 'rgba(254, 240, 138, 0.6)';
-        ctx.fillRect(sunX - 18, sunY - 1, 36, 2);
-        ctx.fillRect(sunX - 1, sunY - 18, 2, 36);
+        // Destellos de corona solar
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.65)';
+        ctx.fillRect(sunX - 22, sunY - 1, 44, 2);
+        ctx.fillRect(sunX - 1, sunY - 22, 2, 44);
     }
 
-    // 3. Cadena montañosa distante (Capa de fondo 1 - Azul índigo en perspectiva)
+    // 3. Cadena montañosa distante (Capa 1 - Picos alpinos en perspectiva)
     ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#4a154b' : '#334155';
     ctx.beginPath();
     ctx.moveTo(0, GROUND_Y);
-    ctx.lineTo(0, 202);
-    ctx.lineTo(35, 178);
-    ctx.lineTo(75, 196);
-    ctx.lineTo(130, 172);
-    ctx.lineTo(185, 192);
-    ctx.lineTo(245, 168);
-    ctx.lineTo(300, 188);
-    ctx.lineTo(355, 174);
-    ctx.lineTo(400, 190);
+    ctx.lineTo(0, 198);
+    ctx.lineTo(35, 172);
+    ctx.lineTo(75, 192);
+    ctx.lineTo(130, 166);
+    ctx.lineTo(185, 188);
+    ctx.lineTo(245, 162);
+    ctx.lineTo(300, 184);
+    ctx.lineTo(355, 168);
+    ctx.lineTo(400, 186);
     ctx.lineTo(400, GROUND_Y);
     ctx.closePath();
     ctx.fill();
 
-    // Aristas y nieve en picos lejanos
+    // Aristas iluminadas y nieve en picos lejanos
     ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#701a75' : '#475569';
     ctx.beginPath();
-    ctx.moveTo(35, 178); ctx.lineTo(45, 196); ctx.lineTo(25, 196); ctx.closePath(); ctx.fill();
-    ctx.moveTo(130, 172); ctx.lineTo(145, 192); ctx.lineTo(115, 192); ctx.closePath(); ctx.fill();
-    ctx.moveTo(245, 168); ctx.lineTo(262, 188); ctx.lineTo(230, 188); ctx.closePath(); ctx.fill();
-    ctx.moveTo(355, 174); ctx.lineTo(370, 190); ctx.lineTo(342, 190); ctx.closePath(); ctx.fill();
+    ctx.moveTo(35, 172); ctx.lineTo(46, 192); ctx.lineTo(24, 192); ctx.closePath(); ctx.fill();
+    ctx.moveTo(130, 166); ctx.lineTo(146, 188); ctx.lineTo(114, 188); ctx.closePath(); ctx.fill();
+    ctx.moveTo(245, 162); ctx.lineTo(264, 184); ctx.lineTo(228, 184); ctx.closePath(); ctx.fill();
+    ctx.moveTo(355, 168); ctx.lineTo(372, 186); ctx.lineTo(340, 186); ctx.closePath(); ctx.fill();
 
-    // 4. Colinas ondulantes en pradera (Capa de fondo 2 - Verde bosque en degradado)
+    // 4. Colinas ondulantes en pradera (Capa 2 - Verde bosque)
     ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? '#78350f' : '#14532d';
     ctx.beginPath();
     ctx.moveTo(0, GROUND_Y);
-    ctx.lineTo(0, 218);
-    ctx.quadraticCurveTo(80, 204, 160, 220);
-    ctx.quadraticCurveTo(250, 206, 330, 224);
-    ctx.quadraticCurveTo(370, 212, 400, 216);
+    ctx.lineTo(0, 214);
+    ctx.quadraticCurveTo(80, 200, 160, 216);
+    ctx.quadraticCurveTo(250, 202, 330, 220);
+    ctx.quadraticCurveTo(370, 208, 400, 212);
     ctx.lineTo(400, GROUND_Y);
     ctx.closePath();
     ctx.fill();
@@ -1315,11 +1361,51 @@ function drawEnvironment() {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // 5. Nubes esponjosas 3D flotantes con relieve
+    // 5. Lago / Humedal natural en el fondo con nenúfares y reflejos
+    const lakeY = 216;
+    const lakeH = GROUND_Y - lakeY;
+    const lakeGrad = ctx.createLinearGradient(0, lakeY, 0, GROUND_Y);
+    lakeGrad.addColorStop(0, '#0284c7');
+    lakeGrad.addColorStop(0.5, '#0369a1');
+    lakeGrad.addColorStop(1, '#0f766e');
+    ctx.fillStyle = lakeGrad;
+    ctx.fillRect(80, lakeY, CANVAS_WIDTH - 80, lakeH);
+
+    // Ondas y reflejos en el agua
+    const waterTime = Date.now() * 0.003;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    for (let wy = lakeY + 3; wy < GROUND_Y - 2; wy += 5) {
+        const offset = Math.sin(waterTime * 2 + wy) * 8;
+        ctx.fillRect(100 + offset, wy, 24, 1.2);
+        ctx.fillRect(160 - offset, wy, 18, 1.2);
+        ctx.fillRect(230 + offset * 0.7, wy, 32, 1.2);
+        ctx.fillRect(310 - offset, wy, 22, 1.2);
+    }
+
+    // Nenúfares / Hojas de loto flotantes con flores rosas
+    [
+        { x: 130, y: lakeY + 8 },
+        { x: 210, y: lakeY + 14 },
+        { x: 280, y: lakeY + 6 },
+        { x: 350, y: lakeY + 12 }
+    ].forEach(pad => {
+        // Hoja verde de nenúfar
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.ellipse(pad.x, pad.y, 7, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Flor rosa
+        ctx.fillStyle = '#f472b6';
+        ctx.fillRect(pad.x - 1, pad.y - 2, 3, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(pad.x, pad.y - 1, 1, 1);
+    });
+
+    // 6. Nubes esponjosas 3D flotantes con relieve
     const cloudShift = (Date.now() * 0.005) % (CANVAS_WIDTH + 140) - 70;
     const clouds = [
         { x: 30 + cloudShift * 0.8, y: 36, scale: 1.0 },
-        { x: 190 + cloudShift * 1.0, y: 28, scale: 1.2 },
+        { x: 190 + cloudShift * 1.0, y: 28, scale: 1.25 },
         { x: 340 + cloudShift * 0.6, y: 55, scale: 0.85 }
     ];
 
@@ -1356,103 +1442,103 @@ function drawEnvironment() {
         ctx.restore();
     });
 
-    // 6. El icónico roble nudoso retorcido de Duck Hunt (a la izquierda)
+    // 7. El icónico roble nudoso retorcido de Duck Hunt (a la izquierda)
     // Raíces y base ensanchada
     ctx.fillStyle = '#381a06'; // Sombra de corteza profunda
-    ctx.fillRect(32, GROUND_Y - 18, 38, 18);
+    ctx.fillRect(30, GROUND_Y - 20, 42, 20);
     ctx.fillStyle = '#78350f'; // Madera cálida
-    ctx.fillRect(34, GROUND_Y - 16, 32, 16);
+    ctx.fillRect(32, GROUND_Y - 18, 36, 18);
     ctx.fillStyle = '#9a3412'; // Luz en la raíz izquierda
-    ctx.fillRect(30, GROUND_Y - 8, 8, 8);
+    ctx.fillRect(28, GROUND_Y - 10, 10, 10);
 
     // Tronco principal con nudos y veta
     ctx.fillStyle = '#451a03';
-    ctx.fillRect(44, 95, 18, GROUND_Y - 95);
+    ctx.fillRect(42, 92, 22, GROUND_Y - 92);
     ctx.fillStyle = '#78350f';
-    ctx.fillRect(46, 95, 13, GROUND_Y - 95);
+    ctx.fillRect(45, 92, 16, GROUND_Y - 92);
     ctx.fillStyle = '#9a3412'; // Veta iluminada lateral
-    ctx.fillRect(46, 95, 4, GROUND_Y - 95);
+    ctx.fillRect(45, 92, 5, GROUND_Y - 92);
 
     // Curvatura del tronco
     ctx.fillStyle = '#78350f';
-    ctx.fillRect(40, 125, 10, 16);
-    ctx.fillRect(56, 155, 10, 14);
+    ctx.fillRect(38, 122, 12, 18);
+    ctx.fillRect(58, 152, 12, 16);
 
     // Agujero de nudo en el tronco
     ctx.fillStyle = '#1c0d02';
     ctx.beginPath();
-    ctx.ellipse(51, 165, 4, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(53, 164, 5, 7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#9a3412';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.4;
     ctx.stroke();
 
     // Ramas principales que se abren hacia la pantalla
     ctx.fillStyle = '#5c2b09';
     // Rama izquierda
-    ctx.fillRect(24, 108, 22, 8);
-    ctx.fillRect(18, 104, 10, 6);
+    ctx.fillRect(22, 106, 24, 9);
+    ctx.fillRect(16, 102, 12, 7);
     // Rama derecha hacia el centro
-    ctx.fillRect(58, 112, 28, 9);
-    ctx.fillRect(78, 118, 14, 7);
+    ctx.fillRect(60, 110, 32, 10);
+    ctx.fillRect(84, 116, 16, 8);
 
     // Copa frondosa del roble con 5 esferas de follaje 16-bit
     const foliagePuffs = [
-        { x: 34, y: 72, r: 28 },
-        { x: 70, y: 64, r: 30 },
-        { x: 50, y: 44, r: 26 },
-        { x: 88, y: 85, r: 22 },
-        { x: 22, y: 92, r: 20 }
+        { x: 34, y: 70, r: 30 },
+        { x: 72, y: 62, r: 32 },
+        { x: 50, y: 40, r: 28 },
+        { x: 92, y: 82, r: 24 },
+        { x: 20, y: 90, r: 22 }
     ];
 
     foliagePuffs.forEach(p => {
         // 1. Sombra interior profunda
-        ctx.fillStyle = '#14532d';
+        ctx.fillStyle = '#064e3b';
         ctx.beginPath();
         ctx.arc(p.x, p.y + 4, p.r, 0, Math.PI * 2);
         ctx.fill();
 
         // 2. Follaje verde esmeralda medio
-        ctx.fillStyle = '#16a34a';
+        ctx.fillStyle = '#10b981';
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r - 2, 0, Math.PI * 2);
         ctx.fill();
 
         // 3. Brillo de luz solar en el domo superior
-        ctx.fillStyle = '#4ade80';
+        ctx.fillStyle = '#34d399';
         ctx.beginPath();
         ctx.arc(p.x - 3, p.y - 4, p.r * 0.65, 0, Math.PI * 2);
         ctx.fill();
 
         // 4. Toques de luz lima pura
-        ctx.fillStyle = '#86efac';
+        ctx.fillStyle = '#a7f3d0';
         ctx.fillRect(p.x - p.r * 0.4, p.y - p.r * 0.6, p.r * 0.5, 3);
     });
 
-    // 7. Arbusto espeso con bayas silvestres rojas (a la derecha)
+    // 8. Arbusto espeso con bayas silvestres rojas (a la derecha)
     const bushX = 302;
-    const bushY = GROUND_Y - 42;
+    const bushY = GROUND_Y - 44;
 
     // Follaje del arbusto en 3 tonos
-    ctx.fillStyle = '#14532d';
+    ctx.fillStyle = '#064e3b';
     ctx.beginPath();
-    ctx.arc(bushX + 16, bushY + 20, 22, 0, Math.PI * 2);
-    ctx.arc(bushX + 44, bushY + 20, 24, 0, Math.PI * 2);
-    ctx.arc(bushX + 30, bushY + 10, 20, 0, Math.PI * 2);
+    ctx.arc(bushX + 16, bushY + 20, 24, 0, Math.PI * 2);
+    ctx.arc(bushX + 46, bushY + 20, 26, 0, Math.PI * 2);
+    ctx.arc(bushX + 30, bushY + 10, 22, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#16a34a';
+    ctx.fillStyle = '#10b981';
     ctx.beginPath();
-    ctx.arc(bushX + 16, bushY + 18, 19, 0, Math.PI * 2);
-    ctx.arc(bushX + 44, bushY + 18, 20, 0, Math.PI * 2);
-    ctx.arc(bushX + 30, bushY + 9, 17, 0, Math.PI * 2);
+    ctx.arc(bushX + 16, bushY + 18, 20, 0, Math.PI * 2);
+    ctx.arc(bushX + 46, bushY + 18, 22, 0, Math.PI * 2);
+    ctx.arc(bushX + 30, bushY + 9, 18, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#22c55e';
+    ctx.fillStyle = '#34d399';
     ctx.beginPath();
-    ctx.arc(bushX + 14, bushY + 14, 13, 0, Math.PI * 2);
-    ctx.arc(bushX + 42, bushY + 14, 14, 0, Math.PI * 2);
-    ctx.arc(bushX + 28, bushY + 6, 12, 0, Math.PI * 2);
+    ctx.arc(bushX + 14, bushY + 14, 14, 0, Math.PI * 2);
+    ctx.arc(bushX + 44, bushY + 14, 15, 0, Math.PI * 2);
+    ctx.arc(bushX + 28, bushY + 6, 13, 0, Math.PI * 2);
     ctx.fill();
 
     // Racimos de bayas rojas silvestres brillantes
@@ -1472,7 +1558,7 @@ function drawEnvironment() {
         ctx.fillRect(b.x, b.y, 1, 1);
     });
 
-    // 8. Suelo estratificado 16-bit (Tierra, grava y subsuelo)
+    // 9. Suelo estratificado 16-bit (Tierra, grava y subsuelo)
     // Capa 1: Manto de humus vegetal
     ctx.fillStyle = '#78350f';
     ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, 18);
@@ -1497,37 +1583,70 @@ function drawEnvironment() {
         ctx.fillStyle = '#a8a29e';
         ctx.fillRect(s.x, s.y, s.w - 1, 1);
     });
+}
 
-    // 9. Césped alto mecido por el viento con margaritas silvestres
-    // Línea base de césped
+function drawSunbeams() {
+    if (GameState.targetSkyColor === '#ff8ea3') return;
+    ctx.save();
+    // Rayos crepusculares / haces de luz solar diagonales atravesando el cielo
+    const beamGrad = ctx.createLinearGradient(300, 40, 160, GROUND_Y);
+    beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.16)');
+    beamGrad.addColorStop(0.5, 'rgba(253, 224, 71, 0.06)');
+    beamGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+
+    ctx.fillStyle = beamGrad;
+    // Haz 1
+    ctx.beginPath();
+    ctx.moveTo(290, 42); ctx.lineTo(315, 42); ctx.lineTo(210, GROUND_Y); ctx.lineTo(160, GROUND_Y);
+    ctx.closePath(); ctx.fill();
+
+    // Haz 2
+    ctx.beginPath();
+    ctx.moveTo(300, 42); ctx.lineTo(325, 42); ctx.lineTo(360, GROUND_Y); ctx.lineTo(320, GROUND_Y);
+    ctx.closePath(); ctx.fill();
+
+    // Haz 3 hacia la izquierda cerca del roble
+    ctx.beginPath();
+    ctx.moveTo(280, 42); ctx.lineTo(300, 42); ctx.lineTo(90, GROUND_Y); ctx.lineTo(50, GROUND_Y);
+    ctx.closePath(); ctx.fill();
+
+    ctx.restore();
+}
+
+function drawForegroundGrass() {
+    // 1. Línea base de césped
     ctx.fillStyle = '#84cc16';
-    ctx.fillRect(0, GROUND_Y - 4, CANVAS_WIDTH, 6);
+    ctx.fillRect(0, GROUND_Y - 3, CANVAS_WIDTH, 5);
 
     const windTime = Date.now() * 0.004;
 
-    // Mechones de hierba oscilantes en dos capas de profundidad
-    for (let x = 0; x < CANVAS_WIDTH; x += 6) {
-        const sway = Math.sin(windTime + x * 0.07) * 2.8;
-        const bladeHeight = (x % 18 === 0) ? 16 : ((x % 12 === 0) ? 12 : 9);
+    // 2. Mechones de hierba oscilantes en dos capas de profundidad (OCULTAN LAS PATAS DEL PERRO)
+    for (let x = 0; x < CANVAS_WIDTH; x += 5) {
+        const sway = Math.sin(windTime + x * 0.08) * 3.2;
+        const bladeHeight = (x % 15 === 0) ? 18 : ((x % 10 === 0) ? 14 : 10);
 
-        // Capa trasera de hierba (verde oscuro)
-        ctx.fillStyle = '#16a34a';
-        ctx.fillRect(x, GROUND_Y - bladeHeight + 2, 3, bladeHeight);
+        // Capa trasera de hierba (verde bosque profundo)
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(x, GROUND_Y - bladeHeight + 3, 3, bladeHeight);
 
         // Capa delantera con inclinación por viento (verde lima radiante)
         ctx.fillStyle = '#4ade80';
         ctx.beginPath();
         ctx.moveTo(x, GROUND_Y);
-        ctx.lineTo(x + 3, GROUND_Y);
+        ctx.lineTo(x + 3.5, GROUND_Y);
         ctx.lineTo(x + 2 + sway, GROUND_Y - bladeHeight);
         ctx.lineTo(x + sway, GROUND_Y - bladeHeight);
         ctx.closePath();
         ctx.fill();
 
-        // Margaritas silvestres en la pradera
-        if (x % 36 === 0 && x > 20 && x < 380) {
-            const flowerX = x + 2;
-            const flowerY = GROUND_Y - bladeHeight + 4;
+        // Puntas brillantes amarillentas
+        ctx.fillStyle = '#bef264';
+        ctx.fillRect(Math.round(x + 1 + sway), Math.round(GROUND_Y - bladeHeight), 2, 2);
+
+        // Margaritas silvestres y flores de trébol en la pradera
+        if (x % 32 === 0 && x > 25 && x < 375) {
+            const flowerX = x + 2 + sway * 0.5;
+            const flowerY = GROUND_Y - bladeHeight + 5;
             // Pétalos blancos
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(flowerX - 2, flowerY, 5, 2);
@@ -1535,8 +1654,150 @@ function drawEnvironment() {
             // Centro amarillo
             ctx.fillStyle = '#facc15';
             ctx.fillRect(flowerX, flowerY, 2, 2);
+        } else if (x % 48 === 0 && x > 30) {
+            // Flor de trébol rosa
+            const flowerX = x + 1 + sway * 0.5;
+            const flowerY = GROUND_Y - bladeHeight + 6;
+            ctx.fillStyle = '#f472b6';
+            ctx.fillRect(flowerX - 1, flowerY - 1, 3, 3);
+            ctx.fillStyle = '#fb7185';
+            ctx.fillRect(flowerX, flowerY, 1, 1);
         }
     }
+
+    // 3. Espadañas / Juncos palustres (Cattails) en el primer plano
+    const cattails = [
+        { x: 18, h: 32 },
+        { x: 75, h: 28 },
+        { x: 215, h: 30 },
+        { x: 275, h: 35 },
+        { x: 382, h: 32 }
+    ];
+
+    cattails.forEach(c => {
+        const sway = Math.sin(windTime * 0.8 + c.x * 0.05) * 2;
+        // Tallo verde flexible
+        ctx.strokeStyle = '#15803d';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(c.x, GROUND_Y);
+        ctx.quadraticCurveTo(c.x + sway * 0.5, GROUND_Y - c.h * 0.5, c.x + sway, GROUND_Y - c.h);
+        ctx.stroke();
+
+        // Mazorca cilíndrica de la espadaña (marrón aterciopelado)
+        const headX = c.x + sway;
+        const headY = GROUND_Y - c.h;
+        ctx.fillStyle = '#381a06';
+        ctx.fillRect(headX - 2, headY, 5, 14);
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(headX - 1, headY + 1, 2, 12); // Brillo
+        // Punta de pelusa
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(headX, headY - 3, 2, 3);
+    });
+}
+
+function initAmbientParticles() {
+    ambientParticles = [];
+    for (let i = 0; i < 24; i++) {
+        ambientParticles.push({
+            x: Math.random() * CANVAS_WIDTH,
+            y: Math.random() * (GROUND_Y - 20),
+            vx: 10 + Math.random() * 16,
+            vy: (Math.random() - 0.5) * 8,
+            seed: Math.random() * Math.PI * 2,
+            size: Math.random() < 0.3 ? 2 : 1.5,
+            alpha: 0.35 + Math.random() * 0.45
+        });
+    }
+}
+
+function updateAmbient(dt) {
+    // 1. Partículas flotantes de polen / motas doradas
+    const time = Date.now() * 0.003;
+    ambientParticles.forEach(p => {
+        p.x += (p.vx + Math.sin(time + p.seed) * 14) * dt;
+        p.y += (p.vy + Math.cos(time * 0.8 + p.seed) * 10) * dt;
+        if (p.x > CANVAS_WIDTH + 10) p.x = -10;
+        if (p.y < 10) p.y = GROUND_Y - 20;
+        if (p.y > GROUND_Y - 10) p.y = 20;
+    });
+
+    // 2. Hojas cayendo del roble
+    if (Math.random() < 0.04 && fallingLeaves.length < 8) {
+        fallingLeaves.push({
+            x: 40 + Math.random() * 55,
+            y: 70 + Math.random() * 30,
+            vx: 25 + Math.random() * 30,
+            vy: 20 + Math.random() * 25,
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 6,
+            color: Math.random() < 0.5 ? '#84cc16' : (Math.random() < 0.8 ? '#eab308' : '#ca8a04')
+        });
+    }
+
+    for (let i = fallingLeaves.length - 1; i >= 0; i--) {
+        const l = fallingLeaves[i];
+        l.x += l.vx * dt;
+        l.y += l.vy * dt;
+        l.rot += l.rotSpeed * dt;
+        if (l.y >= GROUND_Y - 4) {
+            fallingLeaves.splice(i, 1);
+        }
+    }
+
+    // 3. Humo de disparos
+    for (let i = gunSmokes.length - 1; i >= 0; i--) {
+        const s = gunSmokes[i];
+        s.life -= dt;
+        s.r += 18 * dt;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        if (s.life <= 0) gunSmokes.splice(i, 1);
+    }
+
+    // 4. Temporizador de screen shake
+    if (screenShakeTimer > 0) {
+        screenShakeTimer -= dt;
+    }
+}
+
+function drawFallingLeaves() {
+    fallingLeaves.forEach(l => {
+        ctx.save();
+        ctx.translate(Math.round(l.x), Math.round(l.y));
+        ctx.rotate(l.rot);
+        ctx.fillStyle = l.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+}
+
+function drawGunSmokes() {
+    gunSmokes.forEach(s => {
+        const alpha = Math.max(0, s.life / s.maxLife) * 0.45;
+        ctx.save();
+        ctx.fillStyle = `rgba(240, 240, 250, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+}
+
+function drawAmbientParticles() {
+    const isSunset = (GameState.targetSkyColor === '#ff8ea3');
+    ambientParticles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = isSunset ? '#fde047' : '#ffffff';
+        ctx.beginPath();
+        ctx.arc(Math.round(p.x), Math.round(p.y), p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
 }
 
 // ==============================================================================
@@ -1789,6 +2050,18 @@ function fireShot(aimX, aimY) {
     GameState.ammo--;
     GameState.whiteFlashTimer = 0.06; // Destello Zapper NES
     Reticle.flashTimer = 0.15; // Destello Zapper arcade retícula
+    screenShakeTimer = 0.08; // Retroceso / sacudida contundente de pantalla
+
+    // Humo de pólvora saliendo del impacto de la Zapper
+    gunSmokes.push({
+        x: aimX + (Math.random() - 0.5) * 8,
+        y: aimY + (Math.random() - 0.5) * 8,
+        vx: (Math.random() - 0.5) * 22,
+        vy: -18 - Math.random() * 20,
+        r: 6,
+        life: 0.45,
+        maxLife: 0.45
+    });
 
     // Sincronizar balas con el mando móvil
     broadcastAmmo();
@@ -1798,13 +2071,13 @@ function fireShot(aimX, aimY) {
     activeDucks.forEach(duck => {
         if (duck.state === 'flying' || duck.state === 'fly_away') {
             const dist = Math.hypot(duck.x - aimX, duck.y - aimY);
-            // Hitbox generosa para diversión arcade
-            if (dist < 34) {
+            // Hitbox generosa para diversión arcade (44x38 sprite)
+            if (dist < 36) {
                 hitCount++;
                 duck.state = 'hit';
                 duck.hitTimer = 0.35;
                 audio.playQuack();
-                createFeathers(duck.x, duck.y, 14);
+                createFeathers(duck.x, duck.y, 16);
 
                 GameState.score += duck.points;
                 GameState.ducksHitInRound++;
@@ -1992,6 +2265,7 @@ function update(dt) {
 
     updateDog(dt);
     updateFeathers(dt);
+    updateAmbient(dt);
 
     // Actualizar patos en vuelo
     if (GameState.subRoundState === 'hunting') {
@@ -2018,33 +2292,60 @@ function gameLoop(time) {
 
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Si hubo disparo, destello blanco clásico Zapper de la NES
+    // Guardar contexto para Screen Shake / Retroceso de la Zapper
+    ctx.save();
+    if (screenShakeTimer > 0) {
+        const shakeMag = (screenShakeTimer / 0.08) * 3.5;
+        const shakeX = (Math.random() - 0.5) * shakeMag;
+        const shakeY = (Math.random() - 0.5) * shakeMag;
+        ctx.translate(shakeX, shakeY);
+    }
+
+    // 1. Cielo, cordillera, colinas, humedal/lago, nubes y roble centenario
+    drawBackgroundEnvironment();
+
+    // 2. Hojas cayendo del roble
+    drawFallingLeaves();
+
+    // 3. Patos en vuelo
+    activeDucks.forEach(d => d.draw());
+
+    // 4. Perro cazador (dibujado detrás de la hierba para que se oculte naturalmente)
+    drawDog();
+
+    // 5. Hierba oscilante de primer plano, espadañas y flores (cubre patas del perro y patos en el suelo)
+    drawForegroundGrass();
+
+    // 6. Plumas cayendo
+    drawFeathers();
+
+    // 7. Humo de disparos
+    drawGunSmokes();
+
+    // 8. Partículas y polen ambiental flotante
+    drawAmbientParticles();
+
+    // 9. Rayos de sol volumétricos / God rays
+    drawSunbeams();
+
+    // 10. Textos flotantes
+    updateAndDrawFloatingScores(dt);
+
+    // 11. Barra NES inferior de los 10 patos y balas
+    drawNESBottomHUD();
+
+    // 12. Retícula de puntería Zapper
+    if (GameState.running && !GameState.gameOver) {
+        drawReticle();
+    }
+
+    ctx.restore();
+
+    // Destello incandescente Zapper (luz translúcida elegante para no cegar la escena)
     if (GameState.whiteFlashTimer > 0) {
-        ctx.fillStyle = '#ffffff';
+        const flashAlpha = Math.min(0.40, GameState.whiteFlashTimer / 0.06);
+        ctx.fillStyle = `rgba(255, 255, 240, ${flashAlpha})`;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    } else {
-        // 1. Cielo, nubes y fondo
-        drawEnvironment();
-
-        // 2. Patos en vuelo
-        activeDucks.forEach(d => d.draw());
-
-        // 3. Perro cazador (dibujado detrás de la hierba de primer plano)
-        drawDog();
-
-        // 4. Plumas cayendo
-        drawFeathers();
-
-        // 5. Textos flotantes
-        updateAndDrawFloatingScores(dt);
-
-        // 6. Barra NES inferior de los 10 patos y balas
-        drawNESBottomHUD();
-
-        // 7. Retícula de puntería Zapper
-        if (GameState.running && !GameState.gameOver) {
-            drawReticle();
-        }
     }
 
     requestAnimationFrame(gameLoop);
@@ -2069,6 +2370,10 @@ function startNewGame(fromController = false) {
     activeDucks = [];
     feathers = [];
     floatingScores = [];
+    gunSmokes = [];
+    fallingLeaves = [];
+    screenShakeTimer = 0;
+    initAmbientParticles();
 
     scoreElement.textContent = 'SCORE: 000000';
     roundCountElement.textContent = '01';
@@ -2386,6 +2691,7 @@ window.addEventListener('DOMContentLoaded', () => {
     updateQrCode();
     autoScale();
     initSignaling();
+    initAmbientParticles();
     const savedHi = localStorage.getItem('duckhunt_highscore');
     if (savedHi) {
         GameState.highScore = parseInt(savedHi, 10);
