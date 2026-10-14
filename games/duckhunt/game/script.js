@@ -333,6 +333,7 @@ const GameState = {
     ducksHitInRound: 0,
     roundTargetHits: 6, // Al menos 6 patos para pasar a la siguiente ronda
     roundHitsArray: [], // 10 booleanos/null para la barra inferior
+    waveInRound: 0, // Contador de tandas dentro de la ronda
     subRoundState: 'intro_dog', // 'intro_dog', 'spawn_ducks', 'hunting', 'dog_result', 'round_complete'
     subRoundTimer: 0,
     whiteFlashTimer: 0,
@@ -381,12 +382,14 @@ const Dog = {
 
 class Duck {
     constructor(round, slot = 0) {
+        this.slot = slot;
+        this.launchDelay = slot * 0.32; // Despegue escalonado: salen seguidos uno tras otro
         this.type = Math.random() < 0.25 ? 'red' : (Math.random() < 0.5 ? 'blue' : 'mallard');
-        this.x = 80 + Math.random() * (CANVAS_WIDTH - 160);
+        this.x = 70 + Math.random() * (CANVAS_WIDTH - 140);
         this.y = GROUND_Y - 14;
         
         // Velocidad y agilidad según la ronda y el tipo
-        const baseSpeed = 115 + (round * 16);
+        const baseSpeed = 110 + (round * 14);
         const speedMultiplier = this.type === 'red' ? 1.45 : (this.type === 'blue' ? 1.25 : 1.0);
         this.speed = baseSpeed * speedMultiplier;
         
@@ -398,7 +401,7 @@ class Duck {
         this.state = 'flying'; // 'flying', 'fly_away', 'hit', 'falling', 'dead'
         this.frame = 0;
         this.animTimer = 0;
-        this.flightTimer = 6.2 - Math.min(2.5, round * 0.25); // Tiempo antes de escapar
+        this.flightTimer = (6.6 + Math.min(3.2, slot * 0.5)) - Math.min(2.0, round * 0.2); // Tiempo antes de escapar
         this.hitTimer = 0;
         this.points = this.type === 'red' ? 1500 : (this.type === 'blue' ? 1000 : 500);
         this.width = 44;
@@ -408,6 +411,16 @@ class Duck {
     }
 
     update(dt) {
+        // Si el pato aún está agazapado en el césped esperando su turno de despegue
+        if (this.launchDelay > 0) {
+            this.launchDelay -= dt;
+            if (this.launchDelay <= 0) {
+                this.launchDelay = 0;
+                audio.playFlap();
+            }
+            return;
+        }
+
         if (this.state === 'flying') {
             this.animTimer += dt;
             if (this.animTimer > 0.08) {
@@ -492,6 +505,8 @@ class Duck {
     }
 
     draw() {
+        if (this.launchDelay > 0) return;
+
         ctx.save();
         ctx.translate(Math.round(this.x), Math.round(this.y));
 
@@ -1261,6 +1276,19 @@ function drawDog() {
             ctx.fillRect(21, 2, 3, 6);
             ctx.fillRect(25, 2, 3, 6);
         }
+
+        // Insignia de cazador experto si atrapó 3 o más patos en la misma tanda
+        if (Dog.caughtDucksCount >= 3) {
+            const pulse = Math.sin(Date.now() * 0.02) * 1.5;
+            ctx.save();
+            ctx.fillStyle = '#fde047';
+            ctx.font = '8px "Press Start 2P", monospace';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 4;
+            ctx.fillText(`x${Dog.caughtDucksCount}`, 0, -44 + pulse);
+            ctx.restore();
+        }
     }
 
     ctx.restore();
@@ -1963,30 +1991,31 @@ function drawNESBottomHUD() {
     ctx.save();
     ctx.font = '7px "Press Start 2P", monospace';
 
-    // 1. Contador de Balas / Cartuchos de escopeta 3D
+    // 1. Contador de Balas / Cartuchos de escopeta 3D (adaptativo a la cantidad de patos)
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SHOT', 14, hudY + 8);
-    for (let i = 0; i < 3; i++) {
-        const bx = 14 + i * 11;
+    ctx.fillText('SHOT', 10, hudY + 8);
+    const maxBullets = Math.min(7, GameState.maxAmmo);
+    const spacing = maxBullets > 4 ? 8 : 10;
+    for (let i = 0; i < maxBullets; i++) {
+        const bx = 10 + i * spacing;
         if (i < GameState.ammo) {
             // Cartucho cargado 3D
-            // Cuerpo rojo
             ctx.fillStyle = '#dc2626';
-            ctx.fillRect(bx, hudY + 12, 7, 10);
+            ctx.fillRect(bx, hudY + 12, 6, 10);
             ctx.fillStyle = '#ef4444';
-            ctx.fillRect(bx + 1, hudY + 13, 5, 2); // Brillo
+            ctx.fillRect(bx + 1, hudY + 13, 4, 2); // Brillo
             // Base metálica de latón dorada
             ctx.fillStyle = '#ca8a04';
-            ctx.fillRect(bx - 1, hudY + 20, 9, 3);
+            ctx.fillRect(bx - 1, hudY + 20, 8, 3);
             ctx.fillStyle = '#fde047';
-            ctx.fillRect(bx, hudY + 20, 7, 1);
+            ctx.fillRect(bx, hudY + 20, 6, 1);
         } else {
             // Cartucho gastado (recámara vacía)
             ctx.strokeStyle = '#475569';
             ctx.lineWidth = 1;
-            ctx.strokeRect(bx, hudY + 12, 7, 11);
+            ctx.strokeRect(bx, hudY + 12, 6, 11);
             ctx.fillStyle = '#1e293b';
-            ctx.fillRect(bx + 1, hudY + 13, 5, 9);
+            ctx.fillRect(bx + 1, hudY + 13, 4, 9);
         }
     }
 
@@ -2069,7 +2098,7 @@ function fireShot(aimX, aimY) {
 
     let hitCount = 0;
     activeDucks.forEach(duck => {
-        if (duck.state === 'flying' || duck.state === 'fly_away') {
+        if (duck.launchDelay <= 0 && (duck.state === 'flying' || duck.state === 'fly_away')) {
             const dist = Math.hypot(duck.x - aimX, duck.y - aimY);
             // Hitbox generosa para diversión arcade (44x38 sprite)
             if (dist < 36) {
@@ -2095,6 +2124,12 @@ function fireShot(aimX, aimY) {
                 duck.vx = 0;
                 duck.vy = -duck.speed * 1.35;
                 GameState.targetSkyColor = '#ff8ea3';
+            } else if (duck.launchDelay > 0) {
+                duck.launchDelay = 0;
+                duck.state = 'fly_away';
+                duck.vx = 0;
+                duck.vy = -duck.speed * 1.35;
+                GameState.targetSkyColor = '#ff8ea3';
             }
         });
     }
@@ -2112,6 +2147,7 @@ function startRoundIntro() {
     GameState.subRoundState = 'intro_dog';
     GameState.duckIndexInRound = 0;
     GameState.ducksHitInRound = 0;
+    GameState.waveInRound = 0;
     GameState.roundHitsArray = new Array(10).fill(null);
     GameState.targetSkyColor = '#63b8ff';
 
@@ -2126,19 +2162,40 @@ function startRoundIntro() {
 }
 
 function startRoundHunting() {
-    spawnDuckPair();
+    spawnDuckWave();
 }
 
-function spawnDuckPair() {
+function spawnDuckWave() {
+    const remaining = GameState.ducksTotalInRound - GameState.duckIndexInRound;
+    if (remaining <= 0) {
+        checkNextDuckOrEndRound();
+        return;
+    }
+
+    let ducksToSpawn = 2;
+    const r = GameState.round;
+    const w = GameState.waveInRound;
+
+    if (w === 0) {
+        // Primera tanda: en nivel 1 salen 2 patos seguidos, en niveles superiores aumenta progresivamente
+        ducksToSpawn = Math.min(remaining, Math.min(5, Math.max(2, r + 1)));
+    } else if (w === 1) {
+        // Segunda tanda: en nivel 1 salen 3 patos seguidos, luego 4, etc.
+        ducksToSpawn = Math.min(remaining, Math.min(5, Math.max(3, r + 2)));
+    } else {
+        // Tercera tanda en adelante: el resto de los patos de la ronda (ej. 5 patos en ronda 1)
+        ducksToSpawn = remaining;
+    }
+
+    GameState.waveInRound++;
+    // Las balas se adaptan con generosidad (+2 balas de margen) a la cantidad de patos
+    GameState.maxAmmo = Math.max(3, ducksToSpawn + 2);
     GameState.ammo = GameState.maxAmmo;
     broadcastAmmo();
-    ammoCountElement.textContent = '● ● ●';
+    ammoCountElement.textContent = '● '.repeat(GameState.ammo).trim();
     GameState.targetSkyColor = '#63b8ff';
 
     activeDucks = [];
-    // En rondas 1-2: 1 pato a la vez. En ronda 3+: 2 patos simultáneos
-    const ducksToSpawn = GameState.round >= 3 ? 2 : 1;
-
     for (let i = 0; i < ducksToSpawn; i++) {
         activeDucks.push(new Duck(GameState.round, i));
     }
@@ -2162,8 +2219,8 @@ function checkNextDuckOrEndRound() {
             triggerGameOver();
         }
     } else {
-        // Lanzar la siguiente pareja o pato
-        spawnDuckPair();
+        // Lanzar la siguiente tanda progresiva de patos
+        spawnDuckWave();
     }
 }
 
@@ -2172,38 +2229,48 @@ function handleDucksFinished() {
     let hits = 0;
     let escapes = 0;
     activeDucks.forEach(d => {
-        if (d.y >= GROUND_Y - 20 || d.state === 'dead' && d.hitTimer <= 0 && d.y > 0) {
+        if (d.state === 'dead' || d.state === 'falling' || d.hitTimer > 0 || d.y >= GROUND_Y - 20) {
             hits++;
         } else {
             escapes++;
         }
     });
 
-    const isSuccess = (hits > 0 && escapes === 0);
-
-    // Actualizar historial de la ronda
-    for (let i = 0; i < activeDucks.length; i++) {
+    // Actualizar historial certero de la barra de 10 patos
+    activeDucks.forEach(d => {
         const slot = GameState.duckIndexInRound;
-        if (slot < 10) {
-            GameState.roundHitsArray[slot] = (i < hits);
+        if (slot < GameState.ducksTotalInRound) {
+            const wasHit = (d.state === 'dead' || d.state === 'falling' || d.hitTimer > 0 || d.y >= GROUND_Y - 20);
+            GameState.roundHitsArray[slot] = wasHit;
             GameState.duckIndexInRound++;
         }
-    }
+    });
 
     GameState.subRoundState = 'dog_result';
     Dog.x = CANVAS_WIDTH / 2 - 14;
     Dog.y = GROUND_Y + 30;
+    Dog.caughtDucksCount = hits;
 
     if (hits > 0) {
         Dog.state = hits >= 2 ? 'caught_two' : 'caught_one';
-        Dog.timer = 1.6;
+        Dog.timer = 1.8;
         audio.playCaught();
-        addFloatingScore(`¡CAZADO!`, CANVAS_WIDTH / 2, 120, '#38bdf8');
+        if (hits >= 3) {
+            const comboBonus = hits * 350;
+            GameState.score += comboBonus;
+            scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+            addFloatingScore(`¡COMBO X${hits}! +${comboBonus}`, CANVAS_WIDTH / 2, 95, '#fde047');
+            addFloatingScore(`¡${hits} PATOS CAZADOS!`, CANVAS_WIDTH / 2, 120, '#38bdf8');
+        } else if (hits === 2) {
+            addFloatingScore('¡DOBLETE!', CANVAS_WIDTH / 2, 120, '#38bdf8');
+        } else {
+            addFloatingScore('¡CAZADO!', CANVAS_WIDTH / 2, 120, '#38bdf8');
+        }
     } else {
         Dog.state = 'laugh';
         Dog.timer = 1.8;
         audio.playDogLaugh();
-        addFloatingScore(`¡SE ESCAPÓ!`, CANVAS_WIDTH / 2, 120, '#ef4444');
+        addFloatingScore(escapes > 1 ? '¡SE ESCAPARON!' : '¡SE ESCAPÓ!', CANVAS_WIDTH / 2, 120, '#ef4444');
     }
 }
 
@@ -2272,7 +2339,7 @@ function update(dt) {
         let allFinished = true;
         activeDucks.forEach(duck => {
             duck.update(dt);
-            if (duck.state !== 'dead') {
+            if (duck.state !== 'dead' || duck.launchDelay > 0) {
                 allFinished = false;
             }
         });
@@ -2365,7 +2432,9 @@ function startNewGame(fromController = false) {
     GameState.isMobileSession = !!fromController;
     GameState.score = 0;
     GameState.round = 1;
-    GameState.ammo = 3;
+    GameState.waveInRound = 0;
+    GameState.ammo = 4;
+    GameState.maxAmmo = 4;
 
     activeDucks = [];
     feathers = [];
