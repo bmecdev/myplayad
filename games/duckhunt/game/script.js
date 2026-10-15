@@ -479,7 +479,7 @@ class Duck {
             }
             this.y += this.vy * dt;
             if (this.y < -45) {
-                this.state = 'dead';
+                this.state = 'escaped';
             }
 
         } else if (this.state === 'hit') {
@@ -880,17 +880,19 @@ function updateDog(dt) {
         // ¡AQUÍ ES DONDE EL PERRO RECOGE LOS PATOS Y SE ENTREGAN LOS PUNTOS!
         if ((Dog.state === 'caught_one' || Dog.state === 'caught_two') && !Dog.pointsAwarded && Dog.y <= GROUND_Y - 32) {
             Dog.pointsAwarded = true;
-            GameState.score += Dog.pendingPoints;
-            GameState.ducksHitInRound += Dog.caughtDucksCount;
-            scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
-            audio.playCaught();
-            addFloatingScore(`+${Dog.pendingPoints}`, Dog.x, Dog.y - 48, '#fde047');
-            if (Dog.caughtDucksCount >= 3) {
-                addFloatingScore(`¡${Dog.caughtDucksCount} PATOS!`, Dog.x, Dog.y - 62, '#38bdf8');
-            } else if (Dog.caughtDucksCount === 2) {
-                addFloatingScore('¡DOBLETE!', Dog.x, Dog.y - 62, '#38bdf8');
-            } else {
-                addFloatingScore('¡CAZADO!', Dog.x, Dog.y - 62, '#38bdf8');
+            if (Dog.pendingPoints > 0 && Dog.caughtDucksCount > 0) {
+                GameState.score += Dog.pendingPoints;
+                GameState.ducksHitInRound += Dog.caughtDucksCount;
+                scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+                audio.playCaught();
+                addFloatingScore(`+${Dog.pendingPoints}`, Dog.x, Dog.y - 48, '#fde047');
+                if (Dog.caughtDucksCount >= 3) {
+                    addFloatingScore(`¡${Dog.caughtDucksCount} PATOS!`, Dog.x, Dog.y - 62, '#38bdf8');
+                } else if (Dog.caughtDucksCount === 2) {
+                    addFloatingScore('¡DOBLETE!', Dog.x, Dog.y - 62, '#38bdf8');
+                } else {
+                    addFloatingScore('¡CAZADO!', Dog.x, Dog.y - 62, '#38bdf8');
+                }
             }
         }
 
@@ -2241,8 +2243,8 @@ function checkNextDuckOrEndRound() {
 }
 
 function handleDucksFinished() {
-    // Identificar patos cazados en esta tirada
-    const hitDucks = activeDucks.filter(d => d.wasHit || d.state === 'dead' || d.state === 'falling' || d.y >= GROUND_Y - 20);
+    // Identificar patos cazados en esta tirada (SOLO los que fueron impactados con la Zapper)
+    const hitDucks = activeDucks.filter(d => d.wasHit === true && (d.state === 'dead' || d.state === 'falling' || d.state === 'hit'));
     const hits = hitDucks.length;
     const escapes = activeDucks.length - hits;
 
@@ -2250,7 +2252,7 @@ function handleDucksFinished() {
     activeDucks.forEach(d => {
         const slot = GameState.duckIndexInRound;
         if (slot < GameState.ducksTotalInRound) {
-            const wasHit = (d.wasHit || d.state === 'dead' || d.state === 'falling' || d.y >= GROUND_Y - 20);
+            const wasHit = (d.wasHit === true && (d.state === 'dead' || d.state === 'falling' || d.state === 'hit'));
             GameState.roundHitsArray[slot] = wasHit;
             GameState.duckIndexInRound++;
         }
@@ -2354,7 +2356,7 @@ function update(dt) {
         let allFinished = true;
         activeDucks.forEach(duck => {
             duck.update(dt);
-            if (duck.state !== 'dead' || duck.launchDelay > 0) {
+            if ((duck.state !== 'dead' && duck.state !== 'escaped') || duck.launchDelay > 0) {
                 allFinished = false;
             }
         });
