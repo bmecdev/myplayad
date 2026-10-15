@@ -490,10 +490,10 @@ class Duck {
             }
 
         } else if (this.state === 'falling') {
-            this.y += 240 * dt;
-            this.fallRotation += 14 * dt;
+            this.y += 320 * dt; // Caída rápida hacia el césped
+            this.fallRotation += 16 * dt;
             this.animTimer += dt;
-            if (this.animTimer > 0.09) {
+            if (this.animTimer > 0.08) {
                 this.animTimer = 0;
                 this.frame = (this.frame + 1) % 2;
             }
@@ -502,13 +502,14 @@ class Duck {
                 this.y = GROUND_Y - 14;
                 this.state = 'dead';
                 audio.playThud();
-                createFeathers(this.x, this.y, 16);
+                createFeathers(this.x, this.y, 18);
             }
         }
     }
 
     draw() {
-        if (this.launchDelay > 0) return;
+        // Los patos muertos, que no han salido o que escaparon NO se dibujan en el aire
+        if (this.launchDelay > 0 || this.state === 'dead' || this.state === 'escaped') return;
 
         ctx.save();
         ctx.translate(Math.round(this.x), Math.round(this.y));
@@ -2041,12 +2042,14 @@ function drawNESBottomHUD() {
         }
     }
 
-    // 2. Barra de los 10 patos de la ronda (Siluetas pixel-art)
+    // 2. Barra de patos del nivel actual (Siluetas pixel-art)
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('HIT', 110, hudY + 8);
+    ctx.fillText('HIT', 105, hudY + 8);
 
-    for (let i = 0; i < 10; i++) {
-        const px = 110 + i * 15;
+    const totalDucks = GameState.ducksTotalInRound || 2;
+    const spacing = totalDucks > 5 ? 14 : 17;
+    for (let i = 0; i < totalDucks; i++) {
+        const px = 105 + i * spacing;
         const py = hudY + 11;
         const res = GameState.roundHitsArray[i];
 
@@ -2064,19 +2067,13 @@ function drawNESBottomHUD() {
             ctx.fillRect(px, py + 2, 11, 7);
             ctx.fillRect(px + 6, py - 1, 5, 4);
         } else {
-            // Pato pendiente: animación de pulso si es el objetivo actual
-            const isCurrent = (i === GameState.duckIndexInRound);
-            if (isCurrent) {
-                const blink = Math.floor(Date.now() / 120) % 2 === 0;
-                ctx.fillStyle = blink ? '#38bdf8' : '#e0f2fe';
-                ctx.fillRect(px, py + 2, 11, 7);
-                ctx.fillRect(px + 6, py - 1, 5, 4);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(px + 2, py + 1, 4, 2); // Destello ala
-            } else {
-                ctx.fillStyle = '#475569';
-                ctx.fillRect(px, py + 5, 10, 4);
-            }
+            // Pato pendiente: animación de pulso
+            const blink = Math.floor(Date.now() / 120) % 2 === 0;
+            ctx.fillStyle = blink ? '#38bdf8' : '#e0f2fe';
+            ctx.fillRect(px, py + 2, 11, 7);
+            ctx.fillRect(px + 6, py - 1, 5, 4);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(px + 2, py + 1, 4, 2); // Destello ala
         }
     }
 
@@ -2165,12 +2162,17 @@ function startRoundIntro() {
     GameState.subRoundState = 'intro_dog';
     GameState.duckIndexInRound = 0;
     GameState.ducksHitInRound = 0;
-    GameState.waveInRound = 0;
-    GameState.roundHitsArray = new Array(10).fill(null);
     GameState.targetSkyColor = '#63b8ff';
 
+    // Nivel 1: 2 patos seguidos
+    // Nivel 2: 3 patos seguidos
+    // Nivel 3: 4 patos seguidos... progresivo y desafiante
+    GameState.ducksTotalInRound = Math.min(8, GameState.round + 1);
+    GameState.roundHitsArray = new Array(GameState.ducksTotalInRound).fill(null);
+
     roundCountElement.textContent = String(GameState.round).padStart(2, '0');
-    addFloatingScore(`ROUND ${GameState.round}`, CANVAS_WIDTH / 2, 110, '#fde047');
+    addFloatingScore(`NIVEL ${GameState.round}`, CANVAS_WIDTH / 2, 95, '#fde047');
+    addFloatingScore(`${GameState.ducksTotalInRound} PATOS SEGUIDOS`, CANVAS_WIDTH / 2, 115, '#38bdf8');
 
     Dog.x = -40;
     Dog.y = GROUND_Y - 26;
@@ -2184,29 +2186,9 @@ function startRoundHunting() {
 }
 
 function spawnDuckWave() {
-    const remaining = GameState.ducksTotalInRound - GameState.duckIndexInRound;
-    if (remaining <= 0) {
-        checkNextDuckOrEndRound();
-        return;
-    }
+    const ducksToSpawn = GameState.ducksTotalInRound;
 
-    let ducksToSpawn = 2;
-    const r = GameState.round;
-    const w = GameState.waveInRound;
-
-    if (w === 0) {
-        // Primera tanda: en nivel 1 salen 2 patos seguidos, en niveles superiores aumenta progresivamente
-        ducksToSpawn = Math.min(remaining, Math.min(5, Math.max(2, r + 1)));
-    } else if (w === 1) {
-        // Segunda tanda: en nivel 1 salen 3 patos seguidos, luego 4, etc.
-        ducksToSpawn = Math.min(remaining, Math.min(5, Math.max(3, r + 2)));
-    } else {
-        // Tercera tanda en adelante: el resto de los patos de la ronda (ej. 5 patos en ronda 1)
-        ducksToSpawn = remaining;
-    }
-
-    GameState.waveInRound++;
-    // Las balas se adaptan con generosidad (+2 balas de margen) a la cantidad de patos
+    // Balas suficientes con margen de tiro (+2 balas)
     GameState.maxAmmo = Math.max(3, ducksToSpawn + 2);
     GameState.ammo = GameState.maxAmmo;
     broadcastAmmo();
@@ -2222,46 +2204,54 @@ function spawnDuckWave() {
 }
 
 function checkNextDuckOrEndRound() {
-    if (GameState.duckIndexInRound >= GameState.ducksTotalInRound) {
-        // Fin de la ronda de 10 patos: verificar si superó el mínimo
-        if (GameState.ducksHitInRound >= GameState.roundTargetHits) {
-            GameState.round++;
-            audio.playRoundPass();
-            addFloatingScore(`¡RONDA SUPERADA! (${GameState.ducksHitInRound}/10)`, CANVAS_WIDTH / 2, 110, '#22c55e');
-            setTimeout(() => {
-                if (GameState.running && !GameState.gameOver) {
-                    startRoundIntro();
-                }
-            }, 1800);
-        } else {
-            triggerGameOver();
-        }
+    // Si mató a todos los patos del nivel avanza, de lo contrario regresa al nivel 1
+    const killedAll = (GameState.ducksHitInRound >= GameState.ducksTotalInRound);
+
+    if (killedAll) {
+        GameState.round++;
+        audio.playRoundPass();
+        addFloatingScore(`¡NIVEL ${GameState.round - 1} COMPLETADO!`, CANVAS_WIDTH / 2, 95, '#22c55e');
+        addFloatingScore(`SIGUIENTE: NIVEL ${GameState.round}`, CANVAS_WIDTH / 2, 115, '#fde047');
+        setTimeout(() => {
+            if (GameState.running && !GameState.gameOver) {
+                startRoundIntro();
+            }
+        }, 1800);
     } else {
-        // Lanzar la siguiente tanda progresiva de patos
-        spawnDuckWave();
+        // No mató a todos los patos: ¡REGRESA AL NIVEL 1!
+        audio.playGameOver();
+        GameState.round = 1;
+        setTimeout(() => {
+            if (GameState.running && !GameState.gameOver) {
+                startRoundIntro();
+            }
+        }, 1800);
     }
 }
 
 function handleDucksFinished() {
-    // Identificar patos cazados en esta tirada (SOLO los que fueron impactados con la Zapper)
+    // Identificar patos cazados en este nivel (SOLO los impactados que cayeron al suelo)
     const hitDucks = activeDucks.filter(d => d.wasHit === true && (d.state === 'dead' || d.state === 'falling' || d.state === 'hit'));
     const hits = hitDucks.length;
     const escapes = activeDucks.length - hits;
 
-    // Actualizar historial certero de la barra de 10 patos
-    activeDucks.forEach(d => {
-        const slot = GameState.duckIndexInRound;
-        if (slot < GameState.ducksTotalInRound) {
-            const wasHit = (d.wasHit === true && (d.state === 'dead' || d.state === 'falling' || d.state === 'hit'));
-            GameState.roundHitsArray[slot] = wasHit;
-            GameState.duckIndexInRound++;
+    // Actualizar historial certero en los iconos inferiores del HUD
+    activeDucks.forEach((d, idx) => {
+        if (idx < GameState.ducksTotalInRound) {
+            GameState.roundHitsArray[idx] = (d.wasHit === true);
         }
     });
+    GameState.duckIndexInRound = GameState.ducksTotalInRound;
 
     GameState.subRoundState = 'dog_result';
 
-    if (hits > 0) {
-        // El perro se posiciona donde cayeron los patos cazados en el césped para recogerlos
+    // ¿Mató a TODOS los patos del nivel?
+    const killedAll = (hits === GameState.ducksTotalInRound);
+
+    if (killedAll) {
+        // ==========================================
+        // ¡ÉXITO! MATÓ A TODOS LOS PATOS DEL NIVEL
+        // ==========================================
         const avgX = hitDucks.reduce((acc, d) => acc + d.x, 0) / hitDucks.length;
         Dog.x = Math.max(50, Math.min(CANVAS_WIDTH - 50, avgX));
         Dog.y = GROUND_Y + 30;
@@ -2270,24 +2260,33 @@ function handleDucksFinished() {
         Dog.timer = 2.0;
         Dog.pointsAwarded = false;
 
-        // Calcular puntos que el perro otorgará cuando asome recogiéndolos
-        let totalWavePoints = hitDucks.reduce((acc, d) => acc + (d.points || 500), 0);
+        // Puntos acumulados de todos los patos + bonus por bandada completa
+        let totalPoints = hitDucks.reduce((acc, d) => acc + (d.points || 500), 0);
         if (hits >= 3) {
-            totalWavePoints += hits * 350; // Bonificación de combo
+            totalPoints += hits * 400; // Multiplicador combo
         }
-        Dog.pendingPoints = totalWavePoints;
+        Dog.pendingPoints = totalPoints;
 
     } else {
-        // Si todos escaparon, el perro se burla en el centro
+        // ==========================================
+        // ¡FALLÓ! NO MATÓ A TODOS -> REGRESA AL NIVEL 1
+        // ==========================================
         Dog.x = CANVAS_WIDTH / 2 - 14;
         Dog.y = GROUND_Y + 30;
         Dog.state = 'laugh';
-        Dog.timer = 1.8;
+        Dog.timer = 2.2;
         Dog.caughtDucksCount = 0;
         Dog.pendingPoints = 0;
         Dog.pointsAwarded = true;
         audio.playDogLaugh();
-        addFloatingScore(escapes > 1 ? '¡SE ESCAPARON!' : '¡SE ESCAPÓ!', Dog.x, GROUND_Y - 45, '#ef4444');
+
+        if (hits > 0) {
+            addFloatingScore(`¡NO CAZASTE TODOS! (${hits}/${GameState.ducksTotalInRound})`, Dog.x, GROUND_Y - 60, '#ef4444');
+            addFloatingScore('REGRESAS AL NIVEL 1', Dog.x, GROUND_Y - 44, '#fde047');
+        } else {
+            addFloatingScore('¡SE ESCAPARON!', Dog.x, GROUND_Y - 60, '#ef4444');
+            addFloatingScore('REGRESAS AL NIVEL 1', Dog.x, GROUND_Y - 44, '#fde047');
+        }
     }
 }
 
