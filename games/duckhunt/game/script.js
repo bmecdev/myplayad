@@ -898,6 +898,15 @@ function updateDog(dt) {
         }
 
         if (Dog.timer <= 0) {
+            if ((Dog.state === 'caught_one' || Dog.state === 'caught_two') && !Dog.pointsAwarded) {
+                Dog.pointsAwarded = true;
+                if (Dog.pendingPoints > 0 && Dog.caughtDucksCount > 0) {
+                    GameState.score += Dog.pendingPoints;
+                    GameState.ducksHitInRound += Dog.caughtDucksCount;
+                    scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+                    audio.playCaught();
+                }
+            }
             Dog.state = 'hidden';
             checkNextDuckOrEndRound();
         }
@@ -2047,9 +2056,9 @@ function drawNESBottomHUD() {
     ctx.fillText('HIT', 105, hudY + 8);
 
     const totalDucks = GameState.ducksTotalInRound || 2;
-    const spacing = totalDucks > 5 ? 14 : 17;
+    const duckSpacing = totalDucks > 5 ? 14 : 17;
     for (let i = 0; i < totalDucks; i++) {
-        const px = 105 + i * spacing;
+        const px = 105 + i * duckSpacing;
         const py = hudY + 11;
         const res = GameState.roundHitsArray[i];
 
@@ -2159,6 +2168,8 @@ function broadcastAmmo() {
 }
 
 function startRoundIntro() {
+    activeDucks = [];
+    GameState.roundWon = false;
     GameState.subRoundState = 'intro_dog';
     GameState.duckIndexInRound = 0;
     GameState.ducksHitInRound = 0;
@@ -2205,7 +2216,7 @@ function spawnDuckWave() {
 
 function checkNextDuckOrEndRound() {
     // Si mató a todos los patos del nivel avanza, de lo contrario regresa al nivel 1
-    const killedAll = (GameState.ducksHitInRound >= GameState.ducksTotalInRound);
+    const killedAll = !!GameState.roundWon;
 
     if (killedAll) {
         GameState.round++;
@@ -2247,6 +2258,7 @@ function handleDucksFinished() {
 
     // ¿Mató a TODOS los patos del nivel?
     const killedAll = (hits === GameState.ducksTotalInRound);
+    GameState.roundWon = killedAll;
 
     if (killedAll) {
         // ==========================================
