@@ -37,15 +37,23 @@ class DuckHuntAudio {
         if (!this.ctx) {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
                 this.ctx = new AudioContext();
                 this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                this.masterGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
                 this.masterGain.connect(this.ctx.destination);
-                this.updateUI();
-            } catch (_) {}
+            } catch (e) {
+                console.warn('Audio no soportado:', e);
+            }
         }
+        this.resume();
+    }
+
+    resume() {
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume().then(() => this.updateUI());
+            this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+        } else if (this.ctx && this.ctx.state === 'running') {
+            this.updateUI();
         }
     }
 
@@ -54,23 +62,25 @@ class DuckHuntAudio {
         if (!btn) return;
         if (this.ctx && this.ctx.state === 'running') {
             btn.classList.remove('muted');
-            btn.textContent = '🔊 AUDIO';
+            btn.textContent = '🔊 AUDIO: ON';
         } else {
             btn.classList.add('muted');
-            btn.textContent = '🔇 MUDO';
+            btn.textContent = '🔇 CLIC AUDIO';
         }
     }
 
-    // Intro clásica de Duck Hunt
+    // Intro clásica de Duck Hunt NES
     playIntro() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
             const notes = [
                 { f: 523.25, d: 0.12 }, // C5
                 { f: 659.25, d: 0.12 }, // E5
                 { f: 783.99, d: 0.12 }, // G5
-                { f: 1046.50, d: 0.22 }, // C6
+                { f: 1046.50, d: 0.20 }, // C6
                 { f: 783.99, d: 0.12 },
                 { f: 1046.50, d: 0.35 }
             ];
@@ -80,30 +90,32 @@ class DuckHuntAudio {
                 const gain = this.ctx.createGain();
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(n.f, now + offset);
-                gain.gain.setValueAtTime(0.25, now + offset);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + offset + n.d);
+                gain.gain.setValueAtTime(0.40, now + offset);
+                gain.gain.linearRampToValueAtTime(0.0001, now + offset + n.d);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(now + offset);
                 osc.stop(now + offset + n.d);
-                offset += n.d + 0.02;
+                offset += n.d + 0.025;
             });
         } catch (_) {}
     }
 
     // Ladrido del perro
     playBark() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
             [0, 0.14].forEach(t => {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(320, now + t);
-                osc.frequency.exponentialRampToValueAtTime(140, now + t + 0.10);
-                gain.gain.setValueAtTime(0.3, now + t);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + t + 0.10);
+                osc.frequency.setValueAtTime(360, now + t);
+                osc.frequency.linearRampToValueAtTime(140, now + t + 0.10);
+                gain.gain.setValueAtTime(0.50, now + t);
+                gain.gain.linearRampToValueAtTime(0.0001, now + t + 0.10);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(now + t);
@@ -114,45 +126,63 @@ class DuckHuntAudio {
 
     // Aleteo del pato
     playFlap() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.005;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(180, now);
-            osc.frequency.exponentialRampToValueAtTime(80, now + 0.06);
-            gain.gain.setValueAtTime(0.18, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+            osc.frequency.setValueAtTime(240, now);
+            osc.frequency.linearRampToValueAtTime(90, now + 0.08);
+            gain.gain.setValueAtTime(0.35, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.08);
             osc.connect(gain);
             gain.connect(this.masterGain);
             osc.start(now);
-            osc.stop(now + 0.06);
+            osc.stop(now + 0.08);
         } catch (_) {}
     }
 
-    // Disparo atronador de la Zapper
+    // Disparo atronador de la Zapper NES (ruido blanco + punch grave analógico)
     playGunshot() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
-            // Ruido blanco de explosión de pólvora
-            const bufferSize = this.ctx.sampleRate * 0.22;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.005;
+
+            // 1. Punch percusivo de recámara
+            const subOsc = this.ctx.createOscillator();
+            const subGain = this.ctx.createGain();
+            subOsc.type = 'triangle';
+            subOsc.frequency.setValueAtTime(180, now);
+            subOsc.frequency.linearRampToValueAtTime(35, now + 0.18);
+            subGain.gain.setValueAtTime(0.55, now);
+            subGain.gain.linearRampToValueAtTime(0.0001, now + 0.18);
+            subOsc.connect(subGain);
+            subGain.connect(this.masterGain);
+            subOsc.start(now);
+            subOsc.stop(now + 0.18);
+
+            // 2. Ruido blanco de explosión de pólvora
+            const bufferSize = Math.floor(this.ctx.sampleRate * 0.22);
             const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
-                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
             }
             const noise = this.ctx.createBufferSource();
             noise.buffer = buffer;
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1200, now);
-            filter.frequency.exponentialRampToValueAtTime(200, now + 0.22);
+            filter.frequency.setValueAtTime(1500, now);
+            filter.frequency.linearRampToValueAtTime(250, now + 0.22);
 
             const gain = this.ctx.createGain();
-            gain.gain.setValueAtTime(0.5, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+            gain.gain.setValueAtTime(0.65, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.22);
 
             noise.connect(filter);
             filter.connect(gain);
@@ -163,17 +193,19 @@ class DuckHuntAudio {
 
     // Graznido / Cuac del pato al ser impactado
     playQuack() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(420, now);
-            osc.frequency.setValueAtTime(560, now + 0.05);
-            osc.frequency.exponentialRampToValueAtTime(260, now + 0.18);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+            osc.frequency.setValueAtTime(450, now);
+            osc.frequency.setValueAtTime(580, now + 0.04);
+            osc.frequency.linearRampToValueAtTime(240, now + 0.18);
+            gain.gain.setValueAtTime(0.45, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.18);
             osc.connect(gain);
             gain.connect(this.masterGain);
             osc.start(now);
@@ -183,16 +215,18 @@ class DuckHuntAudio {
 
     // Silbido descendente de caída del pato
     playFall() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(160, now + 0.45);
-            gain.gain.setValueAtTime(0.25, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.linearRampToValueAtTime(140, now + 0.45);
+            gain.gain.setValueAtTime(0.38, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.45);
             osc.connect(gain);
             gain.connect(this.masterGain);
             osc.start(now);
@@ -202,57 +236,63 @@ class DuckHuntAudio {
 
     // Golpe sordo al caer en la hierba
     playThud() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(140, now);
-            osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
-            gain.gain.setValueAtTime(0.35, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+            osc.frequency.setValueAtTime(160, now);
+            osc.frequency.linearRampToValueAtTime(35, now + 0.14);
+            gain.gain.setValueAtTime(0.50, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.14);
             osc.connect(gain);
             gain.connect(this.masterGain);
             osc.start(now);
-            osc.stop(now + 0.12);
+            osc.stop(now + 0.14);
         } catch (_) {}
     }
 
     // Risa burlona del perro
     playDogLaugh() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
             for (let i = 0; i < 7; i++) {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'square';
-                const f = (i % 2 === 0) ? 580 : 720;
+                const f = (i % 2 === 0) ? 620 : 780;
                 osc.frequency.setValueAtTime(f, now + i * 0.09);
-                gain.gain.setValueAtTime(0.25, now + i * 0.09);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.09 + 0.06);
+                gain.gain.setValueAtTime(0.38, now + i * 0.09);
+                gain.gain.linearRampToValueAtTime(0.0001, now + i * 0.09 + 0.07);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(now + i * 0.09);
-                osc.stop(now + i * 0.09 + 0.06);
+                osc.stop(now + i * 0.09 + 0.07);
             }
         } catch (_) {}
     }
 
     // Fanfarria de patos capturados
     playCaught() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
             const notes = [440, 554.37, 659.25, 880];
             notes.forEach((f, idx) => {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(f, now + idx * 0.08);
-                gain.gain.setValueAtTime(0.25, now + idx * 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.14);
+                gain.gain.setValueAtTime(0.38, now + idx * 0.08);
+                gain.gain.linearRampToValueAtTime(0.0001, now + idx * 0.08 + 0.14);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(now + idx * 0.08);
@@ -263,17 +303,19 @@ class DuckHuntAudio {
 
     // Fanfarria de victoria de ronda
     playRoundPass() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
             const notes = [523.25, 659.25, 783.99, 1046.50];
             notes.forEach((f, idx) => {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(f, now + idx * 0.12);
-                gain.gain.setValueAtTime(0.28, now + idx * 0.12);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.22);
+                gain.gain.setValueAtTime(0.40, now + idx * 0.12);
+                gain.gain.linearRampToValueAtTime(0.0001, now + idx * 0.12 + 0.22);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(now + idx * 0.12);
@@ -284,9 +326,11 @@ class DuckHuntAudio {
 
     // Melodía de Game Over
     playGameOver() {
+        if (!this.ctx) this.init();
+        this.resume();
         if (!this.ctx) return;
         try {
-            const now = this.ctx.currentTime;
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
             const notes = [
                 { f: 587.33, d: 0.18 },
                 { f: 554.37, d: 0.18 },
@@ -299,8 +343,8 @@ class DuckHuntAudio {
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(n.f, now + offset);
-                gain.gain.setValueAtTime(0.25, now + offset);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + offset + n.d);
+                gain.gain.setValueAtTime(0.38, now + offset);
+                gain.gain.linearRampToValueAtTime(0.0001, now + offset + n.d);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(now + offset);
@@ -312,6 +356,14 @@ class DuckHuntAudio {
 }
 
 const audio = new DuckHuntAudio();
+
+// Desbloqueo y activación global de audio en cualquier interacción del usuario
+['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, () => {
+        if (!audio.ctx) audio.init();
+        else audio.resume();
+    }, { passive: true });
+});
 
 // ==============================================================================
 // ESTADO GLOBAL DEL JUEGO
@@ -2540,7 +2592,18 @@ window.addEventListener('keyup', (e) => {
 
 if (mainScreen) {
     mainScreen.addEventListener('click', () => {
-        if (audio.init) audio.init();
+        if (!audio.ctx) audio.init();
+        else audio.resume();
+        if (!GameState.running || GameState.gameOver) {
+            startNewGame();
+        }
+    });
+}
+
+if (waitingOverlay) {
+    waitingOverlay.addEventListener('click', () => {
+        if (!audio.ctx) audio.init();
+        else audio.resume();
         if (!GameState.running || GameState.gameOver) {
             startNewGame();
         }
@@ -2551,14 +2614,10 @@ const audioBtn = document.getElementById('audio-toggle-btn');
 if (audioBtn) {
     audioBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        audio.init();
-        if (audio.ctx) {
-            if (audio.ctx.state === 'running') {
-                audio.ctx.suspend().then(() => audio.updateUI());
-            } else {
-                audio.ctx.resume().then(() => audio.updateUI());
-            }
-        }
+        if (!audio.ctx) audio.init();
+        else audio.resume();
+        audio.playBark(); // Ladrido de confirmación sonora instantánea
+        audio.updateUI();
     });
 }
 
@@ -2787,6 +2846,7 @@ function autoScale() {
 
 // Arranque
 window.addEventListener('DOMContentLoaded', () => {
+    audio.init();
     updateQrCode();
     autoScale();
     initSignaling();
