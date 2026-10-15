@@ -373,7 +373,9 @@ const Dog = {
     timer: 0,
     animTimer: 0,
     targetY: GROUND_Y - 32,
-    caughtDucksCount: 1
+    caughtDucksCount: 1,
+    pendingPoints: 0,
+    pointsAwarded: false
 };
 
 // ==============================================================================
@@ -403,6 +405,7 @@ class Duck {
         this.animTimer = 0;
         this.flightTimer = (6.6 + Math.min(3.2, slot * 0.5)) - Math.min(2.0, round * 0.2); // Tiempo antes de escapar
         this.hitTimer = 0;
+        this.wasHit = false;
         this.points = this.type === 'red' ? 1500 : (this.type === 'blue' ? 1000 : 500);
         this.width = 44;
         this.height = 38;
@@ -872,6 +875,23 @@ function updateDog(dt) {
             Dog.y += ((GROUND_Y - 45) - Dog.y) * 10 * dt;
         } else {
             Dog.y += ((GROUND_Y + 30) - Dog.y) * 10 * dt;
+        }
+
+        // ¡AQUÍ ES DONDE EL PERRO RECOGE LOS PATOS Y SE ENTREGAN LOS PUNTOS!
+        if ((Dog.state === 'caught_one' || Dog.state === 'caught_two') && !Dog.pointsAwarded && Dog.y <= GROUND_Y - 32) {
+            Dog.pointsAwarded = true;
+            GameState.score += Dog.pendingPoints;
+            GameState.ducksHitInRound += Dog.caughtDucksCount;
+            scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+            audio.playCaught();
+            addFloatingScore(`+${Dog.pendingPoints}`, Dog.x, Dog.y - 48, '#fde047');
+            if (Dog.caughtDucksCount >= 3) {
+                addFloatingScore(`¡${Dog.caughtDucksCount} PATOS!`, Dog.x, Dog.y - 62, '#38bdf8');
+            } else if (Dog.caughtDucksCount === 2) {
+                addFloatingScore('¡DOBLETE!', Dog.x, Dog.y - 62, '#38bdf8');
+            } else {
+                addFloatingScore('¡CAZADO!', Dog.x, Dog.y - 62, '#38bdf8');
+            }
         }
 
         if (Dog.timer <= 0) {
@@ -2105,13 +2125,9 @@ function fireShot(aimX, aimY) {
                 hitCount++;
                 duck.state = 'hit';
                 duck.hitTimer = 0.35;
+                duck.wasHit = true;
                 audio.playQuack();
                 createFeathers(duck.x, duck.y, 16);
-
-                GameState.score += duck.points;
-                GameState.ducksHitInRound++;
-                scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
-                addFloatingScore(`+${duck.points}`, duck.x, duck.y - 12);
             }
         }
     });
@@ -2225,52 +2241,51 @@ function checkNextDuckOrEndRound() {
 }
 
 function handleDucksFinished() {
-    // Contar cuántos fueron cazados en esta tirada
-    let hits = 0;
-    let escapes = 0;
-    activeDucks.forEach(d => {
-        if (d.state === 'dead' || d.state === 'falling' || d.hitTimer > 0 || d.y >= GROUND_Y - 20) {
-            hits++;
-        } else {
-            escapes++;
-        }
-    });
+    // Identificar patos cazados en esta tirada
+    const hitDucks = activeDucks.filter(d => d.wasHit || d.state === 'dead' || d.state === 'falling' || d.y >= GROUND_Y - 20);
+    const hits = hitDucks.length;
+    const escapes = activeDucks.length - hits;
 
     // Actualizar historial certero de la barra de 10 patos
     activeDucks.forEach(d => {
         const slot = GameState.duckIndexInRound;
         if (slot < GameState.ducksTotalInRound) {
-            const wasHit = (d.state === 'dead' || d.state === 'falling' || d.hitTimer > 0 || d.y >= GROUND_Y - 20);
+            const wasHit = (d.wasHit || d.state === 'dead' || d.state === 'falling' || d.y >= GROUND_Y - 20);
             GameState.roundHitsArray[slot] = wasHit;
             GameState.duckIndexInRound++;
         }
     });
 
     GameState.subRoundState = 'dog_result';
-    Dog.x = CANVAS_WIDTH / 2 - 14;
-    Dog.y = GROUND_Y + 30;
-    Dog.caughtDucksCount = hits;
 
     if (hits > 0) {
+        // El perro se posiciona donde cayeron los patos cazados en el césped para recogerlos
+        const avgX = hitDucks.reduce((acc, d) => acc + d.x, 0) / hitDucks.length;
+        Dog.x = Math.max(50, Math.min(CANVAS_WIDTH - 50, avgX));
+        Dog.y = GROUND_Y + 30;
         Dog.state = hits >= 2 ? 'caught_two' : 'caught_one';
-        Dog.timer = 1.8;
-        audio.playCaught();
+        Dog.caughtDucksCount = hits;
+        Dog.timer = 2.0;
+        Dog.pointsAwarded = false;
+
+        // Calcular puntos que el perro otorgará cuando asome recogiéndolos
+        let totalWavePoints = hitDucks.reduce((acc, d) => acc + (d.points || 500), 0);
         if (hits >= 3) {
-            const comboBonus = hits * 350;
-            GameState.score += comboBonus;
-            scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
-            addFloatingScore(`¡COMBO X${hits}! +${comboBonus}`, CANVAS_WIDTH / 2, 95, '#fde047');
-            addFloatingScore(`¡${hits} PATOS CAZADOS!`, CANVAS_WIDTH / 2, 120, '#38bdf8');
-        } else if (hits === 2) {
-            addFloatingScore('¡DOBLETE!', CANVAS_WIDTH / 2, 120, '#38bdf8');
-        } else {
-            addFloatingScore('¡CAZADO!', CANVAS_WIDTH / 2, 120, '#38bdf8');
+            totalWavePoints += hits * 350; // Bonificación de combo
         }
+        Dog.pendingPoints = totalWavePoints;
+
     } else {
+        // Si todos escaparon, el perro se burla en el centro
+        Dog.x = CANVAS_WIDTH / 2 - 14;
+        Dog.y = GROUND_Y + 30;
         Dog.state = 'laugh';
         Dog.timer = 1.8;
+        Dog.caughtDucksCount = 0;
+        Dog.pendingPoints = 0;
+        Dog.pointsAwarded = true;
         audio.playDogLaugh();
-        addFloatingScore(escapes > 1 ? '¡SE ESCAPARON!' : '¡SE ESCAPÓ!', CANVAS_WIDTH / 2, 120, '#ef4444');
+        addFloatingScore(escapes > 1 ? '¡SE ESCAPARON!' : '¡SE ESCAPÓ!', Dog.x, GROUND_Y - 45, '#ef4444');
     }
 }
 
@@ -2442,11 +2457,13 @@ function startNewGame(fromController = false) {
     gunSmokes = [];
     fallingLeaves = [];
     screenShakeTimer = 0;
+    Dog.pointsAwarded = false;
+    Dog.pendingPoints = 0;
     initAmbientParticles();
 
     scoreElement.textContent = 'SCORE: 000000';
     roundCountElement.textContent = '01';
-    ammoCountElement.textContent = '● ● ●';
+    ammoCountElement.textContent = '● ● ● ●';
     playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
 
     waitingOverlay.classList.add('hidden');
