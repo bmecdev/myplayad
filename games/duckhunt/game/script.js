@@ -2833,8 +2833,10 @@ function updateQrCode() {
 }
 
 function initSignaling() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${CONFIG.SIGNALING_SERVER_URL || 'signaling.myplayad.com'}:443`;
+    const serverUrl = (typeof CONFIG !== 'undefined' && CONFIG.SIGNALING_SERVER_URL) ? CONFIG.SIGNALING_SERVER_URL : 'signaling.myplayad.com';
+    const wsUrl = serverUrl.startsWith('ws://') || serverUrl.startsWith('wss://')
+        ? serverUrl
+        : `wss://${serverUrl}`;
 
     try {
         socket = new WebSocket(wsUrl);
@@ -3004,6 +3006,8 @@ function resetSignalingAndRoom() {
             roomId: GameState.roomId,
             maxPlayers: 1
         }));
+    } else {
+        initSignaling();
     }
 }
 

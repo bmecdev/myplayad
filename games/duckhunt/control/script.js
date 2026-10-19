@@ -430,7 +430,7 @@ connectBtn.addEventListener('click', () => {
         return;
     }
     playerNickname = val.substring(0, 10);
-    hudNick.textContent = playerNickname;
+    if (hudNick) hudNick.textContent = playerNickname;
 
     connectBtn.disabled = true;
     statusEl.textContent = 'CONECTANDO AL SERVIDOR...';
@@ -438,8 +438,10 @@ connectBtn.addEventListener('click', () => {
 });
 
 function initSignaling() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${CONFIG.SIGNALING_SERVER_URL || 'signaling.myplayad.com'}:443`;
+    const serverUrl = (typeof CONFIG !== 'undefined' && CONFIG.SIGNALING_SERVER_URL) ? CONFIG.SIGNALING_SERVER_URL : 'signaling.myplayad.com';
+    const wsUrl = serverUrl.startsWith('ws://') || serverUrl.startsWith('wss://')
+        ? serverUrl
+        : `wss://${serverUrl}`;
 
     try {
         socket = new WebSocket(wsUrl);
