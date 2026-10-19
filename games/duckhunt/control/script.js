@@ -22,15 +22,39 @@ let pendingCandidates = [];
 let targetRoomId = '';
 let playerNickname = '';
 
-// Leer parámetro ?room=XXXX
+// Leer parámetro ?room=XXXX y credenciales TURN
 const urlParams = new URLSearchParams(window.location.search);
 targetRoomId = (urlParams.get('room') || '').toUpperCase().trim();
+const roomInput = document.getElementById('room-input');
 
-// Validación obligatoria de Nickname (mínimo 2 caracteres)
-nicknameInput.addEventListener('input', () => {
-    const val = nicknameInput.value.trim();
-    connectBtn.disabled = val.length < 2;
-});
+if (targetRoomId) {
+    if (roomInput) {
+        roomInput.value = targetRoomId;
+        roomInput.style.display = 'none';
+    }
+} else {
+    if (roomInput) {
+        roomInput.style.display = 'block';
+        roomInput.placeholder = 'CÓDIGO DE SALA';
+    }
+}
+
+const turnIp = urlParams.get('turn_ip');
+const turnUser = urlParams.get('turn_user');
+const turnPass = urlParams.get('turn_pass');
+if (turnIp) localStorage.setItem('TURN_PUBLIC_IP', turnIp);
+if (turnUser) localStorage.setItem('TURN_USER', turnUser);
+if (turnPass) localStorage.setItem('TURN_PASS', turnPass);
+
+function checkValidForm() {
+    const nickVal = nicknameInput.value.trim();
+    const effectiveRoom = targetRoomId || (roomInput ? roomInput.value.trim() : '');
+    connectBtn.disabled = nickVal.length < 2 || !effectiveRoom;
+}
+
+// Validación obligatoria de Nickname (mínimo 2 caracteres) y Sala
+nicknameInput.addEventListener('input', checkValidForm);
+if (roomInput) roomInput.addEventListener('input', checkValidForm);
 
 nicknameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !connectBtn.disabled) {
@@ -41,6 +65,13 @@ nicknameInput.addEventListener('keydown', (e) => {
 connectBtn.addEventListener('click', () => {
     const val = nicknameInput.value.trim().toUpperCase();
     if (val.length < 2) return;
+    if (!targetRoomId && roomInput) {
+        targetRoomId = roomInput.value.trim().toUpperCase();
+    }
+    if (!targetRoomId) {
+        alert('Por favor, ingresa o escanea el código de sala.');
+        return;
+    }
     playerNickname = val.substring(0, 10);
     hudNick.textContent = playerNickname;
 
@@ -119,11 +150,16 @@ function initSignaling() {
 }
 
 async function setupWebRTC() {
+    const turnPublicIp = localStorage.getItem('TURN_PUBLIC_IP') || '31.97.43.72';
+    const turnUser = localStorage.getItem('TURN_USER') || 'game';
+    const turnPass = localStorage.getItem('TURN_PASS') || 'changeme';
+
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'turn:31.97.43.72:3478?transport=udp', username: 'game', credential: 'changeme' },
-            { urls: 'turn:31.97.43.72:3478?transport=tcp', username: 'game', credential: 'changeme' }
+            { urls: `turn:${turnPublicIp}:3478?transport=udp`, username: turnUser, credential: turnPass },
+            { urls: `turn:${turnPublicIp}:3478?transport=tcp`, username: turnUser, credential: turnPass },
+            { urls: `turns:${turnPublicIp}:5349`, username: turnUser, credential: turnPass }
         ]
     };
 
@@ -229,16 +265,27 @@ function updateAim(clientX, clientY, shouldSend = true) {
     }
 }
 
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+let isDragging = false;
+
 // Touch / Pointer en Aim Pad
 aimPad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     aimPad.setPointerCapture(e.pointerId);
+    touchStartX = e.clientX;
+    touchStartY = e.clientY;
+    touchStartTime = performance.now();
+    isDragging = false;
     updateAim(e.clientX, e.clientY, true);
 });
 
 aimPad.addEventListener('pointermove', (e) => {
     e.preventDefault();
     if (e.buttons > 0 || e.pointerType === 'touch') {
+        const dist = Math.hypot(e.clientX - touchStartX, e.clientY - touchStartY);
+        if (dist > 8) isDragging = true;
         updateAim(e.clientX, e.clientY, true);
     }
 });
@@ -246,14 +293,17 @@ aimPad.addEventListener('pointermove', (e) => {
 aimPad.addEventListener('pointerup', (e) => {
     e.preventDefault();
     try { aimPad.releasePointerCapture(e.pointerId); } catch (_) {}
-    // Toque rápido en el visor también dispara
-    triggerFire();
+    const duration = performance.now() - touchStartTime;
+    // Si fue un toque rápido sin arrastrar mucho, disparar en la posición tocada
+    if (!isDragging && duration < 240) {
+        triggerFire();
+    }
 });
 
 // Botón de Disparo / Gatillo Zapper
 function triggerFire() {
     if (navigator.vibrate) {
-        try { navigator.vibrate(25); } catch (_) {}
+        try { navigator.vibrate(35); } catch (_) {}
     }
 
     if (dataChannel && dataChannel.readyState === 'open') {

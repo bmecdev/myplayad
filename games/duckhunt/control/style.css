@@ -103,7 +103,7 @@ body {
     margin: 0;
 }
 
-#nickname-input {
+#nickname-input, #room-input {
     width: 100%;
     background: #060b08;
     border: 2px solid var(--panel-edge);
@@ -117,11 +117,11 @@ body {
     transition: border-color 0.2s;
 }
 
-#nickname-input::placeholder {
+#nickname-input::placeholder, #room-input::placeholder {
     color: rgba(255, 255, 255, 0.22);
 }
 
-#nickname-input:focus {
+#nickname-input:focus, #room-input:focus {
     border-color: var(--phosphor);
 }
 
