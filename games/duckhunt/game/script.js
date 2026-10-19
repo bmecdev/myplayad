@@ -2069,6 +2069,85 @@ function updateAndDrawFloatingScores(dt) {
 // HUD RETRO ESTILO NES (BARRA DE 10 PATOS EN EL FONDO)
 // ==============================================================================
 
+function drawHUDDuckIcon(px, py, status, anim) {
+    const isHit = (status === true);
+    const isEscaped = (status === false);
+    const isPending = !isHit && !isEscaped;
+
+    // Paleta 16-bit arcade detallada por estado
+    const headColor = isHit ? '#ef4444' : (isEscaped ? '#475569' : (anim ? '#15803d' : '#22c55e'));
+    const bodyColor = isHit ? '#dc2626' : (isEscaped ? '#334155' : '#57534e');
+    const chestColor = isHit ? '#b91c1c' : (isEscaped ? '#1e293b' : '#7c2d12');
+    const beakColor = isHit ? '#fde047' : (isEscaped ? '#64748b' : '#f59e0b');
+    const beakDark = isHit ? '#ca8a04' : (isEscaped ? '#334155' : '#b45309');
+    const eyeWhite = isHit ? '#ffffff' : (isEscaped ? '#94a3b8' : '#ffffff');
+    const pupilColor = isHit ? '#7f1d1d' : (isEscaped ? '#0f172a' : '#000000');
+    const wingColor = isHit ? '#ef4444' : (isEscaped ? '#1e293b' : '#1d4ed8');
+    const feetColor = isHit ? '#f97316' : (isEscaped ? '#334155' : '#ea580c');
+
+    ctx.save();
+
+    // 1. Cola respingada de pato hacia arriba
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(px, py + 5, 2, 2);
+    ctx.fillRect(px - 1, py + 4, 2, 2);
+    ctx.fillRect(px - 2, py + 3, 1, 1);
+
+    // 2. Cuerpo y vientre regordete
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(px + 1, py + 5, 6, 4);
+    ctx.fillRect(px + 2, py + 8, 5, 1);
+
+    // 3. Pecho delantero redondeado
+    ctx.fillStyle = chestColor;
+    ctx.fillRect(px + 5, py + 4, 4, 4);
+
+    // 4. Cuello y cabeza erguida
+    ctx.fillStyle = headColor;
+    ctx.fillRect(px + 6, py + 1, 4, 3);
+    ctx.fillRect(px + 7, py - 1, 4, 3);
+
+    // Collarín blanco característico de ánade real en patos pendientes
+    if (isPending) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(px + 6, py + 3, 4, 1);
+    }
+
+    // 5. Pico plano alargado de pato
+    ctx.fillStyle = beakColor;
+    ctx.fillRect(px + 10, py + 1, 3, 2);
+    ctx.fillRect(px + 13, py + 2, 1, 1);
+    ctx.fillStyle = beakDark;
+    ctx.fillRect(px + 10, py + 2, 3, 1);
+
+    // 6. Ojo con pupila
+    ctx.fillStyle = eyeWhite;
+    ctx.fillRect(px + 8, py, 2, 2);
+    ctx.fillStyle = pupilColor;
+    ctx.fillRect(px + 9, py, 1, 1);
+
+    // 7. Ala (animada en vuelo con espéculo)
+    if (anim) {
+        ctx.fillStyle = wingColor;
+        ctx.fillRect(px + 3, py + 1, 3, 4);
+        ctx.fillRect(px + 2, py - 1, 2, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(px + 3, py + 2, 3, 1);
+    } else {
+        ctx.fillStyle = wingColor;
+        ctx.fillRect(px + 2, py + 5, 5, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(px + 3, py + 6, 3, 1);
+    }
+
+    // 8. Patitas palmeadas
+    ctx.fillStyle = feetColor;
+    ctx.fillRect(px + 3, py + 9, 2, 2);
+    ctx.fillRect(px + 6, py + 9, 2, 2);
+
+    ctx.restore();
+}
+
 function drawNESBottomHUD() {
     const hudY = CANVAS_HEIGHT - 28;
 
@@ -2103,39 +2182,20 @@ function drawNESBottomHUD() {
         }
     }
 
-    // 2. Barra de patos del nivel actual (Siluetas pixel-art)
+    // 2. Barra de patos del nivel actual (Siluetas pixel-art auténticas de pato)
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('HIT', 105, hudY + 8);
+    ctx.fillText('HIT', 100, hudY + 8);
 
     const totalDucks = GameState.ducksTotalInRound || 2;
-    const duckSpacing = totalDucks > 5 ? 14 : 17;
+    const duckSpacing = totalDucks > 5 ? 16 : 19;
+    const animWing = Math.floor(Date.now() / 160) % 2 === 0;
+
     for (let i = 0; i < totalDucks; i++) {
-        const px = 105 + i * duckSpacing;
+        const px = 104 + i * duckSpacing;
         const py = hudY + 11;
         const res = GameState.roundHitsArray[i];
 
-        if (res === true) {
-            // Pato cazado: silueta roja brillante con ojo dorado
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(px, py + 2, 11, 7);      // Torso
-            ctx.fillRect(px + 6, py - 1, 5, 4);   // Cabeza
-            ctx.fillRect(px + 10, py, 2, 2);      // Pico
-            ctx.fillStyle = '#fef08a';
-            ctx.fillRect(px + 7, py, 1, 1);       // Ojo brillante
-        } else if (res === false) {
-            // Pato escapado: silueta gris carbón apagada
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(px, py + 2, 11, 7);
-            ctx.fillRect(px + 6, py - 1, 5, 4);
-        } else {
-            // Pato pendiente: animación de pulso
-            const blink = Math.floor(Date.now() / 120) % 2 === 0;
-            ctx.fillStyle = blink ? '#38bdf8' : '#e0f2fe';
-            ctx.fillRect(px, py + 2, 11, 7);
-            ctx.fillRect(px + 6, py - 1, 5, 4);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(px + 2, py + 1, 4, 2); // Destello ala
-        }
+        drawHUDDuckIcon(px, py, res, animWing);
     }
 
     // 3. Marcador de Ronda a la derecha con insignia arcade
