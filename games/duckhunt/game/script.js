@@ -18,6 +18,7 @@ const mainScreen = document.getElementById('main-screen');
 const rankingList = document.getElementById('ranking-list');
 const qrContainer = document.getElementById('qrcode');
 const roomIdElement = document.getElementById('room-id');
+const livesCountElement = document.getElementById('lives-count');
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
@@ -30,6 +31,21 @@ const dataChannels = new Map();
 function broadcastSFX(sound, param = null) {
     if (typeof dataChannels === 'undefined' || !dataChannels || dataChannels.size === 0) return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
+    dataChannels.forEach(dc => {
+        if (dc && dc.readyState === 'open') {
+            try { dc.send(payload); } catch (_) {}
+        }
+    });
+}
+
+function broadcastState() {
+    if (typeof dataChannels === 'undefined' || !dataChannels || dataChannels.size === 0) return;
+    const payload = JSON.stringify({
+        type: 'state',
+        round: GameState.round,
+        lives: GameState.lives,
+        score: GameState.score
+    });
     dataChannels.forEach(dc => {
         if (dc && dc.readyState === 'open') {
             try { dc.send(payload); } catch (_) {}
@@ -399,24 +415,36 @@ const GameState = {
     score: 0,
     highScore: 0,
     round: 1,
-    ammo: 3,
-    maxAmmo: 3,
+    targetRound: 4, // Meta: llegar al nivel 4
+    lives: 3, // 3 oportunidades
+    maxLives: 3,
+    ammo: 4,
+    maxAmmo: 4,
     currentNickname: 'HUNTER',
     roomId: Math.random().toString(36).substring(2, 6).toUpperCase(),
     lastTime: 0,
-    ducksTotalInRound: 10,
+    ducksTotalInRound: 2,
     duckIndexInRound: 0,
     ducksHitInRound: 0,
-    roundTargetHits: 6, // Al menos 6 patos para pasar a la siguiente ronda
-    roundHitsArray: [], // 10 booleanos/null para la barra inferior
-    waveInRound: 0, // Contador de tandas dentro de la ronda
-    subRoundState: 'intro_dog', // 'intro_dog', 'spawn_ducks', 'hunting', 'dog_result', 'round_complete'
+    roundTargetHits: 2,
+    roundHitsArray: [],
+    waveInRound: 0,
+    subRoundState: 'intro_dog',
     subRoundTimer: 0,
     whiteFlashTimer: 0,
     skyColor: '#63b8ff',
     targetSkyColor: '#63b8ff',
     isMobileSession: false
 };
+
+function updateLivesHUD() {
+    if (livesCountElement) {
+        let hearts = '';
+        for (let i = 0; i < GameState.lives; i++) hearts += '❤️';
+        for (let i = GameState.lives; i < 3; i++) hearts += '🖤';
+        livesCountElement.textContent = hearts || '---';
+    }
+}
 
 let gameOverTimeout = null;
 let activeDucks = [];
@@ -2222,10 +2250,15 @@ function drawNESBottomHUD() {
         drawHUDDuckIcon(px, py, res, animWing);
     }
 
-    // 3. Marcador de Ronda a la derecha con insignia arcade
-    ctx.fillStyle = '#22c55e';
+    // 3. Marcador de Ronda y Vidas a la derecha con insignia arcade
     ctx.textAlign = 'right';
-    ctx.fillText(`R=${GameState.round}`, CANVAS_WIDTH - 14, hudY + 16);
+    ctx.fillStyle = '#22c55e';
+    ctx.fillText(`R=${GameState.round}/4`, CANVAS_WIDTH - 14, hudY + 22);
+
+    ctx.fillStyle = '#ef4444';
+    let heartStr = '';
+    for (let i = 0; i < GameState.lives; i++) heartStr += '❤️';
+    ctx.fillText(heartStr || '0 VIDAS', CANVAS_WIDTH - 14, hudY + 10);
 
     ctx.restore();
 }
@@ -2313,13 +2346,17 @@ function startRoundIntro() {
 
     // Nivel 1: 2 patos seguidos
     // Nivel 2: 3 patos seguidos
-    // Nivel 3: 4 patos seguidos... progresivo y desafiante
+    // Nivel 3: 4 patos seguidos (meta: llegar al nivel 4)
     GameState.ducksTotalInRound = Math.min(8, GameState.round + 1);
     GameState.roundHitsArray = new Array(GameState.ducksTotalInRound).fill(null);
 
     roundCountElement.textContent = String(GameState.round).padStart(2, '0');
-    addFloatingScore(`NIVEL ${GameState.round}`, CANVAS_WIDTH / 2, 95, '#fde047');
+    updateLivesHUD();
+    broadcastState();
+
+    addFloatingScore(`NIVEL ${GameState.round} / 4`, CANVAS_WIDTH / 2, 95, '#fde047');
     addFloatingScore(`${GameState.ducksTotalInRound} PATOS SEGUIDOS`, CANVAS_WIDTH / 2, 115, '#38bdf8');
+    addFloatingScore(`VIDAS: ${'❤️'.repeat(Math.max(0, GameState.lives))}`, CANVAS_WIDTH / 2, 135, '#ef4444');
 
     Dog.x = -40;
     Dog.y = GROUND_Y - 26;
@@ -2351,28 +2388,48 @@ function spawnDuckWave() {
 }
 
 function checkNextDuckOrEndRound() {
-    // Si mató a todos los patos del nivel avanza, de lo contrario regresa al nivel 1
+    // Si mató a todos los patos del nivel avanza, de lo contrario pierde 1 oportunidad y regresa al nivel 1
     const killedAll = !!GameState.roundWon;
 
     if (killedAll) {
         GameState.round++;
+        broadcastState();
+
+        if (GameState.round >= 4) {
+            // ¡LLEGÓ AL NIVEL 4! VICTORIA Y MISIÓN CUMPLIDA
+            triggerVictory();
+            return;
+        }
+
         audio.playRoundPass();
         addFloatingScore(`¡NIVEL ${GameState.round - 1} COMPLETADO!`, CANVAS_WIDTH / 2, 95, '#22c55e');
-        addFloatingScore(`SIGUIENTE: NIVEL ${GameState.round}`, CANVAS_WIDTH / 2, 115, '#fde047');
+        addFloatingScore(`SIGUIENTE: NIVEL ${GameState.round} / 4`, CANVAS_WIDTH / 2, 115, '#fde047');
         setTimeout(() => {
             if (GameState.running && !GameState.gameOver) {
                 startRoundIntro();
             }
         }, 1800);
     } else {
-        // No mató a todos los patos: ¡REGRESA AL NIVEL 1!
-        audio.playGameOver();
-        GameState.round = 1;
-        setTimeout(() => {
-            if (GameState.running && !GameState.gameOver) {
-                startRoundIntro();
-            }
-        }, 1800);
+        // No mató a todos los patos: ¡PIERDE 1 OPORTUNIDAD!
+        GameState.lives--;
+        updateLivesHUD();
+        broadcastState();
+
+        if (GameState.lives <= 0) {
+            // Agotó las 3 oportunidades sin llegar al nivel 4: ¡PIERDE Y DEBE VOLVER A ESCANEAR QR!
+            triggerGameOver();
+        } else {
+            // Le quedan oportunidades: REGRESA AL NIVEL 1
+            audio.playGameOver();
+            GameState.round = 1;
+            addFloatingScore(`¡OPORTUNIDAD PERDIDA! TE QUEDAN ${GameState.lives}`, CANVAS_WIDTH / 2, 95, '#ef4444');
+            addFloatingScore('REGRESAS AL NIVEL 1', CANVAS_WIDTH / 2, 115, '#fde047');
+            setTimeout(() => {
+                if (GameState.running && !GameState.gameOver) {
+                    startRoundIntro();
+                }
+            }, 1800);
+        }
     }
 }
 
@@ -2417,7 +2474,7 @@ function handleDucksFinished() {
 
     } else {
         // ==========================================
-        // ¡FALLÓ! NO MATÓ A TODOS -> REGRESA AL NIVEL 1
+        // ¡FALLÓ! NO MATÓ A TODOS -> PIERDE 1 OPORTUNIDAD
         // ==========================================
         Dog.x = CANVAS_WIDTH / 2 - 14;
         Dog.y = GROUND_Y + 30;
@@ -2428,12 +2485,13 @@ function handleDucksFinished() {
         Dog.pointsAwarded = true;
         audio.playDogLaugh();
 
+        const remaining = Math.max(0, GameState.lives - 1);
         if (hits > 0) {
             addFloatingScore(`¡NO CAZASTE TODOS! (${hits}/${GameState.ducksTotalInRound})`, Dog.x, GROUND_Y - 60, '#ef4444');
-            addFloatingScore('REGRESAS AL NIVEL 1', Dog.x, GROUND_Y - 44, '#fde047');
+            addFloatingScore(`TE QUEDAN ${remaining} OPORTUNIDAD${remaining === 1 ? '' : 'ES'}`, Dog.x, GROUND_Y - 44, '#fde047');
         } else {
             addFloatingScore('¡SE ESCAPARON!', Dog.x, GROUND_Y - 60, '#ef4444');
-            addFloatingScore('REGRESAS AL NIVEL 1', Dog.x, GROUND_Y - 44, '#fde047');
+            addFloatingScore(`TE QUEDAN ${remaining} OPORTUNIDAD${remaining === 1 ? '' : 'ES'}`, Dog.x, GROUND_Y - 44, '#fde047');
         }
     }
 }
@@ -2459,15 +2517,47 @@ function triggerGameOver() {
     submitScore(GameState.currentNickname, GameState.score);
 
     gameOverTitle.textContent = 'GAME OVER';
-    gameOverSubtitle.textContent = `PUNTUACIÓN FINAL: ${GameState.score}`;
+    gameOverSubtitle.textContent = `AGOTASTE TUS 3 OPORTUNIDADES • ESCANEA EL CÓDIGO QR`;
     gameOverOverlay.classList.remove('hidden');
 
     if (gameOverTimeout) clearTimeout(gameOverTimeout);
     gameOverTimeout = setTimeout(() => {
-        if (GameState.gameOver && !GameState.running) {
-            resetSignalingAndRoom();
-        }
-    }, 15000);
+        resetSignalingAndRoom();
+    }, 4000);
+}
+
+function triggerVictory() {
+    if (GameState.gameOver) return;
+    GameState.gameOver = true;
+    GameState.running = false;
+    audio.playRoundPass();
+
+    // Bonus especial por alcanzar el nivel 4
+    GameState.score += 5000;
+    scoreElement.textContent = `SCORE: ${String(GameState.score).padStart(6, '0')}`;
+
+    if (GameState.score > GameState.highScore) {
+        GameState.highScore = GameState.score;
+        highScoreElement.textContent = `HI: ${String(GameState.highScore).padStart(6, '0')}`;
+        localStorage.setItem('duckhunt_highscore', GameState.highScore);
+    }
+
+    dataChannels.forEach(dc => {
+        try {
+            dc.send(JSON.stringify({ type: 'victory', score: GameState.score, round: 4 }));
+        } catch (_) {}
+    });
+
+    submitScore(GameState.currentNickname, GameState.score);
+
+    gameOverTitle.textContent = '¡MISIÓN CUMPLIDA!';
+    gameOverSubtitle.textContent = `¡HAS LLEGADO AL NIVEL 4! • SCORE: ${GameState.score}`;
+    gameOverOverlay.classList.remove('hidden');
+
+    if (gameOverTimeout) clearTimeout(gameOverTimeout);
+    gameOverTimeout = setTimeout(() => {
+        resetSignalingAndRoom();
+    }, 6000);
 }
 
 // ==============================================================================
@@ -2596,6 +2686,7 @@ function startNewGame(fromController = false) {
     GameState.isMobileSession = !!fromController;
     GameState.score = 0;
     GameState.round = 1;
+    GameState.lives = 3;
     GameState.waveInRound = 0;
     GameState.ammo = 4;
     GameState.maxAmmo = 4;
@@ -2614,6 +2705,9 @@ function startNewGame(fromController = false) {
     roundCountElement.textContent = '01';
     ammoCountElement.textContent = '● ● ● ●';
     playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
+    updateLivesHUD();
+    broadcastState();
+    broadcastAmmo();
 
     waitingOverlay.classList.add('hidden');
     gameOverOverlay.classList.add('hidden');
@@ -2675,12 +2769,22 @@ window.addEventListener('keyup', (e) => {
 });
 
 if (mainScreen) {
-    mainScreen.addEventListener('click', () => {
+    mainScreen.addEventListener('click', (e) => {
+        if (e.target.closest('#game-over-overlay')) {
+            resetSignalingAndRoom();
+            return;
+        }
         if (!audio.ctx) audio.init();
         else audio.resume();
-        if (!GameState.running || GameState.gameOver) {
+        if (!GameState.running && !GameState.gameOver) {
             startNewGame();
         }
+    });
+}
+
+if (gameOverOverlay) {
+    gameOverOverlay.addEventListener('click', () => {
+        resetSignalingAndRoom();
     });
 }
 
@@ -2868,14 +2972,31 @@ function handleControllerDisconnect(playerId) {
 }
 
 function resetSignalingAndRoom() {
-    if (GameState.running && !GameState.gameOver) return;
-
-    GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-    updateQrCode();
-    if (!GameState.running) {
-        waitingOverlay.classList.remove('hidden');
+    if (gameOverTimeout) {
+        clearTimeout(gameOverTimeout);
+        gameOverTimeout = null;
     }
+
+    // Cerrar conexiones P2P anteriores para forzar que el móvil escanee el nuevo código QR
+    peerConnections.forEach((pc) => {
+        try { pc.close(); } catch (_) {}
+    });
+    peerConnections.clear();
+    dataChannels.clear();
+
+    GameState.gameOver = false;
+    GameState.running = false;
+    GameState.isMobileSession = false;
+    GameState.lives = 3;
+    GameState.round = 1;
+    GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+    if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
+
+    updateQrCode();
+    waitingOverlay.classList.remove('hidden');
     gameOverOverlay.classList.add('hidden');
+    updateLivesHUD();
+
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
             type: 'register',

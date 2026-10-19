@@ -15,6 +15,11 @@ const reticle = document.getElementById('reticle');
 const fireBtn = document.getElementById('fire-btn');
 const finalScoreText = document.getElementById('final-score-text');
 const audioBtn = document.getElementById('audio-btn');
+const hudLevel = document.getElementById('hud-level');
+const hudLives = document.getElementById('hud-lives');
+const thanksIcon = document.getElementById('thanks-icon');
+const thanksTitle = document.getElementById('thanks-title');
+const thanksSubtitle = document.getElementById('thanks-subtitle');
 
 // ==============================================================================
 // AUDIO SINTETIZADO WEB AUDIO API PARA SMARTPHONE (NES DUCK HUNT)
@@ -548,6 +553,9 @@ async function setupWebRTC() {
             const msg = JSON.parse(e.data);
             if (msg.type === 'ammo') {
                 updateAmmoHUD(msg.count);
+            } else if (msg.type === 'state') {
+                if (msg.round) updateLevelHUD(msg.round);
+                if (typeof msg.lives !== 'undefined') updateLivesHUD(msg.lives);
             } else if (msg.type === 'sfx') {
                 if (msg.sound === 'gunshot') {
                     if (performance.now() - lastLocalFireTime > 200) {
@@ -560,8 +568,21 @@ async function setupWebRTC() {
                 gameContainer.style.display = 'none';
                 thanksScreen.style.display = 'flex';
                 statusEl.textContent = 'PARTIDA FINALIZADA';
+                if (thanksIcon) thanksIcon.textContent = '🐕';
+                if (thanksTitle) thanksTitle.textContent = '¡FIN DEL JUEGO!';
+                if (thanksSubtitle) thanksSubtitle.textContent = 'Agotaste tus 3 oportunidades. Escanea de nuevo el código QR en la pantalla arcade para volver a jugar.';
                 if (finalScoreText) {
                     finalScoreText.textContent = `PUNTUACIÓN FINAL: ${msg.score || 0}`;
+                }
+            } else if (msg.type === 'victory') {
+                gameContainer.style.display = 'none';
+                thanksScreen.style.display = 'flex';
+                statusEl.textContent = '¡MISIÓN CUMPLIDA!';
+                if (thanksIcon) thanksIcon.textContent = '🏆';
+                if (thanksTitle) thanksTitle.textContent = '¡HAS GANADO!';
+                if (thanksSubtitle) thanksSubtitle.textContent = '¡Felicitaciones Cazador! Llegaste al Nivel 4 con éxito. Escanea el código QR para jugar otra partida.';
+                if (finalScoreText) {
+                    finalScoreText.textContent = `¡LLEGASTE AL NIVEL 4! • SCORE: ${msg.score || 0}`;
                 }
             }
         } catch (_) {}
@@ -587,10 +608,23 @@ function updateAmmoHUD(count) {
     for (let i = 0; i < count; i++) {
         bullets += '● ';
     }
-    for (let i = count; i < 3; i++) {
+    for (let i = count; i < 4; i++) {
         bullets += '○ ';
     }
     hudAmmo.textContent = bullets.trim();
+}
+
+function updateLevelHUD(round) {
+    if (hudLevel) hudLevel.textContent = `${round}/4`;
+}
+
+function updateLivesHUD(count) {
+    if (hudLives) {
+        let hearts = '';
+        for (let i = 0; i < count; i++) hearts += '❤️';
+        for (let i = count; i < 3; i++) hearts += '🖤';
+        hudLives.textContent = hearts || '---';
+    }
 }
 
 // ==============================================================================

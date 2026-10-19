@@ -32,9 +32,10 @@
     <!-- Pantalla de Juego / Zapper -->
     <div class="game-container" id="game-container" style="display: none;">
         <div class="control-hud">
-            <div class="hud-item"><span class="label">CAZADOR:</span> <span id="hud-nick">----</span></div>
+            <div class="hud-item"><span class="label">NIVEL:</span> <span id="hud-level">1/4</span></div>
+            <div class="hud-item"><span class="label">VIDAS:</span> <span id="hud-lives">❤️❤️❤️</span></div>
             <div class="hud-item"><button id="audio-btn" class="audio-toggle-btn" type="button">🔊 ON</button></div>
-            <div class="hud-item"><span class="label">BALAS:</span> <span id="hud-ammo" class="ammo-bullets">● ● ●</span></div>
+            <div class="hud-item"><span class="label">BALAS:</span> <span id="hud-ammo" class="ammo-bullets">● ● ● ●</span></div>
         </div>
 
         <!-- Visor Táctil de Puntería (Aim Trackpad) -->
@@ -59,11 +60,11 @@
     <!-- Pantalla de Agradecimiento -->
     <div id="thanks-screen" class="thanks-container" style="display: none;">
         <div class="header-logo">
-            <div class="duck-icon">🐕</div>
-            <h1>¡CAZA TERMINADA!</h1>
+            <div class="duck-icon" id="thanks-icon">🐕</div>
+            <h1 id="thanks-title">¡FIN DEL JUEGO!</h1>
         </div>
         <p id="final-score-text">PUNTUACIÓN FINAL: 0</p>
-        <p class="small">Escanea de nuevo el código QR en la pantalla arcade para iniciar una nueva cacería.</p>
+        <p id="thanks-subtitle" class="small">Agotaste tus 3 oportunidades. Escanea de nuevo el código QR en la pantalla arcade para volver a jugar.</p>
     </div>
 
     <script src="config.js?v=1"></script>
