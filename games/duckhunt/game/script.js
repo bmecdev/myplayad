@@ -23,6 +23,20 @@ const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
 const GROUND_Y = 245;
 
+// Mapeos WebRTC globales y difusión de efectos de sonido a controladores móviles
+const peerConnections = new Map();
+const dataChannels = new Map();
+
+function broadcastSFX(sound, param = null) {
+    if (typeof dataChannels === 'undefined' || !dataChannels || dataChannels.size === 0) return;
+    const payload = JSON.stringify({ type: 'sfx', sound, param });
+    dataChannels.forEach(dc => {
+        if (dc && dc.readyState === 'open') {
+            try { dc.send(payload); } catch (_) {}
+        }
+    });
+}
+
 // ==============================================================================
 // AUDIO SINTETIZADOR WEB AUDIO API (SONIDOS AUTÉNTICOS NES DUCK HUNT)
 // ==============================================================================
@@ -71,6 +85,7 @@ class DuckHuntAudio {
 
     // Intro clásica de Duck Hunt NES
     playIntro() {
+        broadcastSFX('intro');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -103,6 +118,7 @@ class DuckHuntAudio {
 
     // Ladrido del perro
     playBark() {
+        broadcastSFX('bark');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -147,6 +163,7 @@ class DuckHuntAudio {
 
     // Disparo atronador de la Zapper NES (ruido blanco + punch grave analógico)
     playGunshot() {
+        broadcastSFX('gunshot');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -193,6 +210,7 @@ class DuckHuntAudio {
 
     // Graznido / Cuac del pato al ser impactado
     playQuack() {
+        broadcastSFX('quack');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -215,6 +233,7 @@ class DuckHuntAudio {
 
     // Silbido descendente de caída del pato
     playFall() {
+        broadcastSFX('fall');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -236,6 +255,7 @@ class DuckHuntAudio {
 
     // Golpe sordo al caer en la hierba
     playThud() {
+        broadcastSFX('thud');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -257,6 +277,7 @@ class DuckHuntAudio {
 
     // Risa burlona del perro
     playDogLaugh() {
+        broadcastSFX('laugh');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -280,6 +301,7 @@ class DuckHuntAudio {
 
     // Fanfarria de patos capturados
     playCaught() {
+        broadcastSFX('caught');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -303,6 +325,7 @@ class DuckHuntAudio {
 
     // Fanfarria de victoria de ronda
     playRoundPass() {
+        broadcastSFX('round_pass');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -326,6 +349,7 @@ class DuckHuntAudio {
 
     // Melodía de Game Over
     playGameOver() {
+        broadcastSFX('gameover');
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -2686,8 +2710,6 @@ if (audioBtn) {
 // ==============================================================================
 
 let socket = null;
-const peerConnections = new Map();
-const dataChannels = new Map();
 
 function updateQrCode() {
     if (!qrContainer) return;

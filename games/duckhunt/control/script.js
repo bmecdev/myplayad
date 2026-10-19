@@ -14,6 +14,357 @@ const aimPad = document.getElementById('aim-pad');
 const reticle = document.getElementById('reticle');
 const fireBtn = document.getElementById('fire-btn');
 const finalScoreText = document.getElementById('final-score-text');
+const audioBtn = document.getElementById('audio-btn');
+
+// ==============================================================================
+// AUDIO SINTETIZADO WEB AUDIO API PARA SMARTPHONE (NES DUCK HUNT)
+// ==============================================================================
+
+class MobileDuckHuntAudio {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.enabled) return;
+        if (!this.ctx) {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                this.ctx = new AudioContext();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+                this.masterGain.connect(this.ctx.destination);
+
+                // Warm-up dummy buffer para desbloqueo estricto en iOS Safari
+                try {
+                    const buf = this.ctx.createBuffer(1, 1, 22050);
+                    const src = this.ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(this.ctx.destination);
+                    src.start(0);
+                } catch (_) {}
+            } catch (e) {
+                console.warn('Fallo init audio móvil:', e);
+            }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+        } else if (this.ctx && this.ctx.state === 'running') {
+            this.updateUI();
+        }
+    }
+
+    toggleMute() {
+        if (!this.ctx) this.init();
+        this.enabled = !this.enabled;
+        if (this.masterGain && this.ctx) {
+            this.masterGain.gain.setValueAtTime(this.enabled ? 0.7 : 0.0001, this.ctx.currentTime);
+        }
+        this.updateUI();
+    }
+
+    updateUI() {
+        if (!audioBtn) return;
+        if (this.enabled && this.ctx && this.ctx.state === 'running') {
+            audioBtn.textContent = '🔊 ON';
+            audioBtn.style.opacity = '1';
+        } else if (!this.enabled) {
+            audioBtn.textContent = '🔇 OFF';
+            audioBtn.style.opacity = '0.6';
+        } else {
+            audioBtn.textContent = '🔊 ON';
+            audioBtn.style.opacity = '0.8';
+        }
+    }
+
+    play(sound, param) {
+        if (!this.enabled) return;
+        if (!this.ctx) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        switch (sound) {
+            case 'gunshot': this.playGunshot(); break;
+            case 'quack': this.playQuack(); break;
+            case 'bark': this.playBark(); break;
+            case 'laugh': this.playDogLaugh(); break;
+            case 'caught': this.playCaught(); break;
+            case 'round_pass': this.playRoundPass(); break;
+            case 'intro': this.playIntro(); break;
+            case 'fall': this.playFall(); break;
+            case 'thud': this.playThud(); break;
+            case 'gameover':
+            case 'game_over_tune': this.playGameOver(); break;
+        }
+    }
+
+    // Disparo Zapper instantáneo
+    playGunshot() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.005;
+
+            // 1. Punch de recámara grave
+            const osc = this.ctx.createOscillator();
+            const oscGain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(190, now);
+            osc.frequency.linearRampToValueAtTime(35, now + 0.16);
+            oscGain.gain.setValueAtTime(0.65, now);
+            oscGain.gain.linearRampToValueAtTime(0.0001, now + 0.16);
+            osc.connect(oscGain);
+            oscGain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.16);
+
+            // 2. Ruido blanco de detonación
+            const bufSize = Math.floor(this.ctx.sampleRate * 0.18);
+            const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) {
+                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.28));
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buf;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1400, now);
+            filter.frequency.linearRampToValueAtTime(260, now + 0.18);
+
+            const noiseGain = this.ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.7, now);
+            noiseGain.gain.linearRampToValueAtTime(0.0001, now + 0.18);
+
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(this.masterGain);
+            noise.start(now);
+        } catch (_) {}
+    }
+
+    // Cuac / Graznido de pato impactado
+    playQuack() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(460, now);
+            osc.frequency.setValueAtTime(590, now + 0.04);
+            osc.frequency.linearRampToValueAtTime(230, now + 0.18);
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.18);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.18);
+        } catch (_) {}
+    }
+
+    // Ladrido del perro cazador
+    playBark() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
+            [0, 0.14].forEach(t => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(360, now + t);
+                osc.frequency.linearRampToValueAtTime(140, now + t + 0.10);
+                gain.gain.setValueAtTime(0.5, now + t);
+                gain.gain.linearRampToValueAtTime(0.0001, now + t + 0.10);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + t);
+                osc.stop(now + t + 0.10);
+            });
+        } catch (_) {}
+    }
+
+    // Risa burlona del perro
+    playDogLaugh() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
+            for (let i = 0; i < 7; i++) {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                const f = (i % 2 === 0) ? 620 : 780;
+                osc.frequency.setValueAtTime(f, now + i * 0.09);
+                gain.gain.setValueAtTime(0.4, now + i * 0.09);
+                gain.gain.linearRampToValueAtTime(0.0001, now + i * 0.09 + 0.07);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + i * 0.09);
+                osc.stop(now + i * 0.09 + 0.07);
+            }
+        } catch (_) {}
+    }
+
+    // Fanfarria de patos capturados
+    playCaught() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
+            [440, 554.37, 659.25, 880].forEach((f, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(f, now + idx * 0.08);
+                gain.gain.setValueAtTime(0.4, now + idx * 0.08);
+                gain.gain.linearRampToValueAtTime(0.0001, now + idx * 0.08 + 0.14);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + idx * 0.08);
+                osc.stop(now + idx * 0.08 + 0.14);
+            });
+        } catch (_) {}
+    }
+
+    // Fanfarria de ronda completada
+    playRoundPass() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
+            [523.25, 659.25, 783.99, 1046.50].forEach((f, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(f, now + idx * 0.12);
+                gain.gain.setValueAtTime(0.4, now + idx * 0.12);
+                gain.gain.linearRampToValueAtTime(0.0001, now + idx * 0.12 + 0.22);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + idx * 0.12);
+                osc.stop(now + idx * 0.12 + 0.22);
+            });
+        } catch (_) {}
+    }
+
+    // Intro clásica Duck Hunt
+    playIntro() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
+            const notes = [
+                { f: 523.25, d: 0.12 },
+                { f: 659.25, d: 0.12 },
+                { f: 783.99, d: 0.12 },
+                { f: 1046.50, d: 0.20 },
+                { f: 783.99, d: 0.12 },
+                { f: 1046.50, d: 0.35 }
+            ];
+            let offset = 0;
+            notes.forEach(n => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(n.f, now + offset);
+                gain.gain.setValueAtTime(0.4, now + offset);
+                gain.gain.linearRampToValueAtTime(0.0001, now + offset + n.d);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + offset);
+                osc.stop(now + offset + n.d);
+                offset += n.d + 0.025;
+            });
+        } catch (_) {}
+    }
+
+    // Melodía Game Over
+    playGameOver() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.02;
+            const notes = [
+                { f: 587.33, d: 0.18 },
+                { f: 554.37, d: 0.18 },
+                { f: 523.25, d: 0.22 },
+                { f: 493.88, d: 0.45 }
+            ];
+            let offset = 0;
+            notes.forEach(n => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(n.f, now + offset);
+                gain.gain.setValueAtTime(0.4, now + offset);
+                gain.gain.linearRampToValueAtTime(0.0001, now + offset + n.d);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now + offset);
+                osc.stop(now + offset + n.d);
+                offset += n.d + 0.04;
+            });
+        } catch (_) {}
+    }
+
+    playFall() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.linearRampToValueAtTime(140, now + 0.40);
+            gain.gain.setValueAtTime(0.35, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.40);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.40);
+        } catch (_) {}
+    }
+
+    playThud() {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        try {
+            const now = Math.max(this.ctx.currentTime, 0.001) + 0.01;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(160, now);
+            osc.frequency.linearRampToValueAtTime(35, now + 0.12);
+            gain.gain.setValueAtTime(0.45, now);
+            gain.gain.linearRampToValueAtTime(0.0001, now + 0.12);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.12);
+        } catch (_) {}
+    }
+}
+
+const mobileAudio = new MobileDuckHuntAudio();
+
+// Activación y desbloqueo de audio en cualquier interacción táctil
+['touchstart', 'pointerdown', 'click'].forEach(evt => {
+    window.addEventListener(evt, () => {
+        if (typeof mobileAudio !== 'undefined' && mobileAudio) mobileAudio.init();
+    }, { passive: true });
+});
+
+if (audioBtn) {
+    audioBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        mobileAudio.toggleMute();
+    });
+}
 
 let socket = null;
 let pc = null;
@@ -63,6 +414,7 @@ nicknameInput.addEventListener('keydown', (e) => {
 });
 
 connectBtn.addEventListener('click', () => {
+    mobileAudio.init();
     const val = nicknameInput.value.trim().toUpperCase();
     if (val.length < 2) return;
     if (!targetRoomId && roomInput) {
@@ -196,6 +548,14 @@ async function setupWebRTC() {
             const msg = JSON.parse(e.data);
             if (msg.type === 'ammo') {
                 updateAmmoHUD(msg.count);
+            } else if (msg.type === 'sfx') {
+                if (msg.sound === 'gunshot') {
+                    if (performance.now() - lastLocalFireTime > 200) {
+                        mobileAudio.playGunshot();
+                    }
+                } else {
+                    mobileAudio.play(msg.sound, msg.param);
+                }
             } else if (msg.type === 'game_over') {
                 gameContainer.style.display = 'none';
                 thanksScreen.style.display = 'flex';
@@ -300,8 +660,13 @@ aimPad.addEventListener('pointerup', (e) => {
     }
 });
 
+let lastLocalFireTime = 0;
+
 // Botón de Disparo / Gatillo Zapper
 function triggerFire() {
+    lastLocalFireTime = performance.now();
+    mobileAudio.playGunshot();
+
     if (navigator.vibrate) {
         try { navigator.vibrate(35); } catch (_) {}
     }

@@ -197,6 +197,24 @@ body {
     letter-spacing: 2px;
 }
 
+.audio-toggle-btn {
+    background: rgba(6, 11, 8, 0.85);
+    border: 1px solid var(--panel-edge);
+    border-radius: 4px;
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    padding: 4px 6px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.audio-toggle-btn:active {
+    background: rgba(61, 255, 138, 0.25);
+    border-color: var(--phosphor);
+}
+
 /* Visor Táctil de Puntería */
 .aim-pad-wrapper {
     width: 100%;
