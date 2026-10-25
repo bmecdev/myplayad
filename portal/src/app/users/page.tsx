@@ -162,49 +162,84 @@ export default function UsersPage() {
     return `Hace ${diffYears} ${diffYears === 1 ? 'año' : 'años'}`;
   };
 
+  const MONTH_NAMES_ES = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sept', 'oct', 'nov', 'dic'
+  ];
+
+  // Formateo de fecha sin desfase de zona horaria (UTC a fecha calendario pura)
   const formatPlanDate = (dateStr?: string | Date | null) => {
     if (!dateStr) return null;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return null;
-    return d.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    const clean = String(dateStr).trim().split('T')[0];
+    const parts = clean.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return null;
+    const [y, m, d] = parts;
+    const monthName = MONTH_NAMES_ES[m - 1] || '';
+    return `${d} ${monthName} ${y}`;
   };
 
+  // Un plan se considera vencido si el día indicado ya pasó en hora local (hasta las 23:59:59.999)
   const isPlanExpired = (planEndsAt?: string | Date | null) => {
     if (!planEndsAt) return false;
-    return new Date(planEndsAt).getTime() < Date.now();
+    const clean = String(planEndsAt).trim().split('T')[0];
+    const parts = clean.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return false;
+    const [y, m, d] = parts;
+    const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+    return endOfDay.getTime() < Date.now();
   };
 
   const isPlanPending = (planStartsAt?: string | Date | null) => {
     if (!planStartsAt) return false;
-    return new Date(planStartsAt).getTime() > Date.now();
+    const clean = String(planStartsAt).trim().split('T')[0];
+    const parts = clean.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return false;
+    const [y, m, d] = parts;
+    const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+    return startOfDay.getTime() > Date.now();
   };
 
-  const formatDateForInput = (d?: string | null) => {
+  const formatDateForInput = (d?: string | Date | null) => {
     if (!d) return '';
-    try {
-      return new Date(d).toISOString().split('T')[0];
-    } catch (_) {
-      return '';
-    }
+    return String(d).trim().split('T')[0];
   };
 
+  // Cálculo de meses con aritmética de calendario pura sin desviaciones de huso horario
   const addMonthsToPlan = (months: number) => {
-    const baseDate = formData.planStartsAt ? new Date(formData.planStartsAt) : new Date();
-    const targetDate = new Date(baseDate);
-    targetDate.setMonth(targetDate.getMonth() + months);
+    const baseStr = formData.planStartsAt || new Date().toISOString().split('T')[0];
+    const parts = baseStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return;
+    const [y, m, d] = parts;
+    const totalMonths = y * 12 + (m - 1) + months;
+    const targetYear = Math.floor(totalMonths / 12);
+    const targetMonth = (totalMonths % 12) + 1;
+    const maxDays = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+    const targetDay = Math.min(d, maxDays);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const computedEndsAt = `${targetYear}-${pad(targetMonth)}-${pad(targetDay)}`;
+
+    const isPast = new Date(targetYear, targetMonth - 1, targetDay, 23, 59, 59, 999).getTime() < Date.now();
+
     setFormData((prev) => ({
       ...prev,
-      planEndsAt: targetDate.toISOString().split('T')[0],
+      planEndsAt: computedEndsAt,
+      ...(isPast ? { isActive: false } : {}),
     }));
   };
 
   const handleToggleActive = async (user: UserItem) => {
     if (user.role === 'SUPER_ADMIN') return;
-    const newStatus = user.isActive === false ? true : false;
+
+    const planExpired = isPlanExpired(user.planEndsAt);
+    if (planExpired && !user.isActive) {
+      alert(
+        'Este cliente tiene el plan vencido y no se puede activar directamente. Por favor edita el cliente y extiende la fecha de terminación del plan.'
+      );
+      openEditModal(user);
+      return;
+    }
+
+    const newStatus = !user.isActive;
     setTogglingUserId(user.id);
     try {
       const res = await fetch(`/api/users/${user.id}`, {
@@ -471,10 +506,10 @@ export default function UsersPage() {
                 {users.map((user) => {
                   const isSuperAdmin = user.role === 'SUPER_ADMIN';
                   const isCurrentUser = currentUser?.id === user.id;
-                  const isClientActive = user.isActive !== false;
+                  const planExpired = isPlanExpired(user.planEndsAt);
+                  const isClientActive = user.isActive !== false && !planExpired;
                   const userScreens = user.screens || allScreens.filter((s) => s.userId === user.id);
                   const screensCount = user._count?.screens ?? userScreens.length;
-                  const planExpired = isPlanExpired(user.planEndsAt);
                   const planPending = isPlanPending(user.planStartsAt);
 
                   return (
@@ -526,22 +561,30 @@ export default function UsersPage() {
                             onClick={() => handleToggleActive(user)}
                             disabled={togglingUserId === user.id}
                             className={`group inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-                              isClientActive
+                              planExpired
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20 shadow-[0_0_8px_rgba(245,158,11,0.15)]'
+                                : isClientActive
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
                                 : 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'
                             } disabled:opacity-50`}
                             title={
-                              isClientActive
+                              planExpired
+                                ? 'Plan vencido. El cliente fue desactivado automáticamente. Haz clic para renovar su plan.'
+                                : isClientActive
                                 ? 'Cliente activo. Haz clic para pausar/desactivar sus pantallas'
                                 : 'Cliente inactivo. Haz clic para activar y reanudar transmisiones'
                             }
                           >
                             <span
                               className={`w-2 h-2 rounded-full ${
-                                isClientActive ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                                planExpired
+                                  ? 'bg-amber-400'
+                                  : isClientActive
+                                  ? 'bg-emerald-400 animate-pulse'
+                                  : 'bg-red-400'
                               }`}
                             />
-                            <span>{isClientActive ? 'ACTIVO' : 'INACTIVO'}</span>
+                            <span>{planExpired ? 'INACTIVO (VENCIDO)' : isClientActive ? 'ACTIVO' : 'INACTIVO'}</span>
                             <Power className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity ml-0.5" />
                           </button>
                         )}
@@ -1179,7 +1222,15 @@ export default function UsersPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, isActive: true })}
+                        onClick={() => {
+                          if (formData.planEndsAt && isPlanExpired(formData.planEndsAt)) {
+                            alert(
+                              'No puedes activar un cliente cuya fecha de plan ya venció. Amplía la fecha de terminación primero.'
+                            );
+                            return;
+                          }
+                          setFormData({ ...formData, isActive: true });
+                        }}
                         className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                           formData.isActive
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
@@ -1234,11 +1285,26 @@ export default function UsersPage() {
                         <input
                           type="date"
                           value={formData.planEndsAt}
-                          onChange={(e) => setFormData({ ...formData, planEndsAt: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const isPast = val ? isPlanExpired(val) : false;
+                            setFormData((prev) => ({
+                              ...prev,
+                              planEndsAt: val,
+                              ...(isPast ? { isActive: false } : {}),
+                            }));
+                          }}
                           className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
                         />
                       </div>
                     </div>
+
+                    {formData.planEndsAt && isPlanExpired(formData.planEndsAt) && (
+                      <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1.5 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                        Esta fecha de terminación ya venció. El cliente se guardará como Inactivo automáticamente.
+                      </p>
+                    )}
 
                     {/* Botones de cálculo rápido */}
                     <div className="flex flex-wrap items-center gap-1.5 text-[10px] pt-1 border-t border-white/5">
@@ -1270,6 +1336,13 @@ export default function UsersPage() {
                         className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-primary/20 hover:text-primary text-slate-300 border border-white/5 transition-colors cursor-pointer"
                       >
                         +1 Año
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMonthsToPlan(24)}
+                        className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-primary/20 hover:text-primary text-slate-300 border border-white/5 transition-colors cursor-pointer"
+                      >
+                        +2 Años
                       </button>
                       <button
                         type="button"

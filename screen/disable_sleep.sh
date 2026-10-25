@@ -101,3 +101,4 @@ echo "   ✓ REPOSO AUTOMÁTICO DESACTIVADO EXITOSAMENTE"
 echo "   La pantalla SOLO se apagará o encenderá cuando"
 echo "   se envíe el comando desde el Portal MyPlayAd."
 echo "=========================================================="
+

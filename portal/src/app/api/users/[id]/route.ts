@@ -3,6 +3,19 @@ import prisma from '@/lib/prisma';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
 import { publishSyncEvent } from '@/lib/mqttPublisher';
 
+// Helper para parsear fechas "YYYY-MM-DD" a UTC estricto sin desviación horaria
+function parseDateParam(dateStr?: string | null, isEndOfDay = false): Date | null {
+  if (!dateStr) return null;
+  const clean = String(dateStr).trim().split('T')[0];
+  const parts = clean.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [year, month, day] = parts;
+  if (isEndOfDay) {
+    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  }
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const currentUser = await getCurrentUser();
@@ -79,15 +92,34 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (name) updateData.name = String(name).trim();
     if (email !== undefined) updateData.email = email ? String(email).trim() : null;
     if (role) updateData.role = role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'CLIENT';
-    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
     if (planStartsAt !== undefined) {
-      updateData.planStartsAt = planStartsAt ? new Date(planStartsAt) : null;
+      updateData.planStartsAt = parseDateParam(planStartsAt, false);
     }
     if (planEndsAt !== undefined) {
-      updateData.planEndsAt = planEndsAt ? new Date(planEndsAt) : null;
+      updateData.planEndsAt = parseDateParam(planEndsAt, true);
     }
     if (planId !== undefined) {
       updateData.planId = planId && planId !== 'none' ? planId : null;
+    }
+
+    // Comprobar vigencia del plan
+    const targetEndsAt = planEndsAt !== undefined ? updateData.planEndsAt : existingUser.planEndsAt;
+    const now = new Date();
+    const isPlanExpired = targetEndsAt ? targetEndsAt < now : false;
+
+    if (isActive !== undefined) {
+      const requestedActive = Boolean(isActive);
+      // Si el plan está vencido y se intenta activar, bloquear con error descriptivo
+      if (requestedActive && isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+        return NextResponse.json(
+          { error: 'No es posible activar un cliente cuyo plan ha vencido. Amplía primero la fecha de vigencia.' },
+          { status: 400 }
+        );
+      }
+      updateData.isActive = requestedActive;
+    } else if (isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+      // Si se actualizó la fecha del plan y quedó vencido, desactivar automáticamente al cliente
+      updateData.isActive = false;
     }
 
     if (username && username !== existingUser.username) {
