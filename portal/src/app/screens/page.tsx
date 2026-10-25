@@ -546,17 +546,17 @@ export default function ScreensPage() {
                     </div>
                   )}
 
-                  {/* Badge de Consola / Hardware RPi */}
-                  <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
-                    <span className="text-muted-foreground flex items-center gap-1.5">
-                      <Cpu className="w-3.5 h-3.5 text-purple-400" />
-                      Consola RPi:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-mono font-medium ${screen.consoleId ? 'text-purple-300' : 'text-slate-500 italic'}`}>
-                        {screen.consoleId || 'Sin vincular'}
+                  {/* Badge de Consola / Hardware RPi (Solo visible para Super Admin) */}
+                  {isSuperAdmin && (
+                    <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                        Consola RPi:
                       </span>
-                      {isSuperAdmin && (
+                      <div className="flex items-center gap-2">
+                        <span className={`font-mono font-medium ${screen.consoleId ? 'text-purple-300' : 'text-slate-500 italic'}`}>
+                          {screen.consoleId || 'Sin vincular'}
+                        </span>
                         <button
                           onClick={() => openConsoleModal(screen)}
                           className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 p-1 rounded cursor-pointer transition-colors"
@@ -564,9 +564,9 @@ export default function ScreensPage() {
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Badge de Límite de Videos según el Plan */}
                   {(() => {

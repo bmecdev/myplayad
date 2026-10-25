@@ -401,21 +401,21 @@ export default function ScreenDetailPage() {
               </span>
             )}
 
-            {/* Consola Hardware */}
-            <button
-              onClick={() => {
-                setConsoleInput(screen.consoleId || '');
-                setIsConsoleModalOpen(true);
-              }}
-              className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Asociar o cambiar consola hardware (Raspberry Pi)"
-            >
-              <Cpu className="w-3.5 h-3.5 text-purple-400" />
-              <span>Consola: {screen.consoleId || 'Sin vincular'}</span>
-              {currentUser?.role === 'SUPER_ADMIN' && (
+            {/* Consola Hardware (Solo visible para Super Admin) */}
+            {currentUser?.role === 'SUPER_ADMIN' && (
+              <button
+                onClick={() => {
+                  setConsoleInput(screen.consoleId || '');
+                  setIsConsoleModalOpen(true);
+                }}
+                className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Asociar o cambiar consola hardware (Raspberry Pi)"
+              >
+                <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                <span>Consola: {screen.consoleId || 'Sin vincular'}</span>
                 <span className="text-[10px] bg-purple-500/20 px-1.5 py-0.2 rounded ml-0.5">Editar</span>
-              )}
-            </button>
+              </button>
+            )}
 
             {/* Copiar SCREEN_ID */}
             <button
