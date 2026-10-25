@@ -216,7 +216,7 @@ export default function VideosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Film className="w-8 h-8 text-purple-500" /> {isSuperAdmin ? 'Videos Publicitarios' : 'Mis Videos'}

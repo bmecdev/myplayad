@@ -25,6 +25,14 @@ El acceso al portal está protegido mediante sesiones cifradas con tokens HMAC-S
    * **Super Admin:** Acceso completo a pantallas globales, clientes, planes, biblioteca de videos y métricas de red.
    * **Cliente Anunciante:** Acceso enfocado a sus pantallas asignadas, carga de sus videos publicitarios y consulta del estado de rotación de su plan contratado.
 
+### 2.1. Navegación Responsive y Colapso del Menú Lateral:
+* **Botón de Ocultar Menú en Escritorio:** En la parte superior del menú lateral (junto al logo), se encuentra el botón para colapsar y ocultar el panel. Al hacer clic, el menú se desliza suavemente hacia la izquierda permitiendo que las tablas, paneles y catálogos aprovechen el **100% del ancho de la pantalla**.
+* **Reapertura Rápida:** Cuando el menú está oculto en escritorio, aparece un botón flotante *"Mostrar Menú"* en la esquina superior izquierda para reabrirlo en cualquier momento. La preferencia se memoriza automáticamente en el navegador.
+* **Experiencia Móvil y Tablets (< 1024px):**
+  * En smartphones y tablets, el portal se adapta al ancho de pantalla sin márgenes forzados.
+  * Cuenta con una barra superior fija con botón de menú hamburguesa (`☰`) y logotipo.
+  * Al pulsar el botón, el menú lateral se despliega como un cajón deslizante sobre un fondo oscuro desenfocado y se cierra automáticamente al elegir cualquier sección o pulsar fuera de él.
+
 ---
 
 ## 3. Módulo de Pantallas (`/screens`)
