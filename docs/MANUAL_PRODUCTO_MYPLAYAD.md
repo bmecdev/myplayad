@@ -104,6 +104,18 @@ Para una estética arcade limpia, se combinan dos técnicas:
 1. Generación de un tema de cursor vacío a nivel de sistema Wayland (`~/.icons/empty`).
 2. Regla CSS global en la aplicación web: `* { cursor: none !important; }`.
 
+### 4.6. Desactivación Total de Reposo del Sistema Operativo (`disable_sleep.sh`)
+Para evitar que el Raspberry Pi 5 o el sistema operativo Debian/Wayland entren en modo ahorro de energía, suspensión o pantalla negra por falta de interacción física de ratón/teclado, el sistema ejecuta `screen/disable_sleep.sh`:
+* Enmascara y deshabilita en `systemd` los objetivos: `sleep.target`, `suspend.target`, `hibernate.target` y `hybrid-sleep.target`.
+* Desactiva el apagado automático de señal HDMI (DPMS timeout = 0) en el compositor Wayland.
+* Asegura que el monitor comercial **únicamente** se apague o encienda cuando el Super Administrador envíe los comandos remotos `POWER_OFF` / `POWER_ON` (HDMI-CEC) desde el Portal.
+
+### 4.7. Suspensión Automática por Inactividad o Vencimiento del Cliente
+El reproductor local consulta de forma periódica (`/api/public/screens/:id/current` y `/api/public/screens/:id/videos`) y reacciona de inmediato ante eventos MQTT `SYNC`:
+* **Cliente Inactivo:** Si el Super Administrador pausa la cuenta del cliente comercial, la pantalla entra de inmediato en modo Standby.
+* **Plan Vencido:** Si la fecha límite de vigencia de la suscripción del cliente expira (`planEndsAt < hoy`), el sistema suspende de forma automática la pantalla.
+* Mientras la pantalla esté en suspensión comercial por inactividad o plan vencido, **no reproducirá videos publicitarios ni minijuegos arcade** hasta que la cuenta sea reactivada y cuente con un plan vigente.
+
 ---
 
 ## 5. Motor Arcade y Control Móvil WebRTC (`games/`)
@@ -184,4 +196,10 @@ La Raspberry Pi encenderá directamente en modo kiosco vertical a pantalla compl
   ```bash
   bash ~/screen/update.sh
   ```
+* **Desactivar reposo automático del sistema operativo en el Raspberry Pi:**
+  ```bash
+  sudo bash ~/screen/disable_sleep.sh
+  ```
+* **Asociación de Consola física en el Portal:**
+  En el Portal MyPlayAd (módulo Pantallas), cada pantalla física puede vincularse con el identificador de la consola (ej. `consola1`, `consola2`) para saber con precisión qué equipo físico y usuario de Linux está operando en cada punto de venta.
 

@@ -127,18 +127,42 @@ Al pulsar en **Nuevo Plan** o en el botón de edición de un plan existente:
 
 ## 10. Gestión de Usuarios y Clientes (`/users`)
 
-En esta sección se gestiona el directorio de usuarios de la plataforma y sus privilegios de acceso.
+En esta sección el Super Administrador gestiona el directorio de clientes, sus planes de suscripción, fechas de vigencia, pantallas asignadas y estados de actividad.
 
 ![Gestión de Usuarios y Clientes](img/09-users-management.png)
 
-### Tipos de Cuentas:
-* **Super Admin:** Control total sobre todos los módulos, gestión de planes y acceso a todas las pantallas y videos.
-* **Cliente:** Acceso restringido únicamente a sus propias pantallas y a la subida de sus propios anuncios, limitado por la cuota de su plan asignado.
+### 10.1. Tipos de Cuentas:
+* **Super Admin:** Control total sobre todos los módulos, gestión de planes y acceso irrestricto a todas las pantallas y videos.
+* **Cliente:** Acceso restringido únicamente a sus propias pantallas físicas y a la subida de sus propios anuncios, limitado por la cuota de videos de su plan asignado.
 
-Desde esta tabla, el administrador puede:
-* Crear nuevos clientes con su respectivo plan de suscripción.
-* Asignar pantallas físicas a clientes específicos.
-* Restablecer contraseñas o modificar datos de contacto.
+### 10.2. Antigüedad y Datos del Cliente:
+* Cada cliente muestra su nombre comercial, usuario (`@usuario`), correo de contacto y su tiempo acumulado como cliente de la plataforma (ej. *Cliente: Hace 1 año y 3m*, *Cliente: Hace 15 días* o *Cliente: Hoy*).
+
+### 10.3. Control de Estado (Activo / Inactivo):
+* **Interruptor Rápido en la Tabla:** El Super Admin puede activar o suspender a un cliente directamente con un solo clic mediante el botón de encendido/apagado.
+* **Efecto Inmediato en Pantallas Físicas:** Al marcar a un cliente como **Inactivo**, todas las pantallas asignadas a su cuenta se suspenden de inmediato vía MQTT y entran en modo **Standby / Reposo**. Mientras el cliente esté suspendido, las pantallas **no reproducirán videos publicitarios ni minijuegos arcade**.
+* **Reactivación:** Al volver a activar al cliente, las pantallas se sincronizan automáticamente y retoman su rotación comercial normal.
+
+### 10.4. Planes, Vigencia y Atajos de Duración:
+* Cada cliente puede tener asignado un plan de suscripción con su rango de vigencia:
+  * **Fecha de Inicio:** Momento en que comienza a regir la suscripción (a las 00:00:00).
+  * **Fecha de Terminación:** Día límite de la suscripción. La cobertura es válida durante todo el día indicado hasta las **23:59:59.999**.
+* **Atajos de Cálculo Rápido de Duración:** Al crear o editar un cliente, se dispone de botones de cálculo instantáneo basados en aritmética de calendario pura:
+  * `+1 Mes`, `+3 Meses`, `+6 Meses`, `+1 Año`, `+2 Años` y `Sin Límite`.
+* **Insignias de Estado de Vigencia:**
+  * `PROGRAMADO`: Si la fecha de inicio del plan es posterior a la fecha actual.
+  * `VENCIDO`: Si la fecha de terminación del plan ya ha pasado.
+
+### 10.5. Desactivación Automática por Vencimiento:
+* **Detección Automática:** Cuando la fecha de terminación del plan expira (`planEndsAt < hoy`), el sistema detecta el vencimiento de manera automática y cambia el estado del cliente a `isActive: false` en la base de datos.
+* **Etiqueta en la Tabla:** La interfaz muestra el distintivo **`🔴 INACTIVO (VENCIDO)`**.
+* **Protección contra Activaciones Accidentales:** No se permite activar manualmente a un cliente cuyo plan esté vencido. Si el administrador intenta activarlo, el sistema emitirá una alerta solicitando ampliar primero la fecha de vigencia en el modal de edición.
+* **Comportamiento en Pantallas:** Las pantallas del cliente vencido reciben la orden MQTT de suspensión y dejan de emitir contenido hasta que el plan sea renovado.
+
+### 10.6. Modal de Pantallas Asignadas:
+Al pulsar sobre el botón de pantallas de un cliente se abre un modal de doble propósito:
+1. **Pestaña "Pantallas Asignadas":** Muestra la lista visual de todas las pantallas asignadas a ese cliente, su estado de conectividad en tiempo real (**Online / Offline**), si la pantalla está en reproducción o reposo, el identificador de la consola física (ej. `consola1`) y un botón para desvincularla con un solo clic.
+2. **Pestaña "Asignar / Gestionar":** Buscador de pantallas disponibles con opciones de selección masiva (*"Seleccionar visibles"* / *"Deseleccionar visibles"*) y checkboxes para vincular o transferir pantallas entre clientes.
 
 ---
 
