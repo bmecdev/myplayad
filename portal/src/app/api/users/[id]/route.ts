@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
+import { publishSyncEvent } from '@/lib/mqttPublisher';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,6 +19,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
+        createdAt: true,
         planId: true,
         plan: true,
         screens: {
@@ -52,7 +57,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await request.json();
-    const { username, password, name, email, role, planId, screenIds } = body;
+    const {
+      username,
+      password,
+      name,
+      email,
+      role,
+      planId,
+      screenIds,
+      isActive,
+      planStartsAt,
+      planEndsAt,
+    } = body;
 
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) {
@@ -63,6 +79,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (name) updateData.name = String(name).trim();
     if (email !== undefined) updateData.email = email ? String(email).trim() : null;
     if (role) updateData.role = role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'CLIENT';
+    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (planStartsAt !== undefined) {
+      updateData.planStartsAt = planStartsAt ? new Date(planStartsAt) : null;
+    }
+    if (planEndsAt !== undefined) {
+      updateData.planEndsAt = planEndsAt ? new Date(planEndsAt) : null;
+    }
     if (planId !== undefined) {
       updateData.planId = planId && planId !== 'none' ? planId : null;
     }
@@ -110,6 +133,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
+        createdAt: true,
         plan: {
           select: {
             id: true,
@@ -128,6 +155,19 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         },
       },
     });
+
+    // Notificar por MQTT a las pantallas vinculadas para que sincronicen en tiempo real su estado
+    try {
+      const affectedScreens = await prisma.screen.findMany({
+        where: { userId: id },
+        select: { id: true },
+      });
+      for (const scr of affectedScreens) {
+        publishSyncEvent(scr.id);
+      }
+    } catch (e) {
+      console.warn('Error publicando sync de pantallas para usuario:', e);
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

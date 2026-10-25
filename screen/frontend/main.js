@@ -319,6 +319,36 @@ async function checkSchedule() {
         if (!res.ok) throw new Error(`Portal respondió status ${res.status}`);
         const data = await res.json();
 
+        // Si el cliente está inactivo o suspendido, no mostrar ni videos ni juegos
+        if (data.inactive || data.clientActive === false) {
+            if (videoPlayer && !videoPlayer.paused) {
+                videoPlayer.pause();
+            }
+            if (gameFrame && gameFrame.src && !gameFrame.src.includes('about:blank')) {
+                currentUrl = 'about:blank';
+                gameFrame.src = 'about:blank';
+            }
+            standby.classList.remove('hidden');
+            const statusEl = document.getElementById('standby-status');
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:#ef4444; font-weight:bold; font-size:1.4rem; letter-spacing:1px;">PANTALLA FUERA DE SERVICIO</span><br><small style="color:#94a3b8; font-size:1rem; margin-top:8px; display:inline-block;">${data.message || 'Cliente suspendido o plan inactivo'}</small>`;
+            }
+            return;
+        }
+
+        // Si estaba en standby por suspensión y volvió a activarse:
+        if (!standby.classList.contains('hidden') && screenId) {
+            standby.classList.add('hidden');
+            const statusEl = document.getElementById('standby-status');
+            if (statusEl) statusEl.textContent = 'Iniciando pantalla...';
+            if (!currentUrl || currentUrl === 'about:blank') {
+                loadGame(forcedGame || 'outrun');
+            }
+            if (videoPlaylist.length > 0 && videoPlayer && videoPlayer.paused) {
+                playCurrentVideo();
+            }
+        }
+
         // Procesar próximos juegos para el overlay de ranking
         if (data.upcoming && data.upcoming.length > 0) {
             const gamesMap = {};

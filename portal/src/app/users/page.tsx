@@ -20,6 +20,9 @@ import {
   Cpu,
   ExternalLink,
   Unlink,
+  Calendar,
+  Clock,
+  Power,
 } from 'lucide-react';
 
 type Plan = {
@@ -49,6 +52,9 @@ type UserItem = {
   name: string;
   email?: string | null;
   role: 'SUPER_ADMIN' | 'CLIENT';
+  isActive: boolean;
+  planStartsAt?: string | null;
+  planEndsAt?: string | null;
   createdAt: string;
   planId?: string | null;
   plan?: Plan | null;
@@ -71,6 +77,7 @@ export default function UsersPage() {
   const [allScreens, setAllScreens] = useState<ScreenSummary[]>([]);
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
 
   // Modal State (Crear / Editar Usuario)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -81,7 +88,10 @@ export default function UsersPage() {
     password: '',
     email: '',
     role: 'CLIENT',
+    isActive: true,
     planId: '',
+    planStartsAt: '',
+    planEndsAt: '',
     screenIds: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
@@ -132,6 +142,91 @@ export default function UsersPage() {
     fetchData();
   }, []);
 
+  const getClientTenure = (createdAt?: string | Date | null) => {
+    if (!createdAt) return 'Desconocido';
+    const start = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    if (diffMs < 0) return 'Hoy';
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Hoy';
+    if (diffDays === 1) return 'Hace 1 día';
+    if (diffDays < 30) return `Hace ${diffDays} días`;
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths < 12) return `Hace ${diffMonths} ${diffMonths === 1 ? 'mes' : 'meses'}`;
+    const diffYears = Math.floor(diffDays / 365);
+    const remainingMonths = Math.floor((diffDays % 365) / 30);
+    if (remainingMonths > 0) {
+      return `Hace ${diffYears} ${diffYears === 1 ? 'año' : 'años'} y ${remainingMonths}m`;
+    }
+    return `Hace ${diffYears} ${diffYears === 1 ? 'año' : 'años'}`;
+  };
+
+  const formatPlanDate = (dateStr?: string | Date | null) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const isPlanExpired = (planEndsAt?: string | Date | null) => {
+    if (!planEndsAt) return false;
+    return new Date(planEndsAt).getTime() < Date.now();
+  };
+
+  const isPlanPending = (planStartsAt?: string | Date | null) => {
+    if (!planStartsAt) return false;
+    return new Date(planStartsAt).getTime() > Date.now();
+  };
+
+  const formatDateForInput = (d?: string | null) => {
+    if (!d) return '';
+    try {
+      return new Date(d).toISOString().split('T')[0];
+    } catch (_) {
+      return '';
+    }
+  };
+
+  const addMonthsToPlan = (months: number) => {
+    const baseDate = formData.planStartsAt ? new Date(formData.planStartsAt) : new Date();
+    const targetDate = new Date(baseDate);
+    targetDate.setMonth(targetDate.getMonth() + months);
+    setFormData((prev) => ({
+      ...prev,
+      planEndsAt: targetDate.toISOString().split('T')[0],
+    }));
+  };
+
+  const handleToggleActive = async (user: UserItem) => {
+    if (user.role === 'SUPER_ADMIN') return;
+    const newStatus = user.isActive === false ? true : false;
+    setTogglingUserId(user.id);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newStatus }),
+      });
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === user.id ? { ...u, isActive: newStatus } : u))
+        );
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Error al cambiar estado del cliente');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error de conexión');
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
+
   const openCreateModal = () => {
     setEditingUser(null);
     setFormData({
@@ -140,7 +235,10 @@ export default function UsersPage() {
       password: '',
       email: '',
       role: 'CLIENT',
+      isActive: true,
       planId: plans[0]?.id || '',
+      planStartsAt: new Date().toISOString().split('T')[0],
+      planEndsAt: '',
       screenIds: [],
     });
     setError(null);
@@ -159,7 +257,10 @@ export default function UsersPage() {
       password: '', // Dejar en blanco para no modificar
       email: user.email || '',
       role: user.role,
+      isActive: user.isActive !== false,
       planId: user.planId || '',
+      planStartsAt: formatDateForInput(user.planStartsAt),
+      planEndsAt: formatDateForInput(user.planEndsAt),
       screenIds: userScreenIds,
     });
     setError(null);
@@ -358,9 +459,10 @@ export default function UsersPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-black/30 border-b border-white/5 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
-                  <th className="py-4 px-6">Cliente / Usuario</th>
+                  <th className="py-4 px-6">Cliente / Antigüedad</th>
+                  <th className="py-4 px-6">Estado</th>
                   <th className="py-4 px-6">Rol</th>
-                  <th className="py-4 px-6">Plan Asignado</th>
+                  <th className="py-4 px-6">Plan & Vigencia</th>
                   <th className="py-4 px-6">Pantallas Asignadas</th>
                   <th className="py-4 px-6 text-right">Acciones</th>
                 </tr>
@@ -369,18 +471,23 @@ export default function UsersPage() {
                 {users.map((user) => {
                   const isSuperAdmin = user.role === 'SUPER_ADMIN';
                   const isCurrentUser = currentUser?.id === user.id;
+                  const isClientActive = user.isActive !== false;
                   const userScreens = user.screens || allScreens.filter((s) => s.userId === user.id);
                   const screensCount = user._count?.screens ?? userScreens.length;
+                  const planExpired = isPlanExpired(user.planEndsAt);
+                  const planPending = isPlanPending(user.planStartsAt);
 
                   return (
                     <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                               isSuperAdmin
                                 ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-blue-500/20 text-blue-400'
+                                : isClientActive
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : 'bg-red-500/20 text-red-400'
                             }`}
                           >
                             {isSuperAdmin ? <Shield className="w-5 h-5" /> : <User className="w-5 h-5" />}
@@ -397,8 +504,47 @@ export default function UsersPage() {
                             <p className="text-xs text-muted-foreground">
                               @{user.username} {user.email && `• ${user.email}`}
                             </p>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
+                              <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                              <span title={`Registrado el ${new Date(user.createdAt).toLocaleDateString()}`}>
+                                Cliente: {getClientTenure(user.createdAt)}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Estado con Toggle manual rápido */}
+                      <td className="py-4 px-6">
+                        {isSuperAdmin ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                            <Shield className="w-3 h-3" /> Permanente
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActive(user)}
+                            disabled={togglingUserId === user.id}
+                            className={`group inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                              isClientActive
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                                : 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'
+                            } disabled:opacity-50`}
+                            title={
+                              isClientActive
+                                ? 'Cliente activo. Haz clic para pausar/desactivar sus pantallas'
+                                : 'Cliente inactivo. Haz clic para activar y reanudar transmisiones'
+                            }
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                isClientActive ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                              }`}
+                            />
+                            <span>{isClientActive ? 'ACTIVO' : 'INACTIVO'}</span>
+                            <Power className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity ml-0.5" />
+                          </button>
+                        )}
                       </td>
 
                       <td className="py-4 px-6">
@@ -413,18 +559,44 @@ export default function UsersPage() {
                         </span>
                       </td>
 
+                      {/* Plan y Vigencia */}
                       <td className="py-4 px-6">
                         {isSuperAdmin ? (
                           <span className="text-xs text-muted-foreground">Acceso Ilimitado</span>
-                        ) : user.plan ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <Award className="w-3.5 h-3.5" />
-                            {user.plan.name}
-                          </span>
                         ) : (
-                          <span className="text-xs text-amber-400/80 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
-                            Sin Plan
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            {user.plan ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <Award className="w-3.5 h-3.5" />
+                                {user.plan.name}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                                Sin Plan
+                              </span>
+                            )}
+
+                            <div className="flex flex-col gap-0.5 text-[11px] mt-0.5 text-slate-300">
+                              <span className="flex items-center gap-1 text-slate-400">
+                                <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
+                                <span>Inicio: {formatPlanDate(user.planStartsAt) || 'Sin definir'}</span>
+                              </span>
+                              <span className="flex items-center gap-1 flex-wrap">
+                                <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                                <span>Fin: {formatPlanDate(user.planEndsAt) || 'Indefinido'}</span>
+                                {planExpired && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                                    VENCIDO
+                                  </span>
+                                )}
+                                {planPending && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                    PROGRAMADO
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </td>
 
@@ -455,6 +627,12 @@ export default function UsersPage() {
                                 <span>+ Asignar</span>
                               </button>
                             </div>
+
+                            {!isClientActive && (
+                              <span className="text-[10px] text-red-400/90 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 font-medium">
+                                ⏸ Pantallas suspendidas (inactivo)
+                              </span>
+                            )}
 
                             {userScreens.length > 0 && (
                               <div className="flex flex-wrap gap-1 max-w-[280px]">
@@ -537,7 +715,7 @@ export default function UsersPage() {
 
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
                       No hay clientes registrados aún.
                     </td>
                   </tr>
@@ -989,6 +1167,121 @@ export default function UsersPage() {
                   </select>
                 </div>
               </div>
+
+              {/* Estado y Vigencia del Plan (Solo para Clientes) */}
+              {formData.role === 'CLIENT' && (
+                <div className="space-y-4 pt-2 border-t border-white/5">
+                  {/* Selector Estado: Activo / Inactivo */}
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wider text-slate-300 mb-1.5">
+                      Estado del Cliente
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, isActive: true })}
+                        className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                          formData.isActive
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                            : 'bg-black/30 border-white/5 text-slate-400 hover:border-white/20'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Activo (Habilitado)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, isActive: false })}
+                        className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                          !formData.isActive
+                            ? 'bg-red-500/20 text-red-300 border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                            : 'bg-black/30 border-white/5 text-slate-400 hover:border-white/20'
+                        }`}
+                      >
+                        <Power className="w-4 h-4 text-red-400" />
+                        <span>Inactivo (Suspendido)</span>
+                      </button>
+                    </div>
+                    {!formData.isActive && (
+                      <p className="text-[11px] text-amber-400/90 mt-1.5 flex items-center gap-1.5 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                        Las pantallas de este cliente se pausarán y no mostrarán videos ni juegos mientras esté inactivo.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Fechas de Inicio y Terminación del Plan */}
+                  <div className="p-3 rounded-xl bg-black/20 border border-slate-700/60 space-y-2.5">
+                    <label className="block text-xs font-medium uppercase tracking-wider text-slate-300">
+                      Vigencia del Plan
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Fecha de Inicio
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.planStartsAt}
+                          onChange={(e) => setFormData({ ...formData, planStartsAt: e.target.value })}
+                          className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Fecha de Terminación
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.planEndsAt}
+                          onChange={(e) => setFormData({ ...formData, planEndsAt: e.target.value })}
+                          className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Botones de cálculo rápido */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] pt-1 border-t border-white/5">
+                      <span className="text-slate-400">Atajos de duración:</span>
+                      <button
+                        type="button"
+                        onClick={() => addMonthsToPlan(1)}
+                        className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-primary/20 hover:text-primary text-slate-300 border border-white/5 transition-colors cursor-pointer"
+                      >
+                        +1 Mes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMonthsToPlan(3)}
+                        className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-primary/20 hover:text-primary text-slate-300 border border-white/5 transition-colors cursor-pointer"
+                      >
+                        +3 Meses
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMonthsToPlan(6)}
+                        className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-primary/20 hover:text-primary text-slate-300 border border-white/5 transition-colors cursor-pointer"
+                      >
+                        +6 Meses
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMonthsToPlan(12)}
+                        className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-primary/20 hover:text-primary text-slate-300 border border-white/5 transition-colors cursor-pointer"
+                      >
+                        +1 Año
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, planEndsAt: '' }))}
+                        className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-amber-500/20 hover:text-amber-400 text-slate-400 border border-white/5 transition-colors cursor-pointer"
+                      >
+                        Sin Límite
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Selector de Pantallas Asignadas al crear o editar cliente */}
               {formData.role === 'CLIENT' && (

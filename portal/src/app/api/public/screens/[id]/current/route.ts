@@ -18,6 +18,52 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id: screenId } = await params;
     const now = new Date();
 
+    // Consultar estado de la pantalla y de su cliente propietario
+    const screen = await prisma.screen.findUnique({
+      where: { id: screenId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            planStartsAt: true,
+            planEndsAt: true,
+          },
+        },
+      },
+    });
+
+    // Si el cliente propietario está inactivo o su plan no está vigente,
+    // la pantalla NO reproduce ni videos ni juegos (entra en standby suspendido)
+    if (screen?.user) {
+      const isClientInactive = screen.user.isActive === false;
+      const isPlanExpired = screen.user.planEndsAt ? new Date(screen.user.planEndsAt) < now : false;
+      const isPlanPending = screen.user.planStartsAt ? new Date(screen.user.planStartsAt) > now : false;
+
+      if (isClientInactive || isPlanExpired || isPlanPending) {
+        return setCorsHeaders(
+          NextResponse.json({
+            type: 'standby',
+            url: null,
+            clientActive: false,
+            inactive: true,
+            reason: isClientInactive
+              ? 'CLIENT_INACTIVE'
+              : isPlanExpired
+              ? 'PLAN_EXPIRED'
+              : 'PLAN_PENDING',
+            message: isClientInactive
+              ? 'Pantalla suspendida: Cliente inactivo'
+              : isPlanExpired
+              ? 'Pantalla suspendida: Plan expirado'
+              : 'Pantalla en espera: Plan no iniciado',
+            upcoming: [],
+          })
+        );
+      }
+    }
+
     // First try to find an active GAME schedule
     let currentSchedule = await prisma.schedule.findFirst({
       where: {

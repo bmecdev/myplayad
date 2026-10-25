@@ -20,6 +20,9 @@ export async function GET() {
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
         createdAt: true,
         planId: true,
         plan: {
@@ -65,7 +68,18 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { username, password, name, email, role, planId, screenIds } = body;
+    const {
+      username,
+      password,
+      name,
+      email,
+      role,
+      planId,
+      screenIds,
+      isActive,
+      planStartsAt,
+      planEndsAt,
+    } = body;
 
     if (!username || !password || !name) {
       return NextResponse.json(
@@ -95,6 +109,9 @@ export async function POST(request: Request) {
         name: String(name).trim(),
         email: email ? String(email).trim() : null,
         role: role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'CLIENT',
+        isActive: typeof isActive === 'boolean' ? isActive : true,
+        planStartsAt: planStartsAt ? new Date(planStartsAt) : null,
+        planEndsAt: planEndsAt ? new Date(planEndsAt) : null,
         planId: planId && planId !== 'none' ? planId : null,
       },
       select: {
@@ -103,6 +120,9 @@ export async function POST(request: Request) {
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
         createdAt: true,
         plan: {
           select: {

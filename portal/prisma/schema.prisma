@@ -22,9 +22,12 @@ model User {
   password  String
   name      String
   role      Role     @default(CLIENT)
+  isActive  Boolean  @default(true)
   
-  planId    String?
-  plan      Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planId        String?
+  plan          Plan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planStartsAt  DateTime?
+  planEndsAt    DateTime?
   
   screens         Screen[]
   videos          Video[]
