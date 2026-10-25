@@ -153,11 +153,12 @@ En esta sección el Super Administrador gestiona el directorio de clientes, sus 
   * `PROGRAMADO`: Si la fecha de inicio del plan es posterior a la fecha actual.
   * `VENCIDO`: Si la fecha de terminación del plan ya ha pasado.
 
-### 10.5. Desactivación Automática por Vencimiento:
-* **Detección Automática:** Cuando la fecha de terminación del plan expira (`planEndsAt < hoy`), el sistema detecta el vencimiento de manera automática y cambia el estado del cliente a `isActive: false` en la base de datos.
+### 10.5. Desactivación Automática por Vencimiento y Reactivación Automática:
+* **Detección Automática de Vencimiento:** Cuando la fecha de terminación del plan expira (`planEndsAt < hoy`), el sistema detecta el vencimiento de manera automática y cambia el estado del cliente a `isActive: false` en la base de datos.
 * **Etiqueta en la Tabla:** La interfaz muestra el distintivo **`🔴 INACTIVO (VENCIDO)`**.
 * **Protección contra Activaciones Accidentales:** No se permite activar manualmente a un cliente cuyo plan esté vencido. Si el administrador intenta activarlo, el sistema emitirá una alerta solicitando ampliar primero la fecha de vigencia en el modal de edición.
-* **Comportamiento en Pantallas:** Las pantallas del cliente vencido reciben la orden MQTT de suspensión y dejan de emitir contenido hasta que el plan sea renovado.
+* **Reactivación Automática al Renovar la Vigencia:** Si se cambia la fecha de terminación por una válida dentro del rango futuro (o se usa cualquiera de los atajos `+1 Mes`, `+3 Meses`, `+6 Meses`, `+1 Año`, `+2 Años` o `Sin Límite`), el sistema **reactiva automáticamente al cliente (`isActive: true`)**.
+* **Reanudación Inmediata de Pantallas:** Al guardar la renovación, el sistema envía un evento MQTT en tiempo real a todas sus pantallas físicas para que salgan del modo reposo y reanuden la emisión de anuncios y minijuegos sin necesidad de intervención manual en el local.
 
 ### 10.6. Modal de Pantallas Asignadas:
 Al pulsar sobre el botón de pantallas de un cliente se abre un modal de doble propósito:

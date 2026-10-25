@@ -223,7 +223,7 @@ export default function UsersPage() {
     setFormData((prev) => ({
       ...prev,
       planEndsAt: computedEndsAt,
-      ...(isPast ? { isActive: false } : {}),
+      isActive: !isPast,
     }));
   };
 
@@ -1291,7 +1291,7 @@ export default function UsersPage() {
                             setFormData((prev) => ({
                               ...prev,
                               planEndsAt: val,
-                              ...(isPast ? { isActive: false } : {}),
+                              isActive: !isPast,
                             }));
                           }}
                           className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
@@ -1299,12 +1299,17 @@ export default function UsersPage() {
                       </div>
                     </div>
 
-                    {formData.planEndsAt && isPlanExpired(formData.planEndsAt) && (
+                    {formData.planEndsAt && isPlanExpired(formData.planEndsAt) ? (
                       <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1.5 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
                         <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
                         Esta fecha de terminación ya venció. El cliente se guardará como Inactivo automáticamente.
                       </p>
-                    )}
+                    ) : formData.planEndsAt && !isPlanExpired(formData.planEndsAt) && !editingUser?.isActive ? (
+                      <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1.5 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                        Fecha de vigencia válida. El cliente se activará automáticamente al guardar.
+                      </p>
+                    ) : null}
 
                     {/* Botones de cálculo rápido */}
                     <div className="flex flex-wrap items-center gap-1.5 text-[10px] pt-1 border-t border-white/5">
@@ -1346,7 +1351,7 @@ export default function UsersPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, planEndsAt: '' }))}
+                        onClick={() => setFormData((prev) => ({ ...prev, planEndsAt: '', isActive: true }))}
                         className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-amber-500/20 hover:text-amber-400 text-slate-400 border border-white/5 transition-colors cursor-pointer"
                       >
                         Sin Límite

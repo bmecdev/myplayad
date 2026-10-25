@@ -116,10 +116,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
           { status: 400 }
         );
       }
-      updateData.isActive = requestedActive;
+      // Si se actualizó la fecha del plan a una vigente, asegurar reactivación automática
+      if (planEndsAt !== undefined && !isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+        updateData.isActive = requestedActive !== false ? true : false;
+      } else {
+        updateData.isActive = requestedActive;
+      }
     } else if (isPlanExpired && (role || existingUser.role) === 'CLIENT') {
       // Si se actualizó la fecha del plan y quedó vencido, desactivar automáticamente al cliente
       updateData.isActive = false;
+    } else if (planEndsAt !== undefined && !isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+      // Si se amplió la fecha de vigencia y ya no está vencido, activar automáticamente al cliente
+      updateData.isActive = true;
     }
 
     if (username && username !== existingUser.username) {
