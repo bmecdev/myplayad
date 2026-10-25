@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Users,
   Plus,
@@ -15,6 +16,10 @@ import {
   AlertCircle,
   X,
   CheckCircle2,
+  Eye,
+  Cpu,
+  ExternalLink,
+  Unlink,
 } from 'lucide-react';
 
 type Plan = {
@@ -27,6 +32,7 @@ type ScreenSummary = {
   id: string;
   name: string;
   location?: string | null;
+  consoleId?: string | null;
   userId?: string | null;
   user?: {
     id: string;
@@ -34,6 +40,7 @@ type ScreenSummary = {
     username: string;
   } | null;
   lastSeen?: string;
+  displayState?: string;
 };
 
 type UserItem = {
@@ -49,6 +56,9 @@ type UserItem = {
     id: string;
     name: string;
     location?: string | null;
+    consoleId?: string | null;
+    lastSeen?: string | null;
+    displayState?: string | null;
   }[];
   _count?: {
     screens: number;
@@ -79,6 +89,7 @@ export default function UsersPage() {
 
   // Modal State (Asignación Rápida de Pantallas a Cliente)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignActiveTab, setAssignActiveTab] = useState<'view' | 'assign'>('view');
   const [assigningUser, setAssigningUser] = useState<UserItem | null>(null);
   const [assignScreenIds, setAssignScreenIds] = useState<string[]>([]);
   const [assignSearch, setAssignSearch] = useState('');
@@ -210,7 +221,7 @@ export default function UsersPage() {
   };
 
   // --- Quick Screen Assignment Modal Handlers ---
-  const openAssignModal = (user: UserItem) => {
+  const openAssignModal = (user: UserItem, initialTab: 'view' | 'assign' = 'view') => {
     setAssigningUser(user);
     const userScreenIds = user.screens
       ? user.screens.map((s) => s.id)
@@ -219,7 +230,41 @@ export default function UsersPage() {
     setAssignScreenIds(userScreenIds);
     setAssignSearch('');
     setAssignError(null);
+    setAssignActiveTab(initialTab);
     setIsAssignModalOpen(true);
+  };
+
+  const handleQuickUnassign = async (screenId: string) => {
+    if (!assigningUser) return;
+    const newIds = assignScreenIds.filter((id) => id !== screenId);
+    setAssignSubmitting(true);
+    setAssignError(null);
+    try {
+      const res = await fetch(`/api/users/${assigningUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ screenIds: newIds }),
+      });
+      if (res.ok) {
+        setAssignScreenIds(newIds);
+        setAssigningUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                screens: (prev.screens || []).filter((s) => s.id !== screenId),
+              }
+            : null
+        );
+        await fetchData();
+      } else {
+        const data = await res.json();
+        setAssignError(data.error || 'Error al desvincular pantalla');
+      }
+    } catch (err: any) {
+      setAssignError(err.message || 'Error de conexión');
+    } finally {
+      setAssignSubmitting(false);
+    }
   };
 
   const toggleScreenSelection = (screenId: string) => {
@@ -270,7 +315,7 @@ export default function UsersPage() {
     }
   };
 
-  const isScreenOnline = (lastSeen?: string) => {
+  const isScreenOnline = (lastSeen?: string | null) => {
     if (!lastSeen) return false;
     const diff = Date.now() - new Date(lastSeen).getTime();
     return diff < 120000;
@@ -392,29 +437,44 @@ export default function UsersPage() {
                           </span>
                         ) : (
                           <div className="flex flex-col gap-1.5 items-start">
-                            <button
-                              onClick={() => openAssignModal(user)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all hover:scale-[1.02] cursor-pointer"
-                              title="Gestionar pantallas asignadas a este cliente"
-                            >
-                              <Monitor className="w-3.5 h-3.5" />
-                              <span>{screensCount} {screensCount === 1 ? 'Pantalla' : 'Pantallas'}</span>
-                              <span className="text-[10px] bg-primary/25 px-1.5 py-0.5 rounded font-bold ml-1">
-                                Asignar
-                              </span>
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => openAssignModal(user, 'view')}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all hover:scale-[1.02] cursor-pointer"
+                                title="Ver detalles de pantallas asignadas"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{screensCount} {screensCount === 1 ? 'Pantalla' : 'Pantallas'}</span>
+                              </button>
+                              <button
+                                onClick={() => openAssignModal(user, 'assign')}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all hover:scale-[1.02] cursor-pointer"
+                                title="Asignar o desasignar pantallas"
+                              >
+                                <Monitor className="w-3 h-3" />
+                                <span>+ Asignar</span>
+                              </button>
+                            </div>
 
                             {userScreens.length > 0 && (
                               <div className="flex flex-wrap gap-1 max-w-[280px]">
-                                {userScreens.slice(0, 3).map((s) => (
-                                  <span
-                                    key={s.id}
-                                    className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/5 truncate max-w-[130px]"
-                                    title={`${s.name} ${s.location ? `(${s.location})` : ''}`}
-                                  >
-                                    {s.name}
-                                  </span>
-                                ))}
+                                {userScreens.slice(0, 3).map((s) => {
+                                  const isOnline = isScreenOnline(s.lastSeen);
+                                  return (
+                                    <span
+                                      key={s.id}
+                                      className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/5 truncate max-w-[130px]"
+                                      title={`${s.name} ${s.location ? `(${s.location})` : ''} ${s.consoleId ? `[Consola: ${s.consoleId}]` : ''}`}
+                                    >
+                                      <span
+                                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                          isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                                        }`}
+                                      />
+                                      <span className="truncate">{s.name}</span>
+                                    </span>
+                                  );
+                                })}
                                 {userScreens.length > 3 && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/5 text-slate-400 font-medium">
                                     +{userScreens.length - 3} más
@@ -429,12 +489,12 @@ export default function UsersPage() {
                       {/* Acciones */}
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Botón rápido para asignar pantallas (Clientes) */}
+                          {/* Botón rápido para ver y gestionar pantallas (Clientes) */}
                           {!isSuperAdmin && (
                             <button
-                              onClick={() => openAssignModal(user)}
-                              className="p-2 hover:bg-primary/10 rounded-lg text-slate-300 hover:text-primary transition-colors"
-                              title="Asignar pantallas a este cliente"
+                              onClick={() => openAssignModal(user, 'view')}
+                              className="p-2 hover:bg-emerald-500/10 rounded-lg text-slate-300 hover:text-emerald-400 transition-colors"
+                              title="Ver y gestionar pantallas de este cliente"
                             >
                               <Monitor className="w-4 h-4" />
                             </button>
@@ -488,14 +548,14 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Modal Dedicado de Asignación Rápida de Pantallas */}
+      {/* Modal Dedicado de Pantallas del Cliente (Ver y Asignar) */}
       {isAssignModalOpen && assigningUser && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="glass rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-white/10 flex flex-col max-h-[90vh]">
+          <div className="glass rounded-2xl w-full max-w-xl p-6 shadow-2xl border border-white/10 flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Monitor className="w-5 h-5 text-primary" /> Asignar Pantallas
+                  <Monitor className="w-5 h-5 text-primary" /> Pantallas del Cliente
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Cliente: <span className="text-white font-semibold">{assigningUser.name}</span> (@{assigningUser.username})
@@ -509,6 +569,34 @@ export default function UsersPage() {
               </button>
             </div>
 
+            {/* Pestañas: Ver Pantallas Asignadas vs Asignar / Gestionar */}
+            <div className="flex border-b border-white/10 mb-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setAssignActiveTab('view')}
+                className={`flex items-center gap-2 pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
+                  assignActiveTab === 'view'
+                    ? 'border-emerald-400 text-emerald-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                <span>Pantallas Asignadas ({assigningUser.screens?.length || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignActiveTab('assign')}
+                className={`flex items-center gap-2 pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
+                  assignActiveTab === 'assign'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Monitor className="w-4 h-4" />
+                <span>Asignar / Gestionar</span>
+              </button>
+            </div>
+
             {assignError && (
               <div className="mb-4 p-3 rounded-xl bg-destructive/15 border border-destructive/30 text-destructive text-sm flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -516,146 +604,282 @@ export default function UsersPage() {
               </div>
             )}
 
-            {/* Buscador de pantallas */}
-            <div className="relative mb-3">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre o ubicación..."
-                value={assignSearch}
-                onChange={(e) => setAssignSearch(e.target.value)}
-                className="w-full bg-black/40 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-primary"
-              />
-            </div>
-
-            {/* Acciones masivas */}
-            <div className="flex justify-between items-center text-xs text-muted-foreground mb-3 px-1">
-              <span>{filteredScreens.length} pantalla(s) encontradas</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSelectAll(filteredScreens.map((s) => s.id))}
-                  className="text-primary hover:underline"
-                >
-                  Seleccionar visibles
-                </button>
-                <span>•</span>
-                <button
-                  type="button"
-                  onClick={() => handleDeselectAll(filteredScreens.map((s) => s.id))}
-                  className="text-slate-400 hover:underline"
-                >
-                  Deseleccionar visibles
-                </button>
-              </div>
-            </div>
-
-            {/* Lista de Pantallas con Checkboxes */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px]">
-              {filteredScreens.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-sm">
-                  {allScreens.length === 0
-                    ? 'No hay pantallas creadas en el sistema todavía. Crea pantallas en la sección "Pantallas".'
-                    : 'No se encontraron pantallas con esa búsqueda.'}
-                </div>
-              ) : (
-                filteredScreens.map((screen) => {
-                  const isChecked = assignScreenIds.includes(screen.id);
-                  const isOnline = isScreenOnline(screen.lastSeen);
-                  const currentlyAssignedToOther =
-                    screen.userId && screen.userId !== assigningUser.id;
-                  const assignedToThisUser = screen.userId === assigningUser.id;
-
-                  return (
-                    <div
-                      key={screen.id}
-                      onClick={() => toggleScreenSelection(screen.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                        isChecked
-                          ? 'bg-primary/10 border-primary/40 shadow-[0_0_10px_rgba(59,130,246,0.15)]'
-                          : 'bg-black/30 border-white/5 hover:border-white/20'
-                      }`}
+            {/* PESTAÑA 1: VISTA INMEDIATA DE PANTALLAS ASIGNADAS */}
+            {assignActiveTab === 'view' ? (
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-[260px]">
+                {!assigningUser.screens || assigningUser.screens.length === 0 ? (
+                  <div className="text-center py-12 px-4 rounded-xl border border-dashed border-white/10 bg-white/[0.02]">
+                    <Monitor className="w-10 h-10 mx-auto text-slate-500 mb-3 opacity-60" />
+                    <h3 className="text-sm font-semibold text-slate-200 mb-1">
+                      No tiene pantallas asignadas
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-4 max-w-sm mx-auto">
+                      Este cliente aún no tiene pantallas vinculadas. Haz clic en el botón de abajo para asignarle pantallas.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAssignActiveTab('assign')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-md transition-all"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <Monitor className="w-3.5 h-3.5" /> Asignar Pantallas Ahora
+                    </button>
+                  </div>
+                ) : (
+                  assigningUser.screens.map((screen) => {
+                    const isOnline = isScreenOnline(screen.lastSeen);
+                    return (
+                      <div
+                        key={screen.id}
+                        className="p-3.5 rounded-xl border border-white/10 bg-white/[0.03] hover:border-white/20 transition-all flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span
+                              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-red-500'
+                              }`}
+                              title={isOnline ? 'Online (Activa)' : 'Offline (Desconectada)'}
+                            />
+                            <p className="font-semibold text-sm text-slate-100 truncate">
+                              {screen.name}
+                            </p>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                isOnline
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                              }`}
+                            >
+                              {isOnline ? 'ONLINE' : 'OFFLINE'}
+                            </span>
+                            {screen.displayState && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/5">
+                                {screen.displayState === 'ACTIVE' ? '📺 Activa' : '🌙 En Reposo'}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
+                            <span>📍 {screen.location || 'Sin ubicación registrada'}</span>
+                            {screen.consoleId ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                                <Cpu className="w-3 h-3 text-cyan-400" />
+                                Consola: {screen.consoleId}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 italic">
+                                Sin consola vinculada
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Link
+                            href={`/screens/${screen.id}`}
+                            target="_blank"
+                            className="p-2 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors"
+                            title="Abrir panel detallado de esta pantalla"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickUnassign(screen.id)}
+                            disabled={assignSubmitting}
+                            className="p-2 hover:bg-destructive/15 rounded-lg text-slate-400 hover:text-destructive transition-colors disabled:opacity-50"
+                            title="Desvincular esta pantalla del cliente"
+                          >
+                            <Unlink className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              /* PESTAÑA 2: ASIGNACIÓN Y GESTIÓN CON CHECKBOXES */
+              <>
+                {/* Buscador de pantallas */}
+                <div className="relative mb-3">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre o ubicación..."
+                    value={assignSearch}
+                    onChange={(e) => setAssignSearch(e.target.value)}
+                    className="w-full bg-black/40 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                {/* Acciones masivas */}
+                <div className="flex justify-between items-center text-xs text-muted-foreground mb-3 px-1">
+                  <span>{filteredScreens.length} pantalla(s) encontradas</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAll(filteredScreens.map((s) => s.id))}
+                      className="text-primary hover:underline"
+                    >
+                      Seleccionar visibles
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeselectAll(filteredScreens.map((s) => s.id))}
+                      className="text-slate-400 hover:underline"
+                    >
+                      Deseleccionar visibles
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista de Pantallas con Checkboxes */}
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px]">
+                  {filteredScreens.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground text-sm">
+                      {allScreens.length === 0
+                        ? 'No hay pantallas creadas en el sistema todavía. Crea pantallas en la sección "Pantallas".'
+                        : 'No se encontraron pantallas con esa búsqueda.'}
+                    </div>
+                  ) : (
+                    filteredScreens.map((screen) => {
+                      const isChecked = assignScreenIds.includes(screen.id);
+                      const isOnline = isScreenOnline(screen.lastSeen);
+                      const currentlyAssignedToOther =
+                        screen.userId && screen.userId !== assigningUser.id;
+                      const assignedToThisUser = screen.userId === assigningUser.id;
+
+                      return (
                         <div
-                          className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                          key={screen.id}
+                          onClick={() => toggleScreenSelection(screen.id)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                             isChecked
-                              ? 'bg-primary border-primary text-black font-bold'
-                              : 'border-slate-600 bg-black/40'
+                              ? 'bg-primary/10 border-primary/40 shadow-[0_0_10px_rgba(59,130,246,0.15)]'
+                              : 'bg-black/30 border-white/5 hover:border-white/20'
                           }`}
                         >
-                          {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm text-slate-100 truncate flex items-center gap-2">
-                            {screen.name}
-                            <span
-                              className={`w-2 h-2 rounded-full inline-block ${
-                                isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                                isChecked
+                                  ? 'bg-primary border-primary text-black font-bold'
+                                  : 'border-slate-600 bg-black/40'
                               }`}
-                              title={isOnline ? 'Online' : 'Offline'}
-                            />
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {screen.location || 'Sin ubicación'}
-                          </p>
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm text-slate-100 truncate flex items-center gap-2">
+                                {screen.name}
+                                <span
+                                  className={`w-2 h-2 rounded-full inline-block ${
+                                    isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                                  }`}
+                                  title={isOnline ? 'Online' : 'Offline'}
+                                />
+                                {screen.consoleId && (
+                                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                                    {screen.consoleId}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {screen.location || 'Sin ubicación'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            {assignedToThisUser ? (
+                              <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                Asignada actual
+                              </span>
+                            ) : currentlyAssignedToOther ? (
+                              <span
+                                className="text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20"
+                                title={`Esta pantalla está actualmente asignada a ${screen.user?.name || 'otro cliente'}. Al asignarla aquí se transferirá a este cliente.`}
+                              >
+                                Asignada a {screen.user?.name || 'otro cliente'}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-medium text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+                                Disponible
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        {assignedToThisUser ? (
-                          <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                            Asignada actual
-                          </span>
-                        ) : currentlyAssignedToOther ? (
-                          <span
-                            className="text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20"
-                            title={`Esta pantalla está actualmente asignada a ${screen.user?.name || 'otro cliente'}. Al asignarla aquí se transferirá a este cliente.`}
-                          >
-                            Asignada a {screen.user?.name || 'otro cliente'}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-medium text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-                            Disponible
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Footer con Contador y Botón Guardar */}
-            <div className="flex items-center justify-between pt-4 mt-3 border-t border-white/5">
-              <span className="text-xs text-slate-300 font-medium">
-                {assignScreenIds.length} {assignScreenIds.length === 1 ? 'pantalla seleccionada' : 'pantallas seleccionadas'}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm"
-                  disabled={assignSubmitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveScreenAssignment}
-                  disabled={assignSubmitting}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium text-sm flex items-center gap-1.5 shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50"
-                >
-                  {assignSubmitting ? (
-                    'Guardando...'
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" /> Guardar Asignación
-                    </>
+                      );
+                    })
                   )}
-                </button>
-              </div>
+                </div>
+              </>
+            )}
+
+            {/* Footer Dinámico según la Pestaña Activa */}
+            <div className="flex items-center justify-between pt-4 mt-3 border-t border-white/5">
+              {assignActiveTab === 'view' ? (
+                <>
+                  <span className="text-xs text-slate-300 font-medium">
+                    {assigningUser.screens?.length || 0}{' '}
+                    {(assigningUser.screens?.length || 0) === 1
+                      ? 'pantalla asignada'
+                      : 'pantallas asignadas'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssignActiveTab('assign')}
+                      className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors text-xs font-semibold flex items-center gap-1.5"
+                    >
+                      <Monitor className="w-3.5 h-3.5" /> Asignar / Cambiar Pantallas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAssignModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 transition-colors text-sm font-medium"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs text-slate-300 font-medium">
+                    {assignScreenIds.length}{' '}
+                    {assignScreenIds.length === 1
+                      ? 'pantalla seleccionada'
+                      : 'pantallas seleccionadas'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssignActiveTab('view')}
+                      className="px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-xs text-slate-300"
+                      disabled={assignSubmitting}
+                    >
+                      Volver a Pantallas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveScreenAssignment}
+                      disabled={assignSubmitting}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium text-sm flex items-center gap-1.5 shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50"
+                    >
+                      {assignSubmitting ? (
+                        'Guardando...'
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" /> Guardar Asignación
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
