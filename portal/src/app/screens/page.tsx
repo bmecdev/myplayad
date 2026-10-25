@@ -571,7 +571,7 @@ export default function ScreensPage() {
                   {/* Badge de Límite de Videos según el Plan */}
                   {(() => {
                     const videoCount = (screen.schedules || []).filter(s => s.videoId).length;
-                    const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                    const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 15;
                     const isFull = videoCount >= maxAllowed;
                     return (
                       <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">

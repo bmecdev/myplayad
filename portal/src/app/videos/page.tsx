@@ -410,7 +410,7 @@ export default function VideosPage() {
                     })
                     .map(s => {
                       const videoCount = (s.schedules || []).filter((sc: any) => sc.videoId).length;
-                      const maxAllowed = s.user?.plan?.maxVideosPerScreen ?? 5;
+                      const maxAllowed = s.user?.plan?.maxVideosPerScreen ?? 15;
                       const isFull = videoCount >= maxAllowed;
                       return (
                         <option key={s.id} value={s.id} disabled={isFull}>
@@ -506,7 +506,7 @@ export default function VideosPage() {
 
                 return assignableScreens.map(screen => {
                   const sVideoCount = (screen.schedules || []).filter((sc: any) => sc.videoId).length;
-                  const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                  const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 15;
                   const isAlreadyAssigned = selectedScreenIds.includes(screen.id);
                   const isFull = sVideoCount >= maxAllowed && !isAlreadyAssigned;
 

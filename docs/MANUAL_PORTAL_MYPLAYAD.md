@@ -39,7 +39,7 @@ El módulo de pantallas es el corazón operativo del sistema, permitiendo monito
   * **Encender Todas:** Envía una orden MQTT `POWER_ON` a todas las pantallas activas, encendiendo físicamente los televisores comerciales conectados vía cable HDMI.
   * **Apagar Todas:** Envía una orden MQTT `POWER_OFF` para apagar masivamente los monitores al cierre comercial, ahorrando energía sin desconectar el sistema operativo.
 * **Estado de Conexión en Tiempo Real:** Cada tarjeta de pantalla indica si el reproductor está online u offline, su dirección IP local, resolución actual y última hora de sincronización.
-* **Indicador de Cuota de Videos en Rotación:** Muestra el cumplimiento de la cuota publicitaria (ej. `2 / 5 videos en rotación`), alertando si una pantalla no tiene videos asignados o si ya alcanzó su límite máximo permitido por su plan.
+* **Indicador de Cuota de Videos en Rotación:** Muestra el cumplimiento de la cuota publicitaria (ej. `2 / 15 videos en rotación`), alertando si una pantalla no tiene videos asignados o si ya alcanzó su límite máximo permitido por su plan.
 * **Vinculación de Consola Hardware (Raspberry Pi):** Badge interactivo con el usuario/ID de la Raspberry Pi física (ej. `consola1`, `consola2`). El Super Admin puede hacer clic en el botón de edición para vincular o actualizar la consola física asignada.
 * **Copiado Rápido de SCREEN_ID:** Botón de un solo clic junto al ID de la pantalla que copia el UUID directamente al portapapeles con confirmación visual, facilitando pegarlo en `/boot/firmware/config.txt` al configurar una nueva consola.
 
@@ -93,7 +93,7 @@ Al hacer clic en **Subir Video**, se despliega el modal inteligente de carga:
 1. **Archivo de Video:** Arrastra o selecciona un archivo en formato `.mp4` o `.webm`.
 2. **Cliente Propietario (Super Admin):** Selecciona el cliente al que pertenecerá el video publicitario.
 3. **Asignación de Pantallas:** Selecciona a qué pantalla o pantallas se asignará el nuevo spot.
-4. **Control de Cuotas en Tiempo Real:** El sistema valida contra el plan contratado por el cliente cuántos videos tiene permitidos por pantalla. Si una pantalla ya tiene su cupo lleno (ej. `5 / 5 videos usados`), el sistema bloquea la asignación para evitar sobrepasar los límites comerciales acordados.
+4. **Control de Cuotas en Tiempo Real:** El sistema valida contra el plan contratado por el cliente cuántos videos tiene permitidos por pantalla. Si una pantalla ya tiene su cupo lleno (ej. `15 / 15 videos usados`), el sistema bloquea la asignación para evitar sobrepasar los límites comerciales acordados.
 
 ---
 

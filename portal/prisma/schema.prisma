@@ -42,7 +42,7 @@ model Plan {
   name                String
   slug                String   @unique
   description         String?
-  maxVideosPerScreen  Int      @default(5)
+  maxVideosPerScreen  Int      @default(15)
   
   games       Game[]
   users       User[]

@@ -9,6 +9,12 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    // Elevar automáticamente cualquier plan previo con límite inferior a 15
+    await prisma.plan.updateMany({
+      where: { maxVideosPerScreen: { lt: 15 } },
+      data: { maxVideosPerScreen: 15 },
+    });
+
     const plans = await prisma.plan.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
         name: String(name).trim(),
         slug: cleanSlug,
         description: description ? String(description).trim() : null,
-        maxVideosPerScreen: Number(maxVideosPerScreen) > 0 ? Number(maxVideosPerScreen) : 5,
+        maxVideosPerScreen: Number(maxVideosPerScreen) > 0 ? Number(maxVideosPerScreen) : 15,
         games: Array.isArray(gameIds) && gameIds.length > 0
           ? {
               connect: gameIds.map((id: string) => ({ id })),

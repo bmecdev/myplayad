@@ -324,7 +324,7 @@ export default function ScreenDetailPage() {
   const handleAssignExistingVideos = async () => {
     if (selectedVideoIds.length === 0) return;
 
-    const maxAllowed = screen?.user?.plan?.maxVideosPerScreen ?? 5;
+    const maxAllowed = screen?.user?.plan?.maxVideosPerScreen ?? 15;
     if (currentUser?.role === 'CLIENT' && (videos.length + selectedVideoIds.length) > maxAllowed) {
       alert(`No es posible asignar ${selectedVideoIds.length} videos. El plan de esta pantalla permite un máximo de ${maxAllowed} videos (actualmente ya tiene ${videos.length}).`);
       return;
@@ -597,7 +597,7 @@ export default function ScreenDetailPage() {
                 <Film className="w-6 h-6" /> Videos de esta Pantalla
               </h2>
               {(() => {
-                const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 15;
                 const isFull = videos.length >= maxAllowed;
                 return (
                   <p className="text-xs text-muted-foreground mt-0.5">

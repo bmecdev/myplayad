@@ -33,7 +33,7 @@ export default function PlansPage() {
     name: '',
     slug: '',
     description: '',
-    maxVideosPerScreen: 5,
+    maxVideosPerScreen: 15,
     gameIds: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +71,7 @@ export default function PlansPage() {
       name: '',
       slug: '',
       description: '',
-      maxVideosPerScreen: 5,
+      maxVideosPerScreen: 15,
       gameIds: [],
     });
     setError(null);
@@ -84,7 +84,7 @@ export default function PlansPage() {
       name: plan.name,
       slug: plan.slug,
       description: plan.description || '',
-      maxVideosPerScreen: plan.maxVideosPerScreen ?? 5,
+      maxVideosPerScreen: plan.maxVideosPerScreen ?? 15,
       gameIds: plan.games.map((g) => g.id),
     });
     setError(null);
@@ -222,7 +222,7 @@ export default function PlansPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20 font-medium flex items-center gap-1.5">
                     <Film className="w-3.5 h-3.5 text-blue-400" />
-                    {plan.maxVideosPerScreen ?? 5} videos por pantalla
+                    {plan.maxVideosPerScreen ?? 15} videos por pantalla
                   </span>
                 </div>
 
@@ -318,7 +318,7 @@ export default function PlansPage() {
                     type="number"
                     min="1"
                     max="100"
-                    placeholder="5"
+                    placeholder="15"
                     value={formData.maxVideosPerScreen}
                     onChange={(e) => setFormData({ ...formData, maxVideosPerScreen: parseInt(e.target.value) || 1 })}
                     className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"

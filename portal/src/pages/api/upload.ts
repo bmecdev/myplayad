@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Validar límite del plan del cliente
-        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 5;
+        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 15;
         const currentVideosCount = await prisma.schedule.count({
           where: {
             screenId: targetScreen.id,

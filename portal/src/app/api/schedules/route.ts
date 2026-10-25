@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     // Si programa un video, verificar límite por pantalla según el plan
     if (currentUser.role === 'CLIENT' && videoId) {
-      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 5;
+      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 15;
       const currentVideosCount = await prisma.schedule.count({
         where: {
           screenId,

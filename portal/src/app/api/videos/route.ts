@@ -114,7 +114,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Acceso denegado a esta pantalla' }, { status: 403 });
         }
 
-        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 5;
+        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 15;
         const currentCount = await prisma.schedule.count({
           where: {
             screenId: targetScreen.id,

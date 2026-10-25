@@ -123,7 +123,7 @@ export async function ensureSuperAdminAndDefaultPlans() {
           name: 'Plan Básico',
           slug: 'basic',
           description: 'Acceso a juegos arcade esenciales (Snake y Arkanoid).',
-          maxVideosPerScreen: 3,
+          maxVideosPerScreen: 15,
           games: {
             connect: basicGames.map(g => ({ id: g.id }))
           }
@@ -157,6 +157,12 @@ export async function ensureSuperAdminAndDefaultPlans() {
         }
       });
     }
+
+    // Auto-actualizar cualquier plan existente con límite inferior a 15 al nuevo estándar de 15
+    await prisma.plan.updateMany({
+      where: { maxVideosPerScreen: { lt: 15 } },
+      data: { maxVideosPerScreen: 15 },
+    });
   } catch (error) {
     console.warn('Error inicializando Super Admin o planes por defecto:', error);
   }

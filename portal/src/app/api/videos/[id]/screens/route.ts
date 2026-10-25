@@ -33,7 +33,7 @@ export async function PUT(
       allowedTargetScreenIds = requestedScreenIds.filter((id: string) => clientScreenIdSet.has(id));
 
       // Validar límite del plan en cada pantalla destino
-      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 5;
+      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 15;
       for (const targetId of allowedTargetScreenIds) {
         const otherVideosCount = await prisma.schedule.count({
           where: {
