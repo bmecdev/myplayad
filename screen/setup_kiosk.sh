@@ -94,11 +94,16 @@ fi
 # Asegurar permisos de ejecución a los scripts auxiliares
 chmod +x "$SCRIPT_DIR/power.sh" 2>/dev/null || true
 chmod +x "$SCRIPT_DIR/update.sh" 2>/dev/null || true
+chmod +x "$SCRIPT_DIR/disable_sleep.sh" 2>/dev/null || true
 
-# 4. Configurar rotación permanente en el Kernel Linux (KMS / DRM)
+# 4. Configurar rotación permanente y desactivar salvapantallas del Kernel (KMS / DRM)
 echo ""
-echo "[4/6] Configurando rotación vertical a nivel de Kernel en /boot/firmware/cmdline.txt..."
+echo "[4/7] Configurando parámetros de arranque del Kernel en cmdline.txt..."
 CMDLINE_FILE="/boot/firmware/cmdline.txt"
+if [ ! -f "$CMDLINE_FILE" ] && [ -f "/boot/cmdline.txt" ]; then
+    CMDLINE_FILE="/boot/cmdline.txt"
+fi
+
 if [ -f "$CMDLINE_FILE" ]; then
     if ! grep -q "rotate=" "$CMDLINE_FILE"; then
         echo "Añadiendo parámetro de rotación vertical (90 grados) al arranque del kernel..."
@@ -107,11 +112,26 @@ if [ -f "$CMDLINE_FILE" ]; then
     else
         echo "Parámetro de rotación ya presente en cmdline.txt."
     fi
+
+    # Desactivar salvapantallas del kernel (consoleblank=0)
+    if grep -q "consoleblank=" "$CMDLINE_FILE"; then
+        sudo sed -i 's/consoleblank=[0-9]*/consoleblank=0/' "$CMDLINE_FILE"
+    else
+        sudo sed -i 's/$/ consoleblank=0/' "$CMDLINE_FILE"
+    fi
+    echo "✓ Salvapantallas del Kernel desactivado permanentemente (consoleblank=0)."
 fi
 
-# 5. Configurar puntero de mouse invisible
+# 5. Desactivar suspensión, reposo del SO y ahorro de energía Wi-Fi
 echo ""
-echo "[5/6] Generando puntero de ratón transparente..."
+echo "[5/7] Desactivando reposo del sistema operativo y ahorro de energía..."
+if [ -f "$SCRIPT_DIR/disable_sleep.sh" ]; then
+    bash "$SCRIPT_DIR/disable_sleep.sh"
+fi
+
+# 6. Configurar puntero de mouse invisible
+echo ""
+echo "[6/7] Generando puntero de ratón transparente..."
 CURSOR_DIR="$TARGET_HOME/.icons/empty/cursors"
 mkdir -p "$CURSOR_DIR"
 cd "$CURSOR_DIR"
@@ -143,9 +163,9 @@ EOF
 # Volver al directorio de trabajo
 cd "$SCRIPT_DIR"
 
-# 6. Configurar labwc (Entorno y Autostart)
+# 7. Configurar labwc (Entorno y Autostart)
 echo ""
-echo "[6/6] Configurando compositor Wayland (labwc)..."
+echo "[7/7] Configurando compositor Wayland (labwc)..."
 mkdir -p "$TARGET_HOME/.config/labwc"
 
 # Environment
@@ -200,7 +220,18 @@ kanshi &
 wlr-randr --output HDMI-A-1 --transform ${SCREEN_ROTATE} 2>/dev/null || true
 wlr-randr --output HDMI-A-2 --transform ${SCREEN_ROTATE} 2>/dev/null || true
 
-# 3. Eliminar barra de tareas e íconos de escritorio (Kiosk Mode Puro)
+# 3. Desactivar reposo automático, salvapantallas y suspensión del sistema
+killall swayidle 2>/dev/null || true
+if command -v wlopm >/dev/null 2>&1; then
+    wlopm --on '*' 2>/dev/null || true
+fi
+if command -v xset >/dev/null 2>&1; then
+    xset s off 2>/dev/null || true
+    xset -dpms 2>/dev/null || true
+    xset s noblank 2>/dev/null || true
+fi
+
+# 4. Eliminar barra de tareas e íconos de escritorio (Kiosk Mode Puro)
 killall pcmanfm wf-panel-pi lwrespawn 2>/dev/null
 
 SCREEN_APP_DIR="$HOME/screen"
@@ -209,17 +240,17 @@ if [ -f "$SCREEN_APP_DIR/logo.png" ]; then
     swaybg -i "$SCREEN_APP_DIR/logo.png" -m center -c "#000000" &
 fi
 
-# 4. Auto-actualización al encender (Boot-Time Update de producción)
+# 5. Auto-actualización al encender (Boot-Time Update de producción)
 if [ -f "$SCREEN_APP_DIR/update.sh" ]; then
     echo "[AUTOSTART] Comprobando actualizaciones de produccion en origin/main..."
     bash "$SCREEN_APP_DIR/update.sh" || true
 fi
 
-# 5. Iniciar el servidor Node en segundo plano
+# 6. Iniciar el servidor Node en segundo plano
 cd "$SCREEN_APP_DIR"
 node server.js >> "$SCREEN_APP_DIR/server.log" 2>&1 &
 
-# 6. Esperar a que el servidor Node responda (hasta 15s) antes de lanzar Chromium
+# 7. Esperar a que el servidor Node responda (hasta 15s) antes de lanzar Chromium
 for i in $(seq 1 30); do
     if curl -s http://localhost:8090/api/config >/dev/null 2>&1; then
         break
@@ -227,8 +258,8 @@ for i in $(seq 1 30); do
     sleep 0.5
 done
 
-# 7. Abrir Chromium en modo kiosco (Wayland nativo, sin popup de keyring)
-chromium --ozone-platform=wayland --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 --autoplay-policy=no-user-gesture-required http://localhost:8090
+# 8. Abrir Chromium en modo kiosco (Wayland nativo, sin sleep, sin throttling)
+chromium --ozone-platform=wayland --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --autoplay-policy=no-user-gesture-required http://localhost:8090
 EOF
 
 chmod +x "$TARGET_HOME/.config/labwc/autostart"
