@@ -53,6 +53,7 @@ model Screen {
   name        String
   location    String?
   description String?
+  consoleId   String?     // Identificador de la consola física (ej: "consola1", "rpi5-01")
   lastSeen    DateTime?
   
   userId      String?

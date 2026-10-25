@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -28,6 +28,7 @@ type ScreenDetail = {
   name: string;
   location: string;
   description: string;
+  consoleId?: string | null;
   lastSeen?: string;
   userId?: string | null;
   displayState?: 'ON' | 'OFF' | string;
@@ -86,6 +87,12 @@ export default function ScreenDetailPage() {
   const [clientUsers, setClientUsers] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('none');
   const [reassignSubmitting, setReassignSubmitting] = useState(false);
+
+  // Console Assignment Modal State
+  const [isConsoleModalOpen, setIsConsoleModalOpen] = useState(false);
+  const [consoleInput, setConsoleInput] = useState('');
+  const [consoleSubmitting, setConsoleSubmitting] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
   // OTA Update Modal State
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
@@ -393,6 +400,47 @@ export default function ScreenDetailPage() {
                 Plan: {currentUser.plan.name}
               </span>
             )}
+
+            {/* Consola Hardware */}
+            <button
+              onClick={() => {
+                setConsoleInput(screen.consoleId || '');
+                setIsConsoleModalOpen(true);
+              }}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Asociar o cambiar consola hardware (Raspberry Pi)"
+            >
+              <Cpu className="w-3.5 h-3.5 text-purple-400" />
+              <span>Consola: {screen.consoleId || 'Sin vincular'}</span>
+              {currentUser?.role === 'SUPER_ADMIN' && (
+                <span className="text-[10px] bg-purple-500/20 px-1.5 py-0.2 rounded ml-0.5">Editar</span>
+              )}
+            </button>
+
+            {/* Copiar SCREEN_ID */}
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(screen.id);
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+              }}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Copiar SCREEN_ID para config.txt en la consola"
+            >
+              {copiedId ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  <span className="text-emerald-400 font-sans">¡ID Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  <span>Copiar ID</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setIsUpdateModalOpen(true)}
               className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -938,6 +986,108 @@ export default function ScreenDetailPage() {
                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium text-sm"
                 >
                   {reassignSubmitting ? 'Guardando...' : 'Actualizar Asignación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Vincular Consola Hardware */}
+      {isConsoleModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Cpu className="w-5 h-5 text-purple-400" />
+              <h2 className="text-xl font-bold">Vincular Consola Hardware</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Pantalla: <span className="text-white font-semibold">{screen.name}</span>
+            </p>
+
+            {/* Box con SCREEN_ID para copiar rápidamente a config.txt */}
+            <div className="mb-4 p-3 bg-black/40 border border-white/10 rounded-xl">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-slate-400">SCREEN_ID (para config.txt en la Pi):</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(screen.id);
+                    setCopiedId(true);
+                    setTimeout(() => setCopiedId(false), 2000);
+                  }}
+                  className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                >
+                  {copiedId ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-medium">¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar UUID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs font-mono text-slate-200 break-all select-all">
+                {screen.id}
+              </p>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setConsoleSubmitting(true);
+                try {
+                  const res = await fetch(`/api/screens/${screen.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ consoleId: consoleInput }),
+                  });
+                  if (!res.ok) {
+                    throw new Error('Error al actualizar consola');
+                  }
+                  setIsConsoleModalOpen(false);
+                  fetchScreenData();
+                } catch (err) {
+                  console.error('Error guardando consola:', err);
+                } finally {
+                  setConsoleSubmitting(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Identificador de la Consola (RPi)</label>
+                <input
+                  type="text"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm font-mono"
+                  placeholder="Ej: consola1, consola2, rpi5-01"
+                  value={consoleInput}
+                  onChange={(e) => setConsoleInput(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usuario o nombre del Raspberry Pi 5 que corre esta pantalla. Deja vacío para desvincular.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsConsoleModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm"
+                  disabled={consoleSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={consoleSubmitting}
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm shadow-lg shadow-purple-500/20"
+                >
+                  {consoleSubmitting ? 'Guardando...' : 'Guardar Consola'}
                 </button>
               </div>
             </form>

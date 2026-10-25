@@ -75,13 +75,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, location, description, userId } = body;
+    const { name, location, description, userId, consoleId } = body;
 
     const screen = await prisma.screen.create({
       data: {
         name,
         location,
         description,
+        consoleId: consoleId && consoleId.trim() ? consoleId.trim() : null,
         userId: userId && userId !== 'none' ? userId : null,
       },
       include: {

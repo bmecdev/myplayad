@@ -78,6 +78,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         name: screen.name,
         location: screen.location,
         description: screen.description,
+        consoleId: screen.consoleId,
         lastSeen: screen.lastSeen,
         userId: screen.userId,
         user: screen.user,
@@ -101,7 +102,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await request.json();
-    const { name, location, description, userId } = body;
+    const { name, location, description, userId, consoleId } = body;
 
     const existingScreen = await prisma.screen.findUnique({
       where: { id },
@@ -128,6 +129,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         name: name !== undefined ? name : existingScreen.name,
         location: location !== undefined ? location : existingScreen.location,
         description: description !== undefined ? description : existingScreen.description,
+        consoleId:
+          consoleId !== undefined
+            ? consoleId && typeof consoleId === 'string' && consoleId.trim()
+              ? consoleId.trim()
+              : null
+            : existingScreen.consoleId,
         userId: updatedUserId,
       },
       include: {
