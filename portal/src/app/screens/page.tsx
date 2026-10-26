@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film, Cpu, Copy, Check } from 'lucide-react';
+import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film, Cpu, Copy, Check, Clock } from 'lucide-react';
 import mqtt from 'mqtt';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -27,6 +27,9 @@ type Screen = {
   userId?: string | null;
   user?: UserSummary | null;
   displayState?: 'ON' | 'OFF' | string;
+  autoPowerEnabled?: boolean;
+  powerOnTime?: string | null;
+  powerOffTime?: string | null;
   lastSeen?: string;
   createdAt: string;
   schedules?: Array<{
@@ -45,7 +48,16 @@ export default function ScreensPage() {
   
   // Modal de Crear Pantalla
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', location: '', description: '', userId: '', consoleId: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    location: '',
+    description: '',
+    userId: '',
+    consoleId: '',
+    autoPowerEnabled: true,
+    powerOnTime: '08:00',
+    powerOffTime: '22:00',
+  });
   
   // Modal de Reasignar Cliente (Super Admin)
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -147,7 +159,16 @@ export default function ScreensPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
     });
-    setFormData({ name: '', location: '', description: '', userId: '', consoleId: '' });
+    setFormData({
+      name: '',
+      location: '',
+      description: '',
+      userId: '',
+      consoleId: '',
+      autoPowerEnabled: true,
+      powerOnTime: '08:00',
+      powerOffTime: '22:00',
+    });
     setIsModalOpen(false);
     fetchScreens();
   };
@@ -568,6 +589,19 @@ export default function ScreensPage() {
                     </div>
                   )}
 
+                  {/* Badge de Horario de Energía Programado */}
+                  <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      Horario Auto Power:
+                    </span>
+                    <span className="font-medium text-slate-300">
+                      {screen.autoPowerEnabled !== false
+                        ? `${screen.powerOnTime || '08:00'} a ${screen.powerOffTime || '22:00'}`
+                        : 'Desactivado (24h)'}
+                    </span>
+                  </div>
+
                   {/* Badge de Límite de Videos según el Plan */}
                   {(() => {
                     const videoCount = (screen.schedules || []).filter(s => s.videoId).length;
@@ -698,6 +732,46 @@ export default function ScreensPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   El cliente seleccionado tendrá acceso y control sobre esta pantalla al iniciar sesión.
                 </p>
+              </div>
+
+              {/* Horario Programado de Energía */}
+              <div className="p-3.5 rounded-xl bg-black/30 border border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Horario Programado (Auto Power)
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.autoPowerEnabled}
+                      onChange={e => setFormData({ ...formData, autoPowerEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Encendido</label>
+                    <input
+                      type="time"
+                      disabled={!formData.autoPowerEnabled}
+                      value={formData.powerOnTime}
+                      onChange={e => setFormData({ ...formData, powerOnTime: e.target.value })}
+                      className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Apagado</label>
+                    <input
+                      type="time"
+                      disabled={!formData.autoPowerEnabled}
+                      value={formData.powerOffTime}
+                      onChange={e => setFormData({ ...formData, powerOffTime: e.target.value })}
+                      className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 justify-end mt-6">

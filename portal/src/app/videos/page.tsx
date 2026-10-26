@@ -399,7 +399,16 @@ export default function VideosPage() {
                 <select 
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer"
                   value={screenId}
-                  onChange={e => setScreenId(e.target.value)}
+                  onChange={e => {
+                    const newScreenId = e.target.value;
+                    setScreenId(newScreenId);
+                    if (isSuperAdmin && newScreenId !== 'none') {
+                      const scr = screens.find(s => s.id === newScreenId);
+                      if (scr?.userId) {
+                        setUploadClientId(scr.userId);
+                      }
+                    }
+                  }}
                 >
                   <option value="none">Ninguna (Solo subir a la biblioteca)</option>
                   {screens

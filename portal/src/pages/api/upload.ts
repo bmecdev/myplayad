@@ -66,6 +66,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // SUPER_ADMIN
       if (clientId && clientId !== 'none') {
         ownerUserId = clientId;
+        if (targetScreen?.userId && targetScreen.userId !== clientId) {
+          return res.status(400).json({
+            error: 'Segmentación de videos: La pantalla seleccionada pertenece a otro cliente distinto.'
+          });
+        }
       } else if (targetScreen?.userId) {
         ownerUserId = targetScreen.userId;
       }

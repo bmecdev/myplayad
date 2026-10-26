@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check, Clock, Sun, Moon, Save } from 'lucide-react';
 import Link from 'next/link';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -10,6 +10,7 @@ type Video = {
   id: string;
   title: string;
   filename: string;
+  userId?: string | null;
   createdAt: string;
 };
 
@@ -32,6 +33,9 @@ type ScreenDetail = {
   lastSeen?: string;
   userId?: string | null;
   displayState?: 'ON' | 'OFF' | string;
+  autoPowerEnabled?: boolean;
+  powerOnTime?: string | null;
+  powerOffTime?: string | null;
   user?: {
     id: string;
     name: string;
@@ -97,6 +101,13 @@ export default function ScreenDetailPage() {
   // OTA Update Modal State
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
+  // Power Schedule State (Horario de Encendido y Apagado)
+  const [autoPowerEnabled, setAutoPowerEnabled] = useState(true);
+  const [powerOnTime, setPowerOnTime] = useState('08:00');
+  const [powerOffTime, setPowerOffTime] = useState('22:00');
+  const [savingPowerSchedule, setSavingPowerSchedule] = useState(false);
+  const [powerScheduleSuccess, setPowerScheduleSuccess] = useState(false);
+
   const fetchScreenData = async () => {
     try {
       const meRes = await fetch('/api/auth/me');
@@ -123,6 +134,13 @@ export default function ScreenDetailPage() {
       setActiveGameSchedule(data.activeGameSchedule);
       setUpcomingSchedules(data.upcomingSchedules || []);
       
+      // Sincronizar estado del horario de energía
+      if (data.screen) {
+        setAutoPowerEnabled(data.screen.autoPowerEnabled ?? true);
+        setPowerOnTime(data.screen.powerOnTime || '08:00');
+        setPowerOffTime(data.screen.powerOffTime || '22:00');
+      }
+
       const gamesRes = await fetch('/api/games');
       const gamesData = await gamesRes.json();
       setGames(gamesData);
@@ -132,6 +150,34 @@ export default function ScreenDetailPage() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSavePowerSchedule = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingPowerSchedule(true);
+    setPowerScheduleSuccess(false);
+    try {
+      const res = await fetch(`/api/screens/${screenId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          autoPowerEnabled,
+          powerOnTime,
+          powerOffTime,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar horario');
+      }
+      setPowerScheduleSuccess(true);
+      fetchScreenData();
+      setTimeout(() => setPowerScheduleSuccess(false), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Error guardando horario de encendido/apagado');
+    } finally {
+      setSavingPowerSchedule(false);
     }
   };
 
@@ -309,12 +355,19 @@ export default function ScreenDetailPage() {
     setIsExistingVideoModalOpen(true);
     setSelectedVideoIds([]);
     try {
-      const res = await fetch('/api/videos');
+      const endpoint = screen?.userId ? `/api/videos?userId=${screen.userId}` : '/api/videos';
+      const res = await fetch(endpoint);
       if (res.ok) {
         const data = await res.json();
-        // Filter out videos that are already assigned to this screen
+        // Filtrar videos ya asignados y garantizar segmentación estricta por cliente
         const existingIds = new Set(videos.map(v => v.id));
-        setAllVideos(data.filter((v: Video) => !existingIds.has(v.id)));
+        setAllVideos(
+          data.filter((v: Video) => {
+            if (existingIds.has(v.id)) return false;
+            if (screen?.userId && v.userId && v.userId !== screen.userId) return false;
+            return true;
+          })
+        );
       }
     } catch (err) {
       console.error('Error fetching videos:', err);
@@ -587,6 +640,95 @@ export default function ScreenDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Horario Programado de Energía (Auto Power) */}
+          <div className="mt-6 space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-amber-400">
+              <Clock className="w-5 h-5" /> Horario Programado de Energía
+            </h3>
+            
+            <div className="glass-card rounded-2xl p-5 border border-amber-500/20 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                <div>
+                  <p className="font-semibold text-sm text-slate-200">Control Automático Diario (HDMI-CEC)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Enciende y apaga la pantalla automáticamente todos los días según el horario fijado.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={autoPowerEnabled}
+                    onChange={(e) => setAutoPowerEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  <span className="ml-2.5 text-xs font-medium text-slate-300">
+                    {autoPowerEnabled ? 'Activo' : 'Desactivado'}
+                  </span>
+                </label>
+              </div>
+
+              <form onSubmit={handleSavePowerSchedule} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-black/30 p-3 rounded-xl border border-white/5">
+                    <label className="text-xs font-medium text-emerald-400 flex items-center gap-1.5 mb-1.5 uppercase tracking-wider">
+                      <Sun className="w-3.5 h-3.5" /> Hora de Encendido
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!autoPowerEnabled}
+                      value={powerOnTime}
+                      onChange={(e) => setPowerOnTime(e.target.value)}
+                      className="w-full bg-black/60 border border-slate-700/80 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 disabled:opacity-40 transition-colors"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Inicio de operación diaria</p>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-xl border border-white/5">
+                    <label className="text-xs font-medium text-indigo-400 flex items-center gap-1.5 mb-1.5 uppercase tracking-wider">
+                      <Moon className="w-3.5 h-3.5" /> Hora de Apagado
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!autoPowerEnabled}
+                      value={powerOffTime}
+                      onChange={(e) => setPowerOffTime(e.target.value)}
+                      className="w-full bg-black/60 border border-slate-700/80 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 disabled:opacity-40 transition-colors"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Reposo / TV Standby nocturno</p>
+                  </div>
+                </div>
+
+                {powerScheduleSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>¡Horario guardado correctamente!</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={savingPowerSchedule}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl transition-colors font-medium text-xs flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-md shadow-amber-600/20"
+                  >
+                    {savingPowerSchedule ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Guardar Horario</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
 
         {/* Videos Management Section */}

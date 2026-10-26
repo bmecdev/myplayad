@@ -9,6 +9,11 @@ El **Portal Web de MyPlayAd** es el centro de control unificado desde donde admi
 * **URL de Staging (Entorno de Pruebas):** `https://dev-portal.myplayad.com`
 * **URL de Producción:** `https://portal.myplayad.com`
 
+### 1.1. Modalidades Físicas de Pantallas & Conectividad 4G (Plug & Play):
+* **🏢 Pantalla Grande Fija:** Formato tótem vertical de gran formato (43&quot;, 55&quot;, 65&quot;+) Full HD / 4K para áreas de alta concurrencia en **Centros Comerciales (CC / Malls)**, pasillos y plazoletas de comidas. Chasis robusto antivandálico para instalación fija duradera.
+* **🏪 Pantalla Mediana Portable:** Formato ligero y estilizado (32&quot; a 43&quot;) con atril portable para **Negocios Locales, Stands y Ferias Comerciales**. Se transporta y monta en menos de 5 minutos en recepciones o mostradores.
+* **📶 Conectividad 4G LTE Incluida (Plug & Play):** Cada pantalla incluye módem celular 4G LTE preconfigurado de fábrica. **¡Lo único que necesitas es una toma de corriente eléctrica!** No requiere solicitar claves Wi-Fi locales ni permisos de red corporativa.
+
 ---
 
 ## 2. Acceso y Autenticación
@@ -48,6 +53,7 @@ El módulo de pantallas es el corazón operativo del sistema, permitiendo monito
   * **Apagar Todas:** Envía una orden MQTT `POWER_OFF` para apagar masivamente los monitores al cierre comercial, ahorrando energía sin desconectar el sistema operativo.
 * **Estado de Conexión en Tiempo Real:** Cada tarjeta de pantalla indica si el reproductor está online u offline, su dirección IP local, resolución actual y última hora de sincronización.
 * **Indicador de Cuota de Videos en Rotación:** Muestra el cumplimiento de la cuota publicitaria (ej. `2 / 15 videos en rotación`), alertando si una pantalla no tiene videos asignados o si ya alcanzó su límite máximo permitido por su plan.
+* **Horario Programado de Energía (Auto Power):** Cada tarjeta muestra el horario diario de encendido y apagado (ej. `08:00 a 22:00` o `Desactivado (24h)`). Al ingresar al detalle de la pantalla (`/screens/:id`), es posible activar o pausar el horario y ajustar las horas de encendido y reposo diario. El sistema envía automáticamente las órdenes HDMI-CEC a la Raspberry Pi para apagar el televisor durante la noche y encenderlo en la mañana.
 * **Vinculación de Consola Hardware (Raspberry Pi):** Badge interactivo con el usuario/ID de la Raspberry Pi física (ej. `consola1`, `consola2`). El Super Admin puede hacer clic en el botón de edición para vincular o actualizar la consola física asignada.
 * **Copiado Rápido de SCREEN_ID:** Botón de un solo clic junto al ID de la pantalla que copia el UUID directamente al portapapeles con confirmación visual, facilitando pegarlo en `/boot/firmware/config.txt` al configurar una nueva consola.
 
@@ -102,6 +108,11 @@ Al hacer clic en **Subir Video**, se despliega el modal inteligente de carga:
 2. **Cliente Propietario (Super Admin):** Selecciona el cliente al que pertenecerá el video publicitario.
 3. **Asignación de Pantallas:** Selecciona a qué pantalla o pantallas se asignará el nuevo spot.
 4. **Control de Cuotas en Tiempo Real:** El sistema valida contra el plan contratado por el cliente cuántos videos tiene permitidos por pantalla. Si una pantalla ya tiene su cupo lleno (ej. `15 / 15 videos usados`), el sistema bloquea la asignación para evitar sobrepasar los límites comerciales acordados.
+
+### 7.1. Segmentación Estricta de Videos por Cliente
+* **Aislamiento Total entre Clientes:** Los clientes que inicien sesión en el portal únicamente pueden visualizar, subir y asignar sus propios videos. No tienen visibilidad del contenido de otras marcas.
+* **Restricción de Pantallas Cruzadas:** El sistema impide asignar un video de un cliente a la pantalla de otro cliente distinto, tanto en la interfaz como en el backend (`HTTP 400`).
+* **Sincronización Segura en Kiosco:** La API pública (`/api/public/screens/:id/videos`) únicamente entrega los videos que pertenezcan al cliente dueño de la pantalla, garantizando que un televisor nunca descargue ni reproduzca contenido publicitario ajeno.
 
 ---
 

@@ -319,6 +319,14 @@ async function checkSchedule() {
         if (!res.ok) throw new Error(`Portal respondió status ${res.status}`);
         const data = await res.json();
 
+        // Si la pantalla se encuentra en horario de reposo programado (Auto Power Off)
+        if (data.scheduledPowerOff || (data.power && data.power.autoPowerEnabled && data.power.shouldBeOn === false)) {
+            setScreenSleepMode(true);
+            return;
+        } else if (data.power && data.power.shouldBeOn === true) {
+            setScreenSleepMode(false);
+        }
+
         // Si el cliente está inactivo o suspendido, no mostrar ni videos ni juegos
         if (data.inactive || data.clientActive === false) {
             if (videoPlayer && !videoPlayer.paused) {

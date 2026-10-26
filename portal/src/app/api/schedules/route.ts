@@ -67,24 +67,51 @@ export async function POST(request: Request) {
       }
     }
 
-    // Si programa un video, verificar límite por pantalla según el plan
-    if (currentUser.role === 'CLIENT' && videoId) {
-      const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 15;
-      const currentVideosCount = await prisma.schedule.count({
-        where: {
-          screenId,
-          videoId: { not: null },
-          isActive: true,
-        },
-      });
+    // Si programa un video, verificar límites del plan y segmentación estricta por cliente
+    if (videoId) {
+      const video = await prisma.video.findUnique({ where: { id: videoId } });
+      if (!video) {
+        return NextResponse.json({ error: 'Video no encontrado' }, { status: 404 });
+      }
 
-      if (currentVideosCount >= maxAllowed) {
+      // Segmentación estricta de videos por cliente:
+      // Si la pantalla pertenece a un cliente, el video DEBE pertenecer a ese mismo cliente
+      if (screen.userId && video.userId && screen.userId !== video.userId) {
         return NextResponse.json(
           {
-            error: `Has alcanzado el límite de ${maxAllowed} videos para esta pantalla según tu plan (${currentUser.plan?.name || 'Básico'}). Mejora tu plan o desasigna un video previo para continuar.`,
+            error:
+              'Segmentación de videos: Este video pertenece a otro cliente y no puede asignarse a esta pantalla.',
           },
           { status: 403 }
         );
+      }
+
+      // Si el usuario es CLIENT, verificar que el video le pertenezca
+      if (currentUser.role === 'CLIENT' && video.userId !== currentUser.id) {
+        return NextResponse.json(
+          { error: 'Acceso denegado: No puedes programar un video que no te pertenece.' },
+          { status: 403 }
+        );
+      }
+
+      if (currentUser.role === 'CLIENT') {
+        const maxAllowed = currentUser.plan?.maxVideosPerScreen ?? 15;
+        const currentVideosCount = await prisma.schedule.count({
+          where: {
+            screenId,
+            videoId: { not: null },
+            isActive: true,
+          },
+        });
+
+        if (currentVideosCount >= maxAllowed) {
+          return NextResponse.json(
+            {
+              error: `Has alcanzado el límite de ${maxAllowed} videos para esta pantalla según tu plan (${currentUser.plan?.name || 'Básico'}). Mejora tu plan o desasigna un video previo para continuar.`,
+            },
+            { status: 403 }
+          );
+        }
       }
     }
 

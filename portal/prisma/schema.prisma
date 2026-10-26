@@ -63,6 +63,9 @@ model Screen {
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   
   displayState    String      @default("ON") // "ON" | "OFF"
+  autoPowerEnabled Boolean    @default(true)
+  powerOnTime      String?    @default("08:00") // Formato "HH:mm" (24h)
+  powerOffTime     String?    @default("22:00") // Formato "HH:mm" (24h)
   
   schedules       Schedule[]
   updateSchedules UpdateSchedule[]

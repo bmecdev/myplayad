@@ -11,6 +11,22 @@ El proyecto está dividido en tres componentes principales:
 3. **`games/` (Static HTML/JS):** Los juegos retro interactivos. Tienen dos vistas: la del juego (que carga la pantalla) y el control (que carga el usuario en su móvil escaneando un código QR).
 
 ---
+
+## 📺 Modalidades Físicas de Pantallas & Conectividad 4G Plug & Play
+
+MyPlayAd ofrece dos formatos de hardware optimizados según el tipo de entorno y afluencia de público:
+
+| Modalidad | Entorno Objetivo | Formato & Dimensiones | Características Destacadas |
+| :--- | :--- | :--- | :--- |
+| **🏢 Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K) | Estructura fija robusta con protección antivandálica, alta visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual y entretenimiento masivo. |
+| **🏪 Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable | Ligera, compacta y transportable. Diseñada para rápida instalación en recepciones, stands comerciales, exposiciones corporativas y puntos de venta retail. |
+
+### 📶 Conectividad 4G LTE Incluida (Cero Dependencias de Red)
+* **100% Autónoma:** Cada pantalla incorpora su propio módem celular 4G LTE preconfigurado con tarjeta SIM multi-operador.
+* **Sin Trabas de TI:** No necesitas pedir claves de Wi-Fi, tender cables ethernet ni lidiar con firewalls corporativos del centro comercial o local.
+* **Plug & Play:** **¡Lo único que necesitas es electricidad!** Conéctala a una toma corriente estándar (110V/220V) y la pantalla arrancará de inmediato, sincronizando sus videos y activando su horario programado.
+
+---
 ## 🕹️ Catálogo de Minijuegos Disponibles en Producción
 
 <!-- GAMES_CATALOG_START -->

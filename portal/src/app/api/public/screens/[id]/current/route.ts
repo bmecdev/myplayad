@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { isScreenScheduledOn } from '@/lib/powerScheduler';
 
 // Enable CORS for this public endpoint so screens can fetch it from other subdomains
 function setCorsHeaders(res: NextResponse) {
@@ -34,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
     });
 
-    // Si el cliente propietario está inactivo o su plan no está vigente,
+    // 1. Si el cliente propietario está inactivo o su plan no está vigente,
     // la pantalla NO reproduce ni videos ni juegos (entra en standby suspendido)
     if (screen?.user) {
       const isClientInactive = screen.user.isActive === false;
@@ -59,9 +60,39 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
               ? 'Pantalla suspendida: Plan expirado'
               : 'Pantalla en espera: Plan no iniciado',
             upcoming: [],
+            power: {
+              autoPowerEnabled: screen.autoPowerEnabled,
+              powerOnTime: screen.powerOnTime,
+              powerOffTime: screen.powerOffTime,
+              displayState: screen.displayState,
+              shouldBeOn: false,
+            },
           })
         );
       }
+    }
+
+    // 2. Comprobar horario programado de encendido y apagado
+    const isPowerOn = screen ? isScreenScheduledOn(screen, now) : true;
+    if (screen && screen.autoPowerEnabled && !isPowerOn) {
+      return setCorsHeaders(
+        NextResponse.json({
+          type: 'standby',
+          url: null,
+          clientActive: true,
+          inactive: false,
+          scheduledPowerOff: true,
+          message: `Pantalla en horario de reposo nocturno (${screen.powerOffTime} - ${screen.powerOnTime})`,
+          upcoming: [],
+          power: {
+            autoPowerEnabled: screen.autoPowerEnabled,
+            powerOnTime: screen.powerOnTime,
+            powerOffTime: screen.powerOffTime,
+            displayState: screen.displayState,
+            shouldBeOn: false,
+          },
+        })
+      );
     }
 
     // First try to find an active GAME schedule
@@ -85,7 +116,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }
     });
 
-    // If no active game, fall back to an active VIDEO schedule
+    // If no active game, fall back to an active VIDEO schedule (con estricta segmentación por cliente)
     if (!currentSchedule) {
       currentSchedule = await prisma.schedule.findFirst({
         where: {
@@ -96,7 +127,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           OR: [
             { endDate: null },
             { endDate: { gt: now } }
-          ]
+          ],
+          ...(screen?.userId ? { video: { userId: screen.userId } } : {}),
         },
         orderBy: {
           startDate: 'desc'
@@ -112,7 +144,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       where: {
         screenId,
         isActive: true,
-        startDate: { gt: now }
+        startDate: { gt: now },
+        ...(screen?.userId ? {
+          OR: [
+            { gameId: { not: null } },
+            { video: { userId: screen.userId } }
+          ]
+        } : {}),
       },
       orderBy: {
         startDate: 'asc'
@@ -141,10 +179,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       };
     }).filter(s => s.type !== 'standby');
 
-    let responseData: { type: string; url: string | null; upcoming: any[] } = { 
+    let responseData: { type: string; url: string | null; upcoming: any[]; power?: any } = { 
       type: 'standby', 
       url: null,
-      upcoming
+      upcoming,
+      power: screen ? {
+        autoPowerEnabled: screen.autoPowerEnabled,
+        powerOnTime: screen.powerOnTime,
+        powerOffTime: screen.powerOffTime,
+        displayState: screen.displayState,
+        shouldBeOn: isPowerOn,
+      } : undefined,
     };
 
     if (currentSchedule) {

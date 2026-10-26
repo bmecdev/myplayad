@@ -21,10 +21,41 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid screenIds' }, { status: 400 });
     }
 
+    const video = await prisma.video.findUnique({ where: { id: videoId } });
+    if (!video) {
+      return NextResponse.json({ error: 'Video no encontrado' }, { status: 404 });
+    }
+
+    // Segmentación estricta: Si el video pertenece a un cliente, ninguna pantalla de otro cliente puede ser asignada
+    if (video.userId && requestedScreenIds.length > 0) {
+      const foreignScreens = await prisma.screen.findMany({
+        where: {
+          id: { in: requestedScreenIds },
+          userId: { not: video.userId },
+        },
+        select: { name: true },
+      });
+
+      if (foreignScreens.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Segmentación de videos por cliente: Las pantallas [${foreignScreens.map((s) => s.name).join(', ')}] pertenecen a otro cliente y no pueden recibir este video.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     let allowedTargetScreenIds = requestedScreenIds;
 
-    // Si es CLIENT, solo puede gestionar sus propias pantallas
+    // Si es CLIENT, solo puede gestionar sus propias pantallas y sus propios videos
     if (currentUser.role === 'CLIENT') {
+      if (video.userId !== currentUser.id) {
+        return NextResponse.json(
+          { error: 'Acceso denegado: Este video no te pertenece.' },
+          { status: 403 }
+        );
+      }
       const clientScreens = await prisma.screen.findMany({
         where: { userId: currentUser.id },
         select: { id: true, name: true },

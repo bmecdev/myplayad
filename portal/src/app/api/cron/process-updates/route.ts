@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { processDueUpdateSchedules } from '@/lib/updateScheduler';
+import { processScreenPowerSchedules } from '@/lib/powerScheduler';
 
 export async function GET() {
-  const result = await processDueUpdateSchedules();
-  return NextResponse.json(result);
+  const [updates, power] = await Promise.all([
+    processDueUpdateSchedules(),
+    processScreenPowerSchedules(),
+  ]);
+  return NextResponse.json({ updates, power });
 }
 
 export async function POST() {
-  const result = await processDueUpdateSchedules();
-  return NextResponse.json(result);
+  const [updates, power] = await Promise.all([
+    processDueUpdateSchedules(),
+    processScreenPowerSchedules(),
+  ]);
+  return NextResponse.json({ updates, power });
 }

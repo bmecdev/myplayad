@@ -54,22 +54,75 @@ flowchart TD
 
 ---
 
-## 3. Especificaciones de Hardware del Kiosco
+## 3. Modalidades Físicas de Pantallas & Conectividad 4G (Plug & Play)
 
-Para garantizar una operación ininterrumpida 24/7 en locales comerciales, el hardware de cada punto de venta cumple con las siguientes especificaciones:
+MyPlayAd dispone de dos formatos de hardware diseñados específicamente para satisfacer las necesidades de visibilidad comercial y movilidad:
+
+```mermaid
+flowchart LR
+    subgraph ModGrande["🏢 Pantalla Grande Fija"]
+        direction TB
+        G1["Tótem Vertical 43\" - 65\"+ (4K)"]
+        G2["Chasis Fijo Antivandálico"]
+        G3["Centros Comerciales / Malls"]
+    end
+
+    subgraph ModPortable["🏪 Pantalla Mediana Portable"]
+        direction TB
+        P1["Display Compacto 32\" - 43\" (1080p)"]
+        P2["Atril Portable / Soporte Rápido"]
+        P3["Negocios, Ferias y Stands"]
+    end
+
+    subgraph Conectividad["📶 Conexión 4G LTE Incluida"]
+        C1["Módem Celular Industrial Integrado"]
+        C2["SIM de Datos Multi-Operador"]
+        C3["⚡ Solo requiere electricidad (Plug & Play)"]
+    end
+
+    ModGrande --> Conectividad
+    ModPortable --> Conectividad
+```
+
+### 3.1. Pantalla Grande Fija (Para Centros Comerciales / CC y Malls)
+* **Entorno Objetivo:** Pasillos principales, plazas de eventos, accesos peatonales y plazoletas de comidas en Centros Comerciales (CC / Malls) de alto tránsito.
+* **Formato Físico:** Tótem vertical estilizado de 43", 55" o 65"+ con panel LCD/LED de alto brillo y resolución Full HD o 4K.
+* **Seguridad y Resistencia:** Chasis metálico con anclaje firme al suelo, vidrio templado frontal de alta resistencia a golpes y cerraduras de seguridad para proteger el hardware interno.
+* **Objetivo Comercial:** Máximo impacto visual publicitario, entretenimiento masivo y permanencia prolongada del cliente frente a las marcas pautantes.
+
+### 3.2. Pantalla Mediana Portable (Para Negocios Locales, Ferias y Stands)
+* **Entorno Objetivo:** Locales comerciales independientes (retail, bares, restaurantes, gimnasios), ferias de exposición, stands comerciales temporales y eventos corporativos.
+* **Formato Físico:** Pantalla compacta de 32" a 43" en orientación vertical montada sobre base portable ligera o atril ajustable.
+* **Facilidad de Transporte:** Pesa significativamente menos y permite ser trasladada e instalada en menos de 5 minutos por una sola persona.
+* **Objetivo Comercial:** Flexibilidad para activar promociones temporales, capturar la atención en pasillos de ferias y ambientar puntos de venta con espacio moderado.
+
+### 3.3. Módulo de Conectividad 4G LTE Incluido: "¡Lo único que necesitas es electricidad!"
+Tradicionalmente, instalar cartelería digital en un centro comercial o en un stand de feria requería trámites burocráticos con el departamento de TI, solicitar permisos de apertura de puertos en firewalls o pagar costosos puntos de red cableados.
+
+MyPlayAd elimina completamente esta fricción:
+* **Módem Celular 4G LTE Integrado:** Cada estación física cuenta con un módem industrial USB/PCIe con antena de alta ganancia y SIM de datos multi-operador ya configurada.
+* **Cero Configuración de Red Local:** No requiere solicitar contraseñas de redes Wi-Fi públicas ni lidiar con portales cautivos.
+* **Plug & Play Total:** **¡Lo único que necesitas es una toma de electricidad (110V/220V)!** Al conectar el enchufe, la pantalla enciende, se conecta a Internet mediante 4G en menos de 10 segundos, contacta al Portal MyPlayAd, sincroniza los videos locales y comienza su rotación publicitaria y juegos arcade.
+
+---
+
+## 4. Especificaciones de Hardware del Kiosco
+
+Para garantizar una operación ininterrumpida 24/7 en locales comerciales, el hardware interno de cada punto de venta cumple con las siguientes especificaciones:
 
 | Componente | Especificación Recomendada | Función en MyPlayAd |
 | :--- | :--- | :--- |
 | **Computador Kiosco** | Raspberry Pi 5 (4GB u 8GB RAM) | Reproducción dual de video y juegos a 60 fps bajo Debian GNU/Linux 13. |
+| **Módem Celular** | Módulo 4G LTE Industrial (SIM multi-operador) | Conectividad autónoma a Internet sin requerir Wi-Fi ni red cableada local. |
 | **Almacenamiento** | MicroSD A2 Clase 10 (32GB o 64GB) | Sistema operativo, almacenamiento en caché local de videos y binarios de juegos. |
 | **Refrigeración** | Cooler activo oficial o disipador pasivo de aluminio | Prevención de *thermal throttling* en reproducción continua de video 24/7. |
 | **Conectividad de Video** | Cable Micro-HDMI a HDMI con soporte CEC | Transmisión de video a 1080p/4K y control remoto de energía (encendido/apagado de TV). |
-| **Pantalla / Monitor** | Televisor o Display Comercial (Full HD o 4K) | Orientación vertical (9:16) u horizontal (16:9) con HDMI-CEC habilitado. |
+| **Pantalla / Monitor** | Televisor o Display Comercial (Full HD o 4K) | Orientación vertical (9:16) con HDMI-CEC habilitado. |
 | **Alimentación** | Fuente oficial Raspberry Pi 27W USB-C (5V / 5A) | Suministro eléctrico estable para evitar bloqueos por bajo voltaje. |
 
 ---
 
-## 4. Arquitectura de Software del Kiosco (`screen/`)
+## 5. Arquitectura de Software del Kiosco (`screen/`)
 
 El reproductor físico implementa una arquitectura autónoma optimizada para arranque desatendido:
 
@@ -202,4 +255,30 @@ La Raspberry Pi encenderá directamente en modo kiosco vertical a pantalla compl
   ```
 * **Asociación de Consola física en el Portal:**
   En el Portal MyPlayAd (módulo Pantallas), cada pantalla física puede vincularse con el identificador de la consola (ej. `consola1`, `consola2`) para saber con precisión qué equipo físico y usuario de Linux está operando en cada punto de venta.
+
+---
+
+## 8. Control de Energía y Horarios Programados (Auto Power HDMI-CEC)
+
+Para maximizar la vida útil del display y minimizar el consumo de energía en horas no laborales, el sistema incorpora un motor inteligente de programación diaria de encendido y apagado:
+
+* **Horario de Encendido y Apagado:** Configurable por pantalla (por defecto `08:00` a `22:00`).
+* **Ejecución Automática por MQTT:** El servicio `powerScheduler` evalúa cada minuto el estado de las pantallas y despacha comandos `POWER_ON` o `POWER_OFF` hacia el broker MQTT.
+* **Control Físico HDMI-CEC:** Al recibir `POWER_OFF`, la Raspberry Pi ejecuta `screen/power.sh off` poniendo el televisor en standby real mediante comandos nativos CEC (`echo "standby 0" | cec-client`). Al llegar la hora de encendido (`POWER_ON`), despierta el televisor y activa la entrada HDMI correspondiente (`echo "on 0" | cec-client`).
+* **Capa de Respaldo por Sondeo (Polling):** Si la pantalla se reinicia fuera de horario, la API `/api/public/screens/:id/current` responde indicando que se encuentra en reposo programado (`scheduledPowerOff: true`), activando inmediatamente el modo de reposo visual.
+
+---
+
+## 9. Segmentación Estricta de Videos por Cliente
+
+Para salvaguardar la privacidad comercial y evitar que videos de un cliente se reproduzcan en pantallas ajenas:
+
+1. **Aislamiento a Nivel de Base de Datos:**
+   * Cada video tiene asignado un propietario (`video.userId`).
+   * Cada pantalla asignada a un cliente tiene un propietario (`screen.userId`).
+2. **Validación en Servidor:**
+   * Al asignar videos existentes en el detalle de una pantalla, la API restringe la consulta estrictamente a los videos pertenecientes al cliente dueño de esa pantalla.
+   * La API pública `/api/public/screens/:id/videos` que descarga los videos en el reproductor físico filtra en su consulta SQL/Prisma que los videos pertenezcan al mismo `userId` de la pantalla.
+   * Si un Super Admin o usuario intenta asignar un video perteneciente al Cliente A en una pantalla del Cliente B, el sistema rechaza la operación con código HTTP 400/403.
+
 

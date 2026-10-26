@@ -34,12 +34,13 @@ export async function GET(
       }
     }
 
-    // Find all active video schedules for this screen
+    // Find all active video schedules for this screen (estricta segmentación por cliente)
     const schedules = await prisma.schedule.findMany({
       where: {
         screenId,
         videoId: { not: null },
         isActive: true,
+        ...(screen?.userId ? { video: { userId: screen.userId } } : {}),
       },
       include: {
         video: true,
