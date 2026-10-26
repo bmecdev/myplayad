@@ -18,7 +18,7 @@ MyPlayAd ofrece dos formatos de hardware optimizados según el tipo de entorno y
 
 | Modalidad | Entorno Objetivo | Formato & Dimensiones | Características Destacadas |
 | :--- | :--- | :--- | :--- |
-| **🏢 Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K) | Estructura fija robusta con protección antivandálica, alta visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual y entretenimiento masivo. |
+| **🏢 Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K) | Estructura fija de alta presencia, visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual y entretenimiento masivo. |
 | **🏪 Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable | Ligera, compacta y transportable. Diseñada para rápida instalación en recepciones, stands comerciales, exposiciones corporativas y puntos de venta retail. |
 
 ### 📶 Conectividad 4G LTE Incluida (Cero Dependencias de Red)

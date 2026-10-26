@@ -87,7 +87,7 @@ flowchart LR
 ### 3.1. Pantalla Grande Fija (Para Centros Comerciales / CC y Malls)
 * **Entorno Objetivo:** Pasillos principales, plazas de eventos, accesos peatonales y plazoletas de comidas en Centros Comerciales (CC / Malls) de alto tránsito.
 * **Formato Físico:** Tótem vertical estilizado de 43", 55" o 65"+ con panel LCD/LED de alto brillo y resolución Full HD o 4K.
-* **Seguridad y Resistencia:** Chasis metálico con anclaje firme al suelo, vidrio templado frontal de alta resistencia a golpes y cerraduras de seguridad para proteger el hardware interno.
+* **Instalación y Operación:** Estructura fija con base firme para anclaje al suelo y diseño optimizado para proteger los componentes internos en operación comercial continua.
 * **Objetivo Comercial:** Máximo impacto visual publicitario, entretenimiento masivo y permanencia prolongada del cliente frente a las marcas pautantes.
 
 ### 3.2. Pantalla Mediana Portable (Para Negocios Locales, Ferias y Stands)

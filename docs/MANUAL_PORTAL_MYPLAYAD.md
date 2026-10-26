@@ -10,7 +10,7 @@ El **Portal Web de MyPlayAd** es el centro de control unificado desde donde admi
 * **URL de Producción:** `https://portal.myplayad.com`
 
 ### 1.1. Modalidades Físicas de Pantallas & Conectividad 4G (Plug & Play):
-* **🏢 Pantalla Grande Fija:** Formato tótem vertical de gran formato (43&quot;, 55&quot;, 65&quot;+) Full HD / 4K para áreas de alta concurrencia en **Centros Comerciales (CC / Malls)**, pasillos y plazoletas de comidas. Chasis robusto antivandálico para instalación fija duradera.
+* **🏢 Pantalla Grande Fija:** Formato tótem vertical de gran formato (43&quot;, 55&quot;, 65&quot;+) Full HD / 4K para áreas de alta concurrencia en **Centros Comerciales (CC / Malls)**, pasillos y plazoletas de comidas. Estructura fija para instalación permanente y duradera.
 * **🏪 Pantalla Mediana Portable:** Formato ligero y estilizado (32&quot; a 43&quot;) con atril portable para **Negocios Locales, Stands y Ferias Comerciales**. Se transporta y monta en menos de 5 minutos en recepciones o mostradores.
 * **📶 Conectividad 4G LTE Incluida (Plug & Play):** Cada pantalla incluye módem celular 4G LTE preconfigurado de fábrica. **¡Lo único que necesitas es una toma de corriente eléctrica!** No requiere solicitar claves Wi-Fi locales ni permisos de red corporativa.
 

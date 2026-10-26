@@ -136,7 +136,7 @@ export default async function Dashboard() {
               <p className="text-xs text-blue-400 font-medium">Ideal para Centros Comerciales (CC / Malls)</p>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Tótem vertical de gran formato (43&quot;, 55&quot;, 65&quot;+) con resolución Full HD / 4K. Diseñado para áreas de alto tráfico peatonal como pasillos principales, plazas centrales y plazoletas de comidas. Chasis robusto con protección antivandálica.
+              Tótem vertical de gran formato (43&quot;, 55&quot;, 65&quot;+) con resolución Full HD / 4K. Diseñado para áreas de alto tráfico peatonal como pasillos principales, plazas centrales y plazoletas de comidas.
             </p>
             <div className="pt-2 flex flex-wrap gap-2 text-xs">
               <span className="px-2.5 py-1 rounded-lg bg-white/5 text-slate-300 border border-white/5">
