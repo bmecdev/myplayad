@@ -24,16 +24,15 @@ let videoIndex = 0;
 let playlistSyncInterval = null;
 let upcomingGamesData = [];
 
-// Ranking por defecto si aún no hay partidas registradas en el host
-const defaultRanking = [
-    { name: 'ACE', score: 9800 },
-    { name: 'NEO', score: 8500 },
-    { name: 'MAX', score: 7200 },
-    { name: 'FOX', score: 6100 },
-    { name: 'SAM', score: 5000 }
-];
-
 let cachedRanking = null;
+
+function requestRankingFromGame() {
+    if (gameFrame && gameFrame.contentWindow) {
+        try {
+            gameFrame.contentWindow.postMessage({ type: 'GET_RANKING' }, '*');
+        } catch (_) {}
+    }
+}
 
 // Escalar el contenedor del bisel del video simétricamente con el juego
 function autoScaleVideo() {
@@ -141,36 +140,73 @@ function playCurrentVideo() {
 function getRankingData() {
     if (cachedRanking && cachedRanking.length > 0) return cachedRanking;
     
-    // Intentar leer de localStorage del juego actual o general
-    try {
-        const stored = localStorage.getItem(`${currentGameSlug}-ranking`) || localStorage.getItem('myplayad-ranking');
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed.slice(0, 5);
-            }
-        }
-    } catch (_) {}
+    // Mapeo exhaustivo de posibles claves según el slug del juego
+    const keyMap = {
+        'invaders': ['space-invaders-ranking', 'invaders-ranking'],
+        'duckhunt': ['duckhunt_scores', 'duckhunt-ranking'],
+        'megaman': ['megaman_halloffame', 'megaman-ranking']
+    };
+    const possibleKeys = [
+        `${currentGameSlug}-ranking`,
+        ...(keyMap[currentGameSlug] || []),
+        'myplayad-ranking'
+    ];
 
-    return defaultRanking;
+    for (const key of possibleKeys) {
+        try {
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed.slice(0, 5);
+                }
+            }
+        } catch (_) {}
+    }
+
+    return [];
 }
 
 function renderRankingOverlay() {
+    requestRankingFromGame();
     const ranking = getRankingData();
     if (videoRankingList) {
-        videoRankingList.innerHTML = ranking.slice(0, 5).map((entry, index) => {
-            const rankClass = index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''));
-            const rankPos = String(index + 1).padStart(2, '0');
-            const nick = (entry.name || entry.nickname || 'PILOT').toUpperCase().slice(0, 8);
-            const score = String(entry.score || 0).padStart(5, '0');
-            return `
-                <li class="${rankClass}">
-                    <span class="pos">${rankPos}</span>
-                    <span class="pilot">${nick}</span>
-                    <span class="score">${score}</span>
+        if (!ranking || ranking.length === 0) {
+            videoRankingList.innerHTML = `
+                <li style="justify-content: center; color: var(--amber); font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 12px 0; text-align: center; letter-spacing: 1px;">
+                    ★ SE EL PRIMERO ★
+                </li>
+                <li style="opacity: 0.35;">
+                    <span class="pos">01</span>
+                    <span class="pilot">--------</span>
+                    <span class="score">00000</span>
+                </li>
+                <li style="opacity: 0.25;">
+                    <span class="pos">02</span>
+                    <span class="pilot">--------</span>
+                    <span class="score">00000</span>
+                </li>
+                <li style="opacity: 0.15;">
+                    <span class="pos">03</span>
+                    <span class="pilot">--------</span>
+                    <span class="score">00000</span>
                 </li>
             `;
-        }).join('');
+        } else {
+            videoRankingList.innerHTML = ranking.slice(0, 5).map((entry, index) => {
+                const rankClass = index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''));
+                const rankPos = String(index + 1).padStart(2, '0');
+                const nick = (entry.name || entry.nickname || 'PILOT').toUpperCase().slice(0, 8);
+                const score = String(entry.score || 0).padStart(5, '0');
+                return `
+                    <li class="${rankClass}">
+                        <span class="pos">${rankPos}</span>
+                        <span class="pilot">${nick}</span>
+                        <span class="score">${score}</span>
+                    </li>
+                `;
+            }).join('');
+        }
     }
 
     if (upcomingGamesData && upcomingGamesData.length > 0) {
@@ -219,7 +255,11 @@ function loadGame(slug) {
     const targetUrl = getTargetGameUrl(slug);
     if (currentUrl !== targetUrl) {
         currentUrl = targetUrl;
+        cachedRanking = null;
         gameFrame.src = targetUrl;
+        gameFrame.onload = () => {
+            requestRankingFromGame();
+        };
     }
 }
 
@@ -419,7 +459,13 @@ window.addEventListener('message', async (event) => {
         if (Array.isArray(event.data.ranking)) {
             cachedRanking = event.data.ranking;
             if (event.data.slug) {
-                localStorage.setItem(`${event.data.slug}-ranking`, JSON.stringify(cachedRanking));
+                currentGameSlug = event.data.slug;
+                try {
+                    localStorage.setItem(`${event.data.slug}-ranking`, JSON.stringify(cachedRanking));
+                } catch (_) {}
+            }
+            if (videoRankingOverlay && !videoRankingOverlay.classList.contains('hidden')) {
+                renderRankingOverlay();
             }
         }
     } else if (event.data.type === 'FETCH_LOCAL_CACHE') {

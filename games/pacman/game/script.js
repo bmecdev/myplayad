@@ -1191,11 +1191,22 @@ function updateUI() {
 function loadRanking() {
     try {
         const ranking = JSON.parse(localStorage.getItem('pacman-ranking')) || [];
-        if (ranking.length > 0) {
-            GameState.highScore = ranking[0].score;
+        const top5 = ranking.slice(0, 5);
+        if (top5.length > 0) {
+            GameState.highScore = top5[0].score;
             updateUI();
         }
         displayRanking(ranking);
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'pacman',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
+        }
     } catch (e) {}
 }
 
@@ -1210,7 +1221,7 @@ function saveScore(nickname, score) {
         ranking.sort((a, b) => b.score - a.score);
         ranking = ranking.slice(0, 5);
         localStorage.setItem('pacman-ranking', JSON.stringify(ranking));
-        displayRanking(ranking);
+        loadRanking();
     } catch (e) {}
 }
 
@@ -1615,7 +1626,11 @@ window.addEventListener('load', () => {
 });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
 if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
-window.addEventListener('message', (e) => { if (e.data?.type === 'RESCALE') autoScale(); });
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'RESCALE') autoScale();
+    if (e.data.type === 'GET_RANKING') loadRanking();
+});
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
 
 // ==========================================

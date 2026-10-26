@@ -907,6 +907,16 @@ function fetchRanking() {
 
         renderList(rankingList);
         renderList(videoRankingList);
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'arkanoid',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
+        }
     } catch (error) {
         console.error('Error fetching ranking:', error);
     }
@@ -1062,10 +1072,13 @@ if (window.ResizeObserver) {
     ro.observe(document.body);
 }
 
-// Listen for explicit RESCALE message from screen parent frame
+// Listen for messages from screen parent frame (rescale, get ranking)
 window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'RESCALE') {
+    if (!event.data) return;
+    if (event.data.type === 'RESCALE') {
         autoScale();
+    } else if (event.data.type === 'GET_RANKING') {
+        fetchRanking();
     }
 });
 

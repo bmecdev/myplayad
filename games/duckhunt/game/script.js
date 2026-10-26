@@ -3021,13 +3021,25 @@ function submitScore(nickname, score) {
 }
 
 function renderRanking(scores) {
-    if (!rankingList) return;
-    rankingList.innerHTML = '';
-    scores.forEach((s, idx) => {
-        const li = document.createElement('li');
-        li.textContent = `${idx + 1}. ${s.name.padEnd(8, ' ')} - ${String(s.score).padStart(6, '0')}`;
-        rankingList.appendChild(li);
-    });
+    const top5 = (scores || []).slice(0, 5);
+    if (rankingList) {
+        rankingList.innerHTML = '';
+        top5.forEach((s, idx) => {
+            const li = document.createElement('li');
+            li.textContent = `${idx + 1}. ${s.name.padEnd(8, ' ')} - ${String(s.score).padStart(6, '0')}`;
+            rankingList.appendChild(li);
+        });
+    }
+
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({
+                type: 'RANKING_UPDATE',
+                slug: 'duckhunt',
+                ranking: top5
+            }, '*');
+        } catch (_) {}
+    }
 }
 
 // Motor reactivo autoScale multi-etapa
@@ -3073,4 +3085,13 @@ window.addEventListener('load', () => { updateQrCode(); autoScale(); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
 if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
+
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'RESCALE') autoScale();
+    if (e.data.type === 'GET_RANKING') {
+        const scores = JSON.parse(localStorage.getItem('duckhunt_scores') || '[]');
+        renderRanking(scores);
+    }
+});
 
