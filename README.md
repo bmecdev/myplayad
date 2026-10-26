@@ -12,17 +12,18 @@ El proyecto está dividido en tres componentes principales:
 
 ---
 
-## 📺 Modalidades Físicas de Pantallas & Conectividad 4G Plug & Play
+## 📦 3 Opciones de Producto MyPlayAd & Conectividad 4G Plug & Play
 
-MyPlayAd ofrece dos formatos de hardware optimizados según el tipo de entorno y afluencia de público:
+MyPlayAd se adapta a cualquier infraestructura mediante **3 opciones de producto** bien diferenciadas:
 
-| Modalidad | Entorno Objetivo | Formato & Dimensiones | Características Destacadas |
-| :--- | :--- | :--- | :--- |
-| **🏢 Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K) | Estructura fija de alta presencia, visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual y entretenimiento masivo. |
-| **🏪 Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable | Ligera, compacta y transportable. Diseñada para rápida instalación en recepciones, stands comerciales, exposiciones corporativas y puntos de venta retail. |
+| Opción de Producto | Entorno Objetivo | Formato & Dimensiones | Requisitos & Conectividad | Características Destacadas |
+| :--- | :--- | :--- | :--- | :--- |
+| **🕹️ 1. Consola MyPlayAd (Standalone)** | Negocios o empresas de publicidad que **ya tienen pantallas o televisores**. | Dispositivo compacto Plug & Play (Raspberry Pi 5) con salida HDMI y software arcade/publicidad. | Cable HDMI al televisor + corriente + Wi-Fi o red local. | Aprovecha tu inversión previa en pantallas sin comprar nuevo hardware de visualización. Gestión remota Cloud. |
+| **🎪 2. Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable. | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Ligera, compacta y transportable. Montaje en menos de 5 minutos en mostradores, recepciones o stands. |
+| **🏢 3. Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K). | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Estructura fija de alta presencia, visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual. |
 
-### 📶 Conectividad 4G LTE Incluida (Cero Dependencias de Red)
-* **100% Autónoma:** Cada pantalla incorpora su propio módem celular 4G LTE preconfigurado con tarjeta SIM multi-operador.
+### 📶 Conectividad 4G LTE Incluida (Opciones 2 y 3)
+* **100% Autónoma:** Cada pantalla física (Mediana Portable y Grande Fija) incorpora su propio módem celular 4G LTE preconfigurado con tarjeta SIM multi-operador.
 * **Sin Trabas de TI:** No necesitas pedir claves de Wi-Fi, tender cables ethernet ni lidiar con firewalls corporativos del centro comercial o local.
 * **Plug & Play:** **¡Lo único que necesitas es electricidad!** Conéctala a una toma corriente estándar (110V/220V) y la pantalla arrancará de inmediato, sincronizando sus videos y activando su horario programado.
 
