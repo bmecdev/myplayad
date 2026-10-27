@@ -260,12 +260,35 @@ La Raspberry Pi encenderá directamente en modo kiosco vertical a pantalla compl
 
 ## 8. Control de Energía y Horarios Programados (Auto Power HDMI-CEC)
 
-Para maximizar la vida útil del display y minimizar el consumo de energía en horas no laborales, el sistema incorpora un motor inteligente de programación diaria de encendido y apagado:
+Para maximizar la vida útil del display y minimizar el consumo de energía en horas no laborales, el sistema incorpora un motor inteligente de encendido automático por hardware y programación diaria de energía:
 
-* **Horario de Encendido y Apagado:** Configurable por pantalla (por defecto `08:00` a `22:00`).
+### 8.1. Encendido Automático Inmediato al Encender la Raspberry Pi 5 (Boot-time CEC)
+Los televisores comerciales y residenciales no se encienden solo con la presencia de señal eléctrica HDMI; por normativas internacionales de consumo eléctrico permanecen en Standby a menos que reciban una orden de encendido activa. MyPlayAd implementa una arquitectura de encendido en 4 capas para que **el televisor se encienda de forma instantánea y seleccione la entrada HDMI correcta en cuanto la Raspberry Pi recibe energía**:
+
+1. **Arranque Temprano del Sistema Operativo (`systemd`):** El servicio `myplayad-tv-poweron.service` se ejecuta al alcanzar `multi-user.target` enviando inmediatamente los frames HDMI-CEC `(echo "on 0"; echo "tx 10:04"; sleep 1; echo "as") | cec-client -s -d 1`. Esto permite que el televisor despierte y precaliente su panel mientras cargan los servicios gráficos.
+2. **Activación de Tubería Wayland (`labwc/autostart`):** Al iniciar la sesión gráfica, el compositor ejecuta `power.sh on &`, asegurando la activación del puerto de video (`wlr-randr --output HDMI-A-1 --on --transform $SCREEN_ROTATE`).
+3. **Servidor Local Node.js (`server.js`):** Al levantar el servidor HTTP local (:8090), confirma la orden de encendido vía script para certificar disponibilidad de pantalla.
+4. **Firmware HDMI Hotplug Forzado (`/boot/firmware/config.txt`):** Con las directivas `hdmi_force_hotplug=1`, `hdmi_force_hotplug:0=1` y `cec_osd_name=MyPlayAd`, la Raspberry Pi nunca corta el reloj HDMI aunque el televisor esté apagado al momento de conectar la consola.
+5. **Doble Puerto Micro-HDMI y Refuerzo de 3 Segundos:** Se emite la señal a ambos puertos de la RPi 5 (`/dev/cec0` y `/dev/cec1`) y se despacha un refuerzo de señal activa (`as`) a los 3 segundos para garantizar que Smart TVs con arranque lento de panel completen la conmutación de entrada.
+
+### 8.2. Horarios Comerciales y Control Remoto Cloud
+* **Horario de Encendido y Apagado:** Configurable por pantalla desde el Portal (por defecto `08:00` a `22:00`).
 * **Ejecución Automática por MQTT:** El servicio `powerScheduler` evalúa cada minuto el estado de las pantallas y despacha comandos `POWER_ON` o `POWER_OFF` hacia el broker MQTT.
 * **Control Físico HDMI-CEC:** Al recibir `POWER_OFF`, la Raspberry Pi ejecuta `screen/power.sh off` poniendo el televisor en standby real mediante comandos nativos CEC (`echo "standby 0" | cec-client`). Al llegar la hora de encendido (`POWER_ON`), despierta el televisor y activa la entrada HDMI correspondiente (`echo "on 0" | cec-client`).
 * **Capa de Respaldo por Sondeo (Polling):** Si la pantalla se reinicia fuera de horario, la API `/api/public/screens/:id/current` responde indicando que se encuentra en reposo programado (`scheduledPowerOff: true`), activando inmediatamente el modo de reposo visual.
+
+### 8.3. Configuración Requerida por Marca de Televisor (HDMI-CEC)
+Para que el televisor reconozca las órdenes de la Raspberry Pi, debe habilitarse el protocolo CEC en su menú de ajustes:
+
+| Marca | Nombre Comercial CEC | Ruta de Menú en el Televisor |
+| :--- | :--- | :--- |
+| **Samsung** | **Anynet+ (HDMI-CEC)** | *Menú → Configuración → General → Administrador de dispositivos externos → Anynet+ (HDMI-CEC)*: **ACTIVADO**. |
+| **LG** | **SIMPLINK (HDMI-CEC)** | *Ajustes → General → Dispositivos → Ajustes de HDMI → SIMPLINK (HDMI-CEC)*: **ACTIVADO** y **Encendido sincronizado**: **ACTIVADO**. |
+| **Sony** | **BRAVIA Sync** | *Ajustes → Canales y entradas → Entradas externas → Ajustes de BRAVIA Sync → Control de BRAVIA Sync*: **ACTIVADO**. |
+| **TCL / Hisense** | **Control CEC** | *Ajustes → Sistema / Entradas → Control de CEC / HDMI y CEC*: **ACTIVADO** y **Auto encendido de TV**: **ACTIVADO**. |
+| **Xiaomi / Android TV** | **HDMI-CEC** | *Ajustes → Preferencias del dispositivo → Entradas → Control HDMI (CEC)*: **ACTIVADO** y **TV auto power on**: **ACTIVADO**. |
+| **Philips** | **EasyLink** | *Ajustes → Ajustes generales → EasyLink → EasyLink*: **ACTIVADO** y **Auto encendido**: **ACTIVADO**. |
+| **Panasonic** | **VIERA Link** | *Menú → Configuración → Ajustes VIERA Link → VIERA Link*: **ACTIVADO** y **Encendido automático**: **ACTIVADO**. |
 
 ---
 

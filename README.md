@@ -193,63 +193,83 @@ Cuando la pantalla muestre un juego (ej. Snake), aparecerá un **Código QR**.
 
 ---
 
-## 🍓 Configuración para Raspberry Pi (Producción)
+## 🍓 Configuración para Raspberry Pi 5 (Producción - Modo Kiosco Wayland)
 
-Para desplegar este sistema en un televisor real usando una Raspberry Pi, debes configurar el dispositivo en **Modo Kiosco** para que inicie automáticamente el servidor Node y el navegador Chromium a pantalla completa sin intervención humana.
+Para desplegar este sistema en un televisor o pantalla comercial real usando una **Raspberry Pi 5**, el software está diseñado para operar de forma 100% autónoma y desatendida bajo **Debian Bookworm/Trixie de 64 bits** con el compositor gráfico Wayland (`labwc`), aceleración por hardware GPU y sin escritorios tradicionales.
 
-### Requisitos Previos en la Raspberry Pi
-1. Instalar Raspberry Pi OS (versión con escritorio ligero).
-2. Instalar Node.js (versión 18+).
-3. Instalar PM2 para manejar los procesos en segundo plano:
-   ```bash
-   sudo npm install -g pm2
+### 1. Instalación Rápida Desatendida (`setup_kiosk.sh`)
+1. Flashea la MicroSD con **Raspberry Pi OS (64-bit)** mediante Raspberry Pi Imager.
+2. Añade tu `SCREEN_ID` y la rotación al final de `/boot/firmware/config.txt`:
+   ```ini
+   # Configuración MyPlayAd Screen
+   SCREEN_ID="tu-uuid-de-pantalla"
+   SCREEN_ROTATE=90
+   SCREEN_RESOLUTION=1920x1080
+   
+   # Forzar señal HDMI activa y CEC para encendido automático de televisor
+   hdmi_force_hotplug=1
+   hdmi_force_hotplug:0=1
+   hdmi_force_hotplug:1=1
+   cec_osd_name=MyPlayAd
    ```
+3. Conéctate por SSH a la Raspberry Pi y ejecuta el instalador automatizado:
+   ```bash
+   git clone https://github.com/bmecdev/myplayad.git ~/screen
+   cd ~/screen/screen
+   chmod +x setup_kiosk.sh
+   sudo ./setup_kiosk.sh
+   sudo reboot
+   ```
+El instalador configura automáticamente:
+* Dependencias completas (`curl`, `git`, `ffmpeg`, `cec-utils`, `swaybg`, `kanshi`, `chromium`).
+* Node.js 20 LTS y paquetes npm del servidor local de pantalla.
+* Rotación vertical indestructible por hardware (Kernel DRM/KMS).
+* Puntero de ratón invisible a nivel de compositor y CSS.
+* Servicio `systemd` y autostart de Wayland para encendido automático de TV por HDMI-CEC.
+* Auto-actualización silenciosa al encender (`update.sh`) sincronizada con `origin/main`.
 
-### 1. Clonar y Configurar
-Clona este repositorio en la Raspberry Pi e instala las dependencias de la carpeta `/screen`.
+---
 
-### 2. Iniciar el Servidor con PM2
-Queremos que el `server.js` corra siempre de fondo y se reinicie si falla o si se reinicia la Raspberry.
+## 📺 Configuración del Televisor para Encendido Automático (HDMI-CEC)
 
+El sistema MyPlayAd incluye control total de energía mediante el protocolo estándar **HDMI-CEC** (Consumer Electronics Control). Esto permite que:
+1. **Al prender o enchufar la Raspberry Pi 5:** El televisor físico se **encienda automáticamente** desde su estado de reposo (Standby) y **conmute de inmediato a la entrada HDMI** correspondiente sin necesidad de usar el control remoto.
+2. **Por Horario Comercial Programado:** La pantalla se apague al cierre del negocio y se encienda a la apertura según las horas definidas en el Portal MyPlayAd.
+3. **Control Remoto desde el Portal:** El Super Admin puede apagar o encender las pantallas de forma masiva con un solo clic.
+
+> [!IMPORTANT]
+> **Para que el televisor responda a las órdenes de la Raspberry Pi 5, debes activar la función HDMI-CEC en el menú de ajustes del TV.** Los fabricantes utilizan diferentes nombres comerciales para esta tecnología:
+
+### 📋 Guía de Activación por Marca de Televisor:
+
+| Marca | Nombre Comercial CEC | Ruta de Configuración en el Menú del TV | Opciones Obligatorias a Activar |
+| :--- | :--- | :--- | :--- |
+| **Samsung** | **Anynet+** | *Menú → Configuración → General → Administrador de dispositivos externos → Anynet+ (HDMI-CEC)* | Activar **Anynet+ (HDMI-CEC)**. |
+| **LG** | **SIMPLINK** | *Ajustes (Engranaje) → General → Dispositivos → Ajustes de HDMI → SIMPLINK (HDMI-CEC)* | Activar **SIMPLINK (HDMI-CEC)** y activar **Encendido sincronizado de energía**. |
+| **Sony** | **BRAVIA Sync** | *Ajustes → Canales y entradas → Entradas externas → Ajustes de BRAVIA Sync* | Activar **Control de BRAVIA Sync** y activar **Encendido automático de TV por dispositivo**. |
+| **TCL** | **Control CEC** | *Ajustes → Sistema → Entradas → Control de CEC* | Activar **Control CEC**, activar **Encendido de TV por dispositivo** y **Espera de dispositivo**. |
+| **Hisense** | **Control CEC** | *Ajustes → Sistema / Entradas → HDMI y CEC → Control CEC* | Activar **Control CEC**, activar **Auto encendido de TV** y **Auto espera**. |
+| **Xiaomi / Smart TV Android / Google TV** | **HDMI-CEC** | *Ajustes → Preferencias del dispositivo / Canales y entradas → Entradas → Control HDMI* | Activar **Control HDMI (CEC)** y activar **Encendido de televisor (TV auto power on)**. |
+| **Philips** | **EasyLink** | *Ajustes → Ajustes generales → EasyLink → EasyLink* | Activar **EasyLink** y activar **Control remoto EasyLink / Auto encendido**. |
+| **Panasonic** | **VIERA Link** | *Menú → Configuración → Ajustes VIERA Link → VIERA Link* | Activar **VIERA Link** y activar **Encendido automático**. |
+
+### 🔌 Recomendaciones de Conexión Física:
+* **Puerto Micro-HDMI Recomendado:** Conecta el cable preferiblemente en el puerto **HDMI 0** de la Raspberry Pi 5 (el puerto micro-HDMI situado inmediatamente al lado de la toma de corriente USB-C).
+* **Calidad del Cable HDMI:** Utiliza cables Micro-HDMI a HDMI certificados (HDMI 1.4 / 2.0 o superior) que tengan conectado el **pin 13 (línea de bus CEC)**. Evita adaptadores de baja calidad o splitters HDMI pasivos que corten la señal CEC.
+* **Puerto HDMI en el TV:** Puedes conectarlo a cualquier puerto HDMI del televisor. Si el televisor cuenta con un puerto marcado como *HDMI (ARC / eARC)* o *HDMI 1 (Best / STB)*, prioriza ese puerto para mayor velocidad de respuesta en el encendido.
+
+### 🛠️ Comandos de Diagnóstico Rápido por SSH:
+Si deseas comprobar el funcionamiento de HDMI-CEC directamente en la consola de la Raspberry Pi:
 ```bash
-cd /ruta/a/myPlayAd/screen
+# Encender el televisor manualmente vía HDMI-CEC:
+bash ~/screen/power.sh on
 
-# Crear un archivo de entorno o pasar las variables directamente
-pm2 start server.js --name "myplayad-screen" --env SCREEN_ID="TU_SCREEN_ID" --env REMOTE_VIDEO_SERVER_URL="https://videos.myplayad.com"
+# Apagar el televisor (poner en standby) vía HDMI-CEC:
+bash ~/screen/power.sh off
 
-# Guardar la configuración para que arranque al inicio del sistema
-pm2 save
-pm2 startup
+# Escanear dispositivos CEC detectados en el bus HDMI:
+echo "scan" | cec-client -s -d 1
 ```
-
-### 3. Configurar Chromium en Modo Kiosco (Autostart)
-Necesitamos que Chromium se abra automáticamente en pantalla completa al encender la Raspberry y apunte a `localhost:8090`.
-
-Edita el archivo de autostart de LXDE:
-```bash
-sudo nano /etc/xdg/lxsession/LXDE-pi/autostart
-```
-
-Agrega o reemplaza el contenido por lo siguiente:
-```text
-@lxpanel --profile LXDE-pi
-@pcmanfm --desktop --profile LXDE-pi
-@xset s off
-@xset -dpms
-@xset s noblank
-@chromium-browser --noerrdialogs --disable-infobars --kiosk --autoplay-policy=no-user-gesture-required http://localhost:8090
-```
-* **Explicación de las flags:**
-  * `@xset ...`: Desactiva el protector de pantalla y el apagado del monitor.
-  * `--kiosk`: Fuerza a Chromium a abrirse en pantalla completa, sin pestañas ni botones.
-  * `--autoplay-policy=no-user-gesture-required`: **CRÍTICO**. Permite que Chromium reproduzca los videos automáticamente sin requerir que un usuario haga clic en la pantalla, evitando los bloqueos de seguridad de auto-reproducción.
-
-### 4. Ocultar el cursor del mouse (Opcional pero recomendado)
-Instala `unclutter` para ocultar el cursor del mouse cuando no se mueve:
-```bash
-sudo apt-get install unclutter
-```
-Añade `@unclutter -idle 0.1 -root` al archivo `autostart` mencionado en el paso anterior.
 
 ---
 
