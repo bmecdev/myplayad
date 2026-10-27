@@ -532,6 +532,20 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log(`[screen-server] videos dir:    ${VIDEOS_DIR}`);
     console.log(`[screen-server] remote source: ${REMOTE}`);
     console.log(`[screen-server] screen ID:     ${SCREEN_ID || 'No definido (usar URL param)'}`);
+
+    // Asegurar encendido del televisor (HDMI-CEC) al arrancar el servidor Node
+    (async () => {
+        try {
+            const powerScriptPath = path.join(__dirname, 'power.sh');
+            if (fs.existsSync(powerScriptPath)) {
+                console.log('[power] Asegurando encendido de TV (HDMI-CEC) al arrancar el servidor...');
+                await execPromise(`bash "${powerScriptPath}" on`, { timeout: 15000 });
+                console.log('[power] TV encendido correctamente en boot.');
+            }
+        } catch (err) {
+            console.warn('[power] Aviso al encender TV en boot:', err.message);
+        }
+    })();
 });
 
 server.on('error', err => {

@@ -95,6 +95,73 @@ if command -v xset >/dev/null 2>&1; then
     xset s noblank 2>/dev/null || true
 fi
 
+# 7. Configurar auto-encendido de TV por HDMI-CEC al arrancar la Raspberry Pi 5
+echo "[7/7] Configurando encendido automático del televisor (HDMI-CEC)..."
+
+# A. Asegurar parámetros de HDMI activo y CEC en config.txt
+CONFIG_TXT="/boot/firmware/config.txt"
+if [ ! -f "$CONFIG_TXT" ] && [ -f "/boot/config.txt" ]; then
+    CONFIG_TXT="/boot/config.txt"
+fi
+
+if [ -f "$CONFIG_TXT" ]; then
+    if ! grep -q "hdmi_force_hotplug" "$CONFIG_TXT"; then
+        echo "      Añadiendo hdmi_force_hotplug y cec_osd_name a $CONFIG_TXT..."
+        cat << 'CFG_EOF' | sudo tee -a "$CONFIG_TXT" >/dev/null
+
+# Forzar salida HDMI y CEC para encendido automático de TV
+hdmi_force_hotplug=1
+hdmi_force_hotplug:0=1
+hdmi_force_hotplug:1=1
+cec_osd_name=MyPlayAd
+CFG_EOF
+        echo "      ✓ Salida HDMI forzada (hdmi_force_hotplug=1) configurada en config.txt."
+    fi
+fi
+
+# B. Crear servicio systemd para encendido ultra-temprano de TV en el arranque
+cat << 'SERVICE_EOF' | sudo tee /etc/systemd/system/myplayad-tv-poweron.service >/dev/null
+[Unit]
+Description=MyPlayAd Encender TV via HDMI-CEC al arrancar Raspberry Pi
+After=systemd-modules-load.service local-fs.target
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+User=root
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "if command -v cec-client >/dev/null 2>&1; then (echo 'on 0'; echo 'tx 10:04'; sleep 1; echo 'as') | cec-client -s -d 1 2>/dev/null || true; fi"
+TimeoutSec=15
+
+[Install]
+WantedBy=multi-user.target
+SERVICE_EOF
+
+sudo systemctl daemon-reload 2>/dev/null || true
+sudo systemctl enable myplayad-tv-poweron.service 2>/dev/null || true
+echo "      ✓ Servicio systemd de encendido HDMI-CEC activado (myplayad-tv-poweron.service)."
+
+# C. Actualizar labwc/autostart si existe para invocar power.sh on
+AUTOSTART_FILE="$TARGET_HOME/.config/labwc/autostart"
+if [ -f "$AUTOSTART_FILE" ]; then
+    if ! grep -q "power.sh on" "$AUTOSTART_FILE"; then
+        sed -i '/killall pcmanfm/a \
+\
+# Encender televisor via HDMI-CEC al arrancar\
+if [ -f "$HOME/screen/power.sh" ]; then\
+    "$HOME/screen/power.sh" on &\
+elif [ -f "$SCREEN_APP_DIR/power.sh" ]; then\
+    "$SCREEN_APP_DIR/power.sh" on &\
+fi' "$AUTOSTART_FILE" 2>/dev/null || true
+        echo "      ✓ Invocación de power.sh on añadida a labwc autostart."
+    fi
+fi
+
+# D. Ejecutar encendido inmediato si el script se está ejecutando manualmente
+if [ -f "$TARGET_HOME/screen/power.sh" ]; then
+    bash "$TARGET_HOME/screen/power.sh" on >/dev/null 2>&1 &
+fi
+
 echo ""
 echo "=========================================================="
 echo "   ✓ REPOSO AUTOMÁTICO DESACTIVADO EXITOSAMENTE"

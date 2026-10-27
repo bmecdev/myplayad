@@ -11,7 +11,17 @@ if [ "$ACTION" = "off" ] || [ "$ACTION" = "standby" ] || [ "$ACTION" = "POWER_OF
 
     # 1. Comando HDMI-CEC: poner televisor en Standby (si cec-client esta instalado)
     if command -v cec-client >/dev/null 2>&1; then
-        echo "standby 0" | cec-client -s -d 1 2>/dev/null || true
+        (
+            echo "standby 0"
+            echo "tx 10:36"
+        ) | cec-client -s -d 1 2>/dev/null || true
+
+        if [ -e "/dev/cec1" ]; then
+            (
+                echo "standby 0"
+                echo "tx 10:36"
+            ) | cec-client -s -d 1 -p 2 2>/dev/null || true
+        fi
     fi
 
     # 2. Desactivar salida HDMI en Wayland (labwc / wlr-randr)
@@ -52,9 +62,33 @@ elif [ "$ACTION" = "on" ] || [ "$ACTION" = "wake" ] || [ "$ACTION" = "POWER_ON" 
 
     # 3. Comando HDMI-CEC: encender televisor y ponerlo en la entrada HDMI de la Raspberry Pi
     if command -v cec-client >/dev/null 2>&1; then
-        echo "on 0" | cec-client -s -d 1 2>/dev/null || true
-        sleep 1
-        echo "as" | cec-client -s -d 1 2>/dev/null || true
+        echo "[POWER] Enviando senal HDMI-CEC (on 0, as) para encender televisor..."
+        (
+            echo "on 0"
+            echo "tx 10:04"
+            sleep 1.5
+            echo "as"
+            echo "tx 10:82:10:00"
+        ) | cec-client -s -d 1 2>/dev/null || true
+
+        if [ -e "/dev/cec1" ]; then
+            (
+                echo "on 0"
+                echo "tx 10:04"
+                sleep 1.5
+                echo "as"
+                echo "tx 10:82:10:00"
+            ) | cec-client -s -d 1 -p 2 2>/dev/null || true
+        fi
+
+        # Refuerzo a los 3 segundos para televisores Smart TV que demoran en iniciar su panel
+        (
+            sleep 3
+            (
+                echo "as"
+                echo "tx 10:82:10:00"
+            ) | cec-client -s -d 1 2>/dev/null || true
+        ) &
     fi
 
     echo "[POWER] Pantalla encendida exitosamente."

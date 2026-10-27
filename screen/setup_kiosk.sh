@@ -240,17 +240,25 @@ if [ -f "$SCREEN_APP_DIR/logo.png" ]; then
     swaybg -i "$SCREEN_APP_DIR/logo.png" -m center -c "#000000" &
 fi
 
-# 5. Auto-actualización al encender (Boot-Time Update de producción)
+# 5. Encender televisor via HDMI-CEC inmediatamente al arrancar la Raspberry Pi 5
+if [ -f "$SCREEN_APP_DIR/power.sh" ]; then
+    echo "[AUTOSTART] Encendiendo pantalla de TV via HDMI-CEC..."
+    "$SCREEN_APP_DIR/power.sh" on &
+elif command -v cec-client >/dev/null 2>&1; then
+    (echo "on 0"; echo "tx 10:04"; sleep 1; echo "as") | cec-client -s -d 1 2>/dev/null &
+fi
+
+# 6. Auto-actualización al encender (Boot-Time Update de producción)
 if [ -f "$SCREEN_APP_DIR/update.sh" ]; then
     echo "[AUTOSTART] Comprobando actualizaciones de produccion en origin/main..."
     bash "$SCREEN_APP_DIR/update.sh" || true
 fi
 
-# 6. Iniciar el servidor Node en segundo plano
+# 7. Iniciar el servidor Node en segundo plano
 cd "$SCREEN_APP_DIR"
 node server.js >> "$SCREEN_APP_DIR/server.log" 2>&1 &
 
-# 7. Esperar a que el servidor Node responda (hasta 15s) antes de lanzar Chromium
+# 8. Esperar a que el servidor Node responda (hasta 15s) antes de lanzar Chromium
 for i in $(seq 1 30); do
     if curl -s http://localhost:8090/api/config >/dev/null 2>&1; then
         break
@@ -258,7 +266,7 @@ for i in $(seq 1 30); do
     sleep 0.5
 done
 
-# 8. Abrir Chromium en modo kiosco (Wayland nativo, sin sleep, sin throttling)
+# 9. Abrir Chromium en modo kiosco (Wayland nativo, sin sleep, sin throttling)
 chromium --ozone-platform=wayland --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --autoplay-policy=no-user-gesture-required http://localhost:8090
 EOF
 
@@ -272,13 +280,57 @@ if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
     fi
 fi
 
-# 7. Finalización
+# 8. Configurar auto-encendido de TV temprano mediante servicio systemd y config.txt
+echo ""
+echo "[8/8] Configurando servicio systemd para encendido HDMI-CEC temprano de TV..."
+CONFIG_TXT_FILE="/boot/firmware/config.txt"
+if [ ! -f "$CONFIG_TXT_FILE" ] && [ -f "/boot/config.txt" ]; then
+    CONFIG_TXT_FILE="/boot/config.txt"
+fi
+
+if [ -f "$CONFIG_TXT_FILE" ]; then
+    if ! grep -q "hdmi_force_hotplug" "$CONFIG_TXT_FILE"; then
+        echo "Añadiendo forzado de señal HDMI y nombre CEC a $CONFIG_TXT_FILE..."
+        cat << 'CFG_EOF' | sudo tee -a "$CONFIG_TXT_FILE" >/dev/null
+
+# Forzar señal HDMI activa y CEC para encendido automático de televisor
+hdmi_force_hotplug=1
+hdmi_force_hotplug:0=1
+hdmi_force_hotplug:1=1
+cec_osd_name=MyPlayAd
+CFG_EOF
+    fi
+fi
+
+cat << 'SERVICE_EOF' | sudo tee /etc/systemd/system/myplayad-tv-poweron.service >/dev/null
+[Unit]
+Description=MyPlayAd Encender TV via HDMI-CEC al arrancar Raspberry Pi
+After=systemd-modules-load.service local-fs.target
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+User=root
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "if command -v cec-client >/dev/null 2>&1; then (echo 'on 0'; echo 'tx 10:04'; sleep 1; echo 'as') | cec-client -s -d 1 2>/dev/null || true; fi"
+TimeoutSec=15
+
+[Install]
+WantedBy=multi-user.target
+SERVICE_EOF
+
+sudo systemctl daemon-reload 2>/dev/null || true
+sudo systemctl enable myplayad-tv-poweron.service 2>/dev/null || true
+echo "✓ Servicio systemd myplayad-tv-poweron.service activado."
+
+# 9. Finalización
 echo ""
 echo "================================================="
 echo "   Configuración del Kiosco completada con éxito"
 echo "================================================="
 echo "Programas y dependencias instalados:"
 echo " - Herramientas: curl, wget, git, ffmpeg, cec-utils"
+echo " - Encendido automático de TV por HDMI-CEC en arranque (systemd + autostart)"
 echo " - Entorno Wayland/Kiosco: swaybg, kanshi, wlr-randr, chromium, tema cursor invisible"
 echo " - Node.js ($NODE_VER) y npm ($NPM_VER)"
 echo " - Dependencias npm del servidor compiladas exitosamente"

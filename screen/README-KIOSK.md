@@ -103,7 +103,36 @@ sleep 3
 chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --enable-features=OverlayScrollbar --disable-features=Translate http://localhost:8090
 ```
 
-## 5. Prevención del Pop-up de Traducción y Puntero Mouse (CSS)
+## 5. Encendido Automático del Televisor al Arrancar la Raspberry Pi 5 (HDMI-CEC)
+Para que el televisor físico **se encienda solo y cambie a la entrada HDMI de la RPi5** en el momento en que se enchufa o prende la consola:
+
+1. **A nivel de Firmware (`/boot/firmware/config.txt`):**
+   ```text
+   hdmi_force_hotplug=1
+   hdmi_force_hotplug:0=1
+   hdmi_force_hotplug:1=1
+   cec_osd_name=MyPlayAd
+   ```
+   *(Esto asegura que la RPi5 genere señal HDMI y active el bus CEC incluso si el TV está apagado al conectarla).*
+
+2. **A nivel de Sistema Operativo (`systemd`):**
+   Se ejecuta un servicio inmediato en el arranque del sistema (`myplayad-tv-poweron.service`):
+   ```bash
+   (echo "on 0"; echo "tx 10:04"; sleep 1; echo "as") | cec-client -s -d 1
+   ```
+   *(Envía la señal estándar HDMI-CEC `<Image View On>` y activa la entrada HDMI correspondiente).*
+
+3. **A nivel de Kiosko (`labwc/autostart` y `server.js`):**
+   Tanto el script de autostart del compositor como el servidor Node.js ejecutan `power.sh on`, reforzando la señal a los 3 segundos para aquellos televisores cuyo panel tarda en completar el encendido.
+
+4. **Configuración en el Menú del Televisor (Muy Importante):**
+   Asegúrate de que en el televisor esté habilitado el control HDMI-CEC (los fabricantes le dan nombres comerciales):
+   - **Samsung:** Configuración → General → Administrador de dispositivos externos → *Anynet+ (HDMI-CEC)*: **Activado**.
+   - **LG:** Ajustes → General → Dispositivos → Ajustes de HDMI → *SIMPLINK (HDMI-CEC)*: **Activado** y *Encendido sincronizado*: **Activado**.
+   - **Sony:** Ajustes → Canales y entradas → Entradas externas → *Ajustes de BRAVIA Sync* → *Control de BRAVIA Sync*: **Activado**.
+   - **TCL / Hisense / Philips / Panasonic:** Ajustes → Sistema / Entradas → *Control CEC*: **Activado** / *Encendido automático por dispositivo*: **Activado**.
+
+## 6. Prevención del Pop-up de Traducción y Puntero Mouse (CSS)
 Para evitar que Chromium sugiera traducir el contenido, se modificó el código fuente web:
 - **`index.html`**: Se agregó `<html translate="no">` y `<meta name="google" content="notranslate">`.
 - **`style.css`**: Se forzó la invisibilidad del cursor sobre elementos web mediante `* { cursor: none !important; }`.
