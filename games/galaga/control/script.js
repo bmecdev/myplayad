@@ -167,11 +167,26 @@ window.addEventListener('load', () => {
     if (turnIp) localStorage.setItem('TURN_PUBLIC_IP', turnIp);
     if (turnUser) localStorage.setItem('TURN_USER', turnUser);
     if (turnPass) localStorage.setItem('TURN_PASS', turnPass);
+
+    // Validación inicial de Nickname
+    connectBtn.disabled = nicknameInput.value.trim().length < 2;
+});
+
+nicknameInput.addEventListener('input', () => {
+    const val = nicknameInput.value.trim();
+    connectBtn.disabled = val.length < 2;
+    nicknameInput.style.borderColor = val.length >= 2 ? 'var(--primary)' : '';
 });
 
 connectBtn.addEventListener('click', () => {
     const roomId = roomInput.value.trim().toUpperCase();
-    nickname = nicknameInput.value.trim() || 'Pilot';
+    const val = nicknameInput.value.trim();
+    if (val.length < 2) {
+        nicknameInput.focus();
+        nicknameInput.style.borderColor = '#ff4d6d';
+        return;
+    }
+    nickname = val;
     if (roomId) {
         currentRoomId = roomId;
         connectSignaling(roomId);

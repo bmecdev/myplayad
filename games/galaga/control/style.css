@@ -98,9 +98,18 @@ body {
     transition: transform 0.1s, background 0.3s;
 }
 
-#connect-btn:active {
+#connect-btn:active:not(:disabled) {
     transform: scale(0.98);
     background: var(--secondary);
+}
+
+#connect-btn:disabled {
+    background: #1e293b;
+    color: #64748b;
+    cursor: not-allowed;
+    opacity: 0.5;
+    filter: grayscale(1);
+    transform: none;
 }
 
 .footer-hint {
@@ -198,12 +207,17 @@ body {
     text-transform: uppercase;
     cursor: pointer;
     box-shadow: 0 12px 20px rgba(255, 92, 92, 0.35);
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    transition: transform 0.04s ease, box-shadow 0.04s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .fire-button:active {
-    transform: translateY(2px) scale(0.98);
-    box-shadow: 0 8px 14px rgba(255, 92, 92, 0.35);
+    transform: translateY(3px) scale(0.96);
+    box-shadow: 0 4px 10px rgba(255, 92, 92, 0.5);
+    background: radial-gradient(circle at 30% 30%, #ff3b3b, #991b1b 60%);
 }
 
 .thanks-container p.small {

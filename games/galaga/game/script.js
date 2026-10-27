@@ -298,7 +298,7 @@ window.addEventListener('DOMContentLoaded', () => {
 const PLAYER_WIDTH = 15;
 const PLAYER_HEIGHT = 13;
 const PLAYER_SPEED = 240;
-const MAX_PLAYER_BULLETS = 4; // 2 pairs of torpedoes
+const MAX_PLAYER_BULLETS = 16; // Permite disparos rápidos continuos sin bloquear los toques rápidos
 
 const GameState = {
     running: false,
@@ -580,7 +580,8 @@ function shootTorpedo() {
     if (GameState.bullets.length >= MAX_PLAYER_BULLETS) return;
     if (GameState.player.fireCooldown > 0) return;
 
-    GameState.player.fireCooldown = 0.16; // 160ms rapid fire limit
+    // Enfriamiento ultra-rápido (40ms): la nave dispara tan rápido como el usuario toque el botón
+    GameState.player.fireCooldown = 0.04;
     GameState.player.muzzleFlashTimer = 0.08;
     audio.playLaser();
 
@@ -592,14 +593,14 @@ function shootTorpedo() {
         y: pY - 2,
         w: 2,
         h: 6,
-        speed: 340
+        speed: 380
     });
     GameState.bullets.push({
         x: pX + PLAYER_WIDTH - 3,
         y: pY - 2,
         w: 2,
         h: 6,
-        speed: 340
+        speed: 380
     });
 }
 
