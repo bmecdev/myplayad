@@ -295,8 +295,8 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // 🌌 Galaga Game State & Entities
 // ==========================================
-const PLAYER_WIDTH = 13;
-const PLAYER_HEIGHT = 11;
+const PLAYER_WIDTH = 15;
+const PLAYER_HEIGHT = 13;
 const PLAYER_SPEED = 240;
 const MAX_PLAYER_BULLETS = 4; // 2 pairs of torpedoes
 
@@ -316,46 +316,84 @@ const GameState = {
     
     // Player
     player: {
-        x: (CANVAS_WIDTH - PLAYER_WIDTH) / 2,
-        y: CANVAS_HEIGHT - 16,
+        x: (CANVAS_WIDTH - 15) / 2,
+        y: CANVAS_HEIGHT - 17,
         dx: 0,
+        bankAngle: 0,
         invulnerableTimer: 0,
         isCaptured: false,
         captureProgress: 0,
-        fireCooldown: 0
+        captureRotation: 0,
+        fireCooldown: 0,
+        muzzleFlashTimer: 0
     },
     
     // Bullets & Objects
     bullets: [],       // Player torpedoes
     alienBullets: [],  // Alien red pulses
     aliens: [],        // Galaga swarm
-    explosions: [],    // Particle explosions
+    explosions: [],    // Particle explosions & shockwaves
     scorePopups: [],   // Floating score indicators (+160, +400, etc.)
-    stars: [],         // Multi-colored starfield
+    stars: [],         // Multi-depth parallax starfield
     
-    // Wave state
+    // Wave & Visual FX state
     formationSway: 0,
     formationTimer: 0,
     nextDiveTimer: 2.0,
     wingAnimFlip: false,
     animTimer: 0,
+    animTimerTotal: 0,
+    animFrame: 0,
+    screenShake: 0,
     
     // Active Tractor Beam from a Boss
     tractorBeam: null // { bossId, x, y, width, timer, state: 'expanding'|'holding'|'closing' }
 };
 
-// Starfield Generator
-function initStarfield(count = 55) {
+// 🌌 High-Fidelity 3-Tier Parallax Starfield Generator
+function initStarfield(count = 75) {
     const stars = [];
-    const colors = ['#ffffff', '#fff382', '#ff5964', '#38b000', '#00e5ff', '#c77dff'];
-    for (let i = 0; i < count; i++) {
+    const colorsTier1 = ['#3a0ca3', '#4361ee', '#7209b7', '#0077b6', '#3f37c9', '#4cc9f0'];
+    const colorsTier2 = ['#00f5d4', '#ffb703', '#3dff8a', '#ff4d6d', '#ffffff', '#ffd166'];
+    const colorsTier3 = ['#ffffff', '#fff382', '#e0fbfc'];
+    
+    // Tier 1: Distant Deep Cosmos (35 stars, slow, subtle, tiny)
+    for (let i = 0; i < 35; i++) {
         stars.push({
+            tier: 1,
             x: Math.random() * CANVAS_WIDTH,
             y: Math.random() * CANVAS_HEIGHT,
-            speed: 0.3 + Math.random() * 1.5,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            size: Math.random() > 0.8 ? 1.5 : 1,
-            twinkle: Math.random() * 10
+            speed: 0.25 + Math.random() * 0.2,
+            size: 1,
+            color: colorsTier1[Math.floor(Math.random() * colorsTier1.length)],
+            alpha: 0.35 + Math.random() * 0.3,
+            twinkleSpeed: 1.0 + Math.random() * 2.0
+        });
+    }
+    // Tier 2: Midfield Nebula (25 stars, medium speed, color-twinkle)
+    for (let i = 0; i < 25; i++) {
+        stars.push({
+            tier: 2,
+            x: Math.random() * CANVAS_WIDTH,
+            y: Math.random() * CANVAS_HEIGHT,
+            speed: 0.8 + Math.random() * 0.4,
+            size: 1,
+            color: colorsTier2[Math.floor(Math.random() * colorsTier2.length)],
+            alpha: 0.7 + Math.random() * 0.3,
+            twinkleSpeed: 2.0 + Math.random() * 3.0
+        });
+    }
+    // Tier 3: Foreground Hyperspace (15 stars, bright, fast, cross-glimmer)
+    for (let i = 0; i < 15; i++) {
+        stars.push({
+            tier: 3,
+            x: Math.random() * CANVAS_WIDTH,
+            y: Math.random() * CANVAS_HEIGHT,
+            speed: 1.8 + Math.random() * 0.6,
+            size: 2,
+            color: colorsTier3[Math.floor(Math.random() * colorsTier3.length)],
+            alpha: 0.95,
+            twinkleSpeed: 3.5 + Math.random() * 3.0
         });
     }
     return stars;
@@ -510,11 +548,14 @@ function startStage(stageNum) {
 
 function resetPlayerPosition() {
     GameState.player.x = (CANVAS_WIDTH - PLAYER_WIDTH) / 2;
-    GameState.player.y = CANVAS_HEIGHT - 16;
+    GameState.player.y = CANVAS_HEIGHT - 17;
     GameState.player.dx = 0;
+    GameState.player.bankAngle = 0;
     GameState.player.invulnerableTimer = 1.8;
     GameState.player.isCaptured = false;
     GameState.player.captureProgress = 0;
+    GameState.player.captureRotation = 0;
+    GameState.player.muzzleFlashTimer = 0;
 }
 
 // ==========================================
@@ -540,31 +581,33 @@ function shootTorpedo() {
     if (GameState.player.fireCooldown > 0) return;
 
     GameState.player.fireCooldown = 0.16; // 160ms rapid fire limit
+    GameState.player.muzzleFlashTimer = 0.08;
     audio.playLaser();
 
-    // Twin Torpedoes
+    // Twin Torpedoes launched from wing cannons
     const pX = GameState.player.x;
     const pY = GameState.player.y;
     GameState.bullets.push({
-        x: pX + 2,
+        x: pX + 1,
         y: pY - 2,
         w: 2,
-        h: 5,
-        speed: 240
+        h: 6,
+        speed: 340
     });
     GameState.bullets.push({
-        x: pX + PLAYER_WIDTH - 4,
+        x: pX + PLAYER_WIDTH - 3,
         y: pY - 2,
         w: 2,
-        h: 5,
-        speed: 240
+        h: 6,
+        speed: 340
     });
 }
 
 // Update aliens, dives, swoops, bullets, collisions
 function updateGame(dt) {
-    // Starfield animation
-    const starSpeedMultiplier = GameState.stageIntroTimer > 0 ? 3.5 : 1.0;
+    // Parallax Starfield with hyperspace warp during stage intro
+    const isWarp = GameState.stageIntroTimer > 0;
+    const starSpeedMultiplier = isWarp ? 4.5 : 1.0;
     GameState.stars.forEach(star => {
         star.y += star.speed * starSpeedMultiplier * (dt * 60);
         if (star.y > CANVAS_HEIGHT) {
@@ -577,7 +620,24 @@ function updateGame(dt) {
         GameState.stageIntroTimer -= dt;
     }
 
-    // Wing flapping animation
+    // Screen Shake decay
+    if (GameState.screenShake > 0) {
+        GameState.screenShake -= dt * 1.6;
+        if (GameState.screenShake < 0) GameState.screenShake = 0;
+    }
+
+    // Player bank angle interpolation
+    const targetBank = GameState.player.dx < -10 ? -0.16 : (GameState.player.dx > 10 ? 0.16 : 0);
+    GameState.player.bankAngle += (targetBank - GameState.player.bankAngle) * Math.min(1, dt * 18);
+
+    // Muzzle flash timer decay
+    if (GameState.player.muzzleFlashTimer > 0) {
+        GameState.player.muzzleFlashTimer -= dt;
+    }
+
+    // 4-phase wing flapping & pulsing animation
+    GameState.animTimerTotal += dt;
+    GameState.animFrame = Math.floor((GameState.animTimerTotal * 8) % 4);
     GameState.animTimer += dt;
     if (GameState.animTimer > 0.22) {
         GameState.animTimer = 0;
@@ -712,6 +772,7 @@ function updateAlienEntering(alien, dt) {
         alien.state = 'formation';
         alien.x = alien.homeX;
         alien.y = alien.homeY;
+        alien.angle = 0;
         return;
     }
 
@@ -725,6 +786,13 @@ function updateAlienEntering(alien, dt) {
     // Bezier interpolation
     const cx = (1 - t) ** 3 * p0.x + 3 * (1 - t) ** 2 * t * p1.x + 3 * (1 - t) * t ** 2 * p2.x + t ** 3 * p3.x;
     const cy = (1 - t) ** 3 * p0.y + 3 * (1 - t) ** 2 * t * p1.y + 3 * (1 - t) * t ** 2 * p2.y + t ** 3 * p3.y;
+
+    // Calculate rotation angle facing motion path
+    const vx = cx - alien.x;
+    const vy = cy - alien.y;
+    if (Math.hypot(vx, vy) > 0.1) {
+        alien.angle = Math.atan2(vx, -vy);
+    }
 
     alien.x = cx;
     alien.y = cy;
@@ -767,6 +835,7 @@ function launchDive(alien, isBoss = false, leader = null) {
     alien.hasShot = false;
     alien.loopT = 0;
     alien.canBeam = isBoss && Math.random() < 0.45 && !GameState.tractorBeam;
+    alien.angle = Math.PI; // Face downward when dive starts
 }
 
 function updateAlienDiving(alien, dt) {
@@ -778,10 +847,20 @@ function updateAlienDiving(alien, dt) {
         return;
     }
 
+    const prevX = alien.x;
+    const prevY = alien.y;
+
     // Curved swoop towards target X and down
     alien.y += alien.diveSpeed * dt;
     const dx = (alien.targetX - alien.x) * dt * 2.5;
     alien.x += dx;
+
+    // 360-degree rotational angle facing flight heading
+    const vx = alien.x - prevX;
+    const vy = alien.y - prevY;
+    if (Math.hypot(vx, vy) > 0.05) {
+        alien.angle = Math.atan2(vx, -vy);
+    }
 
     // Alien fire during dive
     if (!alien.hasShot && alien.y > 50 && alien.y < 110) {
@@ -810,9 +889,13 @@ function updateAlienReturning(alien, dt) {
         alien.x = targetX;
         alien.y = targetY;
         alien.state = 'formation';
+        alien.angle = 0;
     } else {
-        alien.x += (dx / dist) * (alien.diveSpeed * 0.9) * dt;
-        alien.y += (dy / dist) * (alien.diveSpeed * 0.9) * dt;
+        const stepX = (dx / dist) * (alien.diveSpeed * 0.9) * dt;
+        const stepY = (dy / dist) * (alien.diveSpeed * 0.9) * dt;
+        alien.x += stepX;
+        alien.y += stepY;
+        alien.angle = Math.atan2(stepX, -stepY);
     }
 }
 
@@ -897,7 +980,7 @@ function updateTractorBeam(dt) {
 function capturePlayer(boss) {
     GameState.player.isCaptured = true;
     audio.playPlayerExplosion();
-    addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2);
+    addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, true);
     
     setTimeout(() => {
         GameState.lives--;
@@ -944,7 +1027,7 @@ function checkBulletAlienCollisions() {
                     }
 
                     audio.playAlienExplosion();
-                    addExplosion(alien.x + alien.width / 2, alien.y + alien.height / 2);
+                    addExplosion(alien.x + alien.width / 2, alien.y + alien.height / 2, alien.type === 'boss');
                     
                     if (isDiving) {
                         addScorePopup(alien.x, alien.y, points);
@@ -959,7 +1042,7 @@ function checkBulletAlienCollisions() {
                 } else {
                     // Damaged Boss Galaga (turns blue)
                     audio.playBossDamage();
-                    addExplosion(alien.x + alien.width / 2, alien.y + alien.height / 2, 6);
+                    addExplosion(alien.x + alien.width / 2, alien.y + alien.height / 2, false);
                 }
                 break;
             }
@@ -982,7 +1065,7 @@ function checkAlienPlayerCollisions() {
                 p.y + PLAYER_HEIGHT > alien.y && p.y < alien.y + alien.height) {
                 
                 // Kamikaze crash!
-                addExplosion(alien.x + alien.width / 2, alien.y + alien.height / 2);
+                addExplosion(alien.x + alien.width / 2, alien.y + alien.height / 2, alien.type === 'boss');
                 GameState.aliens.splice(i, 1);
                 killPlayer();
                 break;
@@ -993,7 +1076,7 @@ function checkAlienPlayerCollisions() {
 
 function killPlayer() {
     audio.playPlayerExplosion();
-    addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, 20);
+    addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, true);
     GameState.lives--;
     updateUI();
 
@@ -1004,23 +1087,71 @@ function killPlayer() {
     }
 }
 
-function addExplosion(x, y, count = 12) {
+function addExplosion(x, y, isBoss = false) {
+    const colors = isBoss 
+        ? ['#ffffff', '#ffea00', '#ff0055', '#00f3ff', '#ff7700'] 
+        : ['#ffffff', '#ffea00', '#ff3344', '#ff7700'];
+    const pCount = isBoss ? 28 : 16;
     const particles = [];
-    const colors = ['#ffffff', '#ffeb3b', '#ff5722', '#f44336'];
-    for (let i = 0; i < count; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const spd = 20 + Math.random() * 55;
+
+    for (let i = 0; i < pCount; i++) {
+        const angle = (Math.PI * 2 / pCount) * i + (Math.random() - 0.5) * 0.3;
+        const spd = (isBoss ? 45 : 30) + Math.random() * 55;
         particles.push({
             x: x,
             y: y,
             vx: Math.cos(angle) * spd,
             vy: Math.sin(angle) * spd,
-            color: colors[Math.floor(Math.random() * colors.length)],
+            color: colors[i % colors.length],
             life: 1.0,
-            size: Math.random() > 0.5 ? 2 : 1
+            size: Math.random() > 0.4 ? 2 : 1
         });
     }
-    GameState.explosions.push({ timer: 0, particles });
+
+    GameState.explosions.push({
+        timer: 0,
+        maxTime: isBoss ? 0.55 : 0.42,
+        isBoss: isBoss,
+        cx: x,
+        cy: y,
+        particles
+    });
+
+    // Screen shake trigger on kill
+    GameState.screenShake = isBoss ? 0.22 : 0.08;
+}
+
+function drawExplosionFX(exp) {
+    const progress = exp.timer / exp.maxTime;
+
+    // Expanding shockwave ring
+    if (progress < 0.65) {
+        const ringRadius = progress * (exp.isBoss ? 26 : 16);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(exp.cx, exp.cy, ringRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = exp.isBoss ? '#00f3ff' : '#ffea00';
+        ctx.globalAlpha = 1.0 - progress / 0.65;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Flash core during first 0.08s
+    if (exp.timer < 0.08) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(exp.cx - 3, exp.cy - 3, 6, 6);
+    }
+
+    // Particle debris
+    exp.particles.forEach(p => {
+        if (p.life > 0) {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+        }
+    });
+    ctx.globalAlpha = 1.0;
 }
 
 function addScorePopup(x, y, points) {
@@ -1036,98 +1167,118 @@ function addScorePopup(x, y, points) {
 // 🎨 Rendering
 // ==========================================
 function render() {
-    ctx.fillStyle = '#060a08';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.save();
 
-    // 1. Draw Starfield
-    GameState.stars.forEach(star => {
-        ctx.fillStyle = star.color;
-        ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, star.size);
-    });
-
-    // 2. Draw Tractor Beam
-    if (GameState.tractorBeam) {
-        const tb = GameState.tractorBeam;
-        ctx.save();
-        ctx.strokeStyle = '#00f3ff';
-        ctx.fillStyle = 'rgba(0, 243, 255, 0.18)';
-        ctx.lineWidth = 1;
-        
-        ctx.beginPath();
-        ctx.moveTo(tb.x - 3, tb.y);
-        ctx.lineTo(tb.x + 3, tb.y);
-        ctx.lineTo(tb.x + tb.width, tb.bottomY);
-        ctx.lineTo(tb.x - tb.width, tb.bottomY);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Pulsing rings inside beam
-        for (let ringY = tb.y + 10; ringY < tb.bottomY; ringY += 15) {
-            const progress = (ringY - tb.y) / (tb.bottomY - tb.y);
-            const w = tb.width * progress;
-            ctx.beginPath();
-            ctx.ellipse(tb.x, ringY, w, 3, 0, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(0, 255, 170, ${0.4 + Math.sin(performance.now() * 0.01 + ringY) * 0.3})`;
-            ctx.stroke();
-        }
-        ctx.restore();
+    // Screen Shake Offset
+    if (GameState.screenShake > 0) {
+        const shakeMag = GameState.screenShake * 8;
+        const sx = (Math.random() - 0.5) * shakeMag;
+        const sy = (Math.random() - 0.5) * shakeMag;
+        ctx.translate(sx, sy);
     }
 
-    // 3. Draw Aliens
+    // 0. Space Vacuum Background
+    ctx.fillStyle = '#040705';
+    ctx.fillRect(-4, -4, CANVAS_WIDTH + 8, CANVAS_HEIGHT + 8);
+
+    // 1. Deep Space Multi-Layer Starfield
+    const isWarp = GameState.stageIntroTimer > 0;
+    GameState.stars.forEach(star => {
+        const twinkle = Math.sin(performance.now() * 0.003 * star.twinkleSpeed) * 0.3;
+        const alpha = Math.max(0.15, Math.min(1.0, star.alpha + twinkle));
+        ctx.fillStyle = star.color;
+        ctx.globalAlpha = alpha;
+
+        if (isWarp) {
+            // Warp speed streaks
+            const streakLen = star.tier * 4 + 3;
+            ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, streakLen);
+        } else {
+            ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, star.size);
+            // 4-point cross-glimmer for bright foreground stars
+            if (star.tier === 3 && alpha > 0.8) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.fillRect(Math.floor(star.x) - 1, Math.floor(star.y), 3, 1);
+                ctx.fillRect(Math.floor(star.x), Math.floor(star.y) - 1, 1, 3);
+            }
+        }
+    });
+    ctx.globalAlpha = 1.0;
+
+    // 2. Tractor Beam Visual FX
+    if (GameState.tractorBeam) {
+        drawTractorBeamFX(GameState.tractorBeam);
+    }
+
+    // 3. Swarm Aliens (with rotational banking)
     GameState.aliens.forEach(alien => {
         drawAlien(alien);
     });
 
-    // 4. Draw Player Torpedoes
-    ctx.fillStyle = '#ffff00';
+    // 4. Player Twin Torpedoes
     GameState.bullets.forEach(b => {
-        ctx.fillRect(b.x, b.y, b.w, b.h);
-        ctx.fillStyle = '#ff2222';
+        // Plasma tail glow
+        ctx.fillStyle = 'rgba(255, 60, 0, 0.4)';
+        ctx.fillRect(b.x - 1, b.y + 2, b.w + 2, b.h);
+
+        // Torpedo missile body (Red-Yellow gradient)
+        ctx.fillStyle = '#ff2a4b';
         ctx.fillRect(b.x, b.y + 2, b.w, b.h - 2);
-        ctx.fillStyle = '#ffff00';
-    });
+        ctx.fillStyle = '#ffea00';
+        ctx.fillRect(b.x, b.y + 1, b.w, 2);
 
-    // 5. Draw Alien Bullets
-    ctx.fillStyle = '#ff3344';
-    GameState.alienBullets.forEach(ab => {
-        ctx.fillRect(ab.x, ab.y, ab.w, ab.h);
+        // White-hot warhead tip
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(ab.x, ab.y + 1, 1, 2);
-        ctx.fillStyle = '#ff3344';
+        ctx.fillRect(b.x, b.y, b.w, 1);
     });
 
-    // 6. Draw Player Fighter
+    // 5. Alien Energy Bullets
+    GameState.alienBullets.forEach(ab => {
+        // Red plasma aura
+        ctx.fillStyle = 'rgba(255, 40, 60, 0.35)';
+        ctx.fillRect(ab.x - 1, ab.y - 1, ab.w + 2, ab.h + 2);
+
+        // Orange body
+        ctx.fillStyle = '#ff3344';
+        ctx.fillRect(ab.x, ab.y, ab.w, ab.h);
+
+        // White energy core
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(ab.x, ab.y + 1, 1, ab.h - 2);
+    });
+
+    // 6. Player Fighter
     if (GameState.running && !GameState.player.isCaptured) {
-        // Blinking if invulnerable
-        if (GameState.player.invulnerableTimer <= 0 || Math.floor(GameState.player.invulnerableTimer * 10) % 2 === 0) {
-            drawPlayerShip(GameState.player.x, GameState.player.y);
-        }
+        drawPlayerShip(GameState.player.x, GameState.player.y);
     }
 
-    // 7. Draw Explosions
+    // 7. Explosions & Shockwaves
     GameState.explosions.forEach(exp => {
-        exp.particles.forEach(p => {
-            if (p.life > 0) {
-                ctx.fillStyle = p.color;
-                ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
-            }
-        });
+        drawExplosionFX(exp);
     });
 
-    // 8. Draw Score Popups
-    ctx.font = '8px "Press Start 2P", monospace';
-    ctx.fillStyle = '#ffea00';
+    // 8. Floating Score Popups
     GameState.scorePopups.forEach(sp => {
+        ctx.font = '8px "Press Start 2P", monospace';
+        // Black drop shadow
+        ctx.fillStyle = '#000000';
+        ctx.fillText(sp.text, sp.x - 3, sp.y + 1);
+        // Yellow retro text
+        ctx.fillStyle = '#ffea00';
         ctx.fillText(sp.text, sp.x - 4, sp.y);
     });
 
     // 9. Stage Intro Text
     if (GameState.stageIntroTimer > 0) {
         ctx.font = '10px "Press Start 2P", monospace';
-        ctx.fillStyle = '#3dff8a';
+        ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
+        ctx.fillText(`STAGE ${GameState.stage}`, CANVAS_WIDTH / 2 + 1, CANVAS_HEIGHT / 2 - 9);
+        ctx.fillStyle = '#3dff8a';
         ctx.fillText(`STAGE ${GameState.stage}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 10);
+
+        ctx.fillStyle = '#000000';
+        ctx.fillText('READY', CANVAS_WIDTH / 2 + 1, CANVAS_HEIGHT / 2 + 9);
         ctx.fillStyle = '#ffb703';
         ctx.fillText('READY', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 8);
         ctx.textAlign = 'start';
@@ -1136,130 +1287,400 @@ function render() {
     // 10. Stage Clear Text
     if (GameState.stageClearTimer > 0) {
         ctx.font = '10px "Press Start 2P", monospace';
-        ctx.fillStyle = '#00f3ff';
         ctx.textAlign = 'center';
+        ctx.fillStyle = '#000000';
+        ctx.fillText('STAGE CLEAR!', CANVAS_WIDTH / 2 + 1, CANVAS_HEIGHT / 2 - 5);
+        ctx.fillStyle = '#00f3ff';
         ctx.fillText('STAGE CLEAR!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 6);
+
         ctx.font = '8px "Press Start 2P", monospace';
+        ctx.fillStyle = '#000000';
+        ctx.fillText('+1000 BONUS', CANVAS_WIDTH / 2 + 1, CANVAS_HEIGHT / 2 + 13);
         ctx.fillStyle = '#ffea00';
         ctx.fillText('+1000 BONUS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 12);
         ctx.textAlign = 'start';
     }
-}
 
-// Pixel Art Drawing: Iconic Galaga Fighter Ship
-function drawPlayerShip(x, y) {
-    ctx.save();
-    // Fuselage (White)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x + 5, y + 2, 3, 9);
-    ctx.fillRect(x + 4, y + 5, 5, 4);
-
-    // Red Nosecone & Wing Accents
-    ctx.fillStyle = '#ff2244';
-    ctx.fillRect(x + 6, y, 1, 3);
-    ctx.fillRect(x + 3, y + 7, 2, 4);
-    ctx.fillRect(x + 8, y + 7, 2, 4);
-
-    // Blue Stabilizer Wings
-    ctx.fillStyle = '#0077ff';
-    ctx.fillRect(x, y + 6, 2, 5);
-    ctx.fillRect(x + 11, y + 6, 2, 5);
-    ctx.fillRect(x + 2, y + 8, 2, 3);
-    ctx.fillRect(x + 9, y + 8, 2, 3);
-
-    // Engine Exhaust Glow
-    ctx.fillStyle = '#ffaa00';
-    ctx.fillRect(x + 5, y + 10, 3, 2);
     ctx.restore();
 }
 
-// Pixel Art Drawing: Galaga Swarm Aliens
-function drawAlien(alien) {
-    const x = Math.floor(alien.x);
-    const y = Math.floor(alien.y);
-    const flip = GameState.wingAnimFlip;
-
+// 🌀 Authentic Galaga Tractor Beam Visual FX
+function drawTractorBeamFX(tb) {
     ctx.save();
+    const topY = tb.y;
+    const botY = tb.bottomY;
+    const halfW = tb.width;
 
-    if (alien.type === 'boss') {
-        // Boss Galaga (Green crest, yellow eyes, blue wings / turns blue when hit once)
-        const isDamaged = alien.hp === 1;
-        const mainColor = isDamaged ? '#00b4d8' : '#3dff8a';
-        const wingColor = isDamaged ? '#0077b6' : '#22aa55';
+    // Volumetric gradient cone
+    const grad = ctx.createLinearGradient(tb.x, topY, tb.x, botY);
+    grad.addColorStop(0, 'rgba(0, 243, 255, 0.35)');
+    grad.addColorStop(0.5, 'rgba(61, 255, 138, 0.22)');
+    grad.addColorStop(1, 'rgba(0, 180, 216, 0.12)');
+    ctx.fillStyle = grad;
 
-        // Wings
-        ctx.fillStyle = wingColor;
-        if (flip) {
-            ctx.fillRect(x, y + 2, 3, 6);
-            ctx.fillRect(x + 9, y + 2, 3, 6);
-        } else {
-            ctx.fillRect(x + 1, y + 1, 3, 7);
-            ctx.fillRect(x + 8, y + 1, 3, 7);
-        }
+    ctx.beginPath();
+    ctx.moveTo(tb.x - 3, topY);
+    ctx.lineTo(tb.x + 3, topY);
+    ctx.lineTo(tb.x + halfW, botY);
+    ctx.lineTo(tb.x - halfW, botY);
+    ctx.closePath();
+    ctx.fill();
 
-        // Body / Crest
-        ctx.fillStyle = mainColor;
-        ctx.fillRect(x + 3, y + 1, 6, 8);
-        ctx.fillRect(x + 4, y, 4, 3);
+    // Glowing border beams
+    ctx.strokeStyle = '#00f3ff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tb.x - 3, topY);
+    ctx.lineTo(tb.x - halfW, botY);
+    ctx.moveTo(tb.x + 3, topY);
+    ctx.lineTo(tb.x + halfW, botY);
+    ctx.stroke();
 
-        // Yellow Eyes
-        ctx.fillStyle = '#ffea00';
-        ctx.fillRect(x + 4, y + 3, 1, 2);
-        ctx.fillRect(x + 7, y + 3, 1, 2);
+    // Cascading downward concentric laser rings
+    const ringSpacing = 12;
+    const scrollOffset = (performance.now() * 0.04) % ringSpacing;
+    for (let ry = topY + 6 + scrollOffset; ry < botY; ry += ringSpacing) {
+        const progress = (ry - topY) / (botY - topY);
+        const w = Math.max(4, halfW * progress);
+        ctx.beginPath();
+        ctx.ellipse(tb.x, ry, w, 2.5, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 255, 200, ${0.45 + Math.sin(ry * 0.1) * 0.3})`;
+        ctx.stroke();
+    }
 
-        // Core Horns
-        ctx.fillStyle = '#ff3344';
-        ctx.fillRect(x + 5, y + 6, 2, 3);
-
-    } else if (alien.type === 'butterfly') {
-        // Red Butterfly (Goei - Red body, yellow tips)
-        ctx.fillStyle = '#ff2244';
-        ctx.fillRect(x + 3, y + 1, 5, 7);
-
-        // Wings
-        if (flip) {
-            ctx.fillRect(x, y + 3, 3, 5);
-            ctx.fillRect(x + 8, y + 3, 3, 5);
-        } else {
-            ctx.fillRect(x + 1, y + 1, 3, 6);
-            ctx.fillRect(x + 7, y + 1, 3, 6);
-        }
-
-        // Yellow Antennae & Wingtips
-        ctx.fillStyle = '#ffea00';
-        ctx.fillRect(x + 3, y, 1, 2);
-        ctx.fillRect(x + 7, y, 1, 2);
-        ctx.fillRect(x, y + (flip ? 3 : 1), 2, 2);
-        ctx.fillRect(x + 9, y + (flip ? 3 : 1), 2, 2);
-
-        // Center Eye
+    // Upward rising quantum tractor dust particles
+    const particleTime = performance.now() * 0.05;
+    for (let i = 0; i < 6; i++) {
+        const py = botY - ((particleTime + i * 22) % (botY - topY));
+        const progress = (py - topY) / (botY - topY);
+        const px = tb.x + Math.sin(py * 0.2 + i) * (halfW * progress * 0.6);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(x + 5, y + 3, 1, 2);
-
-    } else if (alien.type === 'bee') {
-        // Blue Bee (Zako - Electric blue, yellow abdomen)
-        ctx.fillStyle = '#00d2ff';
-        if (flip) {
-            ctx.fillRect(x, y + 2, 3, 5);
-            ctx.fillRect(x + 7, y + 2, 3, 5);
-        } else {
-            ctx.fillRect(x + 1, y, 3, 6);
-            ctx.fillRect(x + 6, y, 3, 6);
-        }
-
-        // Yellow Center Body & Eyes
-        ctx.fillStyle = '#ffb703';
-        ctx.fillRect(x + 3, y + 1, 4, 6);
-        ctx.fillStyle = '#ff3344';
-        ctx.fillRect(x + 4, y + 7, 2, 2); // stinger
-
-        // White Eyes
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(x + 3, y + 2, 1, 2);
-        ctx.fillRect(x + 6, y + 2, 1, 2);
+        ctx.fillRect(Math.floor(px), Math.floor(py), 1.5, 1.5);
     }
 
     ctx.restore();
+}
+
+// 🚀 Pixel Art Drawing: Iconic Galaga Fighter Ship (15x13)
+function drawPlayerShip(x, y) {
+    const cx = Math.floor(x + 7.5);
+    const cy = Math.floor(y + 6.5);
+
+    // Blinking if invulnerable
+    if (GameState.player.invulnerableTimer > 0) {
+        if (Math.floor(GameState.player.invulnerableTimer * 12) % 2 === 0) return;
+    }
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Banking rotation when dodging left/right
+    ctx.rotate(GameState.player.bankAngle || 0);
+
+    // Trailing Engine Thruster Flames (animated & responsive)
+    const flameFlicker = Math.sin(performance.now() * 0.04) * 1.5;
+    const isAccelerating = Math.abs(GameState.player.dx) > 10;
+    const flameLen = isAccelerating ? (4 + flameFlicker) : (2.5 + flameFlicker * 0.6);
+
+    // Left Thruster Flame (at x: -3)
+    ctx.fillStyle = '#ff3300';
+    ctx.fillRect(-3, 6, 2, flameLen + 1);
+    ctx.fillStyle = '#ffea00';
+    ctx.fillRect(-3, 6, 2, flameLen - 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-2, 6, 1, 2);
+
+    // Right Thruster Flame (at x: 2)
+    ctx.fillStyle = '#ff3300';
+    ctx.fillRect(2, 6, 2, flameLen + 1);
+    ctx.fillStyle = '#ffea00';
+    ctx.fillRect(2, 6, 2, flameLen - 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(2, 6, 1, 2);
+
+    // Outer Blue Stabilizer Wings
+    ctx.fillStyle = '#0055d4';
+    ctx.fillRect(-7, 0, 2, 6);
+    ctx.fillRect(5, 0, 2, 6);
+    ctx.fillStyle = '#0033aa';
+    ctx.fillRect(-6, 2, 2, 4);
+    ctx.fillRect(4, 2, 2, 4);
+
+    // Wingtip Missile Tips (Red Needles)
+    ctx.fillStyle = '#ff2a4b';
+    ctx.fillRect(-6, -2, 1, 3);
+    ctx.fillRect(5, -2, 1, 3);
+
+    // Main White Hull & Swept Wings
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-4, 0, 8, 6);
+    ctx.fillRect(-2, -4, 4, 5);
+    ctx.fillRect(-1, -6, 2, 3);
+
+    // Hull Shading
+    ctx.fillStyle = '#b0c4de';
+    ctx.fillRect(-4, 4, 8, 2);
+
+    // Crimson Fuselage Stripes
+    ctx.fillStyle = '#e63946';
+    ctx.fillRect(-3, 1, 1, 4);
+    ctx.fillRect(2, 1, 1, 4);
+    ctx.fillRect(-1, -6, 2, 1); // nose tip red
+
+    // Cockpit Canopy (Glass with Cyan Reflection)
+    ctx.fillStyle = '#00f5d4';
+    ctx.fillRect(-1, -3, 2, 3);
+    ctx.fillStyle = '#0077b6';
+    ctx.fillRect(0, -2, 1, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-1, -3, 1, 1); // glint
+
+    // Muzzle Flash Effect (Twin wing cannons)
+    if (GameState.player.muzzleFlashTimer > 0) {
+        ctx.fillStyle = '#ffff00';
+        ctx.fillRect(-7, -4, 3, 3);
+        ctx.fillRect(4, -4, 3, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-6, -3, 1, 1);
+        ctx.fillRect(5, -3, 1, 1);
+    }
+
+    ctx.restore();
+
+    // Invulnerability Electric Forcefield Ring
+    if (GameState.player.invulnerableTimer > 0) {
+        const pulse = 0.5 + Math.sin(performance.now() * 0.02) * 0.3;
+        const radiusX = 11;
+        const radiusY = 10;
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, radiusX, radiusY, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 243, 255, ${pulse})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 3 Orbiting shield spark nodes
+        const angleRot = performance.now() * 0.006;
+        for (let i = 0; i < 3; i++) {
+            const a = angleRot + (i * Math.PI * 2 / 3);
+            const sx = cx + Math.cos(a) * radiusX;
+            const sy = cy + Math.sin(a) * radiusY;
+            ctx.fillStyle = '#ffea00';
+            ctx.fillRect(Math.floor(sx - 0.5), Math.floor(sy - 0.5), 2, 2);
+        }
+        ctx.restore();
+    }
+}
+
+// 👾 Pixel Art Drawing: Galaga Swarm Aliens with 360° Dynamic Rotation
+function drawAlien(alien) {
+    const cx = Math.floor(alien.x + alien.width / 2);
+    const cy = Math.floor(alien.y + alien.height / 2);
+    const frame = GameState.animFrame || 0;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Apply 360-degree rotation when diving, looping or returning
+    if (alien.state === 'diving' || alien.state === 'entering' || alien.state === 'returning') {
+        ctx.rotate(alien.angle || 0);
+    }
+
+    if (alien.type === 'boss') {
+        drawBossGalagaSprite(frame, alien.hp, alien.state === 'beaming');
+    } else if (alien.type === 'butterfly') {
+        drawButterflySprite(frame);
+    } else if (alien.type === 'bee') {
+        drawBeeSprite(frame);
+    }
+
+    ctx.restore();
+}
+
+// 👑 Boss Galaga (Commander) - 14x12 matrix
+function drawBossGalagaSprite(frame, hp, isBeaming) {
+    const isDamaged = hp === 1;
+    const cPrimary = isDamaged ? '#00d2ff' : '#22c55e';
+    const cDark = isDamaged ? '#0077b6' : '#15803d';
+    const cAccent = isDamaged ? '#ffea00' : '#ffd166';
+    const cCore = isDamaged ? '#ff3344' : '#ef4444';
+
+    // 4-phase wing flapping cycle
+    if (frame === 0) {
+        ctx.fillStyle = cPrimary;
+        ctx.fillRect(-6, -1, 3, 6);
+        ctx.fillRect(3, -1, 3, 6);
+    } else if (frame === 1) {
+        ctx.fillStyle = cPrimary;
+        ctx.fillRect(-7, -2, 4, 7);
+        ctx.fillRect(3, -2, 4, 7);
+    } else if (frame === 2) {
+        ctx.fillStyle = cPrimary;
+        ctx.fillRect(-7, -3, 3, 8);
+        ctx.fillRect(4, -3, 3, 8);
+        ctx.fillStyle = cAccent;
+        ctx.fillRect(-7, 3, 2, 2);
+        ctx.fillRect(5, 3, 2, 2);
+    } else {
+        ctx.fillStyle = cPrimary;
+        ctx.fillRect(-6, -2, 3, 7);
+        ctx.fillRect(3, -2, 3, 7);
+    }
+
+    // Head plate & Curved pincers
+    ctx.fillStyle = cPrimary;
+    ctx.fillRect(-2, -5, 4, 3);
+    ctx.fillRect(-4, -6, 2, 3);
+    ctx.fillRect(2, -6, 2, 3);
+
+    // Pincer Tips
+    ctx.fillStyle = cAccent;
+    ctx.fillRect(-4, -7, 1, 2);
+    ctx.fillRect(3, -7, 1, 2);
+
+    // Multifaceted Compound Eyes
+    ctx.fillStyle = '#ffea00';
+    ctx.fillRect(-3, -3, 2, 2);
+    ctx.fillRect(1, -3, 2, 2);
+    ctx.fillStyle = '#ff0055';
+    ctx.fillRect(-2, -3, 1, 1);
+    ctx.fillRect(1, -3, 1, 1);
+
+    // Carapace & Abdomen
+    ctx.fillStyle = cPrimary;
+    ctx.fillRect(-3, -2, 6, 6);
+    ctx.fillStyle = cDark;
+    ctx.fillRect(-2, 1, 4, 1);
+    ctx.fillRect(-1, 3, 2, 1);
+
+    // Central Pulsing Energy Core
+    ctx.fillStyle = cCore;
+    ctx.fillRect(-1, -1, 2, 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, -1, 1, 1);
+
+    // Damaged Electric Sparks
+    if (isDamaged && Math.random() < 0.6) {
+        ctx.fillStyle = '#00ffff';
+        ctx.fillRect(Math.floor((Math.random() - 0.5) * 12), Math.floor((Math.random() - 0.5) * 10), 1, 1);
+    }
+
+    // Tractor Beam Emitter Glow
+    if (isBeaming) {
+        ctx.fillStyle = '#00f3ff';
+        ctx.fillRect(-3, 4, 6, 2);
+    }
+}
+
+// 🦋 Butterfly (Goei - Red Swarm) - 12x10 matrix
+function drawButterflySprite(frame) {
+    const cRed = '#ff2a4b';
+    const cDarkRed = '#991b1b';
+    const cGold = '#ffea00';
+
+    // Head & Antennae
+    ctx.fillStyle = cRed;
+    ctx.fillRect(-2, -4, 4, 2);
+    ctx.fillStyle = cGold;
+    ctx.fillRect(-3, -5, 1, 2);
+    ctx.fillRect(-4, -6, 1, 1);
+    ctx.fillRect(2, -5, 1, 2);
+    ctx.fillRect(3, -6, 1, 1);
+
+    // Center Sensory Eye
+    ctx.fillStyle = '#00f5d4';
+    ctx.fillRect(-1, -3, 2, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, -3, 1, 1);
+
+    // Abdomen
+    ctx.fillStyle = cRed;
+    ctx.fillRect(-2, -1, 4, 5);
+    ctx.fillStyle = cGold;
+    ctx.fillRect(-1, 0, 2, 1);
+    ctx.fillRect(-1, 2, 2, 1);
+
+    // 4-phase wing flapping cycle
+    if (frame === 0) {
+        ctx.fillStyle = cRed;
+        ctx.fillRect(-5, -2, 3, 5);
+        ctx.fillRect(2, -2, 3, 5);
+        ctx.fillStyle = cGold;
+        ctx.fillRect(-6, 0, 1, 2);
+        ctx.fillRect(5, 0, 1, 2);
+    } else if (frame === 1) {
+        ctx.fillStyle = cRed;
+        ctx.fillRect(-6, -3, 4, 6);
+        ctx.fillRect(2, -3, 4, 6);
+        ctx.fillStyle = cGold;
+        ctx.fillRect(-6, -4, 2, 2);
+        ctx.fillRect(4, -4, 2, 2);
+    } else if (frame === 2) {
+        ctx.fillStyle = cRed;
+        ctx.fillRect(-6, -4, 4, 7);
+        ctx.fillRect(2, -4, 4, 7);
+        ctx.fillStyle = cGold;
+        ctx.fillRect(-6, -4, 2, 2);
+        ctx.fillRect(4, -4, 2, 2);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(-6, 1, 1, 2);
+        ctx.fillRect(5, 1, 1, 2);
+    } else {
+        ctx.fillStyle = cRed;
+        ctx.fillRect(-5, -3, 3, 6);
+        ctx.fillRect(2, -3, 3, 6);
+        ctx.fillStyle = cGold;
+        ctx.fillRect(-5, -1, 1, 2);
+        ctx.fillRect(4, -1, 1, 2);
+    }
+}
+
+// 🐝 Bee (Zako - Blue Swarm) - 11x10 matrix
+function drawBeeSprite(frame) {
+    // Eyes & Head
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-2, -4, 1, 2);
+    ctx.fillRect(1, -4, 1, 2);
+    ctx.fillStyle = '#ffea00';
+    ctx.fillRect(-3, -5, 1, 1);
+    ctx.fillRect(2, -5, 1, 1);
+
+    // Thorax & Stinger
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(-2, -2, 4, 4);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(-2, -1, 4, 1);
+    ctx.fillRect(-1, 1, 2, 1);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-1, 3, 2, 2); // stinger
+
+    // 4-phase flutter
+    if (frame === 0) {
+        ctx.fillStyle = '#00d2ff';
+        ctx.fillRect(-5, -3, 3, 5);
+        ctx.fillRect(2, -3, 3, 5);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(-5, -1, 1, 2);
+        ctx.fillRect(4, -1, 1, 2);
+    } else if (frame === 1) {
+        ctx.fillStyle = '#00b4d8';
+        ctx.fillRect(-5, -4, 3, 6);
+        ctx.fillRect(2, -4, 3, 6);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(-5, -4, 2, 1);
+        ctx.fillRect(3, -4, 2, 1);
+    } else if (frame === 2) {
+        ctx.fillStyle = '#0077b6';
+        ctx.fillRect(-5, -3, 3, 7);
+        ctx.fillRect(2, -3, 3, 7);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(-5, 2, 1, 2);
+        ctx.fillRect(4, 2, 1, 2);
+    } else {
+        ctx.fillStyle = '#00d2ff';
+        ctx.fillRect(-4, -2, 2, 5);
+        ctx.fillRect(2, -2, 2, 5);
+    }
 }
 
 // ==========================================
@@ -1665,7 +2086,7 @@ window.addEventListener('message', (e) => {
 // ==========================================
 // 🚀 Initialization
 // ==========================================
-GameState.stars = initStarfield(55);
+GameState.stars = initStarfield(75);
 loadRanking();
 updateUI();
 updateQrCode();
