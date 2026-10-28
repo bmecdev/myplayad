@@ -623,9 +623,14 @@ function handleJoystickInput(input) {
         return;
     }
 
-    if (input.x !== undefined) {
-        // Trackpad gives x between -1 and 1
-        // Apply responsive curve with good precision
+    if (input.pos !== undefined) {
+        // Deslizador táctil horizontal directo (0.0 a 1.0)
+        const targetX = input.pos * (CANVAS_WIDTH - PADDLE_WIDTH);
+        GameState.paddle.targetX = Math.max(0, Math.min(CANVAS_WIDTH - PADDLE_WIDTH, targetX));
+        GameState.paddle.dx = 0;
+    } else if (input.x !== undefined) {
+        // Fallback por velocidad
+        GameState.paddle.targetX = undefined;
         const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.1);
         GameState.paddle.dx = expX * GameState.paddle.speed;
     }
@@ -655,6 +660,8 @@ function resetGame() {
     GameState.running = true;
     GameState.ball.speed = 150;
     GameState.paddle.x = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    GameState.paddle.targetX = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    GameState.paddle.dx = 0;
     initBricks();
     resetBall();
     updateUI();
@@ -666,7 +673,17 @@ function update(dt) {
     if (!GameState.running || GameState.paused || GameState.gameOver) return;
 
     // Move paddle
-    GameState.paddle.x += GameState.paddle.dx * dt;
+    if (GameState.paddle.targetX !== undefined) {
+        const diff = GameState.paddle.targetX - GameState.paddle.x;
+        if (Math.abs(diff) < 0.2) {
+            GameState.paddle.x = GameState.paddle.targetX;
+        } else {
+            // Lerp ultra reactivo para seguimiento inmediato y suave a 60fps
+            GameState.paddle.x += diff * Math.min(1, 45 * dt);
+        }
+    } else {
+        GameState.paddle.x += GameState.paddle.dx * dt;
+    }
     if (GameState.paddle.x < 0) GameState.paddle.x = 0;
     if (GameState.paddle.x + PADDLE_WIDTH > CANVAS_WIDTH) GameState.paddle.x = CANVAS_WIDTH - PADDLE_WIDTH;
 
@@ -1104,8 +1121,14 @@ window.addEventListener('message', (event) => {
 // Controles de teclado para pruebas en navegador
 window.addEventListener('keydown', (e) => {
     audio.init();
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') GameState.paddle.dx = -GameState.paddle.speed;
-    if (e.code === 'ArrowRight' || e.code === 'KeyD') GameState.paddle.dx = GameState.paddle.speed;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        GameState.paddle.targetX = undefined;
+        GameState.paddle.dx = -GameState.paddle.speed;
+    }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        GameState.paddle.targetX = undefined;
+        GameState.paddle.dx = GameState.paddle.speed;
+    }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter') {
         if (!GameState.running || GameState.gameOver) resetGame();
         else handleJoystickInput({ fire: true });

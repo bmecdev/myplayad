@@ -317,6 +317,8 @@ async function startWebRTC() {
         container.style.display = 'flex';
         thanksScreen.style.display = 'none';
         dataChannel.send(JSON.stringify({ type: 'nickname', value: nickname }));
+        updateTrackpadDimensions();
+        dataChannel.send(JSON.stringify({ pos: currentSliderPos }));
     };
 
     dataChannel.onmessage = (event) => {
@@ -408,18 +410,27 @@ const trackpadTrack = trackpadContainer.querySelector('.trackpad-track');
 
 let trackpadRect = null;
 let activePointers = new Map(); // Mapear pointerID -> { type, data }
-let currentMovement = { x: 0, y: 0 };
+let currentSliderPos = 0.5; // Posición normalizada de la paleta (0.0 a 1.0)
 let fireActive = false;
 
 function updateTrackpadDimensions() {
     trackpadRect = trackpadContainer.getBoundingClientRect();
+    updateIndicatorVisual();
 }
 
-function sendMovementData() {
+function updateIndicatorVisual() {
+    if (!trackpadRect || trackpadRect.width === 0) return;
+    const margin = 24;
+    const usableWidth = Math.max(1, trackpadRect.width - margin * 2);
+    const leftPx = margin + currentSliderPos * usableWidth;
+    trackpadIndicator.style.left = `${leftPx}px`;
+}
+
+function sendMovementData(force = false) {
     const now = Date.now();
-    if (now - lastSendTime > SEND_INTERVAL) {
+    if (force || now - lastSendTime > SEND_INTERVAL) {
         if (dataChannel && dataChannel.readyState === 'open') {
-            dataChannel.send(JSON.stringify({ x: currentMovement.x, y: currentMovement.y }));
+            dataChannel.send(JSON.stringify({ pos: currentSliderPos }));
             lastSendTime = now;
         }
     }
@@ -428,41 +439,27 @@ function sendMovementData() {
 window.addEventListener('resize', updateTrackpadDimensions);
 setTimeout(updateTrackpadDimensions, 100);
 
-// EVENTOS DEL TRACKPAD
+// EVENTOS DEL DESLIZADOR TÁCTIL (SLIDER HORIZONTAL)
 function handleTrackpadPointer(e) {
     if (!activePointers.has(e.pointerId)) return;
     if (!trackpadRect || trackpadRect.width === 0) updateTrackpadDimensions();
     if (!trackpadRect || trackpadRect.width === 0) return;
 
-    // Calcular la posición del dedo dentro del trackpad
     const touchX = e.clientX - trackpadRect.left;
-    const trackpadWidth = trackpadRect.width;
+    const margin = 24;
+    const usableWidth = Math.max(1, trackpadRect.width - margin * 2);
     
-    // Normalizar a rango de 0 a 1
-    let normalizedPosition = touchX / trackpadWidth;
-    normalizedPosition = Math.max(0, Math.min(1, normalizedPosition));
-    
-    // Convertir a rango de -1 a 1
-    let normalizedX = (normalizedPosition - 0.5) * 2;
-    
-    // Zona muerta reducida para máxima respuesta
-    const deadZone = 0.04;
-    if (Math.abs(normalizedX) < deadZone) {
-        normalizedX = 0;
-    }
-    
-    // Actualizar movimiento actual
-    currentMovement.x = normalizedX;
-    
-    // Actualizar posición visual del indicador
-    const indicatorPercentage = normalizedPosition * 100;
-    trackpadIndicator.style.left = indicatorPercentage + '%';
-    
-    // Efecto visual de intensidad
-    const intensity = Math.abs(normalizedX);
-    trackpadIndicator.style.boxShadow = `0 6px ${16 + intensity * 8}px rgba(76, 175, 80, ${0.5 + intensity * 0.3})`;
+    // Normalizar a rango exacto de 0.0 (extremo izquierdo) a 1.0 (extremo derecho)
+    let normalized = (touchX - margin) / usableWidth;
+    normalized = Math.max(0, Math.min(1, normalized));
 
-    // Enviar datos continuamente
+    currentSliderPos = normalized;
+    updateIndicatorVisual();
+    
+    // Efecto visual activo de brillo al deslizar
+    trackpadIndicator.style.boxShadow = '0 6px 20px rgba(61, 255, 138, 0.75)';
+
+    // Enviar posición absoluta al juego en tiempo real
     sendMovementData();
 }
 
@@ -480,24 +477,21 @@ trackpadContainer.addEventListener('pointermove', (e) => {
 
 trackpadContainer.addEventListener('pointerup', (e) => {
     if (!activePointers.has(e.pointerId)) return;
-    
     activePointers.delete(e.pointerId);
     
-    // Si no hay más pointers en el trackpad, detener movimiento
+    // Al soltar el dedo, la paleta y el indicador se quedan exactamente donde se dejaron
     if (activePointers.size === 0) {
-        currentMovement.x = 0;
-        currentMovement.y = 0;
-        trackpadIndicator.style.left = '50%';
-        trackpadIndicator.style.boxShadow = '0 6px 16px rgba(76, 175, 80, 0.5)';
-        
-        if (dataChannel && dataChannel.readyState === 'open') {
-            dataChannel.send(JSON.stringify({ x: 0, y: 0 }));
-        }
+        trackpadIndicator.style.boxShadow = '0 6px 16px rgba(61, 255, 138, 0.3)';
+        sendMovementData(true);
     }
 });
 
 trackpadContainer.addEventListener('pointercancel', (e) => {
     activePointers.delete(e.pointerId);
+    if (activePointers.size === 0) {
+        trackpadIndicator.style.boxShadow = '0 6px 16px rgba(61, 255, 138, 0.3)';
+        sendMovementData(true);
+    }
 });
 
 // EVENTOS DEL BOTÓN DE FUEGO (INDEPENDIENTES)
