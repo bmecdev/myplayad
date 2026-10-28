@@ -494,20 +494,20 @@ class Duck {
         this.x = 70 + Math.random() * (CANVAS_WIDTH - 140);
         this.y = GROUND_Y - 14;
         
-        // Velocidad y agilidad según la ronda y el tipo
-        const baseSpeed = 110 + (round * 14);
-        const speedMultiplier = this.type === 'red' ? 1.45 : (this.type === 'blue' ? 1.25 : 1.0);
+        // Velocidad y agilidad según la ronda y el tipo (calibrada para vuelo suave y medido)
+        const baseSpeed = 75 + (round * 10);
+        const speedMultiplier = this.type === 'red' ? 1.30 : (this.type === 'blue' ? 1.15 : 1.0);
         this.speed = baseSpeed * speedMultiplier;
         
         // Ángulo de despegue hacia arriba
-        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.1;
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.0;
         this.vx = Math.cos(angle) * this.speed;
         this.vy = Math.sin(angle) * this.speed;
 
         this.state = 'flying'; // 'flying', 'fly_away', 'hit', 'falling', 'dead'
         this.frame = 0;
         this.animTimer = 0;
-        this.flightTimer = (6.6 + Math.min(3.2, slot * 0.5)) - Math.min(2.0, round * 0.2); // Tiempo antes de escapar
+        this.flightTimer = (7.5 + Math.min(3.0, slot * 0.5)) - Math.min(2.0, round * 0.25); // Tiempo antes de escapar
         this.hitTimer = 0;
         this.wasHit = false;
         this.points = this.type === 'red' ? 1500 : (this.type === 'blue' ? 1000 : 500);
@@ -530,13 +530,13 @@ class Duck {
 
         if (this.state === 'flying') {
             this.animTimer += dt;
-            if (this.animTimer > 0.08) {
+            if (this.animTimer > 0.10) {
                 this.animTimer = 0;
                 this.frame = (this.frame + 1) % 4;
             }
 
             this.flapTimer += dt;
-            if (this.flapTimer > 0.20) {
+            if (this.flapTimer > 0.24) {
                 this.flapTimer = 0;
                 audio.playFlap();
             }
@@ -561,17 +561,20 @@ class Duck {
                 this.vy = -Math.abs(this.vy);
             }
 
-            // Cambios de dirección aleatorios
-            if (Math.random() < 0.038) {
-                this.vx = (Math.random() > 0.5 ? 1 : -1) * (this.speed * (0.6 + Math.random() * 0.6));
-                this.vy = (Math.random() > 0.5 ? 1 : -1) * (this.speed * (0.6 + Math.random() * 0.6));
+            // Cambios de dirección aleatorios más fluidos y con velocidad uniforme
+            if (Math.random() < 0.02) {
+                const newAngle = (Math.random() * 0.6 + 0.2) * Math.PI;
+                const dirX = Math.random() > 0.5 ? 1 : -1;
+                const dirY = Math.random() > 0.5 ? 1 : -1;
+                this.vx = dirX * Math.cos(newAngle) * this.speed;
+                this.vy = dirY * Math.sin(newAngle) * this.speed;
             }
 
             this.flightTimer -= dt;
             if (this.flightTimer <= 0) {
                 this.state = 'fly_away';
                 this.vx = 0;
-                this.vy = -this.speed * 1.4;
+                this.vy = -this.speed * 1.35;
                 GameState.targetSkyColor = '#ff8ea3';
             }
 
