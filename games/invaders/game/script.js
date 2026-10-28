@@ -231,6 +231,27 @@ class InvadersAudio {
         });
         broadcastSFX('gameover');
     }
+
+    playUfoSiren() {
+        if (!this.ctx) return;
+        this.resume();
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(420, t);
+            osc.frequency.linearRampToValueAtTime(560, t + 0.12);
+            osc.frequency.linearRampToValueAtTime(420, t + 0.24);
+            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.linearRampToValueAtTime(0.0001, t + 0.25);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.25);
+        } catch (e) {}
+        broadcastSFX('ufo');
+    }
 }
 const audio = new InvadersAudio();
 
@@ -282,9 +303,102 @@ const SHIELD_PATTERN = [
     '##    ##'
 ];
 const ALIEN_TYPES = [
-    { points: 30, color: '#8fd900' },
-    { points: 20, color: '#c1ff5a' },
-    { points: 10, color: '#79c01b' }
+    {
+        name: 'squid',
+        points: 30,
+        color: '#ff2a85',
+        glow: '#ff70c0',
+        eye: '#00f5d4',
+        shadow: '#99004d'
+    },
+    {
+        name: 'crab',
+        points: 20,
+        color: '#00f0ff',
+        glow: '#a6f6ff',
+        eye: '#ffe600',
+        shadow: '#0077b6'
+    },
+    {
+        name: 'octopus',
+        points: 10,
+        color: '#3dff8a',
+        glow: '#aaffcc',
+        eye: '#ff3366',
+        shadow: '#166534'
+    }
+];
+
+const ALIEN_SPRITES = [
+    // Type 0: Squid (30 pts, 12x8)
+    {
+        frame0: [
+            '  ^^####^^  ',
+            ' ########## ',
+            '############',
+            '##**####**##',
+            '############',
+            '   ##  ##   ',
+            '  ##    ##  ',
+            ' ##      ## '
+        ],
+        frame1: [
+            '  ^^####^^  ',
+            ' ########## ',
+            '############',
+            '##**####**##',
+            '############',
+            '  ########  ',
+            '   ##  ##   ',
+            '  ##    ##  '
+        ]
+    },
+    // Type 1: Crab (20 pts, 12x8)
+    {
+        frame0: [
+            '#          #',
+            ' #   ^^   # ',
+            '  ########  ',
+            '###**##**###',
+            '############',
+            ' ########## ',
+            ' #   ##   # ',
+            '#    ##    #'
+        ],
+        frame1: [
+            '#          #',
+            '#  # ^^ #  #',
+            '# ######## #',
+            '###**##**###',
+            '############',
+            '  ########  ',
+            '   #    #   ',
+            '  #      #  '
+        ]
+    },
+    // Type 2: Octopus (10 pts, 12x8)
+    {
+        frame0: [
+            '    ####    ',
+            '  ^^####^^  ',
+            ' ########## ',
+            '##**####**##',
+            '############',
+            '  ###  ###  ',
+            ' ##  ##  ## ',
+            '#    ##    #'
+        ],
+        frame1: [
+            '    ####    ',
+            '  ^^####^^  ',
+            ' ########## ',
+            '##**####**##',
+            '############',
+            '  ###  ###  ',
+            '   ######   ',
+            '  ##    ##  '
+        ]
+    }
 ];
 
 const GameState = {
@@ -307,6 +421,8 @@ const GameState = {
     shields: [],
     explosions: [],
     stars: [],
+    ufo: null,
+    ufoTimer: 18,
     statusMessage: 'Listo para el ataque. Usa el control para mover y disparar.',
     statusTimer: 0,
     alienDirection: 1,
@@ -756,13 +872,17 @@ function handleJoystickInput(input) {
     }
 }
 
-function createStars(total) {
-    return Array.from({ length: total }, (_, index) => ({
-        x: Math.random() * CANVAS_WIDTH,
-        y: Math.random() * CANVAS_HEIGHT,
-        blink: 40 + (index % 5) * 8 + Math.floor(Math.random() * 18),
-        offset: Math.floor(Math.random() * 60)
-    }));
+function createStars(total = 80) {
+    return Array.from({ length: total }, (_, index) => {
+        const layer = index < 45 ? 0 : index < 70 ? 1 : 2;
+        return {
+            x: Math.random() * (CANVAS_WIDTH - 8) + 4,
+            y: Math.random() * (CANVAS_HEIGHT - 16) + 4,
+            layer,
+            blink: 36 + (index % 5) * 8 + Math.floor(Math.random() * 20),
+            offset: Math.floor(Math.random() * 80)
+        };
+    });
 }
 
 function createPlayer() {
@@ -825,6 +945,8 @@ function resetRoundPositions() {
     GameState.explosions = [];
     GameState.invulnerableTimer = 1.6;
     GameState.fireRequested = false;
+    GameState.ufo = null;
+    GameState.ufoTimer = 16 + Math.random() * 10;
 }
 
 function resetGame() {
@@ -836,6 +958,8 @@ function resetGame() {
     GameState.lives = 5;
     GameState.frameFlip = false;
     GameState.fireCooldown = 0;
+    GameState.ufo = null;
+    GameState.ufoTimer = 18;
     resetRoundPositions();
     GameState.shields = createShields();
     createWave(GameState.wave);
@@ -848,8 +972,104 @@ function updateHud() {
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
 }
 
-function addExplosion(x, y, life = 16) {
-    GameState.explosions.push({ x, y, life });
+function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
+    if (typeOrLife === 8 || typeOrLife === 'spark' || typeOrLife === 'shield') {
+        const sparkColor = color || (typeOrLife === 'shield' ? '#3dff8a' : '#ffe600');
+        for (let i = 0; i < 5; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = 15 + Math.random() * 25;
+            GameState.explosions.push({
+                type: 'particle',
+                x, y,
+                vx: Math.cos(angle) * spd,
+                vy: Math.sin(angle) * spd,
+                color: sparkColor,
+                size: 1,
+                life: 0.22,
+                maxLife: 0.22
+            });
+        }
+        return;
+    }
+
+    if (typeOrLife === 18 || typeOrLife === 'player') {
+        const colors = ['#ffffff', '#ffb703', '#ff0055', '#00f5d4', '#ffe600'];
+        for (let i = 0; i < 24; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = 25 + Math.random() * 65;
+            GameState.explosions.push({
+                type: 'particle',
+                x, y,
+                vx: Math.cos(angle) * spd,
+                vy: Math.sin(angle) * spd,
+                color: colors[i % colors.length],
+                size: Math.random() > 0.5 ? 2 : 1,
+                life: 0.55 + Math.random() * 0.2,
+                maxLife: 0.75
+            });
+        }
+        return;
+    }
+
+    if (typeOrLife === 'ufo') {
+        const ufoColors = ['#ff0055', '#ffe600', '#ffffff', '#ff85a2'];
+        for (let i = 0; i < 18; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = 20 + Math.random() * 50;
+            GameState.explosions.push({
+                type: 'particle',
+                x, y,
+                vx: Math.cos(angle) * spd,
+                vy: Math.sin(angle) * spd,
+                color: ufoColors[i % ufoColors.length],
+                size: 2,
+                life: 0.45 + Math.random() * 0.25,
+                maxLife: 0.7
+            });
+        }
+        if (points) {
+            GameState.explosions.push({
+                type: 'score',
+                x,
+                y: y - 2,
+                text: `+${points}`,
+                color: '#ffe600',
+                life: 0.9,
+                maxLife: 0.9
+            });
+        }
+        return;
+    }
+
+    // Default Alien Explosion
+    const pColor = color || '#3dff8a';
+    const debrisColors = ['#ffffff', pColor, '#ffe600', pColor];
+    for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        const spd = 18 + Math.random() * 38;
+        GameState.explosions.push({
+            type: 'particle',
+            x, y,
+            vx: Math.cos(angle) * spd,
+            vy: Math.sin(angle) * spd,
+            color: debrisColors[i % debrisColors.length],
+            size: i % 3 === 0 ? 2 : 1,
+            life: 0.32 + Math.random() * 0.18,
+            maxLife: 0.5
+        });
+    }
+
+    if (points) {
+        GameState.explosions.push({
+            type: 'score',
+            x,
+            y: y - 2,
+            text: `+${points}`,
+            color: '#ffe600',
+            life: 0.7,
+            maxLife: 0.7
+        });
+    }
 }
 
 function setStatus(message, duration = 160) {
@@ -1003,6 +1223,7 @@ function damageShieldAt(x, y, width = 1, height = 1) {
             if (intersects) {
                 shield.cells.delete(cellKey);
                 audio.playShieldHit();
+                addExplosion(cellX + 2, cellY + 2, 'shield');
                 return true;
             }
         }
@@ -1085,9 +1306,26 @@ function resolveCollisions() {
                 audio.playAlienExplosion();
                 const alienType = ALIEN_TYPES[alien.typeIndex];
                 GameState.score += alienType.points;
-                addExplosion(alien.x + ALIEN_WIDTH / 2, alien.y + ALIEN_HEIGHT / 2);
+                addExplosion(alien.x + ALIEN_WIDTH / 2, alien.y + ALIEN_HEIGHT / 2, 'alien', alienType.points, alienType.color);
                 updateHud();
                 break;
+            }
+        }
+
+        if (!consumed && GameState.ufo) {
+            const u = GameState.ufo;
+            const hitUfo = bullet.x + bullet.width >= u.x &&
+                           bullet.x <= u.x + u.width &&
+                           bullet.y <= u.y + u.height &&
+                           bullet.y + bullet.height >= u.y;
+            if (hitUfo) {
+                consumed = true;
+                GameState.score += u.points;
+                audio.playAlienExplosion();
+                addExplosion(u.x + u.width / 2, u.y + u.height / 2, 'ufo', u.points);
+                GameState.ufo = null;
+                GameState.ufoTimer = 24 + Math.random() * 12;
+                updateHud();
             }
         }
 
@@ -1138,8 +1376,98 @@ function resolveCollisions() {
 
 function updateExplosions(dt) {
     GameState.explosions = GameState.explosions
-        .map((explosion) => ({ ...explosion, life: explosion.life - dt * 60 }))
-        .filter((explosion) => explosion.life > 0);
+        .map((exp) => {
+            if (exp.type === 'particle') {
+                return {
+                    ...exp,
+                    x: exp.x + exp.vx * dt,
+                    y: exp.y + exp.vy * dt,
+                    life: exp.life - dt
+                };
+            } else if (exp.type === 'score') {
+                return {
+                    ...exp,
+                    y: exp.y - 14 * dt,
+                    life: exp.life - dt
+                };
+            } else {
+                return { ...exp, life: exp.life - dt * 60 };
+            }
+        })
+        .filter((exp) => exp.life > 0);
+}
+
+function updateUfo(dt) {
+    if (!GameState.running || GameState.paused || GameState.gameOver) return;
+
+    if (!GameState.ufo) {
+        GameState.ufoTimer -= dt;
+        if (GameState.ufoTimer <= 0) {
+            const dir = Math.random() > 0.5 ? 1 : -1;
+            const pts = [50, 100, 150, 300][Math.floor(Math.random() * 4)];
+            GameState.ufo = {
+                x: dir === 1 ? -22 : CANVAS_WIDTH + 4,
+                y: 8,
+                width: 18,
+                height: 7,
+                speed: 46 * dir,
+                points: pts,
+                sirenTimer: 0
+            };
+            audio.playUfoSiren();
+        }
+    } else {
+        const ufo = GameState.ufo;
+        ufo.x += ufo.speed * dt;
+
+        ufo.sirenTimer += dt;
+        if (ufo.sirenTimer >= 0.35) {
+            ufo.sirenTimer = 0;
+            audio.playUfoSiren();
+        }
+
+        if ((ufo.speed > 0 && ufo.x > CANVAS_WIDTH + 14) || (ufo.speed < 0 && ufo.x < -26)) {
+            GameState.ufo = null;
+            GameState.ufoTimer = 22 + Math.random() * 14;
+        }
+    }
+}
+
+function drawUfo() {
+    if (!GameState.ufo) return;
+    const ufo = GameState.ufo;
+    const ux = Math.round(ufo.x);
+    const uy = Math.round(ufo.y);
+
+    const ufoSprite = [
+        '      ^^^^      ',
+        '    ########    ',
+        '   #oooooooo#   ',
+        '  ############  ',
+        ' ################ ',
+        '  *    **    *  ',
+        '   #        #   '
+    ];
+
+    const strobeLight = (Math.floor(performance.now() / 120) % 2 === 0);
+    const lightColor = strobeLight ? '#00f5d4' : '#ffffff';
+
+    // Resplandor difuso bajo el OVNI
+    ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
+    ctx.fillRect(ux + 2, uy + 2, 14, 5);
+
+    for (let r = 0; r < ufoSprite.length; r++) {
+        const row = ufoSprite[r];
+        for (let c = 0; c < row.length; c++) {
+            const ch = row[c];
+            if (ch === ' ') continue;
+            if (ch === '#') ctx.fillStyle = '#ff0055';
+            else if (ch === '^') ctx.fillStyle = '#ff7597';
+            else if (ch === 'o') ctx.fillStyle = '#ffe600';
+            else if (ch === '*') ctx.fillStyle = lightColor;
+            ctx.fillRect(ux + c, uy + r, 1, 1);
+        }
+    }
 }
 
 function updateStatus(dt) {
@@ -1149,31 +1477,80 @@ function updateStatus(dt) {
 }
 
 function drawBackground() {
-    ctx.fillStyle = '#050505';
+    // 1. Fondo cósmico espacial con degradado de profundidad
+    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+    grad.addColorStop(0, '#03050c');
+    grad.addColorStop(0.55, '#050c18');
+    grad.addColorStop(1, '#071614');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    ctx.strokeStyle = NOKIA_DARK;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(4, 4, CANVAS_WIDTH - 8, CANVAS_HEIGHT - 8);
+    // 2. Borde arcade CRT sutil
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(2.5, 2.5, CANVAS_WIDTH - 5, CANVAS_HEIGHT - 5);
 
+    // 3. Campo de estrellas multi-capa con destellos y colores arcade
+    const now = performance.now();
     GameState.stars.forEach((star) => {
-        const frame = Math.floor((performance.now() / 80 + star.offset) % star.blink);
-        ctx.fillStyle = frame < 2 ? '#4a6500' : frame < 4 ? '#8fd900' : '#2b3800';
-        ctx.fillRect(star.x, star.y, 1, 1);
+        const frame = Math.floor((now / 80 + star.offset) % star.blink);
+        
+        if (star.layer === 0) {
+            ctx.fillStyle = frame < 2 ? '#24324f' : frame < 4 ? '#3b4e78' : '#182238';
+            ctx.fillRect(star.x, star.y, 1, 1);
+        } else if (star.layer === 1) {
+            if (frame < 2) ctx.fillStyle = '#48cae4';
+            else if (frame < 4) ctx.fillStyle = '#caf0f8';
+            else ctx.fillStyle = '#0077b6';
+            ctx.fillRect(star.x, star.y, 1, 1);
+        } else {
+            if (frame < 2) {
+                ctx.fillStyle = '#ffe600';
+                ctx.fillRect(star.x, star.y, 1, 1);
+            } else if (frame < 4) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(star.x - 1, star.y, 3, 1);
+                ctx.fillRect(star.x, star.y - 1, 1, 3);
+            } else {
+                ctx.fillStyle = '#ffb703';
+                ctx.fillRect(star.x, star.y, 1, 1);
+            }
+        }
     });
 
-    for (let y = 0; y < CANVAS_HEIGHT; y += 8) {
-        ctx.fillStyle = 'rgba(145, 170, 18, 0.06)';
-        ctx.fillRect(0, y, CANVAS_WIDTH, 1);
+    // 4. Línea de defensa terrestre retro arcade clásica
+    ctx.fillStyle = 'rgba(61, 255, 138, 0.85)';
+    ctx.fillRect(4, 154, CANVAS_WIDTH - 8, 1);
+    
+    // Marcas de radar
+    ctx.fillStyle = 'rgba(61, 255, 138, 0.35)';
+    for (let x = 8; x < CANVAS_WIDTH - 8; x += 12) {
+        ctx.fillRect(x, 155, 1, 2);
     }
 }
 
 function drawShields() {
-    ctx.fillStyle = '#5d8421';
     GameState.shields.forEach((shield) => {
         shield.cells.forEach((cell) => {
             const [x, y] = cell.split(',').map(Number);
+            
+            // Bloque de escudo energético esmeralda con relieve 3D
+            ctx.fillStyle = '#22c55e';
             ctx.fillRect(x, y, 4, 4);
+
+            // Bisel superior/izquierdo menta brillante
+            ctx.fillStyle = '#86efac';
+            ctx.fillRect(x, y, 4, 1);
+            ctx.fillRect(x, y, 1, 4);
+
+            // Sombra inferior/derecha verde bosque profundo
+            ctx.fillStyle = '#14532d';
+            ctx.fillRect(x, y + 3, 4, 1);
+            ctx.fillRect(x + 3, y, 1, 4);
+
+            // Micro núcleo de celda energética
+            ctx.fillStyle = '#4ade80';
+            ctx.fillRect(x + 1, y + 1, 2, 2);
         });
     });
 }
@@ -1183,53 +1560,193 @@ function drawAliens() {
         if (!alien.alive) return;
 
         const type = ALIEN_TYPES[alien.typeIndex];
+        const spriteData = ALIEN_SPRITES[alien.typeIndex];
+        const rows = GameState.frameFlip ? spriteData.frame1 : spriteData.frame0;
+
+        const ax = Math.round(alien.x + 2);
+        const ay = Math.round(alien.y + 1);
+
+        // Resplandor posterior de fósforo
         ctx.fillStyle = type.color;
-        if (GameState.frameFlip) {
-            ctx.fillRect(alien.x + 2, alien.y + 2, 12, 2);
-            ctx.fillRect(alien.x, alien.y + 4, 4, 6);
-            ctx.fillRect(alien.x + 12, alien.y + 4, 4, 6);
-            ctx.fillRect(alien.x + 4, alien.y + 10, 8, 2);
-        } else {
-            ctx.fillRect(alien.x + 2, alien.y + 2, 12, 2);
-            ctx.fillRect(alien.x + 2, alien.y + 6, 4, 4);
-            ctx.fillRect(alien.x + 10, alien.y + 6, 4, 4);
-            ctx.fillRect(alien.x + 4, alien.y + 10, 8, 2);
+        ctx.globalAlpha = 0.12;
+        ctx.fillRect(alien.x, alien.y, ALIEN_WIDTH, ALIEN_HEIGHT);
+        ctx.globalAlpha = 1.0;
+
+        // Renderizado pixel art con ojos y luces volumétricas
+        for (let r = 0; r < rows.length; r++) {
+            const rowStr = rows[r];
+            for (let c = 0; c < rowStr.length; c++) {
+                const char = rowStr[c];
+                if (char === ' ') continue;
+
+                if (char === '#') {
+                    ctx.fillStyle = type.color;
+                } else if (char === '^') {
+                    ctx.fillStyle = type.glow;
+                } else if (char === '*') {
+                    ctx.fillStyle = type.eye;
+                } else if (char === '_') {
+                    ctx.fillStyle = type.shadow;
+                }
+                ctx.fillRect(ax + c, ay + r, 1, 1);
+            }
         }
     });
 }
 
 function drawPlayer() {
-    ctx.fillStyle = '#d4ff7d';
-    ctx.fillRect(GameState.player.x + 2, GameState.player.y, GameState.player.width - 4, 4);
-    ctx.fillRect(GameState.player.x, GameState.player.y + 4, GameState.player.width, 4);
-    ctx.fillRect(GameState.player.x + 4, GameState.player.y - 4, GameState.player.width - 8, 4);
+    const p = GameState.player;
+    if (!p) return;
+    const px = Math.round(p.x);
+    const py = Math.round(p.y);
+
+    // 1. Llamas de propulsión de plasma (parpadeo animado bajo el tanque)
+    const flameFlicker = (Math.floor(performance.now() / 50) % 3);
+    const flameColor = flameFlicker === 0 ? '#00f5d4' : flameFlicker === 1 ? '#ffb703' : '#ff4d6d';
+    ctx.fillStyle = flameColor;
+    ctx.fillRect(px + 4, py + 8, 2, 2 + flameFlicker);
+    ctx.fillRect(px + 12, py + 8, 2, 2 + flameFlicker);
+
+    // 2. Cañón railgun y condensador láser
+    ctx.fillStyle = '#00f5d4';
+    ctx.fillRect(px + 8, py - 5, 2, 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(px + 8, py - 4, 2, 4);
+    ctx.fillStyle = '#7fae94';
+    ctx.fillRect(px + 7, py - 2, 1, 2);
+    ctx.fillRect(px + 10, py - 2, 1, 2);
+
+    // 3. Torreta central y cúpula
+    ctx.fillStyle = '#3dff8a';
+    ctx.fillRect(px + 6, py, 6, 2);
+    ctx.fillStyle = '#eafff2';
+    ctx.fillRect(px + 7, py, 4, 1);
+
+    // 4. Cubierta superior y visor sensor ámbar
+    ctx.fillStyle = '#1f7d49';
+    ctx.fillRect(px + 3, py + 2, 12, 2);
+    ctx.fillStyle = '#ffb703';
+    ctx.fillRect(px + 6, py + 2, 6, 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(px + 8, py + 2, 2, 1);
+
+    // 5. Chasis blindado arcade
+    ctx.fillStyle = '#3dff8a';
+    ctx.fillRect(px + 2, py + 4, 14, 2);
+    ctx.fillStyle = '#85ffb9';
+    ctx.fillRect(px + 2, py + 4, 14, 1);
+
+    // 6. Orugas del tanque con dientes metálicos
+    ctx.fillStyle = '#0d281a';
+    ctx.fillRect(px, py + 6, 18, 2);
+    ctx.fillStyle = '#3dff8a';
+    for (let tx = 0; tx < 18; tx += 3) {
+        ctx.fillRect(px + tx, py + 6, 2, 1);
+    }
+    ctx.fillStyle = '#1f7d49';
+    ctx.fillRect(px, py + 4, 2, 3);
+    ctx.fillRect(px + 16, py + 4, 2, 3);
+
+    // 7. Campo de fuerza cibernético durante invulnerabilidad
+    if (GameState.invulnerableTimer > 0) {
+        const shieldPulse = Math.sin(performance.now() / 70);
+        ctx.save();
+        ctx.strokeStyle = shieldPulse > 0 ? '#00f5d4' : 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 2]);
+        ctx.beginPath();
+        ctx.ellipse(px + 9, py + 3, 13 + shieldPulse, 9 + shieldPulse, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0, 245, 212, 0.15)';
+        ctx.fill();
+        ctx.restore();
+    }
 }
 
 function drawBullets() {
-    ctx.fillStyle = '#ffffff';
+    // Láseres del jugador (Haz de plasma cian con estela y núcleo blanco)
     GameState.bullets.forEach((bullet) => {
-        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+        const bx = Math.round(bullet.x);
+        const by = Math.round(bullet.y);
+        
+        ctx.fillStyle = 'rgba(0, 245, 212, 0.45)';
+        ctx.fillRect(bx - 1, by - 1, bullet.width + 2, bullet.height + 2);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(bx, by, bullet.width, bullet.height);
+
+        ctx.fillStyle = '#bbf7ff';
+        ctx.fillRect(bx - 1, by, bullet.width + 2, 2);
+
+        ctx.fillStyle = 'rgba(0, 245, 212, 0.6)';
+        ctx.fillRect(bx, by + bullet.height, bullet.width, 2);
+        ctx.fillStyle = 'rgba(0, 245, 212, 0.25)';
+        ctx.fillRect(bx, by + bullet.height + 2, bullet.width, 1);
     });
 
-    ctx.fillStyle = '#ff5c5c';
+    // Proyectiles alienígenas (Rayo en zigzag con núcleo incandescente)
+    const animStep = Math.floor(performance.now() / 70) % 2;
     GameState.alienBullets.forEach((bullet) => {
-        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+        const bx = Math.round(bullet.x);
+        const by = Math.round(bullet.y);
+
+        ctx.fillStyle = 'rgba(255, 0, 85, 0.35)';
+        ctx.fillRect(bx - 1, by, 4, 7);
+
+        ctx.fillStyle = '#ff0055';
+        if (animStep === 0) {
+            ctx.fillRect(bx, by, 2, 2);
+            ctx.fillRect(bx - 1, by + 2, 2, 2);
+            ctx.fillRect(bx + 1, by + 4, 2, 2);
+            ctx.fillRect(bx, by + 6, 2, 2);
+        } else {
+            ctx.fillRect(bx, by, 2, 2);
+            ctx.fillRect(bx + 1, by + 2, 2, 2);
+            ctx.fillRect(bx - 1, by + 4, 2, 2);
+            ctx.fillRect(bx, by + 6, 2, 2);
+        }
+
+        ctx.fillStyle = '#ffe600';
+        ctx.fillRect(bx, by + 2, 1, 3);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(bx, by + 6, 1, 1);
     });
 }
 
 function drawExplosions() {
-    GameState.explosions.forEach((explosion) => {
-        const alpha = Math.max(0, Math.min(1, explosion.life / 16));
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-        ctx.beginPath();
-        ctx.arc(explosion.x, explosion.y, Math.max(2, explosion.life / 3), 0, Math.PI * 2);
-        ctx.fill();
+    GameState.explosions.forEach((exp) => {
+        if (exp.type === 'particle') {
+            const alpha = Math.max(0, Math.min(1, exp.life / exp.maxLife));
+            ctx.fillStyle = exp.color;
+            ctx.globalAlpha = alpha;
+            ctx.fillRect(Math.round(exp.x), Math.round(exp.y), exp.size, exp.size);
+            ctx.globalAlpha = 1.0;
+        } else if (exp.type === 'score') {
+            const alpha = Math.max(0, Math.min(1, exp.life / exp.maxLife));
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = '8px "Press Start 2P", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#000000';
+            ctx.fillText(exp.text, Math.round(exp.x) + 1, Math.round(exp.y) + 1);
+            ctx.fillStyle = exp.color;
+            ctx.fillText(exp.text, Math.round(exp.x), Math.round(exp.y));
+            ctx.restore();
+        } else {
+            const alpha = Math.max(0, Math.min(1, exp.life / 16));
+            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+            ctx.beginPath();
+            ctx.arc(exp.x, exp.y, Math.max(2, exp.life / 3), 0, Math.PI * 2);
+            ctx.fill();
+        }
     });
 }
 
 function draw() {
     drawBackground();
     drawShields();
+    drawUfo();
     drawAliens();
     drawBullets();
     drawPlayer();
@@ -1250,6 +1767,7 @@ function update(dt) {
     handlePlayerInput(dt);
     updateBullets(dt);
     updateAliens(dt);
+    updateUfo(dt);
     resolveCollisions();
     updateExplosions(dt);
     updateStatus(dt);
@@ -1294,8 +1812,10 @@ window.addEventListener('keydown', (e) => {
     if (key === ' ') {
         GameState.fireRequested = true;
     }
-    if (key === 'enter' && GameState.gameOver) {
-        resetGame();
+    if ((key === ' ' || key === 'enter') && (!GameState.running || GameState.gameOver)) {
+        if (GameState.gameOver) {
+            resetGame();
+        }
         startGame();
     }
 });
