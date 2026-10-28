@@ -12,6 +12,11 @@ const videoRankingList = document.getElementById('video-ranking-list');
 const qrContainer = document.getElementById('qrcode');
 const iceRouteElement = document.getElementById('ice-route');
 
+// WebRTC State (Declarado al inicio para acceso global en broadcastSFX)
+const peerConnections = new Map();
+const dataChannels = new Map();
+let socket;
+
 // Retro Arcade Web Audio API Synthesizer
 class ArkanoidAudio {
     constructor() {
@@ -73,6 +78,7 @@ class ArkanoidAudio {
     }
 
     playPaddle() {
+        broadcastSFX('paddle');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -89,10 +95,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.08);
         } catch (e) {}
-        broadcastSFX('paddle');
     }
 
     playWall() {
+        broadcastSFX('wall');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -108,10 +114,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.06);
         } catch (e) {}
-        broadcastSFX('wall');
     }
 
     playBrick(row) {
+        broadcastSFX('brick', row);
         if (!this.ctx) return;
         this.resume();
         try {
@@ -130,10 +136,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.07);
         } catch (e) {}
-        broadcastSFX('brick', row);
     }
 
     playLaunch() {
+        broadcastSFX('launch');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -150,10 +156,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.12);
         } catch (e) {}
-        broadcastSFX('launch');
     }
 
     playLifeLost() {
+        broadcastSFX('lifeLost');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -170,10 +176,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.35);
         } catch (e) {}
-        broadcastSFX('lifeLost');
     }
 
     playLevelClear() {
+        broadcastSFX('levelClear');
         if (!this.ctx) return;
         this.resume();
         const notes = [523.25, 659.25, 783.99, 987.77, 1046.50];
@@ -190,10 +196,10 @@ class ArkanoidAudio {
             osc.start(t + idx * 0.08);
             osc.stop(t + idx * 0.08 + 0.13);
         });
-        broadcastSFX('levelClear');
     }
 
     playStart() {
+        broadcastSFX('start');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 554.37, 659.25, 880];
@@ -210,10 +216,10 @@ class ArkanoidAudio {
             osc.start(t + idx * 0.07);
             osc.stop(t + idx * 0.07 + 0.11);
         });
-        broadcastSFX('start');
     }
 
     playGameOver() {
+        broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 370, 311, 261];
@@ -230,7 +236,6 @@ class ArkanoidAudio {
             osc.start(t + idx * 0.14);
             osc.stop(t + idx * 0.14 + 0.2);
         });
-        broadcastSFX('gameover');
     }
 }
 const audio = new ArkanoidAudio();
@@ -295,7 +300,7 @@ const GameState = {
         x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 5,
         dx: 0,
-        speed: 220
+        speed: 360
     },
     ball: {
         x: CANVAS_WIDTH / 2,
@@ -321,10 +326,7 @@ function initBricks() {
     }
 }
 
-// WebRTC State
-const peerConnections = new Map();
-const dataChannels = new Map();
-let socket;
+// WebRTC Reconnect State
 
 const signalingState = {
     shouldReconnect: true,
@@ -623,8 +625,8 @@ function handleJoystickInput(input) {
 
     if (input.x !== undefined) {
         // Trackpad gives x between -1 and 1
-        // Apply an exponential curve for smooth precision
-        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.2);
+        // Apply responsive curve with good precision
+        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.1);
         GameState.paddle.dx = expX * GameState.paddle.speed;
     }
 }

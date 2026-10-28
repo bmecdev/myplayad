@@ -52,23 +52,39 @@ class MobileArkanoidAudio {
 
     init() {
         if (!this.enabled) return;
-        if (this.ctx) {
-            if (this.ctx.state === 'suspended') this.ctx.resume();
-            return;
+        if (!this.ctx) {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                this.ctx = new AudioCtx();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+                this.masterGain.connect(this.ctx.destination);
+
+                // Warm-up dummy buffer para desbloqueo estricto en iOS Safari / Chrome Android
+                try {
+                    const buf = this.ctx.createBuffer(1, 1, 22050);
+                    const src = this.ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(this.ctx.destination);
+                    src.start(0);
+                } catch (_) {}
+            } catch (e) {
+                console.warn('Fallo init audio móvil:', e);
+            }
         }
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            this.ctx = new AudioContext();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-            this.masterGain.connect(this.ctx.destination);
-        } catch (e) {}
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+        }
     }
 
     play(sound, param) {
-        if (!this.ctx || !this.enabled) return;
-        if (this.ctx.state === 'suspended') this.ctx.resume();
+        if (!this.enabled) return;
+        if (!this.ctx) this.init();
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+        }
+        if (!this.ctx) return;
         const t = this.ctx.currentTime;
         try {
             if (sound === 'paddle') {
@@ -77,7 +93,7 @@ class MobileArkanoidAudio {
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(440, t);
                 osc.frequency.linearRampToValueAtTime(880, t + 0.08);
-                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.setValueAtTime(0.5, t);
                 gain.gain.linearRampToValueAtTime(0.0001, t + 0.08);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
@@ -91,7 +107,7 @@ class MobileArkanoidAudio {
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(freq, t);
                 osc.frequency.linearRampToValueAtTime(freq * 1.5, t + 0.07);
-                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.setValueAtTime(0.55, t);
                 gain.gain.linearRampToValueAtTime(0.0001, t + 0.07);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
@@ -103,7 +119,7 @@ class MobileArkanoidAudio {
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(320, t);
                 osc.frequency.linearRampToValueAtTime(960, t + 0.12);
-                gain.gain.setValueAtTime(0.22, t);
+                gain.gain.setValueAtTime(0.45, t);
                 gain.gain.linearRampToValueAtTime(0.0001, t + 0.12);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
@@ -114,7 +130,7 @@ class MobileArkanoidAudio {
                 const gain = this.ctx.createGain();
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(280, t);
-                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.setValueAtTime(0.4, t);
                 gain.gain.linearRampToValueAtTime(0.0001, t + 0.06);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
@@ -125,20 +141,48 @@ class MobileArkanoidAudio {
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(320, t);
-                osc.frequency.linearRampToValueAtTime(90, t + 0.3);
-                gain.gain.setValueAtTime(0.3, t);
-                gain.gain.linearRampToValueAtTime(0.0001, t + 0.3);
+                osc.frequency.linearRampToValueAtTime(90, t + 0.35);
+                gain.gain.setValueAtTime(0.6, t);
+                gain.gain.linearRampToValueAtTime(0.0001, t + 0.35);
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start(t);
-                osc.stop(t + 0.3);
+                osc.stop(t + 0.35);
+            } else if (sound === 'start') {
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, t + idx * 0.07);
+                    gain.gain.setValueAtTime(0.4, t + idx * 0.07);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.07 + 0.1);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + idx * 0.07);
+                    osc.stop(t + idx * 0.07 + 0.11);
+                });
+            } else if (sound === 'levelClear') {
+                const notes = [523.25, 659.25, 783.99, 987.77, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(freq, t + idx * 0.08);
+                    gain.gain.setValueAtTime(0.45, t + idx * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.08 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + idx * 0.08);
+                    osc.stop(t + idx * 0.08 + 0.13);
+                });
             } else if (sound === 'gameover') {
                 [440, 370, 311, 261].forEach((f, i) => {
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = 'sawtooth';
                     osc.frequency.setValueAtTime(f, t + i * 0.14);
-                    gain.gain.setValueAtTime(0.22, t + i * 0.14);
+                    gain.gain.setValueAtTime(0.5, t + i * 0.14);
                     gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.14 + 0.18);
                     osc.connect(gain);
                     gain.connect(this.masterGain);
@@ -175,6 +219,7 @@ window.addEventListener('load', () => {
 });
 
 connectBtn.addEventListener('click', () => {
+    mobileAudio.init();
     const roomId = roomInput.value.trim().toUpperCase();
     nickname = nicknameInput.value.trim() || 'Player';
     if (roomId) {
@@ -278,9 +323,14 @@ async function startWebRTC() {
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'game_over') {
+                mobileAudio.play('gameover');
+                if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
                 showThanks(data.score);
             } else if (data.type === 'sfx') {
                 mobileAudio.play(data.sound, data.param);
+                if (data.sound === 'paddle' && navigator.vibrate) navigator.vibrate(20);
+                else if (data.sound === 'brick' && navigator.vibrate) navigator.vibrate(15);
+                else if (data.sound === 'lifeLost' && navigator.vibrate) navigator.vibrate([60, 40, 60]);
             }
         } catch (err) {}
     };
@@ -379,14 +429,10 @@ window.addEventListener('resize', updateTrackpadDimensions);
 setTimeout(updateTrackpadDimensions, 100);
 
 // EVENTOS DEL TRACKPAD
-trackpadContainer.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    activePointers.set(e.pointerId, { type: 'trackpad' });
-    updateTrackpadDimensions();
-});
-
-trackpadContainer.addEventListener('pointermove', (e) => {
-    if (!activePointers.has(e.pointerId) || !trackpadRect) return;
+function handleTrackpadPointer(e) {
+    if (!activePointers.has(e.pointerId)) return;
+    if (!trackpadRect || trackpadRect.width === 0) updateTrackpadDimensions();
+    if (!trackpadRect || trackpadRect.width === 0) return;
 
     // Calcular la posición del dedo dentro del trackpad
     const touchX = e.clientX - trackpadRect.left;
@@ -399,8 +445,8 @@ trackpadContainer.addEventListener('pointermove', (e) => {
     // Convertir a rango de -1 a 1
     let normalizedX = (normalizedPosition - 0.5) * 2;
     
-    // Aplicar zona muerta en el centro
-    const deadZone = 0.1;
+    // Zona muerta reducida para máxima respuesta
+    const deadZone = 0.04;
     if (Math.abs(normalizedX) < deadZone) {
         normalizedX = 0;
     }
@@ -418,6 +464,18 @@ trackpadContainer.addEventListener('pointermove', (e) => {
 
     // Enviar datos continuamente
     sendMovementData();
+}
+
+trackpadContainer.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    mobileAudio.init();
+    activePointers.set(e.pointerId, { type: 'trackpad' });
+    updateTrackpadDimensions();
+    handleTrackpadPointer(e);
+});
+
+trackpadContainer.addEventListener('pointermove', (e) => {
+    handleTrackpadPointer(e);
 });
 
 trackpadContainer.addEventListener('pointerup', (e) => {
@@ -446,8 +504,11 @@ trackpadContainer.addEventListener('pointercancel', (e) => {
 if (fireBtn) {
     fireBtn.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
+        e.preventDefault();
+        mobileAudio.init();
         fireActive = true;
         mobileAudio.play('launch');
+        if (navigator.vibrate) navigator.vibrate(25);
         if (dataChannel && dataChannel.readyState === 'open') {
             dataChannel.send(JSON.stringify({ fire: true }));
         }
