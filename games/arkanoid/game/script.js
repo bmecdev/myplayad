@@ -295,7 +295,7 @@ const GameState = {
         x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 5,
         dx: 0,
-        speed: 1200
+        speed: 220
     },
     ball: {
         x: CANVAS_WIDTH / 2,
@@ -609,8 +609,11 @@ function handleJoystickInput(input) {
     if (input.fire) {
         if (!GameState.ball.launched && GameState.running && !GameState.gameOver) {
             GameState.ball.launched = true;
-            GameState.ball.dx = (Math.random() > 0.5 ? 1 : -1) * GameState.ball.speed;
-            GameState.ball.dy = -GameState.ball.speed;
+            // Angulo de lanzamiento entre 30 y 55 grados respecto a la vertical
+            const angleDir = Math.random() > 0.5 ? 1 : -1;
+            const angleRad = angleDir * (Math.PI / 6 + Math.random() * (Math.PI / 8));
+            GameState.ball.dx = Math.sin(angleRad) * GameState.ball.speed;
+            GameState.ball.dy = -Math.cos(angleRad) * GameState.ball.speed;
             audio.playLaunch();
         } else if (GameState.gameOver) {
             // Cannot restart from fire, must re-scan
@@ -620,8 +623,8 @@ function handleJoystickInput(input) {
 
     if (input.x !== undefined) {
         // Trackpad gives x between -1 and 1
-        // Apply an exponential curve for better precision at low speeds and high responsiveness at high speeds
-        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.5);
+        // Apply an exponential curve for smooth precision
+        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.2);
         GameState.paddle.dx = expX * GameState.paddle.speed;
     }
 }
@@ -648,6 +651,7 @@ function resetGame() {
     GameState.lives = 3;
     GameState.gameOver = false;
     GameState.running = true;
+    GameState.ball.speed = 150;
     GameState.paddle.x = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
     initBricks();
     resetBall();
@@ -698,16 +702,26 @@ function update(dt) {
             updateUI();
         }
 
-        // Paddle collision
-        if (GameState.ball.y + BALL_RADIUS > GameState.paddle.y && 
-            GameState.ball.y - BALL_RADIUS < GameState.paddle.y + PADDLE_HEIGHT &&
-            GameState.ball.x + BALL_RADIUS > GameState.paddle.x && 
-            GameState.ball.x - BALL_RADIUS < GameState.paddle.x + PADDLE_WIDTH) {
+        // Paddle collision (solo cuando la pelota desciende hacia la barra)
+        if (GameState.ball.dy > 0 &&
+            GameState.ball.y + BALL_RADIUS >= GameState.paddle.y && 
+            GameState.ball.y - BALL_RADIUS <= GameState.paddle.y + PADDLE_HEIGHT &&
+            GameState.ball.x + BALL_RADIUS >= GameState.paddle.x && 
+            GameState.ball.x - BALL_RADIUS <= GameState.paddle.x + PADDLE_WIDTH) {
             
-            GameState.ball.dy = -Math.abs(GameState.ball.dy); // Force up
-            // Change angle based on hit position
-            let hitPoint = GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2);
-            GameState.ball.dx = (hitPoint / (PADDLE_WIDTH / 2)) * GameState.ball.speed;
+            // Reubicar la pelota justo encima de la paleta para evitar atrapamiento o dobles impactos
+            GameState.ball.y = GameState.paddle.y - BALL_RADIUS - 0.5;
+
+            // Calcular desvío respecto al centro de la barra (-1.0 a +1.0)
+            let hitOffset = (GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2)) / (PADDLE_WIDTH / 2);
+            // Limitar el ángulo para evitar rebotes puramente horizontales
+            hitOffset = Math.max(-0.85, Math.min(0.85, hitOffset));
+
+            // Rebote máximo de 60 grados (Math.PI / 3) conservando la velocidad exacta
+            const bounceAngle = hitOffset * (Math.PI / 3);
+            GameState.ball.dx = Math.sin(bounceAngle) * GameState.ball.speed;
+            GameState.ball.dy = -Math.cos(bounceAngle) * GameState.ball.speed;
+
             audio.playPaddle();
         }
 
