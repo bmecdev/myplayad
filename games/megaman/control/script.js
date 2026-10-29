@@ -5,6 +5,7 @@ const roomInput = document.getElementById('room-input');
 const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
+const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 const playAgainBtn = document.getElementById('play-again-btn');
@@ -24,6 +25,8 @@ let socket;
 let currentRoomId = null;
 let nickname = 'MegaMan';
 let pendingCandidates = [];
+let hasStarted = false;
+let isGameConnected = false;
 
 // ==========================================
 // 📡 Configuración ICE dinámica con TURN
@@ -189,9 +192,10 @@ async function initConnection() {
                             type: 'answer',
                             sdp: sdp
                         }));
+                        isGameConnected = true;
                         status.textContent = '⚡ CONECTADO';
                         roomSelection.style.display = 'none';
-                        container.style.display = 'flex';
+                        updateOrientationView();
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -211,6 +215,9 @@ async function initConnection() {
                     }
                 } else if (data.type === 'error') {
                     status.textContent = 'ERROR: ' + data.message;
+                    hasStarted = false;
+                    isGameConnected = false;
+                    if (rotateScreen) rotateScreen.style.display = 'none';
                     roomSelection.style.display = 'flex';
                 }
             } catch (err) {
@@ -249,7 +256,10 @@ async function setupWebRTC() {
         if (state === 'disconnected' || state === 'failed') {
             status.textContent = 'DESCONECTADO';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                hasStarted = false;
+                isGameConnected = false;
                 container.style.display = 'none';
+                if (rotateScreen) rotateScreen.style.display = 'none';
                 roomSelection.style.display = 'flex';
             }
         }
@@ -258,9 +268,10 @@ async function setupWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
+        isGameConnected = true;
         status.textContent = '⚡ EN LÍNEA';
         roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        updateOrientationView();
 
         dataChannel.send(JSON.stringify({
             type: 'join',
@@ -304,6 +315,9 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    hasStarted = false;
+    isGameConnected = false;
+    if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'flex';
@@ -466,6 +480,43 @@ if (btnSlide) {
 }
 
 // ==========================================
+// 🔄 Control de Orientación Horizontal (Landscape)
+// ==========================================
+function isPortraitMode() {
+    if (window.screen && window.screen.orientation && window.screen.orientation.type) {
+        return window.screen.orientation.type.includes('portrait');
+    }
+    return window.innerHeight > window.innerWidth;
+}
+
+function updateOrientationView() {
+    if (!hasStarted) return;
+
+    if (thanksScreen && thanksScreen.style.display === 'flex') {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    if (isPortraitMode()) {
+        if (rotateScreen) rotateScreen.style.display = 'flex';
+        container.style.display = 'none';
+    } else {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (isGameConnected) {
+            container.style.display = 'flex';
+        }
+    }
+}
+
+window.addEventListener('resize', updateOrientationView);
+window.addEventListener('orientationchange', () => {
+    setTimeout(updateOrientationView, 120);
+});
+if (window.screen && window.screen.orientation) {
+    window.screen.orientation.addEventListener('change', updateOrientationView);
+}
+
+// ==========================================
 // 🚀 Inicialización al Cargar
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
@@ -477,13 +528,31 @@ window.addEventListener('DOMContentLoaded', () => {
         if (roomInput) roomInput.value = currentRoomId;
     }
 
-    if (nicknameInput) nicknameInput.focus();
+    if (nicknameInput) {
+        nicknameInput.focus();
+        const validateNick = () => {
+            const val = nicknameInput.value.trim();
+            if (connectBtn) {
+                connectBtn.disabled = val.length < 2;
+                connectBtn.style.opacity = val.length < 2 ? '0.5' : '1';
+                connectBtn.style.cursor = val.length < 2 ? 'not-allowed' : 'pointer';
+            }
+        };
+        nicknameInput.addEventListener('input', validateNick);
+        validateNick();
+    }
 
     if (connectBtn) {
         connectBtn.addEventListener('click', () => {
             mobileAudio.init();
             const nick = nicknameInput.value.trim();
-            if (nick) nickname = nick;
+            if (!nick || nick.length < 2) {
+                nicknameInput.focus();
+                nicknameInput.style.borderColor = 'var(--danger)';
+                setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                return;
+            }
+            nickname = nick;
 
             if (!currentRoomId) {
                 currentRoomId = roomInput.value.trim().toUpperCase();
@@ -494,6 +563,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            hasStarted = true;
+            roomSelection.style.display = 'none';
+            updateOrientationView();
             initConnection();
         });
     }

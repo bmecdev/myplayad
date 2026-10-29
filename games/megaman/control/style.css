@@ -329,6 +329,154 @@ body {
     100% { transform: scale(1.02); border-color: #ffffff; }
 }
 
+/* ==========================================
+   🔄 Pantalla de Aviso de Girar Celular
+   ========================================== */
+.rotate-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle at center, #0a1624 0%, #03060a 100%);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    text-align: center;
+    touch-action: none;
+    user-select: none;
+}
+
+.rotate-card {
+    background: #09131f;
+    border: 2px solid var(--primary);
+    border-radius: 20px;
+    padding: 32px 24px;
+    max-width: 340px;
+    width: 90%;
+    box-shadow: 0 0 35px rgba(0, 210, 255, 0.3), inset 0 0 20px rgba(0, 210, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: rotateCardPulse 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes rotateCardPulse {
+    0% { box-shadow: 0 0 25px rgba(0, 210, 255, 0.25); }
+    100% { box-shadow: 0 0 45px rgba(0, 210, 255, 0.5); }
+}
+
+.phone-anim-wrapper {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.phone-graphic {
+    width: 44px;
+    height: 74px;
+    border: 3px solid var(--primary);
+    border-radius: 10px;
+    position: relative;
+    background: #04080e;
+    box-shadow: 0 0 16px rgba(0, 210, 255, 0.4);
+    animation: phoneRotateAnim 2.4s ease-in-out infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.phone-screen {
+    width: 32px;
+    height: 54px;
+    background: linear-gradient(180deg, #00d2ff 0%, #0077aa 100%);
+    border-radius: 4px;
+    opacity: 0.85;
+}
+
+.phone-graphic::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary);
+}
+
+.rotate-arrow {
+    position: absolute;
+    font-size: 32px;
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent);
+    animation: arrowSpinAnim 2.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes phoneRotateAnim {
+    0%, 25% {
+        transform: rotate(0deg);
+    }
+    50%, 85% {
+        transform: rotate(-90deg);
+    }
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes arrowSpinAnim {
+    0%, 25% {
+        transform: rotate(0deg) scale(0.9);
+        opacity: 0.6;
+    }
+    50%, 85% {
+        transform: rotate(-90deg) scale(1.15);
+        opacity: 1;
+    }
+    100% {
+        transform: rotate(0deg) scale(0.9);
+        opacity: 0.6;
+    }
+}
+
+.rotate-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 14px;
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(255, 183, 3, 0.6);
+    margin: 0;
+    line-height: 1.5;
+    letter-spacing: 1px;
+}
+
+.rotate-desc {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.3;
+}
+
+.rotate-badge {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    background: rgba(0, 210, 255, 0.12);
+    border: 1px dashed var(--cyan);
+    color: var(--cyan);
+    padding: 8px 12px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+}
+
 /* Modo vertical (teléfono en vertical) */
 @media (max-width: 600px) and (orientation: portrait) {
     .controls-container {
