@@ -483,28 +483,29 @@ if (btnSlide) {
 // 🔄 Control de Orientación Horizontal (Landscape)
 // ==========================================
 function isPortraitMode() {
-    // 1. Media Query W3C estándar
-    try {
-        if (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) {
-            return true;
+    // 1. Orientación física de hardware (Screen Orientation API moderna)
+    if (window.screen && window.screen.orientation) {
+        if (typeof window.screen.orientation.type === 'string') {
+            return window.screen.orientation.type.startsWith('portrait');
         }
-        if (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) {
-            return false;
+        if (typeof window.screen.orientation.angle === 'number') {
+            return window.screen.orientation.angle === 0 || window.screen.orientation.angle === 180;
         }
-    } catch (_) {}
+    }
 
-    // 2. window.orientation tradicional en dispositivos móviles
+    // 2. window.orientation tradicional (Safari iOS y WebViews de Android)
     if (typeof window.orientation === 'number') {
-        if (Math.abs(window.orientation) === 90) return false;
-        if (window.orientation === 0 || window.orientation === 180) return true;
+        return window.orientation === 0 || window.orientation === 180;
     }
 
-    // 3. Comparativa de viewport en tiempo real
-    if (typeof window.innerHeight === 'number' && typeof window.innerWidth === 'number') {
-        return window.innerHeight > window.innerWidth;
+    // 3. Proporción de la pantalla física del dispositivo (screen.width vs screen.height)
+    // En smartphones, screen.height es la resolución física fija y no se encoge al abrir el teclado
+    if (window.screen && typeof window.screen.width === 'number' && typeof window.screen.height === 'number') {
+        return window.screen.height > window.screen.width;
     }
 
-    return false;
+    // 4. Fallback si nada de lo anterior está disponible
+    return window.innerHeight > window.innerWidth;
 }
 
 function updateOrientationView() {
@@ -517,8 +518,8 @@ function updateOrientationView() {
 
     if (hasStarted) {
         if (inPortrait) {
-            // El usuario ya ingresó nombre pero sostiene el celular en vertical:
-            // Mostrar de inmediato aviso animado en pantalla completa pidiendo girar
+            // El usuario ya colocó su nombre pero tiene el celular en vertical:
+            // Mostrar ÚNICAMENTE el aviso animado en pantalla completa pidiendo girar
             if (rotateScreen) rotateScreen.style.display = 'flex';
             if (container) container.style.display = 'none';
             if (roomSelection) roomSelection.style.display = 'none';
@@ -536,18 +537,21 @@ function updateOrientationView() {
     }
 }
 
-window.addEventListener('resize', updateOrientationView);
 window.addEventListener('orientationchange', () => {
-    setTimeout(updateOrientationView, 100);
+    setTimeout(updateOrientationView, 120);
 });
-try {
-    const portraitMql = window.matchMedia('(orientation: portrait)');
-    if (portraitMql.addEventListener) {
-        portraitMql.addEventListener('change', updateOrientationView);
-    } else if (portraitMql.addListener) {
-        portraitMql.addListener(updateOrientationView);
+if (window.screen && window.screen.orientation) {
+    try {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(updateOrientationView, 100);
+        });
+    } catch (_) {}
+}
+window.addEventListener('resize', () => {
+    if (hasStarted) {
+        setTimeout(updateOrientationView, 150);
     }
-} catch (_) {}
+});
 
 // ==========================================
 // 🚀 Inicialización al Cargar
@@ -562,8 +566,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (nicknameInput) {
-        nicknameInput.focus();
-
         // Validación obligatoria de Nickname (mínimo 2 caracteres)
         const validateNick = () => {
             const val = nicknameInput.value.trim();
@@ -589,6 +591,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (connectBtn) {
         connectBtn.addEventListener('click', (e) => {
             if (e) e.preventDefault();
+            
+            // Cerrar teclado virtual explícitamente para que no distorsione el viewport
+            if (nicknameInput) nicknameInput.blur();
+
             mobileAudio.init();
             
             const nick = nicknameInput ? nicknameInput.value.trim() : '';
