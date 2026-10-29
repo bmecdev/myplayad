@@ -187,81 +187,122 @@ body {
     }
 }
 
-/* Panel de Dirección (Slider Centrado Más Abajo) */
+/* Panel de Dirección (Joystick Analógico Virtual) */
 .steering-panel {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
     align-items: center;
     width: 100%;
-    padding-bottom: 8px;
 }
 
-.touch-track {
-    background: #081217;
-    border: 2px solid rgba(0, 210, 255, 0.45);
-    border-radius: 16px;
-    width: 100%;
-    max-width: 440px;
-    height: 74px;
+.joystick-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    touch-action: none;
+    user-select: none;
+}
+
+.joystick-base {
+    width: 160px;
+    height: 160px;
+    background: radial-gradient(circle at center, #0a1b24 0%, #04090d 100%);
+    border: 3px solid rgba(0, 210, 255, 0.5);
+    border-radius: 50%;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    overflow: hidden;
+    box-shadow: 0 0 25px rgba(0, 210, 255, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.9);
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.8), 0 4px 15px rgba(0, 210, 255, 0.15);
     cursor: grab;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.touch-track:active {
+.joystick-base.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 35px rgba(61, 255, 138, 0.35), inset 0 0 25px rgba(0, 0, 0, 0.9);
     cursor: grabbing;
-    border-color: var(--primary);
-    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 210, 255, 0.4);
 }
 
-.track-center-notch {
+.joystick-guide-ring {
     position: absolute;
-    top: 12%;
-    bottom: 12%;
-    left: 50%;
-    width: 2px;
-    margin-left: -1px;
-    background: rgba(0, 210, 255, 0.35);
+    width: 90px;
+    height: 90px;
+    border: 1px dashed rgba(0, 210, 255, 0.25);
+    border-radius: 50%;
     pointer-events: none;
 }
 
-.touch-track span {
+.joystick-axis-x {
+    position: absolute;
+    width: 75%;
+    height: 1px;
+    background: rgba(0, 210, 255, 0.2);
+    pointer-events: none;
+}
+
+.joystick-axis-y {
+    position: absolute;
+    height: 75%;
+    width: 1px;
+    background: rgba(0, 210, 255, 0.2);
+    pointer-events: none;
+}
+
+.joystick-dir-arrow {
+    position: absolute;
+    font-size: 14px;
+    color: rgba(0, 210, 255, 0.4);
+    pointer-events: none;
     font-family: 'Press Start 2P', monospace;
-    font-size: 10px;
-    letter-spacing: 0.5px;
-    color: rgba(0, 210, 255, 0.75);
-    text-shadow: 0 0 6px rgba(0, 210, 255, 0.4);
-    pointer-events: none;
-    z-index: 1;
+}
+.joystick-dir-arrow.dir-l {
+    left: 12px;
+}
+.joystick-dir-arrow.dir-r {
+    right: 12px;
 }
 
-.touch-slider {
+.joystick-knob {
+    width: 66px;
+    height: 66px;
+    background: radial-gradient(circle at 35% 35%, #00f5d4 0%, #0077aa 100%);
+    border: 2px solid #eafff2;
+    border-radius: 50%;
     position: absolute;
-    top: 5px;
-    bottom: 5px;
-    left: 50%;
-    width: 44px;
-    margin-left: -22px;
-    background: linear-gradient(180deg, #00f5d4 0%, #00bbf9 100%);
-    border: 1px solid #eafff2;
-    border-radius: 12px;
-    box-shadow: 0 0 16px rgba(0, 245, 212, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 245, 212, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.7);
     pointer-events: none;
-    transition: left 0.04s ease-out, transform 0.1s ease;
-    z-index: 2;
+    transition: transform 0.04s ease-out;
+    z-index: 5;
 }
 
-.touch-track:active .touch-slider {
-    transform: scale(1.06);
-    box-shadow: 0 0 24px rgba(0, 245, 212, 1), inset 0 1px 3px rgba(255, 255, 255, 0.95);
+.joystick-base.active .joystick-knob {
+    box-shadow: 0 0 25px rgba(0, 245, 212, 0.95), inset 0 2px 5px rgba(255, 255, 255, 0.9);
+}
+
+.knob-cap {
+    width: 26px;
+    height: 26px;
+    background: rgba(4, 9, 13, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.joystick-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--primary);
+    letter-spacing: 1px;
+    opacity: 0.8;
 }
 
 /* Panel de Acciones (Salto y Turbo) */

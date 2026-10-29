@@ -6,7 +6,7 @@
     <title>Skyroads Clon Mobile Controller</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
     <div id="status">INGRESA TU NICKNAME</div>
@@ -65,17 +65,25 @@
             </button>
         </div>
 
-        <!-- Panel de Dirección: Slider Centrado Más Abajo -->
+        <!-- Panel de Dirección: Joystick Analógico -->
         <div class="steering-panel">
-            <div class="touch-track" id="touch-track">
-                <div class="track-center-notch"></div>
-                <span>◀ DESLIZA PARA GIRAR ▶</span>
-                <div class="touch-slider" id="touch-slider"></div>
+            <div class="joystick-wrapper">
+                <div class="joystick-base" id="joystick-base">
+                    <div class="joystick-guide-ring"></div>
+                    <div class="joystick-axis-x"></div>
+                    <div class="joystick-axis-y"></div>
+                    <span class="joystick-dir-arrow dir-l">◀</span>
+                    <span class="joystick-dir-arrow dir-r">▶</span>
+                    <div class="joystick-knob" id="joystick-knob">
+                        <div class="knob-cap"></div>
+                    </div>
+                </div>
+                <span class="joystick-label">🕹️ DIRECCIÓN</span>
             </div>
         </div>
     </div>
 
     <script src="config.js?v=2"></script>
-    <script src="script.js?v=16"></script>
+    <script src="script.js?v=17"></script>
 </body>
 </html>

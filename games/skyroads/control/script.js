@@ -12,8 +12,8 @@ const thanksMessage = document.getElementById('thanks-message');
 const btnJump = document.getElementById('btn-jump');
 const btnTurbo = document.getElementById('btn-turbo');
 const btnBrake = document.getElementById('btn-brake');
-const touchTrack = document.getElementById('touch-track');
-const touchSlider = document.getElementById('touch-slider');
+const joystickBase = document.getElementById('joystick-base');
+const joystickKnob = document.getElementById('joystick-knob');
 
 container.style.touchAction = 'none';
 
@@ -496,56 +496,79 @@ if (btnBrake) {
     btnBrake.addEventListener('pointercancel', () => sendAction('NORMAL_SPEED'));
 }
 
-// 4. Touch Slider Track (Deslizamiento horizontal centrado y suave)
-if (touchTrack) {
-    let isTracking = false;
+// 4. Joystick Analógico Virtual (Dirección Suave)
+if (joystickBase && joystickKnob) {
+    const MAX_RADIUS = 52; // Límite de desplazamiento del pomo en px
+    let activePointerId = null;
 
-    function handleTouchTrack(e) {
-        const rect = touchTrack.getBoundingClientRect();
-        const touchX = e.clientX - rect.left;
-        let pct = Math.max(0, Math.min(1, touchX / rect.width));
-        let normX = (pct - 0.5) * 2; // -1 to +1
+    function handleJoystickMove(clientX, clientY) {
+        const rect = joystickBase.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
 
-        if (Math.abs(normX) < 0.08) normX = 0; // Deadzone suave en el centro
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        const distance = Math.hypot(dx, dy);
 
-        if (touchSlider) {
-            touchSlider.style.left = `${pct * 100}%`;
+        let knobX = 0;
+        let knobY = 0;
+
+        if (distance > 0) {
+            const clampedDist = Math.min(distance, MAX_RADIUS);
+            const angle = Math.atan2(dy, dx);
+            knobX = Math.cos(angle) * clampedDist;
+            knobY = Math.sin(angle) * clampedDist;
+        }
+
+        joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+        // Normalizar X entre -1.0 y +1.0
+        let normX = knobX / MAX_RADIUS;
+        // Deadzone suave en el centro para vuelo recto sin vibración
+        if (Math.abs(normX) < 0.08) {
+            normX = 0;
         }
 
         sendSteer(normX);
     }
 
-    touchTrack.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        try {
-            if (touchTrack.setPointerCapture) {
-                touchTrack.setPointerCapture(e.pointerId);
-            }
-        } catch (_) {}
-        isTracking = true;
-        if (navigator.vibrate) navigator.vibrate(10);
-        handleTouchTrack(e);
-    });
-
-    touchTrack.addEventListener('pointermove', (e) => {
-        if (!isTracking) return;
-        handleTouchTrack(e);
-    });
-
-    const resetTrack = (e) => {
-        if (!isTracking) return;
-        isTracking = false;
-        try {
-            if (e && touchTrack.hasPointerCapture && touchTrack.hasPointerCapture(e.pointerId)) {
-                touchTrack.releasePointerCapture(e.pointerId);
-            }
-        } catch (_) {}
-        if (touchSlider) touchSlider.style.left = '50%';
+    function resetJoystick() {
+        activePointerId = null;
+        joystickBase.classList.remove('active');
+        joystickKnob.style.transform = 'translate(0px, 0px)';
         sendSteer(0);
+    }
+
+    joystickBase.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        try {
+            if (joystickBase.setPointerCapture) {
+                joystickBase.setPointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        joystickBase.classList.add('active');
+        if (navigator.vibrate) navigator.vibrate(10);
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    joystickBase.addEventListener('pointermove', (e) => {
+        if (activePointerId !== e.pointerId) return;
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    const endJoystick = (e) => {
+        if (activePointerId !== e.pointerId) return;
+        try {
+            if (e && joystickBase.hasPointerCapture && joystickBase.hasPointerCapture(e.pointerId)) {
+                joystickBase.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        resetJoystick();
     };
 
-    touchTrack.addEventListener('pointerup', resetTrack);
-    touchTrack.addEventListener('pointercancel', resetTrack);
+    joystickBase.addEventListener('pointerup', endJoystick);
+    joystickBase.addEventListener('pointercancel', endJoystick);
 }
 
 // 6. Gesto de Deslizar hacia Arriba (Swipe Up = Salto)
