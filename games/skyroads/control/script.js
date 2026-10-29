@@ -5,6 +5,7 @@ const status = document.getElementById('status');
 const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
+const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 
@@ -22,6 +23,7 @@ let socket;
 let currentRoomId = null;
 let nickname = 'Pilot';
 let pendingCandidates = [];
+let hasStarted = false;
 
 // Configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -275,7 +277,7 @@ async function initConnection() {
                         }));
                         status.textContent = '⚡ ENLACE ACTIVO';
                         roomSelection.style.display = 'none';
-                        container.style.display = 'flex';
+                        updateOrientationView();
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -358,7 +360,7 @@ async function setupWebRTC() {
     dataChannel.onopen = () => {
         status.textContent = '⚡ ENLACE ACTIVO';
         roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        updateOrientationView();
 
         // Enviar evento de inicio con nickname
         dataChannel.send(JSON.stringify({
@@ -419,6 +421,8 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    hasStarted = false;
+    if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'block';
@@ -572,6 +576,79 @@ window.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 // ==========================================
+// 🔄 Control de Orientación Horizontal (Landscape)
+// ==========================================
+function isPortraitMode() {
+    // 1. Orientación física de hardware (Screen Orientation API moderna)
+    if (window.screen && window.screen.orientation) {
+        if (typeof window.screen.orientation.type === 'string') {
+            return window.screen.orientation.type.startsWith('portrait');
+        }
+        if (typeof window.screen.orientation.angle === 'number') {
+            return window.screen.orientation.angle === 0 || window.screen.orientation.angle === 180;
+        }
+    }
+
+    // 2. window.orientation tradicional (Safari iOS y WebViews de Android)
+    if (typeof window.orientation === 'number') {
+        return window.orientation === 0 || window.orientation === 180;
+    }
+
+    // 3. Proporción de la pantalla física del dispositivo (screen.width vs screen.height)
+    if (window.screen && typeof window.screen.width === 'number' && typeof window.screen.height === 'number') {
+        return window.screen.height > window.screen.width;
+    }
+
+    // 4. Fallback estándar si nada de lo anterior está disponible
+    return window.innerHeight > window.innerWidth;
+}
+
+function updateOrientationView() {
+    if (thanksScreen && (thanksScreen.style.display === 'block' || thanksScreen.style.display === 'flex')) {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    const inPortrait = isPortraitMode();
+
+    if (hasStarted) {
+        if (inPortrait) {
+            // El usuario ya ingresó nombre pero sostiene el celular en vertical:
+            // Mostrar ÚNICAMENTE el aviso animado en pantalla completa pidiendo girar
+            if (rotateScreen) rotateScreen.style.display = 'flex';
+            if (container) container.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+        } else {
+            // El usuario puso el celular en horizontal: ocultar aviso y mostrar mandos
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+            if (container) container.style.display = 'flex';
+        }
+    } else {
+        // Pantalla inicial de bienvenida y nickname
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (roomSelection) roomSelection.style.display = 'flex';
+        if (container) container.style.display = 'none';
+    }
+}
+
+window.addEventListener('orientationchange', () => {
+    setTimeout(updateOrientationView, 120);
+});
+if (window.screen && window.screen.orientation) {
+    try {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(updateOrientationView, 100);
+        });
+    } catch (_) {}
+}
+window.addEventListener('resize', () => {
+    if (hasStarted) {
+        setTimeout(updateOrientationView, 150);
+    }
+});
+
+// ==========================================
 // 🚀 Inicio y Configuración de Sala
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
@@ -582,27 +659,57 @@ window.addEventListener('DOMContentLoaded', () => {
         status.textContent = `Sala: ${currentRoomId} - INGRESA TU NICKNAME`;
     }
 
-    const savedNick = localStorage.getItem('skyroads_nickname');
-    if (savedNick && nicknameInput) {
-        nicknameInput.value = savedNick;
-    }
-
     if (nicknameInput) {
+        // Validación obligatoria de Nickname (mínimo 2 caracteres)
+        const validateNick = () => {
+            const val = nicknameInput.value.trim();
+            if (connectBtn) {
+                connectBtn.disabled = val.length < 2;
+            }
+        };
+        nicknameInput.addEventListener('input', validateNick);
+        validateNick();
+
         nicknameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && connectBtn) connectBtn.click();
+            if (e.key === 'Enter') {
+                if (nicknameInput.value.trim().length >= 2) {
+                    if (connectBtn) connectBtn.click();
+                } else {
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+            }
         });
     }
 
     if (connectBtn) {
-        connectBtn.addEventListener('click', () => {
+        connectBtn.addEventListener('click', (e) => {
+            if (e) e.preventDefault();
+
+            // Cerrar teclado virtual explícitamente para que no distorsione el viewport
+            if (nicknameInput) nicknameInput.blur();
+
             mobileAudio.init();
-            if (nicknameInput && nicknameInput.value.trim()) {
-                nickname = nicknameInput.value.trim().substring(0, 10);
-                localStorage.setItem('skyroads_nickname', nickname);
+
+            const nick = nicknameInput ? nicknameInput.value.trim() : '';
+            if (!nick || nick.length < 2) {
+                if (nicknameInput) {
+                    nicknameInput.focus();
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+                return;
             }
+            nickname = nick.substring(0, 10);
+            localStorage.setItem('skyroads_nickname', nickname);
+
             if (!currentRoomId) {
                 currentRoomId = 'TEST';
             }
+
+            hasStarted = true;
+            roomSelection.style.display = 'none';
+            updateOrientationView();
 
             // Cerrar conexiones previas antes de crear una nueva
             if (dataChannel) {
