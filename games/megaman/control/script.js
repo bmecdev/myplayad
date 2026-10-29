@@ -483,38 +483,71 @@ if (btnSlide) {
 // 🔄 Control de Orientación Horizontal (Landscape)
 // ==========================================
 function isPortraitMode() {
-    if (window.screen && window.screen.orientation && window.screen.orientation.type) {
-        return window.screen.orientation.type.includes('portrait');
+    // 1. Media Query W3C estándar
+    try {
+        if (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) {
+            return true;
+        }
+        if (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) {
+            return false;
+        }
+    } catch (_) {}
+
+    // 2. window.orientation tradicional en dispositivos móviles
+    if (typeof window.orientation === 'number') {
+        if (Math.abs(window.orientation) === 90) return false;
+        if (window.orientation === 0 || window.orientation === 180) return true;
     }
-    return window.innerHeight > window.innerWidth;
+
+    // 3. Comparativa de viewport en tiempo real
+    if (typeof window.innerHeight === 'number' && typeof window.innerWidth === 'number') {
+        return window.innerHeight > window.innerWidth;
+    }
+
+    return false;
 }
 
 function updateOrientationView() {
-    if (!hasStarted) return;
-
     if (thanksScreen && thanksScreen.style.display === 'flex') {
         if (rotateScreen) rotateScreen.style.display = 'none';
         return;
     }
 
-    if (isPortraitMode()) {
-        if (rotateScreen) rotateScreen.style.display = 'flex';
-        container.style.display = 'none';
-    } else {
-        if (rotateScreen) rotateScreen.style.display = 'none';
-        if (isGameConnected) {
-            container.style.display = 'flex';
+    const inPortrait = isPortraitMode();
+
+    if (hasStarted) {
+        if (inPortrait) {
+            // El usuario ya ingresó nombre pero sostiene el celular en vertical:
+            // Mostrar de inmediato aviso animado en pantalla completa pidiendo girar
+            if (rotateScreen) rotateScreen.style.display = 'flex';
+            if (container) container.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+        } else {
+            // El usuario puso el celular en horizontal: ocultar aviso y mostrar mandos
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+            if (container) container.style.display = 'flex';
         }
+    } else {
+        // Pantalla inicial de bienvenida y nickname
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (roomSelection) roomSelection.style.display = 'flex';
+        if (container) container.style.display = 'none';
     }
 }
 
 window.addEventListener('resize', updateOrientationView);
 window.addEventListener('orientationchange', () => {
-    setTimeout(updateOrientationView, 120);
+    setTimeout(updateOrientationView, 100);
 });
-if (window.screen && window.screen.orientation) {
-    window.screen.orientation.addEventListener('change', updateOrientationView);
-}
+try {
+    const portraitMql = window.matchMedia('(orientation: portrait)');
+    if (portraitMql.addEventListener) {
+        portraitMql.addEventListener('change', updateOrientationView);
+    } else if (portraitMql.addListener) {
+        portraitMql.addListener(updateOrientationView);
+    }
+} catch (_) {}
 
 // ==========================================
 // 🚀 Inicialización al Cargar
@@ -530,42 +563,53 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (nicknameInput) {
         nicknameInput.focus();
+
+        // Validación obligatoria de Nickname (mínimo 2 caracteres)
         const validateNick = () => {
             const val = nicknameInput.value.trim();
             if (connectBtn) {
                 connectBtn.disabled = val.length < 2;
-                connectBtn.style.opacity = val.length < 2 ? '0.5' : '1';
-                connectBtn.style.cursor = val.length < 2 ? 'not-allowed' : 'pointer';
             }
         };
         nicknameInput.addEventListener('input', validateNick);
         validateNick();
+
+        nicknameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (nicknameInput.value.trim().length >= 2) {
+                    if (connectBtn) connectBtn.click();
+                } else {
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+            }
+        });
     }
 
     if (connectBtn) {
-        connectBtn.addEventListener('click', () => {
+        connectBtn.addEventListener('click', (e) => {
+            if (e) e.preventDefault();
             mobileAudio.init();
-            const nick = nicknameInput.value.trim();
+            
+            const nick = nicknameInput ? nicknameInput.value.trim() : '';
             if (!nick || nick.length < 2) {
-                nicknameInput.focus();
-                nicknameInput.style.borderColor = 'var(--danger)';
-                setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                if (nicknameInput) {
+                    nicknameInput.focus();
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
                 return;
             }
             nickname = nick;
 
-            if (!currentRoomId) {
+            if (!currentRoomId && roomInput) {
                 currentRoomId = roomInput.value.trim().toUpperCase();
-            }
-
-            if (!currentRoomId) {
-                alert('Por favor escanea el código QR de la pantalla.');
-                return;
             }
 
             hasStarted = true;
             roomSelection.style.display = 'none';
             updateOrientationView();
+
             initConnection();
         });
     }

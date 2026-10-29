@@ -77,6 +77,32 @@ body {
     margin-left: 6px;
 }
 
+.orientation-notice-banner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(0, 210, 255, 0.12);
+    border: 1px dashed var(--cyan);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--cyan);
+    margin: 8px 0 4px 0;
+    letter-spacing: 0.5px;
+}
+
+.rotate-icon {
+    font-size: 14px;
+    animation: rotateIconPulse 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes rotateIconPulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.2); }
+}
+
 .welcome-text {
     font-size: 16px;
     line-height: 1.4;
@@ -103,6 +129,10 @@ body {
     transition: border-color 0.3s;
 }
 
+#nickname-input::placeholder {
+    color: rgba(255, 255, 255, 0.22);
+}
+
 #nickname-input:focus {
     border-color: var(--primary);
     box-shadow: 0 0 10px rgba(0,210,255,0.4);
@@ -118,6 +148,14 @@ body {
     font-size: 11px;
     cursor: pointer;
     box-shadow: 0 4px 14px rgba(0, 210, 255, 0.4);
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+#connect-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
 }
 
 #connect-btn:active {
