@@ -3240,6 +3240,11 @@ function setupDataChannel(channel, playerId) {
                     inputKeys.jump = !!msg.val;
                     if (msg.val) performJump();
                 }
+            } else if (msg.type === 'joystick') {
+                inputKeys.left = msg.x < -0.22;
+                inputKeys.right = msg.x > 0.22;
+                inputKeys.up = msg.y < -0.25;
+                inputKeys.down = msg.y > 0.25;
             }
         } catch (_) {}
     };

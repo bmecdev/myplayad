@@ -6,7 +6,7 @@
     <title>Circus Charlie Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <div id="status">INGRESA TU NICKNAME</div>
@@ -25,7 +25,7 @@
             <button id="connect-btn">ENTRAR AL CIRCO</button>
         </div>
         
-        <p class="footer-hint">▲ Subir • ▼ Bajar • ◀ Frenar • Avanzar ▶ • ★ SALTO</p>
+        <p class="footer-hint">🕹️ Joystick: Frenar / Avanzar • ★ SALTO</p>
     </div>
 
     <!-- Pantalla de Agradecimiento (Game Over) -->
@@ -38,32 +38,39 @@
         <button id="play-again-btn" class="play-again-btn">🔄 ESCANEAR DE NUEVO</button>
     </div>
 
-    <!-- Interfaz de Controles Táctiles -->
+    <!-- Aviso de Girar Celular a Horizontal -->
+    <div id="rotate-screen" class="rotate-container" style="display: none;">
+        <div class="rotate-card">
+            <div class="phone-anim-wrapper">
+                <div class="phone-graphic">
+                    <div class="phone-screen"></div>
+                </div>
+                <div class="rotate-arrow">⟲</div>
+            </div>
+            <h2 class="rotate-title">¡GIRA TU CELULAR!</h2>
+            <p class="rotate-desc">Por favor, gira el celular en horizontal para comenzar a jugar.</p>
+            <div class="rotate-badge">🎪 MODO HORIZONTAL REQUERIDO</div>
+        </div>
+    </div>
+
+    <!-- Interfaz de Controles Táctiles (Modo Horizontal) -->
     <div class="controls-container" id="controls-container" style="display: none;">
-        <!-- D-Pad Direccional en Cruz (Subir, Bajar, Frenar, Avanzar) -->
-        <div class="dpad-container">
-            <div class="dpad-row dpad-row-top">
-                <button class="dpad-btn dpad-up" id="btn-up" data-dir="up">
-                    <span class="dpad-arrow">▲</span>
-                    <span class="dpad-sub">SUBIR</span>
-                </button>
-            </div>
-            <div class="dpad-row dpad-row-middle">
-                <button class="dpad-btn dpad-left" id="btn-left" data-dir="left">
-                    <span class="dpad-arrow">◀</span>
-                    <span class="dpad-sub">FRENAR</span>
-                </button>
-                <div class="dpad-center"></div>
-                <button class="dpad-btn dpad-right" id="btn-right" data-dir="right">
-                    <span class="dpad-arrow">▶</span>
-                    <span class="dpad-sub">AVANZAR</span>
-                </button>
-            </div>
-            <div class="dpad-row dpad-row-bottom">
-                <button class="dpad-btn dpad-down" id="btn-down" data-dir="down">
-                    <span class="dpad-arrow">▼</span>
-                    <span class="dpad-sub">BAJAR</span>
-                </button>
+        <!-- Panel de Dirección: Joystick Analógico Virtual -->
+        <div class="joystick-panel">
+            <div class="joystick-wrapper">
+                <div class="joystick-base" id="joystick-base">
+                    <div class="joystick-guide-ring"></div>
+                    <div class="joystick-axis-x"></div>
+                    <div class="joystick-axis-y"></div>
+                    <span class="joystick-dir-arrow dir-l">◀</span>
+                    <span class="joystick-dir-arrow dir-r">▶</span>
+                    <span class="joystick-dir-arrow dir-u">▲</span>
+                    <span class="joystick-dir-arrow dir-d">▼</span>
+                    <div class="joystick-knob" id="joystick-knob">
+                        <div class="knob-cap"></div>
+                    </div>
+                </div>
+                <span class="joystick-label">🕹️ DIRECCIÓN</span>
             </div>
         </div>
 
@@ -76,7 +83,7 @@
         </div>
     </div>
 
-    <script src="config.js?v=1"></script>
-    <script src="script.js?v=1"></script>
+    <script src="config.js?v=2"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>

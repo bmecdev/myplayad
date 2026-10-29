@@ -8,14 +8,13 @@ const roomInput = document.getElementById('room-input');
 const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
+const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 const playAgainBtn = document.getElementById('play-again-btn');
 
-const btnUp = document.getElementById('btn-up');
-const btnDown = document.getElementById('btn-down');
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
+const joystickBase = document.getElementById('joystick-base');
+const joystickKnob = document.getElementById('joystick-knob');
 const btnJump = document.getElementById('btn-jump');
 
 container.style.touchAction = 'none';
@@ -26,6 +25,7 @@ let socket;
 let currentRoomId = null;
 let nickname = 'Charlie';
 let pendingCandidates = [];
+let hasStarted = false;
 
 // ==========================================
 // 📡 Configuración ICE dinámica con TURN
@@ -157,8 +157,7 @@ async function initConnection() {
                             sdp: sdp
                         }));
                         status.textContent = '⚡ CONECTADO';
-                        roomSelection.style.display = 'none';
-                        container.style.display = 'flex';
+                        updateOrientationView();
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -178,6 +177,8 @@ async function initConnection() {
                     }
                 } else if (data.type === 'error') {
                     status.textContent = 'ERROR: ' + data.message;
+                    if (rotateScreen) rotateScreen.style.display = 'none';
+                    if (container) container.style.display = 'none';
                     roomSelection.style.display = 'flex';
                 }
             } catch (err) {
@@ -187,6 +188,8 @@ async function initConnection() {
 
         socket.onerror = () => {
             status.textContent = 'ERROR DE CONEXIÓN';
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (container) container.style.display = 'none';
             roomSelection.style.display = 'flex';
         };
     } catch (e) {
@@ -212,7 +215,8 @@ async function setupWebRTC() {
         if (state === 'disconnected' || state === 'failed') {
             status.textContent = 'DESCONECTADO';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
-                container.style.display = 'none';
+                if (rotateScreen) rotateScreen.style.display = 'none';
+                if (container) container.style.display = 'none';
                 roomSelection.style.display = 'flex';
             }
         }
@@ -222,8 +226,7 @@ async function setupWebRTC() {
 
     dataChannel.onopen = () => {
         status.textContent = '⚡ EN LÍNEA';
-        roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        updateOrientationView();
 
         dataChannel.send(JSON.stringify({
             type: 'join',
@@ -267,6 +270,7 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'flex';
@@ -291,42 +295,216 @@ function sendCommand(cmd, value = true) {
 }
 
 // ==========================================
-// 🕹️ Captura de Botones Táctiles
+// 🕹️ Joystick Virtual Analógico y Controles
 // ==========================================
-function bindButton(btn, cmdName) {
-    if (!btn) return;
+let currentDir = { left: false, right: false, up: false, down: false };
 
-    let isPressed = false;
-    const startHandler = (e) => {
-        e.preventDefault();
-        if (isPressed) return;
-        isPressed = true;
-        btn.classList.add('pressed');
-        sendCommand(cmdName, true);
-        if (navigator.vibrate) navigator.vibrate(15);
-    };
-
-    const endHandler = (e) => {
-        e.preventDefault();
-        if (!isPressed) return;
-        isPressed = false;
-        btn.classList.remove('pressed');
-        sendCommand(cmdName, false);
-    };
-
-    btn.addEventListener('touchstart', startHandler, { passive: false });
-    btn.addEventListener('touchend', endHandler, { passive: false });
-    btn.addEventListener('touchcancel', endHandler, { passive: false });
-    btn.addEventListener('pointerdown', startHandler, { passive: false });
-    btn.addEventListener('pointerup', endHandler, { passive: false });
-    btn.addEventListener('pointerleave', endHandler, { passive: false });
+function updateJoystickState(left, right, up, down) {
+    if (left !== currentDir.left) {
+        currentDir.left = left;
+        sendCommand('left', left);
+    }
+    if (right !== currentDir.right) {
+        currentDir.right = right;
+        sendCommand('right', right);
+    }
+    if (up !== currentDir.up) {
+        currentDir.up = up;
+        sendCommand('up', up);
+    }
+    if (down !== currentDir.down) {
+        currentDir.down = down;
+        sendCommand('down', down);
+    }
 }
 
-bindButton(btnUp, 'up');
-bindButton(btnDown, 'down');
-bindButton(btnLeft, 'left');
-bindButton(btnRight, 'right');
-bindButton(btnJump, 'jump');
+if (joystickBase && joystickKnob) {
+    const MAX_RADIUS = 50; // Límite de desplazamiento del pomo en px
+    let activePointerId = null;
+
+    function handleJoystickMove(clientX, clientY) {
+        const rect = joystickBase.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        const distance = Math.hypot(dx, dy);
+
+        let knobX = 0;
+        let knobY = 0;
+
+        if (distance > 0) {
+            const clampedDist = Math.min(distance, MAX_RADIUS);
+            const angle = Math.atan2(dy, dx);
+            knobX = Math.cos(angle) * clampedDist;
+            knobY = Math.sin(angle) * clampedDist;
+        }
+
+        joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+        // Normalizar valores entre -1.0 y +1.0
+        const normX = knobX / MAX_RADIUS;
+        const normY = knobY / MAX_RADIUS;
+
+        // Umbrales para activar movimientos
+        const DEADZONE = 0.22;
+        const isLeft = normX < -DEADZONE;
+        const isRight = normX > DEADZONE;
+        const isUp = normY < -DEADZONE;
+        const isDown = normY > DEADZONE;
+
+        updateJoystickState(isLeft, isRight, isUp, isDown);
+
+        // Envío continuo para el motor de host
+        if (dataChannel && dataChannel.readyState === 'open') {
+            try {
+                dataChannel.send(JSON.stringify({
+                    type: 'joystick',
+                    x: normX,
+                    y: normY
+                }));
+            } catch (_) {}
+        }
+    }
+
+    function resetJoystick() {
+        activePointerId = null;
+        joystickBase.classList.remove('active');
+        joystickKnob.style.transform = 'translate(0px, 0px)';
+        updateJoystickState(false, false, false, false);
+        if (dataChannel && dataChannel.readyState === 'open') {
+            try {
+                dataChannel.send(JSON.stringify({
+                    type: 'joystick',
+                    x: 0,
+                    y: 0
+                }));
+            } catch (_) {}
+        }
+    }
+
+    joystickBase.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        try {
+            if (joystickBase.setPointerCapture) {
+                joystickBase.setPointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        joystickBase.classList.add('active');
+        if (navigator.vibrate) navigator.vibrate(10);
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    joystickBase.addEventListener('pointermove', (e) => {
+        if (activePointerId !== e.pointerId) return;
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    const endJoystick = (e) => {
+        if (activePointerId !== e.pointerId) return;
+        try {
+            if (e && joystickBase.hasPointerCapture && joystickBase.hasPointerCapture(e.pointerId)) {
+                joystickBase.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        resetJoystick();
+    };
+
+    joystickBase.addEventListener('pointerup', endJoystick);
+    joystickBase.addEventListener('pointercancel', endJoystick);
+}
+
+// Botón de Salto Gigante
+if (btnJump) {
+    btnJump.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        btnJump.classList.add('pressed');
+        mobileAudio.play('jump');
+        sendCommand('jump', true);
+        if (navigator.vibrate) navigator.vibrate(25);
+    });
+
+    const endJump = (e) => {
+        e.preventDefault();
+        btnJump.classList.remove('pressed');
+        sendCommand('jump', false);
+    };
+
+    btnJump.addEventListener('pointerup', endJump);
+    btnJump.addEventListener('pointercancel', endJump);
+}
+
+// ==========================================
+// 🔄 Control de Orientación Horizontal (Landscape)
+// ==========================================
+function isPortraitMode() {
+    // 1. Orientación física de hardware (Screen Orientation API moderna)
+    if (window.screen && window.screen.orientation && typeof window.screen.orientation.type === 'string') {
+        if (window.screen.orientation.type.startsWith('portrait')) return true;
+        if (window.screen.orientation.type.startsWith('landscape')) return false;
+    }
+
+    // 2. window.orientation tradicional (Safari iOS y WebViews de Android)
+    if (typeof window.orientation === 'number') {
+        if (window.orientation === 0 || window.orientation === 180) return true;
+        if (window.orientation === 90 || window.orientation === -90) return false;
+    }
+
+    // 3. MatchMedia CSS en tiempo real
+    if (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) {
+        return true;
+    }
+
+    // 4. Fallback por proporción de dimensiones
+    return window.innerHeight > window.innerWidth;
+}
+
+function updateOrientationView() {
+    if (thanksScreen && thanksScreen.style.display === 'flex') {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    const inPortrait = isPortraitMode();
+
+    if (hasStarted) {
+        if (inPortrait) {
+            // El usuario ya colocó su nombre pero tiene el celular en vertical:
+            // Mostrar ÚNICAMENTE el aviso animado en pantalla completa pidiendo girar
+            if (rotateScreen) rotateScreen.style.display = 'flex';
+            if (container) container.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+        } else {
+            // El usuario puso el celular en horizontal: ocultar aviso y mostrar mandos
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+            if (container) container.style.display = 'flex';
+        }
+    } else {
+        // Pantalla inicial de bienvenida y nickname
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (roomSelection) roomSelection.style.display = 'flex';
+        if (container) container.style.display = 'none';
+    }
+}
+
+window.addEventListener('orientationchange', () => {
+    setTimeout(updateOrientationView, 120);
+});
+if (window.screen && window.screen.orientation) {
+    try {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(updateOrientationView, 100);
+        });
+    } catch (_) {}
+}
+window.addEventListener('resize', () => {
+    if (hasStarted) {
+        setTimeout(updateOrientationView, 150);
+    }
+});
 
 // ==========================================
 // 🚀 Inicialización y Carga
@@ -340,15 +518,50 @@ window.addEventListener('DOMContentLoaded', () => {
         if (roomInput) roomInput.value = currentRoomId;
     }
 
-    if (nicknameInput) nicknameInput.focus();
+    if (nicknameInput) {
+        // Validación obligatoria de Nickname (mínimo 2 caracteres)
+        const validateNick = () => {
+            const val = nicknameInput.value.trim();
+            if (connectBtn) {
+                connectBtn.disabled = val.length < 2;
+            }
+        };
+        nicknameInput.addEventListener('input', validateNick);
+        validateNick();
+
+        nicknameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (nicknameInput.value.trim().length >= 2) {
+                    if (connectBtn) connectBtn.click();
+                } else {
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+            }
+        });
+    }
 
     if (connectBtn) {
-        connectBtn.addEventListener('click', () => {
-            mobileAudio.init();
-            const nick = nicknameInput.value.trim();
-            if (nick) nickname = nick;
+        connectBtn.addEventListener('click', (e) => {
+            if (e) e.preventDefault();
 
-            if (!currentRoomId) {
+            // Cerrar teclado virtual explícitamente para que no distorsione el viewport
+            if (nicknameInput) nicknameInput.blur();
+
+            mobileAudio.init();
+
+            const nick = nicknameInput ? nicknameInput.value.trim() : '';
+            if (!nick || nick.length < 2) {
+                if (nicknameInput) {
+                    nicknameInput.focus();
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+                return;
+            }
+            nickname = nick;
+
+            if (!currentRoomId && roomInput) {
                 currentRoomId = roomInput.value.trim().toUpperCase();
             }
 
@@ -356,6 +569,10 @@ window.addEventListener('DOMContentLoaded', () => {
                 alert('Por favor escanea el código QR de la pantalla.');
                 return;
             }
+
+            hasStarted = true;
+            roomSelection.style.display = 'none';
+            updateOrientationView();
 
             initConnection();
         });
