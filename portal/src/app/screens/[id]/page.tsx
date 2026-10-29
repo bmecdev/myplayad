@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check, Clock, Sun, Moon, Save } from 'lucide-react';
 import Link from 'next/link';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -10,6 +10,7 @@ type Video = {
   id: string;
   title: string;
   filename: string;
+  userId?: string | null;
   createdAt: string;
 };
 
@@ -28,9 +29,13 @@ type ScreenDetail = {
   name: string;
   location: string;
   description: string;
+  consoleId?: string | null;
   lastSeen?: string;
   userId?: string | null;
   displayState?: 'ON' | 'OFF' | string;
+  autoPowerEnabled?: boolean;
+  powerOnTime?: string | null;
+  powerOffTime?: string | null;
   user?: {
     id: string;
     name: string;
@@ -87,8 +92,21 @@ export default function ScreenDetailPage() {
   const [selectedClientId, setSelectedClientId] = useState<string>('none');
   const [reassignSubmitting, setReassignSubmitting] = useState(false);
 
+  // Console Assignment Modal State
+  const [isConsoleModalOpen, setIsConsoleModalOpen] = useState(false);
+  const [consoleInput, setConsoleInput] = useState('');
+  const [consoleSubmitting, setConsoleSubmitting] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
   // OTA Update Modal State
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+
+  // Power Schedule State (Horario de Encendido y Apagado)
+  const [autoPowerEnabled, setAutoPowerEnabled] = useState(true);
+  const [powerOnTime, setPowerOnTime] = useState('08:00');
+  const [powerOffTime, setPowerOffTime] = useState('22:00');
+  const [savingPowerSchedule, setSavingPowerSchedule] = useState(false);
+  const [powerScheduleSuccess, setPowerScheduleSuccess] = useState(false);
 
   const fetchScreenData = async () => {
     try {
@@ -116,6 +134,13 @@ export default function ScreenDetailPage() {
       setActiveGameSchedule(data.activeGameSchedule);
       setUpcomingSchedules(data.upcomingSchedules || []);
       
+      // Sincronizar estado del horario de energía
+      if (data.screen) {
+        setAutoPowerEnabled(data.screen.autoPowerEnabled ?? true);
+        setPowerOnTime(data.screen.powerOnTime || '08:00');
+        setPowerOffTime(data.screen.powerOffTime || '22:00');
+      }
+
       const gamesRes = await fetch('/api/games');
       const gamesData = await gamesRes.json();
       setGames(gamesData);
@@ -125,6 +150,34 @@ export default function ScreenDetailPage() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSavePowerSchedule = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingPowerSchedule(true);
+    setPowerScheduleSuccess(false);
+    try {
+      const res = await fetch(`/api/screens/${screenId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          autoPowerEnabled,
+          powerOnTime,
+          powerOffTime,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar horario');
+      }
+      setPowerScheduleSuccess(true);
+      fetchScreenData();
+      setTimeout(() => setPowerScheduleSuccess(false), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Error guardando horario de encendido/apagado');
+    } finally {
+      setSavingPowerSchedule(false);
     }
   };
 
@@ -302,12 +355,19 @@ export default function ScreenDetailPage() {
     setIsExistingVideoModalOpen(true);
     setSelectedVideoIds([]);
     try {
-      const res = await fetch('/api/videos');
+      const endpoint = screen?.userId ? `/api/videos?userId=${screen.userId}` : '/api/videos';
+      const res = await fetch(endpoint);
       if (res.ok) {
         const data = await res.json();
-        // Filter out videos that are already assigned to this screen
+        // Filtrar videos ya asignados y garantizar segmentación estricta por cliente
         const existingIds = new Set(videos.map(v => v.id));
-        setAllVideos(data.filter((v: Video) => !existingIds.has(v.id)));
+        setAllVideos(
+          data.filter((v: Video) => {
+            if (existingIds.has(v.id)) return false;
+            if (screen?.userId && v.userId && v.userId !== screen.userId) return false;
+            return true;
+          })
+        );
       }
     } catch (err) {
       console.error('Error fetching videos:', err);
@@ -317,7 +377,7 @@ export default function ScreenDetailPage() {
   const handleAssignExistingVideos = async () => {
     if (selectedVideoIds.length === 0) return;
 
-    const maxAllowed = screen?.user?.plan?.maxVideosPerScreen ?? 5;
+    const maxAllowed = screen?.user?.plan?.maxVideosPerScreen ?? 15;
     if (currentUser?.role === 'CLIENT' && (videos.length + selectedVideoIds.length) > maxAllowed) {
       alert(`No es posible asignar ${selectedVideoIds.length} videos. El plan de esta pantalla permite un máximo de ${maxAllowed} videos (actualmente ya tiene ${videos.length}).`);
       return;
@@ -393,6 +453,47 @@ export default function ScreenDetailPage() {
                 Plan: {currentUser.plan.name}
               </span>
             )}
+
+            {/* Consola Hardware (Solo visible para Super Admin) */}
+            {currentUser?.role === 'SUPER_ADMIN' && (
+              <button
+                onClick={() => {
+                  setConsoleInput(screen.consoleId || '');
+                  setIsConsoleModalOpen(true);
+                }}
+                className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Asociar o cambiar consola hardware (Raspberry Pi)"
+              >
+                <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                <span>Consola: {screen.consoleId || 'Sin vincular'}</span>
+                <span className="text-[10px] bg-purple-500/20 px-1.5 py-0.2 rounded ml-0.5">Editar</span>
+              </button>
+            )}
+
+            {/* Copiar SCREEN_ID */}
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(screen.id);
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+              }}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Copiar SCREEN_ID para config.txt en la consola"
+            >
+              {copiedId ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  <span className="text-emerald-400 font-sans">¡ID Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  <span>Copiar ID</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setIsUpdateModalOpen(true)}
               className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -539,6 +640,95 @@ export default function ScreenDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Horario Programado de Energía (Auto Power) */}
+          <div className="mt-6 space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-amber-400">
+              <Clock className="w-5 h-5" /> Horario Programado de Energía
+            </h3>
+            
+            <div className="glass-card rounded-2xl p-5 border border-amber-500/20 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                <div>
+                  <p className="font-semibold text-sm text-slate-200">Control Automático Diario (HDMI-CEC)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Enciende y apaga la pantalla automáticamente todos los días según el horario fijado.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={autoPowerEnabled}
+                    onChange={(e) => setAutoPowerEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  <span className="ml-2.5 text-xs font-medium text-slate-300">
+                    {autoPowerEnabled ? 'Activo' : 'Desactivado'}
+                  </span>
+                </label>
+              </div>
+
+              <form onSubmit={handleSavePowerSchedule} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-black/30 p-3 rounded-xl border border-white/5">
+                    <label className="text-xs font-medium text-emerald-400 flex items-center gap-1.5 mb-1.5 uppercase tracking-wider">
+                      <Sun className="w-3.5 h-3.5" /> Hora de Encendido
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!autoPowerEnabled}
+                      value={powerOnTime}
+                      onChange={(e) => setPowerOnTime(e.target.value)}
+                      className="w-full bg-black/60 border border-slate-700/80 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 disabled:opacity-40 transition-colors"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Inicio de operación diaria</p>
+                  </div>
+
+                  <div className="bg-black/30 p-3 rounded-xl border border-white/5">
+                    <label className="text-xs font-medium text-indigo-400 flex items-center gap-1.5 mb-1.5 uppercase tracking-wider">
+                      <Moon className="w-3.5 h-3.5" /> Hora de Apagado
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!autoPowerEnabled}
+                      value={powerOffTime}
+                      onChange={(e) => setPowerOffTime(e.target.value)}
+                      className="w-full bg-black/60 border border-slate-700/80 rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 disabled:opacity-40 transition-colors"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Reposo / TV Standby nocturno</p>
+                  </div>
+                </div>
+
+                {powerScheduleSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>¡Horario guardado correctamente!</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={savingPowerSchedule}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl transition-colors font-medium text-xs flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-md shadow-amber-600/20"
+                  >
+                    {savingPowerSchedule ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Guardar Horario</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
 
         {/* Videos Management Section */}
@@ -549,7 +739,7 @@ export default function ScreenDetailPage() {
                 <Film className="w-6 h-6" /> Videos de esta Pantalla
               </h2>
               {(() => {
-                const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 15;
                 const isFull = videos.length >= maxAllowed;
                 return (
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -938,6 +1128,108 @@ export default function ScreenDetailPage() {
                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium text-sm"
                 >
                   {reassignSubmitting ? 'Guardando...' : 'Actualizar Asignación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Vincular Consola Hardware */}
+      {isConsoleModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Cpu className="w-5 h-5 text-purple-400" />
+              <h2 className="text-xl font-bold">Vincular Consola Hardware</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Pantalla: <span className="text-white font-semibold">{screen.name}</span>
+            </p>
+
+            {/* Box con SCREEN_ID para copiar rápidamente a config.txt */}
+            <div className="mb-4 p-3 bg-black/40 border border-white/10 rounded-xl">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-slate-400">SCREEN_ID (para config.txt en la Pi):</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(screen.id);
+                    setCopiedId(true);
+                    setTimeout(() => setCopiedId(false), 2000);
+                  }}
+                  className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                >
+                  {copiedId ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-medium">¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar UUID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs font-mono text-slate-200 break-all select-all">
+                {screen.id}
+              </p>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setConsoleSubmitting(true);
+                try {
+                  const res = await fetch(`/api/screens/${screen.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ consoleId: consoleInput }),
+                  });
+                  if (!res.ok) {
+                    throw new Error('Error al actualizar consola');
+                  }
+                  setIsConsoleModalOpen(false);
+                  fetchScreenData();
+                } catch (err) {
+                  console.error('Error guardando consola:', err);
+                } finally {
+                  setConsoleSubmitting(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Identificador de la Consola (RPi)</label>
+                <input
+                  type="text"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm font-mono"
+                  placeholder="Ej: consola1, consola2, rpi5-01"
+                  value={consoleInput}
+                  onChange={(e) => setConsoleInput(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usuario o nombre del Raspberry Pi 5 que corre esta pantalla. Deja vacío para desvincular.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsConsoleModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm"
+                  disabled={consoleSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={consoleSubmitting}
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm shadow-lg shadow-purple-500/20"
+                >
+                  {consoleSubmitting ? 'Guardando...' : 'Guardar Consola'}
                 </button>
               </div>
             </form>

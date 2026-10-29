@@ -25,6 +25,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const { exec } = require('child_process');
@@ -184,6 +185,20 @@ if (SCREEN_ID) {
         console.log('[mqtt] Conectado exitosamente al broker MQTT');
         // Reportar como online con retain: true
         client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
+
+        // Reportar información de la consola física con retain: true
+        try {
+            const consoleUser = process.env.USER || (os.userInfo ? os.userInfo().username : 'consola');
+            client.publish(`screens/${SCREEN_ID}/info`, JSON.stringify({
+                consoleId: consoleUser,
+                hostname: os.hostname(),
+                arch: os.arch(),
+                uptime: os.uptime()
+            }), { qos: 1, retain: true });
+        } catch (e) {
+            console.warn('[mqtt] No se pudo enviar info de consola:', e.message);
+        }
+
         // Suscribirse al topic de sincronización e identificar
         client.subscribe(`screens/${SCREEN_ID}/sync`, { qos: 1 });
         client.subscribe(`screens/${SCREEN_ID}/identify`, { qos: 1 });
@@ -517,6 +532,20 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log(`[screen-server] videos dir:    ${VIDEOS_DIR}`);
     console.log(`[screen-server] remote source: ${REMOTE}`);
     console.log(`[screen-server] screen ID:     ${SCREEN_ID || 'No definido (usar URL param)'}`);
+
+    // Asegurar encendido del televisor (HDMI-CEC) al arrancar el servidor Node
+    (async () => {
+        try {
+            const powerScriptPath = path.join(__dirname, 'power.sh');
+            if (fs.existsSync(powerScriptPath)) {
+                console.log('[power] Asegurando encendido de TV (HDMI-CEC) al arrancar el servidor...');
+                await execPromise(`bash "${powerScriptPath}" on`, { timeout: 15000 });
+                console.log('[power] TV encendido correctamente en boot.');
+            }
+        } catch (err) {
+            console.warn('[power] Aviso al encender TV en boot:', err.message);
+        }
+    })();
 });
 
 server.on('error', err => {

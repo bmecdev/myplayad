@@ -2258,6 +2258,16 @@ function fetchRanking() {
 
         renderList(rankingList);
         renderList(videoRankingList);
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'outrun',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
+        }
     } catch (e) {
         console.warn('Error ranking:', e);
     }
@@ -2335,7 +2345,11 @@ window.addEventListener('load', () => {
 });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
 if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
-window.addEventListener('message', (e) => { if (e.data?.type === 'RESCALE') autoScale(); });
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'RESCALE') autoScale();
+    if (e.data.type === 'GET_RANKING') fetchRanking();
+});
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
 
 const mainScreen = document.getElementById('main-screen');

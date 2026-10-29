@@ -12,6 +12,11 @@ const videoRankingList = document.getElementById('video-ranking-list');
 const qrContainer = document.getElementById('qrcode');
 const iceRouteElement = document.getElementById('ice-route');
 
+// WebRTC State (Declarado al inicio para acceso global en broadcastSFX)
+const peerConnections = new Map();
+const dataChannels = new Map();
+let socket;
+
 // Retro Arcade Web Audio API Synthesizer
 class ArkanoidAudio {
     constructor() {
@@ -73,6 +78,7 @@ class ArkanoidAudio {
     }
 
     playPaddle() {
+        broadcastSFX('paddle');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -89,10 +95,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.08);
         } catch (e) {}
-        broadcastSFX('paddle');
     }
 
     playWall() {
+        broadcastSFX('wall');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -108,10 +114,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.06);
         } catch (e) {}
-        broadcastSFX('wall');
     }
 
     playBrick(row) {
+        broadcastSFX('brick', row);
         if (!this.ctx) return;
         this.resume();
         try {
@@ -130,10 +136,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.07);
         } catch (e) {}
-        broadcastSFX('brick', row);
     }
 
     playLaunch() {
+        broadcastSFX('launch');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -150,10 +156,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.12);
         } catch (e) {}
-        broadcastSFX('launch');
     }
 
     playLifeLost() {
+        broadcastSFX('lifeLost');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -170,10 +176,10 @@ class ArkanoidAudio {
             osc.start(t);
             osc.stop(t + 0.35);
         } catch (e) {}
-        broadcastSFX('lifeLost');
     }
 
     playLevelClear() {
+        broadcastSFX('levelClear');
         if (!this.ctx) return;
         this.resume();
         const notes = [523.25, 659.25, 783.99, 987.77, 1046.50];
@@ -190,10 +196,10 @@ class ArkanoidAudio {
             osc.start(t + idx * 0.08);
             osc.stop(t + idx * 0.08 + 0.13);
         });
-        broadcastSFX('levelClear');
     }
 
     playStart() {
+        broadcastSFX('start');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 554.37, 659.25, 880];
@@ -210,10 +216,10 @@ class ArkanoidAudio {
             osc.start(t + idx * 0.07);
             osc.stop(t + idx * 0.07 + 0.11);
         });
-        broadcastSFX('start');
     }
 
     playGameOver() {
+        broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 370, 311, 261];
@@ -230,7 +236,6 @@ class ArkanoidAudio {
             osc.start(t + idx * 0.14);
             osc.stop(t + idx * 0.14 + 0.2);
         });
-        broadcastSFX('gameover');
     }
 }
 const audio = new ArkanoidAudio();
@@ -295,7 +300,7 @@ const GameState = {
         x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 5,
         dx: 0,
-        speed: 1200
+        speed: 360
     },
     ball: {
         x: CANVAS_WIDTH / 2,
@@ -321,10 +326,7 @@ function initBricks() {
     }
 }
 
-// WebRTC State
-const peerConnections = new Map();
-const dataChannels = new Map();
-let socket;
+// WebRTC Reconnect State
 
 const signalingState = {
     shouldReconnect: true,
@@ -609,8 +611,11 @@ function handleJoystickInput(input) {
     if (input.fire) {
         if (!GameState.ball.launched && GameState.running && !GameState.gameOver) {
             GameState.ball.launched = true;
-            GameState.ball.dx = (Math.random() > 0.5 ? 1 : -1) * GameState.ball.speed;
-            GameState.ball.dy = -GameState.ball.speed;
+            // Angulo de lanzamiento entre 30 y 55 grados respecto a la vertical
+            const angleDir = Math.random() > 0.5 ? 1 : -1;
+            const angleRad = angleDir * (Math.PI / 6 + Math.random() * (Math.PI / 8));
+            GameState.ball.dx = Math.sin(angleRad) * GameState.ball.speed;
+            GameState.ball.dy = -Math.cos(angleRad) * GameState.ball.speed;
             audio.playLaunch();
         } else if (GameState.gameOver) {
             // Cannot restart from fire, must re-scan
@@ -618,10 +623,15 @@ function handleJoystickInput(input) {
         return;
     }
 
-    if (input.x !== undefined) {
-        // Trackpad gives x between -1 and 1
-        // Apply an exponential curve for better precision at low speeds and high responsiveness at high speeds
-        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.5);
+    if (input.pos !== undefined) {
+        // Deslizador táctil horizontal directo (0.0 a 1.0)
+        const targetX = input.pos * (CANVAS_WIDTH - PADDLE_WIDTH);
+        GameState.paddle.targetX = Math.max(0, Math.min(CANVAS_WIDTH - PADDLE_WIDTH, targetX));
+        GameState.paddle.dx = 0;
+    } else if (input.x !== undefined) {
+        // Fallback por velocidad
+        GameState.paddle.targetX = undefined;
+        const expX = Math.sign(input.x) * Math.pow(Math.abs(input.x), 1.1);
         GameState.paddle.dx = expX * GameState.paddle.speed;
     }
 }
@@ -648,7 +658,10 @@ function resetGame() {
     GameState.lives = 3;
     GameState.gameOver = false;
     GameState.running = true;
+    GameState.ball.speed = 150;
     GameState.paddle.x = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    GameState.paddle.targetX = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    GameState.paddle.dx = 0;
     initBricks();
     resetBall();
     updateUI();
@@ -660,7 +673,17 @@ function update(dt) {
     if (!GameState.running || GameState.paused || GameState.gameOver) return;
 
     // Move paddle
-    GameState.paddle.x += GameState.paddle.dx * dt;
+    if (GameState.paddle.targetX !== undefined) {
+        const diff = GameState.paddle.targetX - GameState.paddle.x;
+        if (Math.abs(diff) < 0.2) {
+            GameState.paddle.x = GameState.paddle.targetX;
+        } else {
+            // Lerp ultra reactivo para seguimiento inmediato y suave a 60fps
+            GameState.paddle.x += diff * Math.min(1, 45 * dt);
+        }
+    } else {
+        GameState.paddle.x += GameState.paddle.dx * dt;
+    }
     if (GameState.paddle.x < 0) GameState.paddle.x = 0;
     if (GameState.paddle.x + PADDLE_WIDTH > CANVAS_WIDTH) GameState.paddle.x = CANVAS_WIDTH - PADDLE_WIDTH;
 
@@ -698,16 +721,26 @@ function update(dt) {
             updateUI();
         }
 
-        // Paddle collision
-        if (GameState.ball.y + BALL_RADIUS > GameState.paddle.y && 
-            GameState.ball.y - BALL_RADIUS < GameState.paddle.y + PADDLE_HEIGHT &&
-            GameState.ball.x + BALL_RADIUS > GameState.paddle.x && 
-            GameState.ball.x - BALL_RADIUS < GameState.paddle.x + PADDLE_WIDTH) {
+        // Paddle collision (solo cuando la pelota desciende hacia la barra)
+        if (GameState.ball.dy > 0 &&
+            GameState.ball.y + BALL_RADIUS >= GameState.paddle.y && 
+            GameState.ball.y - BALL_RADIUS <= GameState.paddle.y + PADDLE_HEIGHT &&
+            GameState.ball.x + BALL_RADIUS >= GameState.paddle.x && 
+            GameState.ball.x - BALL_RADIUS <= GameState.paddle.x + PADDLE_WIDTH) {
             
-            GameState.ball.dy = -Math.abs(GameState.ball.dy); // Force up
-            // Change angle based on hit position
-            let hitPoint = GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2);
-            GameState.ball.dx = (hitPoint / (PADDLE_WIDTH / 2)) * GameState.ball.speed;
+            // Reubicar la pelota justo encima de la paleta para evitar atrapamiento o dobles impactos
+            GameState.ball.y = GameState.paddle.y - BALL_RADIUS - 0.5;
+
+            // Calcular desvío respecto al centro de la barra (-1.0 a +1.0)
+            let hitOffset = (GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2)) / (PADDLE_WIDTH / 2);
+            // Limitar el ángulo para evitar rebotes puramente horizontales
+            hitOffset = Math.max(-0.85, Math.min(0.85, hitOffset));
+
+            // Rebote máximo de 60 grados (Math.PI / 3) conservando la velocidad exacta
+            const bounceAngle = hitOffset * (Math.PI / 3);
+            GameState.ball.dx = Math.sin(bounceAngle) * GameState.ball.speed;
+            GameState.ball.dy = -Math.cos(bounceAngle) * GameState.ball.speed;
+
             audio.playPaddle();
         }
 
@@ -907,6 +940,16 @@ function fetchRanking() {
 
         renderList(rankingList);
         renderList(videoRankingList);
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'arkanoid',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
+        }
     } catch (error) {
         console.error('Error fetching ranking:', error);
     }
@@ -1062,10 +1105,13 @@ if (window.ResizeObserver) {
     ro.observe(document.body);
 }
 
-// Listen for explicit RESCALE message from screen parent frame
+// Listen for messages from screen parent frame (rescale, get ranking)
 window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'RESCALE') {
+    if (!event.data) return;
+    if (event.data.type === 'RESCALE') {
         autoScale();
+    } else if (event.data.type === 'GET_RANKING') {
+        fetchRanking();
     }
 });
 
@@ -1075,8 +1121,14 @@ window.addEventListener('message', (event) => {
 // Controles de teclado para pruebas en navegador
 window.addEventListener('keydown', (e) => {
     audio.init();
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') GameState.paddle.dx = -GameState.paddle.speed;
-    if (e.code === 'ArrowRight' || e.code === 'KeyD') GameState.paddle.dx = GameState.paddle.speed;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        GameState.paddle.targetX = undefined;
+        GameState.paddle.dx = -GameState.paddle.speed;
+    }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        GameState.paddle.targetX = undefined;
+        GameState.paddle.dx = GameState.paddle.speed;
+    }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter') {
         if (!GameState.running || GameState.gameOver) resetGame();
         else handleJoystickInput({ fire: true });

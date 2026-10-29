@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film } from 'lucide-react';
+import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film, Cpu, Copy, Check, Clock } from 'lucide-react';
 import mqtt from 'mqtt';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -23,9 +23,13 @@ type Screen = {
   name: string;
   location: string;
   description: string;
+  consoleId?: string | null;
   userId?: string | null;
   user?: UserSummary | null;
   displayState?: 'ON' | 'OFF' | string;
+  autoPowerEnabled?: boolean;
+  powerOnTime?: string | null;
+  powerOffTime?: string | null;
   lastSeen?: string;
   createdAt: string;
   schedules?: Array<{
@@ -44,13 +48,29 @@ export default function ScreensPage() {
   
   // Modal de Crear Pantalla
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', location: '', description: '', userId: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    location: '',
+    description: '',
+    userId: '',
+    consoleId: '',
+    autoPowerEnabled: true,
+    powerOnTime: '08:00',
+    powerOffTime: '22:00',
+  });
   
   // Modal de Reasignar Cliente (Super Admin)
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
   const [selectedScreenForReassign, setSelectedScreenForReassign] = useState<Screen | null>(null);
   const [newAssignedUserId, setNewAssignedUserId] = useState('');
   const [reassignLoading, setReassignLoading] = useState(false);
+
+  // Modal de Asociar Consola Hardware (Super Admin)
+  const [consoleModalOpen, setConsoleModalOpen] = useState(false);
+  const [selectedScreenForConsole, setSelectedScreenForConsole] = useState<Screen | null>(null);
+  const [consoleInput, setConsoleInput] = useState('');
+  const [consoleLoading, setConsoleLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Modal de Actualizaciones OTA
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
@@ -103,6 +123,7 @@ export default function ScreensPage() {
     const client = mqtt.connect('wss://videos.myplayad.com/mqtt');
     client.on('connect', () => {
       client.subscribe('screens/+/status');
+      client.subscribe('screens/+/info');
     });
 
     client.on('message', (topic, message) => {
@@ -111,6 +132,17 @@ export default function ScreensPage() {
         const screenId = parts[1];
         const status = message.toString();
         setMqttStatuses(prev => ({ ...prev, [screenId]: status === 'online' }));
+      } else if (parts.length === 3 && parts[0] === 'screens' && parts[2] === 'info') {
+        try {
+          const info = JSON.parse(message.toString());
+          if (info.consoleId) {
+            setScreens(prev =>
+              prev.map(s => (s.id === parts[1] && !s.consoleId ? { ...s, consoleId: info.consoleId } : s))
+            );
+          }
+        } catch (e) {
+          // payload no json
+        }
       }
     });
 
@@ -127,9 +159,61 @@ export default function ScreensPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
     });
-    setFormData({ name: '', location: '', description: '', userId: '' });
+    setFormData({
+      name: '',
+      location: '',
+      description: '',
+      userId: '',
+      consoleId: '',
+      autoPowerEnabled: true,
+      powerOnTime: '08:00',
+      powerOffTime: '22:00',
+    });
     setIsModalOpen(false);
     fetchScreens();
+  };
+
+  const handleCopyId = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2500);
+  };
+
+  const openConsoleModal = (screen: Screen) => {
+    setSelectedScreenForConsole(screen);
+    setConsoleInput(screen.consoleId || '');
+    setConsoleModalOpen(true);
+  };
+
+  const handleSaveConsole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedScreenForConsole) return;
+    setConsoleLoading(true);
+    try {
+      const res = await fetch(`/api/screens/${selectedScreenForConsole.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consoleId: consoleInput }),
+      });
+      if (res.ok) {
+        setScreens(prev =>
+          prev.map(s =>
+            s.id === selectedScreenForConsole.id
+              ? { ...s, consoleId: consoleInput.trim() ? consoleInput.trim() : null }
+              : s
+          )
+        );
+        setConsoleModalOpen(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Error al actualizar la consola');
+      }
+    } catch (err) {
+      console.error('Error guardando consola:', err);
+    } finally {
+      setConsoleLoading(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -263,7 +347,7 @@ export default function ScreensPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Monitor className="w-8 h-8 text-primary" /> {isSuperAdmin ? 'Pantallas' : 'Mis Pantallas'}
@@ -483,10 +567,45 @@ export default function ScreensPage() {
                     </div>
                   )}
 
+                  {/* Badge de Consola / Hardware RPi (Solo visible para Super Admin) */}
+                  {isSuperAdmin && (
+                    <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                        Consola RPi:
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-mono font-medium ${screen.consoleId ? 'text-purple-300' : 'text-slate-500 italic'}`}>
+                          {screen.consoleId || 'Sin vincular'}
+                        </span>
+                        <button
+                          onClick={() => openConsoleModal(screen)}
+                          className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 p-1 rounded cursor-pointer transition-colors"
+                          title="Asociar o cambiar consola hardware"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Badge de Horario de Energía Programado */}
+                  <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      Horario Auto Power:
+                    </span>
+                    <span className="font-medium text-slate-300">
+                      {screen.autoPowerEnabled !== false
+                        ? `${screen.powerOnTime || '08:00'} a ${screen.powerOffTime || '22:00'}`
+                        : 'Desactivado (24h)'}
+                    </span>
+                  </div>
+
                   {/* Badge de Límite de Videos según el Plan */}
                   {(() => {
                     const videoCount = (screen.schedules || []).filter(s => s.videoId).length;
-                    const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                    const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 15;
                     const isFull = videoCount >= maxAllowed;
                     return (
                       <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
@@ -501,8 +620,26 @@ export default function ScreensPage() {
                     );
                   })()}
 
-                  <div className="text-xs text-muted-foreground bg-black/20 p-2 rounded-lg break-all">
-                    ID: {screen.id}
+                  <div className="text-xs text-muted-foreground bg-black/20 p-2 rounded-lg flex items-center justify-between gap-2">
+                    <span className="truncate font-mono select-all">ID: {screen.id}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyId(screen.id, e)}
+                      className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
+                      title="Copiar ID para config.txt en la consola"
+                    >
+                      {copiedId === screen.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400 font-medium">¡Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -527,7 +664,7 @@ export default function ScreensPage() {
       {/* Modal Crear Pantalla (Super Admin) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">Registrar Pantalla</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -562,6 +699,21 @@ export default function ScreensPage() {
                 />
               </div>
 
+              {/* Consola / Hardware ID */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Consola / Hardware RPi (Opcional)</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all font-mono text-sm"
+                  value={formData.consoleId}
+                  onChange={e => setFormData({...formData, consoleId: e.target.value})}
+                  placeholder="Ej: consola1 o rpi5-01"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usuario o identificador de la Raspberry Pi física asignada.
+                </p>
+              </div>
+
               {/* Asignar a un Cliente */}
               <div>
                 <label className="block text-sm font-medium mb-1">Asignar a Cliente</label>
@@ -580,6 +732,46 @@ export default function ScreensPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   El cliente seleccionado tendrá acceso y control sobre esta pantalla al iniciar sesión.
                 </p>
+              </div>
+
+              {/* Horario Programado de Energía */}
+              <div className="p-3.5 rounded-xl bg-black/30 border border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Horario Programado (Auto Power)
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.autoPowerEnabled}
+                      onChange={e => setFormData({ ...formData, autoPowerEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Encendido</label>
+                    <input
+                      type="time"
+                      disabled={!formData.autoPowerEnabled}
+                      value={formData.powerOnTime}
+                      onChange={e => setFormData({ ...formData, powerOnTime: e.target.value })}
+                      className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Apagado</label>
+                    <input
+                      type="time"
+                      disabled={!formData.autoPowerEnabled}
+                      value={formData.powerOffTime}
+                      onChange={e => setFormData({ ...formData, powerOffTime: e.target.value })}
+                      className="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 justify-end mt-6">
@@ -643,6 +835,82 @@ export default function ScreensPage() {
                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl transition-colors font-medium"
                 >
                   {reassignLoading ? 'Guardando...' : 'Actualizar Asignación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Asociar Consola Hardware (Super Admin) */}
+      {consoleModalOpen && selectedScreenForConsole && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <Cpu className="w-5 h-5 text-purple-400" />
+              <h2 className="text-xl font-bold">Vincular Consola Hardware</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Pantalla: <span className="text-white font-semibold">{selectedScreenForConsole.name}</span>
+            </p>
+
+            {/* Box con SCREEN_ID para copiar rápidamente a config.txt */}
+            <div className="mb-4 p-3 bg-black/40 border border-white/10 rounded-xl">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-slate-400">SCREEN_ID (para config.txt en la Pi):</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyId(selectedScreenForConsole.id)}
+                  className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                >
+                  {copiedId === selectedScreenForConsole.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-medium">¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar UUID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs font-mono text-slate-200 break-all select-all">
+                {selectedScreenForConsole.id}
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveConsole} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Identificador de la Consola (RPi)</label>
+                <input
+                  type="text"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm font-mono"
+                  placeholder="Ej: consola1, consola2, rpi5-01"
+                  value={consoleInput}
+                  onChange={e => setConsoleInput(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usuario o nombre del Raspberry Pi 5 que corre esta pantalla. Deja vacío para desvincular.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => setConsoleModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm"
+                  disabled={consoleLoading}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={consoleLoading}
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl transition-colors font-medium text-sm shadow-lg shadow-purple-500/20"
+                >
+                  {consoleLoading ? 'Guardando...' : 'Guardar Consola'}
                 </button>
               </div>
             </form>

@@ -3,7 +3,20 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Monitor, Gamepad2, Film, LayoutDashboard, LogOut, Users, Award, Shield, User } from 'lucide-react';
+import {
+  Monitor,
+  Gamepad2,
+  Film,
+  LayoutDashboard,
+  LogOut,
+  Users,
+  Award,
+  Shield,
+  User,
+  PanelLeftClose,
+  X,
+} from 'lucide-react';
+import { useSidebar } from '@/components/LayoutShell';
 
 type UserSession = {
   id: string;
@@ -18,6 +31,7 @@ type UserSession = {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { isCollapsed, toggleCollapse, isMobileOpen, setIsMobileOpen } = useSidebar();
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
 
   useEffect(() => {
@@ -49,34 +63,67 @@ export default function Sidebar() {
   const menuItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: isSuperAdmin ? 'Pantallas' : 'Mis Pantallas', href: '/screens', icon: Monitor },
-    ...(isSuperAdmin ? [
-      { name: 'Clientes', href: '/users', icon: Users },
-      { name: 'Planes', href: '/plans', icon: Award },
-    ] : []),
+    ...(isSuperAdmin
+      ? [
+          { name: 'Clientes', href: '/users', icon: Users },
+          { name: 'Planes', href: '/plans', icon: Award },
+        ]
+      : []),
     { name: isSuperAdmin ? 'Juegos' : 'Juegos de mi Plan', href: '/games', icon: Gamepad2 },
     { name: 'Videos', href: '/videos', icon: Film },
   ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 glass border-r border-border/50 z-50 flex flex-col">
-      {/* Logo */}
-      <div className="flex items-center justify-center h-20 border-b border-border/50">
-        <h1 className="text-2xl font-bold text-gradient tracking-tight">MyPlayAd</h1>
+    <aside
+      className={`fixed inset-y-0 left-0 w-64 glass border-r border-border/50 z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+        isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+      } ${
+        isCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'
+      }`}
+    >
+      {/* Header del Sidebar con Logo y Botón de Ocultar Menú */}
+      <div className="flex items-center justify-between h-20 px-5 border-b border-border/50">
+        <Link href="/" className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gradient tracking-tight">MyPlayAd</h1>
+        </Link>
+
+        {/* Botón de Colapsar en Escritorio (ocultar hacia la izquierda) */}
+        <button
+          type="button"
+          onClick={toggleCollapse}
+          className="hidden lg:flex p-2 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-white transition-colors cursor-pointer"
+          title="Ocultar menú lateral"
+          aria-label="Ocultar menú lateral"
+        >
+          <PanelLeftClose className="w-5 h-5" />
+        </button>
+
+        {/* Botón de Cerrar en Móvil */}
+        <button
+          type="button"
+          onClick={() => setIsMobileOpen(false)}
+          className="lg:hidden p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+          title="Cerrar menú"
+          aria-label="Cerrar menú"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
-      
+
       {/* Navegación */}
       <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.name}
               href={item.href}
+              onClick={() => setIsMobileOpen(false)}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                isActive 
-                  ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
+                isActive
+                  ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]'
                   : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
               }`}
             >
@@ -86,7 +133,7 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      
+
       {/* Perfil del Usuario y Logout */}
       <div className="p-4 border-t border-border/50 space-y-3">
         {currentUser && (
@@ -102,7 +149,10 @@ export default function Sidebar() {
             <div className="text-xs text-muted-foreground flex items-center justify-between">
               <span>{isSuperAdmin ? 'Super Admin' : 'Cliente'}</span>
               {!isSuperAdmin && currentUser.plan && (
-                <span className="text-emerald-400 font-medium truncate max-w-[110px]" title={currentUser.plan.name}>
+                <span
+                  className="text-emerald-400 font-medium truncate max-w-[110px]"
+                  title={currentUser.plan.name}
+                >
                   {currentUser.plan.name}
                 </span>
               )}
@@ -110,9 +160,9 @@ export default function Sidebar() {
           </div>
         )}
 
-        <button 
+        <button
           onClick={handleLogout}
-          className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+          className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           <span>Cerrar Sesión</span>

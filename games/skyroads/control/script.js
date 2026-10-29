@@ -5,14 +5,15 @@ const status = document.getElementById('status');
 const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
+const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 
 const btnJump = document.getElementById('btn-jump');
 const btnTurbo = document.getElementById('btn-turbo');
 const btnBrake = document.getElementById('btn-brake');
-const touchTrack = document.getElementById('touch-track');
-const touchSlider = document.getElementById('touch-slider');
+const joystickBase = document.getElementById('joystick-base');
+const joystickKnob = document.getElementById('joystick-knob');
 
 container.style.touchAction = 'none';
 
@@ -22,6 +23,7 @@ let socket;
 let currentRoomId = null;
 let nickname = 'Pilot';
 let pendingCandidates = [];
+let hasStarted = false;
 
 // Configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -275,7 +277,7 @@ async function initConnection() {
                         }));
                         status.textContent = '⚡ ENLACE ACTIVO';
                         roomSelection.style.display = 'none';
-                        container.style.display = 'flex';
+                        updateOrientationView();
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -358,7 +360,7 @@ async function setupWebRTC() {
     dataChannel.onopen = () => {
         status.textContent = '⚡ ENLACE ACTIVO';
         roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        updateOrientationView();
 
         // Enviar evento de inicio con nickname
         dataChannel.send(JSON.stringify({
@@ -419,6 +421,8 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    hasStarted = false;
+    if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'block';
@@ -492,56 +496,79 @@ if (btnBrake) {
     btnBrake.addEventListener('pointercancel', () => sendAction('NORMAL_SPEED'));
 }
 
-// 4. Touch Slider Track (Deslizamiento horizontal centrado y suave)
-if (touchTrack) {
-    let isTracking = false;
+// 4. Joystick Analógico Virtual (Dirección Suave)
+if (joystickBase && joystickKnob) {
+    const MAX_RADIUS = 52; // Límite de desplazamiento del pomo en px
+    let activePointerId = null;
 
-    function handleTouchTrack(e) {
-        const rect = touchTrack.getBoundingClientRect();
-        const touchX = e.clientX - rect.left;
-        let pct = Math.max(0, Math.min(1, touchX / rect.width));
-        let normX = (pct - 0.5) * 2; // -1 to +1
+    function handleJoystickMove(clientX, clientY) {
+        const rect = joystickBase.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
 
-        if (Math.abs(normX) < 0.08) normX = 0; // Deadzone suave en el centro
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        const distance = Math.hypot(dx, dy);
 
-        if (touchSlider) {
-            touchSlider.style.left = `${pct * 100}%`;
+        let knobX = 0;
+        let knobY = 0;
+
+        if (distance > 0) {
+            const clampedDist = Math.min(distance, MAX_RADIUS);
+            const angle = Math.atan2(dy, dx);
+            knobX = Math.cos(angle) * clampedDist;
+            knobY = Math.sin(angle) * clampedDist;
+        }
+
+        joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+        // Normalizar X entre -1.0 y +1.0
+        let normX = knobX / MAX_RADIUS;
+        // Deadzone suave en el centro para vuelo recto sin vibración
+        if (Math.abs(normX) < 0.08) {
+            normX = 0;
         }
 
         sendSteer(normX);
     }
 
-    touchTrack.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        try {
-            if (touchTrack.setPointerCapture) {
-                touchTrack.setPointerCapture(e.pointerId);
-            }
-        } catch (_) {}
-        isTracking = true;
-        if (navigator.vibrate) navigator.vibrate(10);
-        handleTouchTrack(e);
-    });
-
-    touchTrack.addEventListener('pointermove', (e) => {
-        if (!isTracking) return;
-        handleTouchTrack(e);
-    });
-
-    const resetTrack = (e) => {
-        if (!isTracking) return;
-        isTracking = false;
-        try {
-            if (e && touchTrack.hasPointerCapture && touchTrack.hasPointerCapture(e.pointerId)) {
-                touchTrack.releasePointerCapture(e.pointerId);
-            }
-        } catch (_) {}
-        if (touchSlider) touchSlider.style.left = '50%';
+    function resetJoystick() {
+        activePointerId = null;
+        joystickBase.classList.remove('active');
+        joystickKnob.style.transform = 'translate(0px, 0px)';
         sendSteer(0);
+    }
+
+    joystickBase.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        try {
+            if (joystickBase.setPointerCapture) {
+                joystickBase.setPointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        joystickBase.classList.add('active');
+        if (navigator.vibrate) navigator.vibrate(10);
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    joystickBase.addEventListener('pointermove', (e) => {
+        if (activePointerId !== e.pointerId) return;
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    const endJoystick = (e) => {
+        if (activePointerId !== e.pointerId) return;
+        try {
+            if (e && joystickBase.hasPointerCapture && joystickBase.hasPointerCapture(e.pointerId)) {
+                joystickBase.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        resetJoystick();
     };
 
-    touchTrack.addEventListener('pointerup', resetTrack);
-    touchTrack.addEventListener('pointercancel', resetTrack);
+    joystickBase.addEventListener('pointerup', endJoystick);
+    joystickBase.addEventListener('pointercancel', endJoystick);
 }
 
 // 6. Gesto de Deslizar hacia Arriba (Swipe Up = Salto)
@@ -572,6 +599,79 @@ window.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 // ==========================================
+// 🔄 Control de Orientación Horizontal (Landscape)
+// ==========================================
+function isPortraitMode() {
+    // 1. Orientación física de hardware (Screen Orientation API moderna)
+    if (window.screen && window.screen.orientation) {
+        if (typeof window.screen.orientation.type === 'string') {
+            return window.screen.orientation.type.startsWith('portrait');
+        }
+        if (typeof window.screen.orientation.angle === 'number') {
+            return window.screen.orientation.angle === 0 || window.screen.orientation.angle === 180;
+        }
+    }
+
+    // 2. window.orientation tradicional (Safari iOS y WebViews de Android)
+    if (typeof window.orientation === 'number') {
+        return window.orientation === 0 || window.orientation === 180;
+    }
+
+    // 3. Proporción de la pantalla física del dispositivo (screen.width vs screen.height)
+    if (window.screen && typeof window.screen.width === 'number' && typeof window.screen.height === 'number') {
+        return window.screen.height > window.screen.width;
+    }
+
+    // 4. Fallback estándar si nada de lo anterior está disponible
+    return window.innerHeight > window.innerWidth;
+}
+
+function updateOrientationView() {
+    if (thanksScreen && (thanksScreen.style.display === 'block' || thanksScreen.style.display === 'flex')) {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    const inPortrait = isPortraitMode();
+
+    if (hasStarted) {
+        if (inPortrait) {
+            // El usuario ya ingresó nombre pero sostiene el celular en vertical:
+            // Mostrar ÚNICAMENTE el aviso animado en pantalla completa pidiendo girar
+            if (rotateScreen) rotateScreen.style.display = 'flex';
+            if (container) container.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+        } else {
+            // El usuario puso el celular en horizontal: ocultar aviso y mostrar mandos
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+            if (container) container.style.display = 'flex';
+        }
+    } else {
+        // Pantalla inicial de bienvenida y nickname
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (roomSelection) roomSelection.style.display = 'flex';
+        if (container) container.style.display = 'none';
+    }
+}
+
+window.addEventListener('orientationchange', () => {
+    setTimeout(updateOrientationView, 120);
+});
+if (window.screen && window.screen.orientation) {
+    try {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(updateOrientationView, 100);
+        });
+    } catch (_) {}
+}
+window.addEventListener('resize', () => {
+    if (hasStarted) {
+        setTimeout(updateOrientationView, 150);
+    }
+});
+
+// ==========================================
 // 🚀 Inicio y Configuración de Sala
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
@@ -582,27 +682,57 @@ window.addEventListener('DOMContentLoaded', () => {
         status.textContent = `Sala: ${currentRoomId} - INGRESA TU NICKNAME`;
     }
 
-    const savedNick = localStorage.getItem('skyroads_nickname');
-    if (savedNick && nicknameInput) {
-        nicknameInput.value = savedNick;
-    }
-
     if (nicknameInput) {
+        // Validación obligatoria de Nickname (mínimo 2 caracteres)
+        const validateNick = () => {
+            const val = nicknameInput.value.trim();
+            if (connectBtn) {
+                connectBtn.disabled = val.length < 2;
+            }
+        };
+        nicknameInput.addEventListener('input', validateNick);
+        validateNick();
+
         nicknameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && connectBtn) connectBtn.click();
+            if (e.key === 'Enter') {
+                if (nicknameInput.value.trim().length >= 2) {
+                    if (connectBtn) connectBtn.click();
+                } else {
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+            }
         });
     }
 
     if (connectBtn) {
-        connectBtn.addEventListener('click', () => {
+        connectBtn.addEventListener('click', (e) => {
+            if (e) e.preventDefault();
+
+            // Cerrar teclado virtual explícitamente para que no distorsione el viewport
+            if (nicknameInput) nicknameInput.blur();
+
             mobileAudio.init();
-            if (nicknameInput && nicknameInput.value.trim()) {
-                nickname = nicknameInput.value.trim().substring(0, 10);
-                localStorage.setItem('skyroads_nickname', nickname);
+
+            const nick = nicknameInput ? nicknameInput.value.trim() : '';
+            if (!nick || nick.length < 2) {
+                if (nicknameInput) {
+                    nicknameInput.focus();
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+                return;
             }
+            nickname = nick.substring(0, 10);
+            localStorage.setItem('skyroads_nickname', nickname);
+
             if (!currentRoomId) {
                 currentRoomId = 'TEST';
             }
+
+            hasStarted = true;
+            roomSelection.style.display = 'none';
+            updateOrientationView();
 
             // Cerrar conexiones previas antes de crear una nueva
             if (dataChannel) {

@@ -1,0 +1,396 @@
+:root {
+    --bg-deep: #0a0f0d;
+    --panel: #101a15;
+    --panel-edge: #1f3327;
+    --phosphor: #3dff8a;
+    --phosphor-dim: #1f7d49;
+    --amber: #ffb703;
+    --danger: #ff4d6d;
+    --text-dim: #7fae94;
+    --white: #eafff2;
+}
+
+body {
+    background: var(--bg-deep);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    font-family: 'VT323', monospace;
+    color: var(--white);
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    transform-origin: center center;
+}
+
+/* Consola Bezel */
+.console-bezel {
+    background: linear-gradient(180deg, #18231d, #0d1512);
+    padding: 16px 18px 8px 18px;
+    border-radius: 20px;
+    border: 4px solid #2b4536;
+    box-shadow: 0 0 0 2px #060a08, 0 25px 70px rgba(0,0,0,.7), inset 0 0 40px rgba(61,255,138,.05);
+    position: relative;
+    user-select: none;
+}
+
+.console-bezel::before {
+    content: "● ● ●";
+    display: block;
+    text-align: right;
+    color: #2b4536;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    letter-spacing: 6px;
+    padding: 0 6px 8px;
+}
+
+.lcd-screen {
+    background: radial-gradient(ellipse at 50% 0%, #0e1a13 0%, #060b08 100%);
+    width: 440px;
+    height: 400px;
+    min-height: 400px;
+    padding: 8px 12px;
+    border: 3px solid #060a08;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    cursor: crosshair;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.lcd-screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,.18) 3px
+    );
+    pointer-events: none;
+    animation: flicker 6s infinite;
+}
+
+@keyframes flicker {
+    0%,97%,100% { opacity: 1; }
+    98% { opacity: .85; }
+}
+
+/* Efecto de Scanlines */
+.scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%);
+    background-size: 100% 2px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Header del Juego */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--panel-edge);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    z-index: 3;
+    gap: 8px;
+}
+
+.header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+}
+
+#status-mid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+
+#round-container {
+    color: var(--amber);
+}
+
+#lives-container {
+    color: #ef4444;
+    font-size: 8px;
+    letter-spacing: 1px;
+}
+
+#ammo-container {
+    color: #ef4444;
+    letter-spacing: 2px;
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-end;
+}
+
+#player-nick {
+    color: var(--phosphor);
+}
+
+#score {
+    color: var(--white);
+}
+
+#high-score {
+    color: var(--amber);
+}
+
+.room-ice-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#room-id {
+    color: var(--text-dim);
+    font-size: 7px;
+}
+
+#ice-route {
+    font-size: 7px;
+    color: var(--text-dim);
+}
+
+.audio-toggle-btn {
+    background: #18231d;
+    border: 1px solid var(--panel-edge);
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.audio-toggle-btn:hover {
+    background: var(--panel-edge);
+    color: var(--white);
+}
+
+.audio-toggle-btn.muted {
+    opacity: 0.6;
+    color: var(--text-dim);
+}
+
+/* Contenedor Canvas */
+.canvas-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin-top: 4px;
+}
+
+#gameCanvas {
+    background-color: transparent;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 400px;
+    height: 320px;
+    border: 2px solid #14241b;
+    border-radius: 4px;
+}
+
+/* Footer de Consola */
+.console-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 8px;
+}
+
+.speaker-grille {
+    width: 48px;
+    height: 8px;
+    background: repeating-linear-gradient(
+        90deg,
+        #2b4536 0px,
+        #2b4536 2px,
+        transparent 2px,
+        transparent 5px
+    );
+}
+
+.model-number {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: #2b4536;
+    letter-spacing: 1px;
+}
+
+/* Overlays */
+#waiting-overlay, #game-over-overlay {
+    position: absolute;
+    top: 40px;
+    left: 12px;
+    right: 12px;
+    bottom: 8px;
+    background: rgba(6, 11, 8, 0.94);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 4px;
+    backdrop-filter: blur(2px);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.overlay-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.arcade-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 16px;
+    color: var(--amber);
+    margin: 0;
+    text-shadow: 0 0 8px rgba(255, 183, 3, 0.6);
+}
+
+.arcade-title span {
+    color: #ef4444;
+}
+
+.pulse-text {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--phosphor);
+    margin: 0;
+    animation: pulse 1.2s infinite alternate;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; transform: scale(0.98); }
+    100% { opacity: 1; transform: scale(1.02); }
+}
+
+.qr-wrapper {
+    background: #ffffff;
+    padding: 8px;
+    border-radius: 6px;
+    box-shadow: 0 0 16px rgba(61, 255, 138, 0.3);
+}
+
+#qrcode, #qr-code-img {
+    width: 160px;
+    height: 160px;
+    display: block;
+    margin: 0 auto;
+}
+
+.status-text {
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    color: var(--text-dim);
+    margin: 0;
+}
+
+.keyboard-hint {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    color: var(--amber);
+    margin: 2px 0 0 0;
+}
+
+/* Game Over */
+#game-over-overlay h2 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    color: var(--danger);
+    margin: 0;
+    text-shadow: 0 0 10px rgba(255, 77, 109, 0.6);
+}
+
+.sub-msg {
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    color: var(--amber);
+    margin: 0;
+}
+
+.blink {
+    animation: blinkText 0.8s infinite;
+}
+
+@keyframes blinkText {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+
+#ranking-container {
+    width: 240px;
+    background: rgba(16, 26, 21, 0.9);
+    border: 2px solid var(--panel-edge);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 4px 0;
+}
+
+#ranking-container h3 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--amber);
+    margin: 0 0 6px 0;
+}
+
+#ranking-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    color: var(--white);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#ranking-list li {
+    display: flex;
+    justify-content: space-between;
+}
+
+.instruction {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    color: var(--phosphor);
+    margin: 4px 0 0 0;
+}
+

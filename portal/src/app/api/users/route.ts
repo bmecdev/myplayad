@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
+import { publishSyncEvent } from '@/lib/mqttPublisher';
+
+// Helper para parsear fechas "YYYY-MM-DD" a UTC estricto sin desviación horaria
+function parseDateParam(dateStr?: string | null, isEndOfDay = false): Date | null {
+  if (!dateStr) return null;
+  const clean = String(dateStr).trim().split('T')[0];
+  const parts = clean.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [year, month, day] = parts;
+  if (isEndOfDay) {
+    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  }
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+}
 
 export async function GET() {
   try {
@@ -12,6 +26,36 @@ export async function GET() {
       );
     }
 
+    const now = new Date();
+
+    // Auto-desactivar clientes cuyo plan haya expirado
+    const expiredUsers = await prisma.user.findMany({
+      where: {
+        role: 'CLIENT',
+        isActive: true,
+        planEndsAt: { lt: now },
+      },
+      select: { id: true },
+    });
+
+    if (expiredUsers.length > 0) {
+      const expiredIds = expiredUsers.map((u) => u.id);
+      await prisma.user.updateMany({
+        where: { id: { in: expiredIds } },
+        data: { isActive: false },
+      });
+
+      for (const u of expiredUsers) {
+        const screens = await prisma.screen.findMany({
+          where: { userId: u.id },
+          select: { id: true },
+        });
+        for (const s of screens) {
+          publishSyncEvent(s.id);
+        }
+      }
+    }
+
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       select: {
@@ -20,6 +64,9 @@ export async function GET() {
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
         createdAt: true,
         planId: true,
         plan: {
@@ -34,6 +81,9 @@ export async function GET() {
             id: true,
             name: true,
             location: true,
+            consoleId: true,
+            lastSeen: true,
+            displayState: true,
           },
         },
         _count: {
@@ -62,7 +112,18 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { username, password, name, email, role, planId, screenIds } = body;
+    const {
+      username,
+      password,
+      name,
+      email,
+      role,
+      planId,
+      screenIds,
+      isActive,
+      planStartsAt,
+      planEndsAt,
+    } = body;
 
     if (!username || !password || !name) {
       return NextResponse.json(
@@ -85,6 +146,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const parsedStartsAt = parseDateParam(planStartsAt, false);
+    const parsedEndsAt = parseDateParam(planEndsAt, true);
+
+    const now = new Date();
+    // Si el plan ya está vencido, forzar automáticamente isActive a false
+    const computedIsActive = (parsedEndsAt && parsedEndsAt < now)
+      ? false
+      : (typeof isActive === 'boolean' ? isActive : true);
+
     const newUser = await prisma.user.create({
       data: {
         username: cleanUsername,
@@ -92,6 +162,9 @@ export async function POST(request: Request) {
         name: String(name).trim(),
         email: email ? String(email).trim() : null,
         role: role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'CLIENT',
+        isActive: computedIsActive,
+        planStartsAt: parsedStartsAt,
+        planEndsAt: parsedEndsAt,
         planId: planId && planId !== 'none' ? planId : null,
       },
       select: {
@@ -100,6 +173,9 @@ export async function POST(request: Request) {
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
         createdAt: true,
         plan: {
           select: {
@@ -112,6 +188,9 @@ export async function POST(request: Request) {
             id: true,
             name: true,
             location: true,
+            consoleId: true,
+            lastSeen: true,
+            displayState: true,
           },
         },
       },

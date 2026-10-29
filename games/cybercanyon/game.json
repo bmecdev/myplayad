@@ -1,0 +1,8 @@
+{
+  "name": "Cyber Canyon",
+  "slug": "cybercanyon",
+  "icon": "🚀",
+  "genre": "Simulador / Vuelo 3D",
+  "description": "Vuelo supersónico en primera persona a través de un cañón cibernético de vectores CRT inspirado en QuestWorld.",
+  "controls": "Joystick virtual 360° / Flechas de cursor y WASD"
+}

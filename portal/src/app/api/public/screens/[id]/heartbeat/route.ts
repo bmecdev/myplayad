@@ -15,10 +15,20 @@ export async function OPTIONS() {
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: screenId } = await params;
+    const body = await request.json().catch(() => ({}));
+    const { consoleId } = body || {};
+
+    const updateData: { lastSeen: Date; consoleId?: string } = {
+      lastSeen: new Date(),
+    };
+
+    if (consoleId && typeof consoleId === 'string' && consoleId.trim()) {
+      updateData.consoleId = consoleId.trim();
+    }
 
     await prisma.screen.update({
       where: { id: screenId },
-      data: { lastSeen: new Date() },
+      data: updateData,
     });
 
     return setCorsHeaders(NextResponse.json({ success: true }));

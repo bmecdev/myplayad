@@ -340,11 +340,22 @@ async function refreshIceRoute(pc) {
 
 function loadRanking() {
     const ranking = JSON.parse(localStorage.getItem('snake-ranking')) || [];
-    if (ranking.length > 0) {
-        GameState.highScore = ranking[0].score;
+    const top5 = ranking.slice(0, 5);
+    if (top5.length > 0) {
+        GameState.highScore = top5[0].score;
         highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
     }
     displayRanking(ranking);
+
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({
+                type: 'RANKING_UPDATE',
+                slug: 'snake',
+                ranking: top5
+            }, '*');
+        } catch (_) {}
+    }
 }
 
 function saveRanking(newScore, nickname) {
@@ -353,12 +364,7 @@ function saveRanking(newScore, nickname) {
     ranking.sort((a, b) => b.score - a.score);
     ranking = ranking.slice(0, 5); 
     localStorage.setItem('snake-ranking', JSON.stringify(ranking));
-    displayRanking(ranking);
-    
-    if (ranking.length > 0) {
-        GameState.highScore = ranking[0].score;
-        highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
-    }
+    loadRanking();
 }
 
 function displayRanking(ranking) {
@@ -963,10 +969,13 @@ if (window.ResizeObserver) {
     ro.observe(document.body);
 }
 
-// Listen for explicit RESCALE message from screen parent frame
+// Listen for messages from screen parent frame (rescale, get ranking)
 window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'RESCALE') {
+    if (!event.data) return;
+    if (event.data.type === 'RESCALE') {
         autoScale();
+    } else if (event.data.type === 'GET_RANKING') {
+        loadRanking();
     }
 });
 

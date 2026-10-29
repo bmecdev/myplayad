@@ -6,7 +6,7 @@
     <title>Mega Man Arcade Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
     <div id="status">INGRESA TU NICKNAME</div>
@@ -36,6 +36,21 @@
         <p id="thanks-message">¡Gran partida!</p>
         <p class="small">Vuelve a escanear el código QR para jugar de nuevo.</p>
         <button id="play-again-btn" style="margin-top: 18px; padding: 14px 20px; font-family: 'Press Start 2P', monospace; font-size: 11px; background: var(--primary, #00d2ff); color: #020617; border: 2px solid #ffffff; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 0 #0284c7;">🔄 ESCANEAR DE NUEVO</button>
+    </div>
+
+    <!-- Aviso de Girar Celular a Horizontal -->
+    <div id="rotate-screen" class="rotate-container" style="display: none;">
+        <div class="rotate-card">
+            <div class="phone-anim-wrapper">
+                <div class="phone-graphic">
+                    <div class="phone-screen"></div>
+                </div>
+                <div class="rotate-arrow">⟲</div>
+            </div>
+            <h2 class="rotate-title">¡GIRA TU CELULAR!</h2>
+            <p class="rotate-desc">Por favor, gira el celular en horizontal para comenzar a jugar.</p>
+            <div class="rotate-badge">🎮 MODO HORIZONTAL REQUERIDO</div>
+        </div>
     </div>
 
     <!-- Interfaz de Controles Táctiles -->
@@ -73,7 +88,7 @@
         </div>
     </div>
 
-    <script src="config.js?v=1"></script>
-    <script src="script.js?v=1"></script>
+    <script src="config.js?v=6"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>

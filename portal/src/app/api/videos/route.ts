@@ -19,20 +19,8 @@ export async function GET(request: Request) {
 
     let whereClause: any = undefined;
     if (isClient) {
-      whereClause = {
-        OR: [
-          { userId: currentUser.id },
-          {
-            schedules: {
-              some: {
-                screen: {
-                  userId: currentUser.id,
-                },
-              },
-            },
-          },
-        ],
-      };
+      // Segmentación estricta: Los clientes únicamente ven sus propios videos
+      whereClause = { userId: currentUser.id };
     } else if (userIdFilter) {
       if (userIdFilter === 'UNASSIGNED') {
         whereClause = { userId: null };
@@ -114,7 +102,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Acceso denegado a esta pantalla' }, { status: 403 });
         }
 
-        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 5;
+        const maxVideos = currentUser.plan?.maxVideosPerScreen ?? 15;
         const currentCount = await prisma.schedule.count({
           where: {
             screenId: targetScreen.id,
@@ -136,6 +124,12 @@ export async function POST(request: Request) {
       // SUPER_ADMIN
       if (clientId && clientId !== 'none') {
         ownerUserId = clientId;
+        if (targetScreen?.userId && targetScreen.userId !== clientId) {
+          return NextResponse.json(
+            { error: 'Segmentación de videos: La pantalla seleccionada pertenece a otro cliente distinto.' },
+            { status: 400 }
+          );
+        }
       } else if (targetScreen?.userId) {
         ownerUserId = targetScreen.userId;
       }

@@ -82,6 +82,7 @@ Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Con
     ```
 * **Estado del Controlador Móvil**:
   * Al cargar con `?room=XXXX`, mostrar `"INGRESA TU NICKNAME"` (no `"Conectando..."` antes de que el usuario pulse el botón de jugar).
+  * **Validación Obligatoria de Nickname**: En NINGÚN juego se debe permitir iniciar la partida sin haber escrito un nickname (mínimo 2 caracteres). El botón de inicio debe comenzar deshabilitado (`disabled`), activarse únicamente cuando el usuario escriba su apodo (evento `input`), y advertir visualmente si intenta enviar vacío. El placeholder del campo de texto debe ser sutil y de baja opacidad (`color: rgba(255, 255, 255, 0.22)`), NUNCA un valor prellenado ni un placeholder llamativo como `PILOT` o `PLAYER` que confunda al usuario haciéndole creer que ya está escrito.
 
 ### 4. Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
 **TODO juego DEBE poder jugarse y probarse al 100% con teclado antes de hacer push a Git.**

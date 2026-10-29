@@ -1,6 +1,7 @@
 // Skyroads Retro Arcade - Configuration
 const isDevHost = typeof window !== 'undefined' && (
     !window.location.hostname ||
+    window.location.protocol === 'file:' ||
     window.location.hostname.includes('dev') || 
     window.location.hostname.includes('staging') || 
     window.location.hostname.includes('test') ||

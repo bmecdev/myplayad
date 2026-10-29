@@ -2501,16 +2501,29 @@ function saveScore(name, score) {
             GameState.highScore = top5[0].score;
             localStorage.setItem('megaman_highscore', GameState.highScore.toString());
         }
+        renderHallOfFame();
     } catch (_) {}
 }
 
 function renderHallOfFame() {
-    if (!rankingList) return;
     try {
         const scores = JSON.parse(localStorage.getItem('megaman_halloffame') || '[]');
-        rankingList.innerHTML = scores.map((s, idx) => `
-            <li><span>#${idx + 1} ${s.name}</span><span>${s.score.toString().padStart(6, '0')}</span></li>
-        `).join('') || '<li><span>NO RECORDS</span><span>000000</span></li>';
+        const top5 = scores.slice(0, 5);
+        if (rankingList) {
+            rankingList.innerHTML = top5.map((s, idx) => `
+                <li><span>#${idx + 1} ${s.name}</span><span>${s.score.toString().padStart(6, '0')}</span></li>
+            `).join('') || '<li><span>NO RECORDS</span><span>000000</span></li>';
+        }
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'megaman',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
+        }
     } catch (_) {}
 }
 
@@ -2569,3 +2582,9 @@ window.addEventListener('resize', autoScale);
 window.addEventListener('load', () => { updateQrCode(); autoScale(); });
 if (window.ResizeObserver) new ResizeObserver(autoScale).observe(document.body);
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
+
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'RESCALE') autoScale();
+    if (e.data.type === 'GET_RANKING') renderHallOfFame();
+});

@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
+import { publishSyncEvent } from '@/lib/mqttPublisher';
+
+// Helper para parsear fechas "YYYY-MM-DD" a UTC estricto sin desviación horaria
+function parseDateParam(dateStr?: string | null, isEndOfDay = false): Date | null {
+  if (!dateStr) return null;
+  const clean = String(dateStr).trim().split('T')[0];
+  const parts = clean.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [year, month, day] = parts;
+  if (isEndOfDay) {
+    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  }
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,6 +32,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
+        createdAt: true,
         planId: true,
         plan: true,
         screens: {
@@ -25,6 +43,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             id: true,
             name: true,
             location: true,
+            consoleId: true,
+            lastSeen: true,
+            displayState: true,
           },
         },
       },
@@ -49,7 +70,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await request.json();
-    const { username, password, name, email, role, planId, screenIds } = body;
+    const {
+      username,
+      password,
+      name,
+      email,
+      role,
+      planId,
+      screenIds,
+      isActive,
+      planStartsAt,
+      planEndsAt,
+    } = body;
 
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) {
@@ -60,8 +92,42 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (name) updateData.name = String(name).trim();
     if (email !== undefined) updateData.email = email ? String(email).trim() : null;
     if (role) updateData.role = role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'CLIENT';
+    if (planStartsAt !== undefined) {
+      updateData.planStartsAt = parseDateParam(planStartsAt, false);
+    }
+    if (planEndsAt !== undefined) {
+      updateData.planEndsAt = parseDateParam(planEndsAt, true);
+    }
     if (planId !== undefined) {
       updateData.planId = planId && planId !== 'none' ? planId : null;
+    }
+
+    // Comprobar vigencia del plan
+    const targetEndsAt = planEndsAt !== undefined ? updateData.planEndsAt : existingUser.planEndsAt;
+    const now = new Date();
+    const isPlanExpired = targetEndsAt ? targetEndsAt < now : false;
+
+    if (isActive !== undefined) {
+      const requestedActive = Boolean(isActive);
+      // Si el plan está vencido y se intenta activar, bloquear con error descriptivo
+      if (requestedActive && isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+        return NextResponse.json(
+          { error: 'No es posible activar un cliente cuyo plan ha vencido. Amplía primero la fecha de vigencia.' },
+          { status: 400 }
+        );
+      }
+      // Si se actualizó la fecha del plan a una vigente, asegurar reactivación automática
+      if (planEndsAt !== undefined && !isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+        updateData.isActive = requestedActive !== false ? true : false;
+      } else {
+        updateData.isActive = requestedActive;
+      }
+    } else if (isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+      // Si se actualizó la fecha del plan y quedó vencido, desactivar automáticamente al cliente
+      updateData.isActive = false;
+    } else if (planEndsAt !== undefined && !isPlanExpired && (role || existingUser.role) === 'CLIENT') {
+      // Si se amplió la fecha de vigencia y ya no está vencido, activar automáticamente al cliente
+      updateData.isActive = true;
     }
 
     if (username && username !== existingUser.username) {
@@ -107,6 +173,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         name: true,
         email: true,
         role: true,
+        isActive: true,
+        planStartsAt: true,
+        planEndsAt: true,
+        createdAt: true,
         plan: {
           select: {
             id: true,
@@ -118,10 +188,26 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             id: true,
             name: true,
             location: true,
+            consoleId: true,
+            lastSeen: true,
+            displayState: true,
           },
         },
       },
     });
+
+    // Notificar por MQTT a las pantallas vinculadas para que sincronicen en tiempo real su estado
+    try {
+      const affectedScreens = await prisma.screen.findMany({
+        where: { userId: id },
+        select: { id: true },
+      });
+      for (const scr of affectedScreens) {
+        publishSyncEvent(scr.id);
+      }
+    } catch (e) {
+      console.warn('Error publicando sync de pantallas para usuario:', e);
+    }
 
     return NextResponse.json(updated);
   } catch (error) {
