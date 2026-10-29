@@ -195,3 +195,49 @@ El catálogo de juegos interactivos muestra la biblioteca de experiencias lúdic
 * **Juegos Clásicos y Nuevos:** Arkanoid, Snake Retro, Space Invaders, Cyber Canyon, etc.
 * **Compatibilidad Móvil:** Cada juego cuenta con sus controladores web optimizados (joystick analógico, pad direccional de 4 vías o botones de acción hápticos) y su respectiva integración WebRTC de latencia cero.
 
+---
+
+## 12. Videotutoriales Interactivos y Flujos de Negocio Paso a Paso
+
+Para facilitar la capacitación de nuevos administradores y la inducción de clientes comerciales, el portal cuenta con una **suite completa de 8 cápsulas de video tutorial** grabadas en alta resolución (1440x900). 
+
+Cada video incluye:
+* **Cursor interactivo animado:** Muestra desplazamientos fluidos y ondas de clic (*ripple*) sobre los controles clave.
+* **Banners informativos en tiempo real:** Subtítulos al pie de la pantalla que explican la lógica de negocio y las validaciones de cada paso.
+* **Pausas pedagógicas:** Tiempos de lectura calibrados para asimilar las respuestas del sistema.
+
+### 12.1. Catálogo de Videotutoriales
+
+| # | Cápsula / Archivo | Tamaño | Duración | Descripción y Flujo Cubierto |
+|---|---|---|---|---|
+| **01** | `videos/01-creacion-planes-comerciales.webm` | 2.10 MB | ~33s | **Creación y Configuración de Planes Comerciales:** Cimiento del negocio. Muestra cómo crear un paquete comercial, fijar la cuota estricta `maxVideosPerScreen` (5 videos) y seleccionar los juegos arcade autorizados. |
+| **02** | `videos/02-alta-pantalla-kiosco.webm` | 2.76 MB | ~40s | **Alta y Configuración de Pantalla (Kiosco Físico):** Registro del tótem comercial, vinculación de la consola Raspberry Pi 5 (`consoleId`), horarios diarios HDMI-CEC (08:00 a 22:00) y copia de `SCREEN_ID`. |
+| **03** | `videos/03-alta-cliente-y-asignacion.webm` | 2.12 MB | ~30s | **Alta de Cliente Comercial y Asignación de Recursos:** Creación de cuenta de anunciante (`cliente_titan`), vinculación de su plan comercial, vigencia del contrato mediante el atajo `+1 Año` y asignación de la pantalla creada. |
+| **04** | `videos/04-subida-videos-y-cuotas.webm` | 1.64 MB | ~25s | **Subida de Videos Publicitarios y Validación de Cuotas:** Carga de spot en MP4, selección del cliente y pantalla propietaria, y demostración del indicador de cuota (`X / 5 videos usados`) para evitar sobrecupos. |
+| **05** | `videos/05-programacion-juegos-arcade.webm` | 2.30 MB | ~35s | **Asignación y Calendario Arcade:** Configuración del minijuego base por defecto (*Arkanoid*) y creación de una programación en el calendario (`Schedule`) para un torneo o promoción especial con fechas de inicio y fin. |
+| **06** | `videos/06-control-remoto-hdmi-ota.webm` | 2.04 MB | ~30s | **Control Remoto HDMI-CEC y Actualizaciones OTA:** Envío de órdenes masivas MQTT de encendido y apagado (*Encender Todas* / *Apagar Todas*) y despliegue remoto de software a las consolas sin visitas técnicas. |
+| **07** | `videos/07-roles-admin-vs-cliente.webm` | 2.16 MB | ~30s | **Diferencia de Roles (Super Admin vs. Cliente):** Demostración del acceso irrestricto del Super Admin frente a la vista limpia, privada y aislada del Cliente (que solo ve sus pantallas y cuota disponible). |
+| **08** | `videos/08-mantenimiento-y-bajas.webm` | 2.45 MB | ~31s | **Desasignación y Eliminación de Recursos:** Ciclo completo de bajas. Retiro de video de rotación (liberando cuota), borrado definitivo de spot, cancelación de programación arcade, baja de pantalla física y cierre de cuenta de cliente y plan. |
+
+### 12.2. Automatización y Regeneración con Playwright
+
+Las grabaciones son 100% reproducibles mediante scripts automatizados alojados en `portal/scripts/`:
+
+```bash
+# Grabar la serie completa de los 8 videos en secuencia:
+cd portal && node scripts/record-all-videos.mjs
+
+# Grabar una cápsula específica individualmente:
+cd portal && node scripts/record-01-planes.mjs
+cd portal && node scripts/record-02-pantalla.mjs
+cd portal && node scripts/record-03-cliente.mjs
+cd portal && node scripts/record-04-videos.mjs
+cd portal && node scripts/record-05-juegos.mjs
+cd portal && node scripts/record-06-control-remoto.mjs
+cd portal && node scripts/record-07-roles.mjs
+cd portal && node scripts/record-08-mantenimiento.mjs
+```
+
+Los videos generados se guardan automáticamente en la carpeta `docs/videos/` listos para ser reproducidos en navegadores web modernos o integrados en plataformas de capacitación y marketing.
+
+

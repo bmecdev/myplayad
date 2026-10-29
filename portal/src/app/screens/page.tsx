@@ -664,7 +664,7 @@ export default function ScreensPage() {
       {/* Modal Crear Pantalla (Super Admin) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">Registrar Pantalla</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

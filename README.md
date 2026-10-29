@@ -12,6 +12,16 @@ El proyecto está dividido en tres componentes principales:
 
 ---
 
+## 📚 Documentación Técnica & Videotutoriales del Portal
+
+Toda la documentación oficial del sistema y sus guías interactivas se encuentran disponibles en la carpeta [`docs/`](docs/):
+
+* 📖 **[Manual del Portal MyPlayAd (Markdown)](docs/MANUAL_PORTAL_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PORTAL_MYPLAYAD.docx)**: Guía detallada con capturas de pantalla de autenticación, control de energía HDMI-CEC, biblioteca de videos con cuotas, planes de suscripción y gestión de clientes.
+* 📖 **[Manual de Producto & Arquitectura (Markdown)](docs/MANUAL_PRODUCTO_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PRODUCTO_MYPLAYAD.docx)**: Documento integral sobre la arquitectura física, cloud, protocolos WebRTC y ensamblaje de quioscos.
+* 🎬 **[Serie de 8 Videotutoriales Interactivos (`docs/videos/`)](docs/videos/)**: Cápsulas audiovisuales HD (1440x900) con cursor interactivo, banners explicativos paso a paso y flujos de negocio completos (alta de planes, tótems, clientes, pauta de videos, programación arcade y bajas).
+
+---
+
 ## 📦 3 Opciones de Producto MyPlayAd & Conectividad 4G Plug & Play
 
 MyPlayAd se adapta a cualquier infraestructura mediante **3 opciones de producto** bien diferenciadas:
