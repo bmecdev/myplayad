@@ -3390,9 +3390,16 @@ function setupDataChannel(channel, playerId) {
                 GameState.currentNickname = (msg.nickname || msg.value || 'PILOT').toUpperCase().substring(0, 10);
                 if (playerNickElement) playerNickElement.textContent = `PILOT: ${GameState.currentNickname}`;
                 startNewGame(true);
-            } else if (msg.type === 'move') {
+            } else if (msg.type === 'move' || msg.type === 'joystick') {
                 Player.vx = (msg.x || 0);
                 Player.vy = (msg.y || 0);
+            } else if (msg.type === 'control') {
+                if (msg.cmd === 'left') Player.vx = msg.val ? -1 : 0;
+                if (msg.cmd === 'right') Player.vx = msg.val ? 1 : 0;
+                if (msg.cmd === 'up') Player.vy = msg.val ? -1 : 0;
+                if (msg.cmd === 'down') Player.vy = msg.val ? 1 : 0;
+                if (msg.cmd === 'fire') Player.isFiring = !!msg.val;
+                if (msg.cmd === 'boost') applyPowerup('turbo');
             } else if (msg.type === 'fire') {
                 Player.isFiring = !!msg.active;
             } else if (msg.type === 'boost') {

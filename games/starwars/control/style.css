@@ -21,20 +21,18 @@
 
 html, body {
     width: 100%;
-    height: 100%;
-    overflow: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
     background-color: var(--bg);
     color: var(--text);
     font-family: 'Press Start 2P', monospace;
-    touch-action: manipulation;
+    display: flex;
+    flex-direction: column;
 }
 
 #status {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 32px;
+    height: 38px;
     background: #020617;
     border-bottom: 2px solid var(--border);
     color: var(--cyan);
@@ -48,16 +46,18 @@ html, body {
 
 /* Pantalla de Bienvenida */
 .welcome-container, .thanks-container {
-    position: fixed;
-    inset: 32px 0 0 0;
-    background: radial-gradient(ellipse at 50% 20%, #0d1a2d 0%, #030712 100%);
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 24px;
     text-align: center;
-    z-index: 50;
+    gap: 16px;
+    margin: auto;
+    width: 88%;
+    max-width: 340px;
+    box-sizing: border-box;
 }
 
 .header-logo {
@@ -115,6 +115,11 @@ html, body {
     text-align: center;
     outline: none;
     transition: border-color 0.2s;
+    text-transform: uppercase;
+}
+
+#nickname-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
 }
 
 #nickname-input:focus {
@@ -135,6 +140,13 @@ html, body {
     transition: transform 0.1s, opacity 0.2s;
 }
 
+#connect-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
 #connect-btn:active, .play-again-btn:active {
     transform: scale(0.96);
 }
@@ -146,84 +158,138 @@ html, body {
     color: var(--text-dim);
 }
 
-/* Interfaz de Vuelo Móvil */
+/* Interfaz de Vuelo Móvil (Modo Horizontal) */
 .flight-container {
-    position: fixed;
-    inset: 32px 0 0 0;
+    flex: 1;
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-around;
-    padding: 15px;
+    justify-content: space-between;
+    padding: 16px 36px calc(env(safe-area-inset-bottom, 16px) + 20px) 36px;
+    gap: 24px;
+    background: radial-gradient(circle at center, #0f1d2e 0%, #05080c 100%);
+    box-sizing: border-box;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    width: 100%;
+    height: 100%;
 }
 
-/* Área del Flight Stick 360° */
-.flight-stick-area {
+/* Panel de Dirección (Joystick Virtual 360°) */
+.joystick-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.joystick-wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    flex: 1;
+    gap: 12px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .joystick-base {
-    width: 170px;
-    height: 170px;
-    background: radial-gradient(circle, #0f172a 40%, #030712 100%);
-    border: 3px solid #1e293b;
+    width: 156px;
+    height: 156px;
+    background: radial-gradient(circle at center, #0e1e30 0%, #050c14 100%);
+    border: 3px solid rgba(56, 189, 248, 0.45);
     border-radius: 50%;
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 25px rgba(56, 189, 248, 0.15), inset 0 0 15px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.9);
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.crosshair-guide {
+.joystick-base.active {
+    border-color: var(--cyan);
+    box-shadow: 0 0 35px rgba(56, 189, 248, 0.5), inset 0 0 25px rgba(0, 0, 0, 0.9);
+    cursor: grabbing;
+}
+
+.joystick-guide-ring {
     position: absolute;
-    inset: 0;
+    width: 88px;
+    height: 88px;
+    border: 1px dashed rgba(56, 189, 248, 0.25);
+    border-radius: 50%;
     pointer-events: none;
 }
 
-.crosshair-guide::before {
-    content: "";
+.joystick-axis-x {
     position: absolute;
-    top: 50%;
-    left: 10px;
-    right: 10px;
+    width: 75%;
     height: 1px;
     background: rgba(56, 189, 248, 0.2);
-}
-
-.crosshair-guide::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 10px;
-    bottom: 10px;
-    width: 1px;
-    background: rgba(56, 189, 248, 0.2);
-}
-
-.joystick-knob {
-    width: 68px;
-    height: 68px;
-    background: radial-gradient(circle, #38bdf8 0%, #0284c7 60%, #075985 100%);
-    border: 3px solid #e0f2fe;
-    border-radius: 50%;
-    position: absolute;
-    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.5);
-    transition: transform 0.05s ease-out;
     pointer-events: none;
 }
 
-.stick-label {
-    margin-top: 12px;
-    font-size: 7px;
+.joystick-axis-y {
+    position: absolute;
+    height: 75%;
+    width: 1px;
+    background: rgba(56, 189, 248, 0.2);
+    pointer-events: none;
+}
+
+.joystick-dir-arrow {
+    position: absolute;
+    font-size: 13px;
+    color: rgba(56, 189, 248, 0.4);
+    pointer-events: none;
+    font-family: 'Press Start 2P', monospace;
+}
+.joystick-dir-arrow.dir-l { left: 10px; }
+.joystick-dir-arrow.dir-r { right: 10px; }
+.joystick-dir-arrow.dir-u { top: 10px; }
+.joystick-dir-arrow.dir-d { bottom: 10px; }
+
+.joystick-knob {
+    width: 66px;
+    height: 66px;
+    background: radial-gradient(circle at 35% 35%, #7dd3fc 0%, #0284c7 65%, #0369a1 100%);
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+    transition: transform 0.04s ease-out;
+    z-index: 5;
+}
+
+.joystick-base.active .joystick-knob {
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.95), inset 0 2px 5px rgba(255, 255, 255, 0.9);
+}
+
+.knob-cap {
+    width: 24px;
+    height: 24px;
+    background: rgba(8, 20, 36, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.joystick-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
     color: var(--cyan);
     letter-spacing: 1px;
+    opacity: 0.85;
 }
 
 /* Botones de Acción de Vuelo */
@@ -233,11 +299,10 @@ html, body {
     align-items: center;
     justify-content: center;
     gap: 16px;
-    flex: 1;
 }
 
 .fire-button {
-    width: 135px;
+    width: 140px;
     height: 95px;
     background: linear-gradient(180deg, #ef4444, #991b1b);
     border: 3px solid #fecaca;
@@ -251,6 +316,9 @@ html, body {
     box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
     cursor: pointer;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
     transition: transform 0.08s, background 0.08s;
 }
 
@@ -261,7 +329,7 @@ html, body {
 }
 
 .fire-button .btn-symbol {
-    font-size: 22px;
+    font-size: 24px;
 }
 
 .fire-button .btn-text {
@@ -271,8 +339,8 @@ html, body {
 }
 
 .boost-button {
-    width: 125px;
-    height: 62px;
+    width: 140px;
+    height: 58px;
     background: linear-gradient(180deg, #0284c7, #075985);
     border: 2px solid #bae6fd;
     border-radius: 12px;
@@ -285,6 +353,9 @@ html, body {
     box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
     cursor: pointer;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
     transition: transform 0.08s;
 }
 
@@ -301,6 +372,155 @@ html, body {
     font-family: 'Press Start 2P', monospace;
     font-size: 9px;
     letter-spacing: 1px;
+}
+
+/* ==========================================
+   🔄 Pantalla de Aviso de Girar Celular
+   ========================================== */
+.rotate-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: radial-gradient(circle at center, #0f1e30 0%, #05080c 100%);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    text-align: center;
+    touch-action: none;
+    user-select: none;
+}
+
+.rotate-card {
+    background: #09131f;
+    border: 2px solid var(--cyan);
+    border-radius: 20px;
+    padding: 32px 24px;
+    max-width: 340px;
+    width: 90%;
+    box-shadow: 0 0 35px rgba(56, 189, 248, 0.25), inset 0 0 20px rgba(56, 189, 248, 0.08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: rotateCardPulse 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes rotateCardPulse {
+    0% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.2); }
+    100% { box-shadow: 0 0 45px rgba(56, 189, 248, 0.45); }
+}
+
+.phone-anim-wrapper {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.phone-graphic {
+    width: 44px;
+    height: 74px;
+    border: 3px solid var(--cyan);
+    border-radius: 10px;
+    position: relative;
+    background: #020610;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+    animation: phoneRotateAnim 2.4s ease-in-out infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.phone-screen {
+    width: 32px;
+    height: 54px;
+    background: linear-gradient(180deg, #38bdf8 0%, #0369a1 100%);
+    border-radius: 4px;
+    opacity: 0.85;
+}
+
+.phone-graphic::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cyan);
+}
+
+.rotate-arrow {
+    position: absolute;
+    font-size: 32px;
+    color: var(--amber);
+    text-shadow: 0 0 10px var(--amber);
+    animation: arrowSpinAnim 2.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes phoneRotateAnim {
+    0%, 25% {
+        transform: rotate(0deg);
+    }
+    50%, 85% {
+        transform: rotate(-90deg);
+    }
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes arrowSpinAnim {
+    0%, 25% {
+        transform: rotate(0deg) scale(0.9);
+        opacity: 0.6;
+    }
+    50%, 85% {
+        transform: rotate(-90deg) scale(1.15);
+        opacity: 1;
+    }
+    100% {
+        transform: rotate(0deg) scale(0.9);
+        opacity: 0.6;
+    }
+}
+
+.rotate-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px;
+    color: var(--amber);
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+    margin: 0;
+    line-height: 1.5;
+    letter-spacing: 1px;
+}
+
+.rotate-desc {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    color: #e2e8f0;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.rotate-badge {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px dashed var(--cyan);
+    color: var(--cyan);
+    padding: 8px 12px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
 }
 
 /* Pantalla de Agradecimiento */
