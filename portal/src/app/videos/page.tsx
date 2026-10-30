@@ -216,7 +216,7 @@ export default function VideosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Film className="w-8 h-8 text-purple-500" /> {isSuperAdmin ? 'Videos Publicitarios' : 'Mis Videos'}
@@ -399,7 +399,16 @@ export default function VideosPage() {
                 <select 
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 cursor-pointer"
                   value={screenId}
-                  onChange={e => setScreenId(e.target.value)}
+                  onChange={e => {
+                    const newScreenId = e.target.value;
+                    setScreenId(newScreenId);
+                    if (isSuperAdmin && newScreenId !== 'none') {
+                      const scr = screens.find(s => s.id === newScreenId);
+                      if (scr?.userId) {
+                        setUploadClientId(scr.userId);
+                      }
+                    }
+                  }}
                 >
                   <option value="none">Ninguna (Solo subir a la biblioteca)</option>
                   {screens
@@ -410,7 +419,7 @@ export default function VideosPage() {
                     })
                     .map(s => {
                       const videoCount = (s.schedules || []).filter((sc: any) => sc.videoId).length;
-                      const maxAllowed = s.user?.plan?.maxVideosPerScreen ?? 5;
+                      const maxAllowed = s.user?.plan?.maxVideosPerScreen ?? 15;
                       const isFull = videoCount >= maxAllowed;
                       return (
                         <option key={s.id} value={s.id} disabled={isFull}>
@@ -506,7 +515,7 @@ export default function VideosPage() {
 
                 return assignableScreens.map(screen => {
                   const sVideoCount = (screen.schedules || []).filter((sc: any) => sc.videoId).length;
-                  const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 5;
+                  const maxAllowed = screen.user?.plan?.maxVideosPerScreen ?? 15;
                   const isAlreadyAssigned = selectedScreenIds.includes(screen.id);
                   const isFull = sVideoCount >= maxAllowed && !isAlreadyAssigned;
 

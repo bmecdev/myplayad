@@ -5,6 +5,7 @@ const roomInput = document.getElementById('room-input');
 const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
+const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 const playAgainBtn = document.getElementById('play-again-btn');
@@ -24,6 +25,8 @@ let socket;
 let currentRoomId = null;
 let nickname = 'MegaMan';
 let pendingCandidates = [];
+let hasStarted = false;
+let isGameConnected = false;
 
 // ==========================================
 // 📡 Configuración ICE dinámica con TURN
@@ -189,9 +192,10 @@ async function initConnection() {
                             type: 'answer',
                             sdp: sdp
                         }));
+                        isGameConnected = true;
                         status.textContent = '⚡ CONECTADO';
                         roomSelection.style.display = 'none';
-                        container.style.display = 'flex';
+                        updateOrientationView();
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -211,6 +215,9 @@ async function initConnection() {
                     }
                 } else if (data.type === 'error') {
                     status.textContent = 'ERROR: ' + data.message;
+                    hasStarted = false;
+                    isGameConnected = false;
+                    if (rotateScreen) rotateScreen.style.display = 'none';
                     roomSelection.style.display = 'flex';
                 }
             } catch (err) {
@@ -249,7 +256,10 @@ async function setupWebRTC() {
         if (state === 'disconnected' || state === 'failed') {
             status.textContent = 'DESCONECTADO';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                hasStarted = false;
+                isGameConnected = false;
                 container.style.display = 'none';
+                if (rotateScreen) rotateScreen.style.display = 'none';
                 roomSelection.style.display = 'flex';
             }
         }
@@ -258,9 +268,10 @@ async function setupWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
+        isGameConnected = true;
         status.textContent = '⚡ EN LÍNEA';
         roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        updateOrientationView();
 
         dataChannel.send(JSON.stringify({
             type: 'join',
@@ -304,6 +315,9 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    hasStarted = false;
+    isGameConnected = false;
+    if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'flex';
@@ -466,6 +480,80 @@ if (btnSlide) {
 }
 
 // ==========================================
+// 🔄 Control de Orientación Horizontal (Landscape)
+// ==========================================
+function isPortraitMode() {
+    // 1. Orientación física de hardware (Screen Orientation API moderna)
+    if (window.screen && window.screen.orientation) {
+        if (typeof window.screen.orientation.type === 'string') {
+            return window.screen.orientation.type.startsWith('portrait');
+        }
+        if (typeof window.screen.orientation.angle === 'number') {
+            return window.screen.orientation.angle === 0 || window.screen.orientation.angle === 180;
+        }
+    }
+
+    // 2. window.orientation tradicional (Safari iOS y WebViews de Android)
+    if (typeof window.orientation === 'number') {
+        return window.orientation === 0 || window.orientation === 180;
+    }
+
+    // 3. Proporción de la pantalla física del dispositivo (screen.width vs screen.height)
+    // En smartphones, screen.height es la resolución física fija y no se encoge al abrir el teclado
+    if (window.screen && typeof window.screen.width === 'number' && typeof window.screen.height === 'number') {
+        return window.screen.height > window.screen.width;
+    }
+
+    // 4. Fallback si nada de lo anterior está disponible
+    return window.innerHeight > window.innerWidth;
+}
+
+function updateOrientationView() {
+    if (thanksScreen && thanksScreen.style.display === 'flex') {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    const inPortrait = isPortraitMode();
+
+    if (hasStarted) {
+        if (inPortrait) {
+            // El usuario ya colocó su nombre pero tiene el celular en vertical:
+            // Mostrar ÚNICAMENTE el aviso animado en pantalla completa pidiendo girar
+            if (rotateScreen) rotateScreen.style.display = 'flex';
+            if (container) container.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+        } else {
+            // El usuario puso el celular en horizontal: ocultar aviso y mostrar mandos
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+            if (container) container.style.display = 'flex';
+        }
+    } else {
+        // Pantalla inicial de bienvenida y nickname
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (roomSelection) roomSelection.style.display = 'flex';
+        if (container) container.style.display = 'none';
+    }
+}
+
+window.addEventListener('orientationchange', () => {
+    setTimeout(updateOrientationView, 120);
+});
+if (window.screen && window.screen.orientation) {
+    try {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(updateOrientationView, 100);
+        });
+    } catch (_) {}
+}
+window.addEventListener('resize', () => {
+    if (hasStarted) {
+        setTimeout(updateOrientationView, 150);
+    }
+});
+
+// ==========================================
 // 🚀 Inicialización al Cargar
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
@@ -477,22 +565,56 @@ window.addEventListener('DOMContentLoaded', () => {
         if (roomInput) roomInput.value = currentRoomId;
     }
 
-    if (nicknameInput) nicknameInput.focus();
+    if (nicknameInput) {
+        // Validación obligatoria de Nickname (mínimo 2 caracteres)
+        const validateNick = () => {
+            const val = nicknameInput.value.trim();
+            if (connectBtn) {
+                connectBtn.disabled = val.length < 2;
+            }
+        };
+        nicknameInput.addEventListener('input', validateNick);
+        validateNick();
+
+        nicknameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (nicknameInput.value.trim().length >= 2) {
+                    if (connectBtn) connectBtn.click();
+                } else {
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+            }
+        });
+    }
 
     if (connectBtn) {
-        connectBtn.addEventListener('click', () => {
-            mobileAudio.init();
-            const nick = nicknameInput.value.trim();
-            if (nick) nickname = nick;
+        connectBtn.addEventListener('click', (e) => {
+            if (e) e.preventDefault();
+            
+            // Cerrar teclado virtual explícitamente para que no distorsione el viewport
+            if (nicknameInput) nicknameInput.blur();
 
-            if (!currentRoomId) {
+            mobileAudio.init();
+            
+            const nick = nicknameInput ? nicknameInput.value.trim() : '';
+            if (!nick || nick.length < 2) {
+                if (nicknameInput) {
+                    nicknameInput.focus();
+                    nicknameInput.style.borderColor = 'var(--danger)';
+                    setTimeout(() => { nicknameInput.style.borderColor = ''; }, 1200);
+                }
+                return;
+            }
+            nickname = nick;
+
+            if (!currentRoomId && roomInput) {
                 currentRoomId = roomInput.value.trim().toUpperCase();
             }
 
-            if (!currentRoomId) {
-                alert('Por favor escanea el código QR de la pantalla.');
-                return;
-            }
+            hasStarted = true;
+            roomSelection.style.display = 'none';
+            updateOrientationView();
 
             initConnection();
         });

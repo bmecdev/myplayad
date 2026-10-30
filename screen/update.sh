@@ -47,6 +47,12 @@ if [ "$LOCAL_HASH" != "$REMOTE_HASH" ] && [ "$REMOTE_HASH" != "unknown" ]; then
         npm install --omit=dev --no-audit --no-fund
     fi
 
+    # Asegurar permisos y aplicar directivas de prevención de reposo
+    if [ -f "$SCRIPT_DIR/disable_sleep.sh" ]; then
+        chmod +x "$SCRIPT_DIR/disable_sleep.sh" 2>/dev/null || true
+        bash "$SCRIPT_DIR/disable_sleep.sh" || true
+    fi
+
     echo "[UPDATER] [EXITO] Pantalla actualizada con éxito al commit $REMOTE_HASH."
     echo "STATUS:UPDATED:$REMOTE_HASH"
     exit 0

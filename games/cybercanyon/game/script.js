@@ -1491,13 +1491,14 @@ function updateQrCode() {
 function fetchRanking() {
     try {
         const ranking = JSON.parse(localStorage.getItem('cybercanyon-ranking')) || [];
-        if (ranking.length > 0) {
-            GameState.highScore = ranking[0].score;
+        const top5 = ranking.slice(0, 5);
+        if (top5.length > 0) {
+            GameState.highScore = top5[0].score;
             updateUI();
         }
         if (rankingList) {
             rankingList.innerHTML = '';
-            ranking.slice(0, 5).forEach((entry, index) => {
+            top5.forEach((entry, index) => {
                 const li = document.createElement('li');
                 li.innerHTML = `
                     <span class="rank">${index + 1}.</span>
@@ -1506,6 +1507,16 @@ function fetchRanking() {
                 `;
                 rankingList.appendChild(li);
             });
+        }
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'cybercanyon',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
         }
     } catch (e) {}
 }
@@ -1635,5 +1646,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('resize', autoScale);
 [0, 50, 150, 300, 600, 1200].forEach(delay => setTimeout(autoScale, delay));
+
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'RESCALE') autoScale();
+    if (e.data.type === 'GET_RANKING') fetchRanking();
+});
 
 requestAnimationFrame(gameLoop);

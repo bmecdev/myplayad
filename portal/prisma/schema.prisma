@@ -22,9 +22,12 @@ model User {
   password  String
   name      String
   role      Role     @default(CLIENT)
+  isActive  Boolean  @default(true)
   
-  planId    String?
-  plan      Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planId        String?
+  plan          Plan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planStartsAt  DateTime?
+  planEndsAt    DateTime?
   
   screens         Screen[]
   videos          Video[]
@@ -39,7 +42,7 @@ model Plan {
   name                String
   slug                String   @unique
   description         String?
-  maxVideosPerScreen  Int      @default(5)
+  maxVideosPerScreen  Int      @default(15)
   
   games       Game[]
   users       User[]
@@ -53,12 +56,16 @@ model Screen {
   name        String
   location    String?
   description String?
+  consoleId   String?     // Identificador de la consola física (ej: "consola1", "rpi5-01")
   lastSeen    DateTime?
   
   userId      String?
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   
   displayState    String      @default("ON") // "ON" | "OFF"
+  autoPowerEnabled Boolean    @default(true)
+  powerOnTime      String?    @default("08:00") // Formato "HH:mm" (24h)
+  powerOffTime     String?    @default("22:00") // Formato "HH:mm" (24h)
   
   schedules       Schedule[]
   updateSchedules UpdateSchedule[]

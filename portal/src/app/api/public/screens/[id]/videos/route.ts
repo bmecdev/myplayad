@@ -7,13 +7,40 @@ export async function GET(
 ) {
   try {
     const { id: screenId } = await params;
+    const now = new Date();
 
-    // Find all active video schedules for this screen
+    // Comprobar si el cliente propietario está inactivo o suspendido
+    const screen = await prisma.screen.findUnique({
+      where: { id: screenId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            isActive: true,
+            planStartsAt: true,
+            planEndsAt: true,
+          },
+        },
+      },
+    });
+
+    if (screen?.user) {
+      const isClientInactive = screen.user.isActive === false;
+      const isPlanExpired = screen.user.planEndsAt ? new Date(screen.user.planEndsAt) < now : false;
+      const isPlanPending = screen.user.planStartsAt ? new Date(screen.user.planStartsAt) > now : false;
+
+      if (isClientInactive || isPlanExpired || isPlanPending) {
+        return NextResponse.json({ videos: [], clientActive: false });
+      }
+    }
+
+    // Find all active video schedules for this screen (estricta segmentación por cliente)
     const schedules = await prisma.schedule.findMany({
       where: {
         screenId,
         videoId: { not: null },
         isActive: true,
+        ...(screen?.userId ? { video: { userId: screen.userId } } : {}),
       },
       include: {
         video: true,

@@ -78,9 +78,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         name: screen.name,
         location: screen.location,
         description: screen.description,
+        consoleId: screen.consoleId,
         lastSeen: screen.lastSeen,
         userId: screen.userId,
         user: screen.user,
+        displayState: screen.displayState,
+        autoPowerEnabled: screen.autoPowerEnabled,
+        powerOnTime: screen.powerOnTime,
+        powerOffTime: screen.powerOffTime,
       },
       videos,
       activeGameSchedule: activeGameSchedule || null,
@@ -101,7 +106,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params;
     const body = await request.json();
-    const { name, location, description, userId } = body;
+    const {
+      name,
+      location,
+      description,
+      userId,
+      consoleId,
+      autoPowerEnabled,
+      powerOnTime,
+      powerOffTime,
+    } = body;
 
     const existingScreen = await prisma.screen.findUnique({
       where: { id },
@@ -128,7 +142,27 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         name: name !== undefined ? name : existingScreen.name,
         location: location !== undefined ? location : existingScreen.location,
         description: description !== undefined ? description : existingScreen.description,
+        consoleId:
+          consoleId !== undefined
+            ? consoleId && typeof consoleId === 'string' && consoleId.trim()
+              ? consoleId.trim()
+              : null
+            : existingScreen.consoleId,
         userId: updatedUserId,
+        autoPowerEnabled:
+          autoPowerEnabled !== undefined ? Boolean(autoPowerEnabled) : existingScreen.autoPowerEnabled,
+        powerOnTime:
+          powerOnTime !== undefined
+            ? powerOnTime && String(powerOnTime).trim()
+              ? String(powerOnTime).trim()
+              : null
+            : existingScreen.powerOnTime,
+        powerOffTime:
+          powerOffTime !== undefined
+            ? powerOffTime && String(powerOffTime).trim()
+              ? String(powerOffTime).trim()
+              : null
+            : existingScreen.powerOffTime,
       },
       include: {
         user: {

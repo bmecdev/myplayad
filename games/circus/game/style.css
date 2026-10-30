@@ -1,0 +1,378 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+:root {
+    --bg-deep: #0a0f0d;
+    --panel: #101a15;
+    --panel-edge: #1f3327;
+    --phosphor: #3dff8a;
+    --phosphor-dim: #1f7d49;
+    --amber: #ffb703;
+    --danger: #ff4d6d;
+    --white: #eafff2;
+    --circus-cyan: #00e5ff;
+    --circus-gold: #facc15;
+    --circus-red: #ef4444;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+}
+
+body {
+    background-color: var(--bg-deep);
+    color: var(--white);
+    font-family: 'Press Start 2P', monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform-origin: center center;
+    transition: transform 0.1s ease-out;
+}
+
+/* Gabinete Arcade Retro */
+.console-bezel {
+    background: #141c18;
+    border: 4px solid #22362b;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 10px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 440px;
+}
+
+/* Pantalla CRT / LCD */
+.lcd-screen {
+    position: relative;
+    background-color: #000000;
+    border: 3px solid #1a2b22;
+    border-radius: 6px;
+    width: 400px;
+    height: 360px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.95);
+    cursor: pointer;
+}
+
+/* Líneas de Escaneo CRT */
+.scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    background-size: 100% 3px, 6px 100%;
+    pointer-events: none;
+    z-index: 20;
+}
+
+/* Cabecera HUD Retro - Cuadro Oficial Konami Circus Charlie */
+.game-header {
+    height: 40px;
+    background-color: #000000;
+    border: 2px solid #00f8f8; /* Borde exterior cian */
+    box-shadow: inset 0 0 0 1px #f82850, 0 0 6px rgba(0, 248, 248, 0.3); /* Borde interior rosa */
+    border-radius: 6px;
+    margin: 4px 6px 3px 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 3px 8px;
+    font-size: 7px;
+    line-height: 1.4;
+    color: #f8fcf8;
+    z-index: 10;
+}
+
+.hud-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    color: #f8fcf8;
+    letter-spacing: 0.5px;
+}
+
+.hud-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 1px;
+}
+
+.hud-bonus-lives {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bonus-tag {
+    color: #f82850; /* Rosa auténtico de Circus Charlie */
+    font-weight: bold;
+}
+
+.lives-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.clown-head-icon {
+    display: inline-block;
+    width: 9px;
+    height: 8px;
+    position: relative;
+    vertical-align: middle;
+}
+
+.hud-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 6px;
+}
+
+#player-nick {
+    color: #00f8f8;
+}
+
+#room-id {
+    color: #f8bc20;
+}
+
+.audio-toggle-btn {
+    background: #000000;
+    border: 1px solid #00f8f8;
+    color: #00f8f8;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 6px;
+    padding: 1px 3px;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.audio-toggle-btn.muted {
+    color: #f82000;
+    border-color: #f82000;
+}
+
+/* Lienzo de Juego Canvas */
+.canvas-wrapper {
+    width: 400px;
+    height: 320px;
+    background-color: #000;
+    position: relative;
+    overflow: hidden;
+}
+
+#gameCanvas {
+    width: 400px;
+    height: 320px;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Overlays (Espera y Game Over) */
+#waiting-overlay, #game-over-overlay {
+    position: absolute;
+    top: 38px;
+    left: 0;
+    width: 400px;
+    height: 322px;
+    background: rgba(10, 15, 13, 0.94);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 15;
+    text-align: center;
+    backdrop-filter: blur(2px);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    max-width: 360px;
+}
+
+.arcade-title {
+    font-size: 16px;
+    color: #facc15;
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.8), 2px 2px #b45309;
+    letter-spacing: 1px;
+}
+
+.arcade-title span {
+    color: #ef4444;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.8), 2px 2px #7f1d1d;
+}
+
+.pulse-text {
+    font-size: 8px;
+    color: #38bdf8;
+    animation: pulse 1.5s infinite;
+}
+
+.qr-wrapper {
+    background: #ffffff;
+    padding: 8px;
+    border-radius: 6px;
+    border: 3px solid #facc15;
+    box-shadow: 0 0 15px rgba(250, 204, 21, 0.4);
+    margin: 4px 0;
+}
+
+#qrcode img, #qrcode canvas {
+    display: block;
+    width: 140px;
+    height: 140px;
+}
+
+.status-text {
+    font-size: 7px;
+    color: var(--amber);
+}
+
+.arcade-banner-hint {
+    font-size: 6px;
+    color: #a7f3d0;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px dashed var(--phosphor-dim);
+}
+
+.instant-btn {
+    margin-top: 4px;
+    background: #1e3a2f;
+    border: 1px solid var(--phosphor);
+    color: var(--phosphor);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #0f1f18;
+}
+
+.instant-btn:hover {
+    background: var(--phosphor);
+    color: #000;
+}
+
+/* Pantalla de Fin de Juego */
+#game-over-overlay h2 {
+    font-size: 18px;
+    letter-spacing: 2px;
+}
+
+#game-over-overlay h2.danger {
+    color: var(--danger);
+    text-shadow: 0 0 10px rgba(255, 77, 109, 0.7);
+}
+
+#ranking-container {
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid var(--panel-edge);
+    padding: 6px 12px;
+    border-radius: 6px;
+    width: 280px;
+    margin: 4px 0;
+}
+
+#ranking-container h3 {
+    font-size: 8px;
+    color: var(--amber);
+    margin-bottom: 6px;
+}
+
+#ranking-list {
+    list-style: none;
+    font-size: 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#ranking-list li {
+    display: flex;
+    justify-content: space-between;
+    color: var(--white);
+}
+
+.instruction {
+    font-size: 8px;
+    color: #38bdf8;
+    margin-top: 4px;
+}
+
+.sub-hint {
+    font-size: 7px;
+}
+
+.blink {
+    animation: blink 0.8s infinite;
+}
+
+/* Grille y branding inferior */
+.console-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 10px;
+    padding: 0 4px;
+}
+
+.speaker-grill {
+    display: flex;
+    gap: 3px;
+}
+
+.speaker-grill span {
+    display: block;
+    width: 3px;
+    height: 12px;
+    background: #0b120f;
+    border-radius: 1px;
+}
+
+.brand-text {
+    font-size: 6px;
+    color: #2e4739;
+    letter-spacing: 1px;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(0.98); }
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}

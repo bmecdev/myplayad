@@ -1711,11 +1711,22 @@ if (audioToggleBtn) {
 function loadRanking() {
     try {
         const ranking = JSON.parse(localStorage.getItem('pinball-ranking')) || [];
-        if (ranking.length > 0) {
-            GameState.highScore = ranking[0].score;
+        const top5 = ranking.slice(0, 5);
+        if (top5.length > 0) {
+            GameState.highScore = top5[0].score;
             updateUI();
         }
         displayRanking(ranking);
+
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage({
+                    type: 'RANKING_UPDATE',
+                    slug: 'pinball',
+                    ranking: top5
+                }, '*');
+            } catch (_) {}
+        }
     } catch (_) {}
 }
 
@@ -1730,7 +1741,7 @@ function saveScore(nickname, score) {
         ranking.sort((a, b) => b.score - a.score);
         ranking = ranking.slice(0, 5);
         localStorage.setItem('pinball-ranking', JSON.stringify(ranking));
-        displayRanking(ranking);
+        loadRanking();
     } catch (_) {}
 }
 
@@ -1941,6 +1952,12 @@ window.addEventListener('load', () => {
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
 if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
+
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'RESCALE') autoScale();
+    if (e.data.type === 'GET_RANKING') loadRanking();
+});
 
 // ==========================================
 // 🚀 Lanzamiento Inicial

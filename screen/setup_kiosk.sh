@@ -5,14 +5,105 @@ echo "================================================="
 echo "   Configurando Raspberry Pi 5 Kiosk Mode"
 echo "================================================="
 
-# 1. Instalar dependencias
-echo "[1/5] Instalando dependencias (swaybg, kanshi, x11-apps, wlr-randr, cec-utils, ffmpeg)..."
-sudo apt-get update
-sudo apt-get install -y swaybg kanshi x11-apps wlr-randr cec-utils ffmpeg || sudo apt-get install -y swaybg kanshi x11-apps cec-utils ffmpeg
+# Directorio base del script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 2. Configurar rotación permanente en el Kernel Linux (KMS / DRM)
-echo "[2/5] Configurando rotación vertical a nivel de Kernel en /boot/firmware/cmdline.txt..."
+# Detectar usuario y su directorio HOME real (útil si se ejecuta con sudo)
+TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_HOME=$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)
+TARGET_HOME="${TARGET_HOME:-$HOME}"
+
+echo "Usuario destino: $TARGET_USER ($TARGET_HOME)"
+echo "Directorio de trabajo: $SCRIPT_DIR"
+
+# 1. Instalar dependencias del sistema y programas requeridos
+echo ""
+echo "[1/6] Instalando dependencias del sistema y entorno gráfico..."
+sudo apt-get update
+
+sudo apt-get install -y \
+    curl \
+    wget \
+    git \
+    swaybg \
+    kanshi \
+    x11-apps \
+    cec-utils \
+    ffmpeg \
+    wlr-randr \
+    chromium \
+    || sudo apt-get install -y \
+    curl \
+    wget \
+    git \
+    swaybg \
+    kanshi \
+    x11-apps \
+    cec-utils \
+    ffmpeg \
+    chromium-browser \
+    || sudo apt-get install -y \
+    curl \
+    wget \
+    git \
+    swaybg \
+    kanshi \
+    x11-apps \
+    cec-utils \
+    ffmpeg
+
+# 2. Instalar Node.js y npm si no están presentes
+echo ""
+echo "[2/6] Verificando e instalando Node.js y npm..."
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    echo "Node.js/npm no detectados. Instalando Node.js 20 LTS vía NodeSource..."
+    if curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - >/dev/null 2>&1; then
+        sudo apt-get install -y nodejs
+    else
+        echo "NodeSource no disponible o sin conexión. Instalando paquetes nativos..."
+        sudo apt-get install -y nodejs npm
+    fi
+fi
+
+NODE_VER=$(node -v 2>/dev/null || echo "No instalado")
+NPM_VER=$(npm -v 2>/dev/null || echo "No instalado")
+echo "Versión detectada: Node.js $NODE_VER | npm $NPM_VER"
+
+# 3. Instalar dependencias de Node.js del proyecto (npm install)
+echo ""
+echo "[3/6] Instalando dependencias de Node.js del proyecto (npm install)..."
+PACKAGE_DIR=""
+if [ -f "$SCRIPT_DIR/package.json" ]; then
+    PACKAGE_DIR="$SCRIPT_DIR"
+elif [ -f "$TARGET_HOME/screen/package.json" ]; then
+    PACKAGE_DIR="$TARGET_HOME/screen"
+fi
+
+if [ -n "$PACKAGE_DIR" ]; then
+    echo "Instalando paquetes npm en $PACKAGE_DIR..."
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        sudo -u "$SUDO_USER" bash -c "cd '$PACKAGE_DIR' && npm install --omit=dev --no-audit --no-fund"
+    else
+        (cd "$PACKAGE_DIR" && npm install --omit=dev --no-audit --no-fund)
+    fi
+    echo "Dependencias npm instaladas exitosamente."
+else
+    echo "⚠️ Aviso: No se encontró package.json en $SCRIPT_DIR ni en $TARGET_HOME/screen."
+fi
+
+# Asegurar permisos de ejecución a los scripts auxiliares
+chmod +x "$SCRIPT_DIR/power.sh" 2>/dev/null || true
+chmod +x "$SCRIPT_DIR/update.sh" 2>/dev/null || true
+chmod +x "$SCRIPT_DIR/disable_sleep.sh" 2>/dev/null || true
+
+# 4. Configurar rotación permanente y desactivar salvapantallas del Kernel (KMS / DRM)
+echo ""
+echo "[4/7] Configurando parámetros de arranque del Kernel en cmdline.txt..."
 CMDLINE_FILE="/boot/firmware/cmdline.txt"
+if [ ! -f "$CMDLINE_FILE" ] && [ -f "/boot/cmdline.txt" ]; then
+    CMDLINE_FILE="/boot/cmdline.txt"
+fi
+
 if [ -f "$CMDLINE_FILE" ]; then
     if ! grep -q "rotate=" "$CMDLINE_FILE"; then
         echo "Añadiendo parámetro de rotación vertical (90 grados) al arranque del kernel..."
@@ -21,12 +112,29 @@ if [ -f "$CMDLINE_FILE" ]; then
     else
         echo "Parámetro de rotación ya presente en cmdline.txt."
     fi
+
+    # Desactivar salvapantallas del kernel (consoleblank=0)
+    if grep -q "consoleblank=" "$CMDLINE_FILE"; then
+        sudo sed -i 's/consoleblank=[0-9]*/consoleblank=0/' "$CMDLINE_FILE"
+    else
+        sudo sed -i 's/$/ consoleblank=0/' "$CMDLINE_FILE"
+    fi
+    echo "✓ Salvapantallas del Kernel desactivado permanentemente (consoleblank=0)."
 fi
 
-# 3. Configurar puntero de mouse invisible
-echo "[3/5] Generando puntero de ratón transparente..."
-mkdir -p ~/.icons/empty/cursors
-cd ~/.icons/empty/cursors
+# 5. Desactivar suspensión, reposo del SO y ahorro de energía Wi-Fi
+echo ""
+echo "[5/7] Desactivando reposo del sistema operativo y ahorro de energía..."
+if [ -f "$SCRIPT_DIR/disable_sleep.sh" ]; then
+    bash "$SCRIPT_DIR/disable_sleep.sh"
+fi
+
+# 6. Configurar puntero de mouse invisible
+echo ""
+echo "[6/7] Generando puntero de ratón transparente..."
+CURSOR_DIR="$TARGET_HOME/.icons/empty/cursors"
+mkdir -p "$CURSOR_DIR"
+cd "$CURSOR_DIR"
 
 # Generar un PNG transparente desde base64
 echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 -d > empty.png
@@ -35,30 +143,33 @@ echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C
 echo "24 0 0 empty.png" > empty.cursor
 
 # Generar archivo binario de cursor
-xcursorgen empty.cursor empty
+if command -v xcursorgen >/dev/null 2>&1; then
+    xcursorgen empty.cursor empty
 
-# Clonar para cubrir todos los estados del ratón
-for c in left_ptr default pointer arrow crosshair text; do
-    cp empty $c
-done
+    # Clonar para cubrir todos los estados del ratón
+    for c in left_ptr default pointer arrow crosshair text; do
+        cp empty $c
+    done
+fi
 
 # Crear el índice del tema
-mkdir -p ../
-cat << 'EOF' > ../index.theme
+mkdir -p "$TARGET_HOME/.icons/empty"
+cat << 'EOF' > "$TARGET_HOME/.icons/empty/index.theme"
 [Icon Theme]
 Name=empty
 Comment=Empty Cursor Theme
 EOF
 
-# Volver al directorio original
-cd - > /dev/null
+# Volver al directorio de trabajo
+cd "$SCRIPT_DIR"
 
-# 4. Configurar labwc (Entorno y Autostart)
-echo "[4/5] Configurando compositor Wayland (labwc)..."
-mkdir -p ~/.config/labwc
+# 7. Configurar labwc (Entorno y Autostart)
+echo ""
+echo "[7/7] Configurando compositor Wayland (labwc)..."
+mkdir -p "$TARGET_HOME/.config/labwc"
 
 # Environment
-cat << 'EOF' > ~/.config/labwc/environment
+cat << 'EOF' > "$TARGET_HOME/.config/labwc/environment"
 XKB_DEFAULT_MODEL=pc105
 XKB_DEFAULT_LAYOUT=us
 XKB_DEFAULT_VARIANT=
@@ -68,7 +179,7 @@ XCURSOR_SIZE=24
 EOF
 
 # Autostart
-cat << 'EOF' > ~/.config/labwc/autostart
+cat << 'EOF' > "$TARGET_HOME/.config/labwc/autostart"
 #!/bin/bash
 
 # 1. Leer las variables desde el archivo config.txt de la MicroSD
@@ -109,33 +220,123 @@ kanshi &
 wlr-randr --output HDMI-A-1 --transform ${SCREEN_ROTATE} 2>/dev/null || true
 wlr-randr --output HDMI-A-2 --transform ${SCREEN_ROTATE} 2>/dev/null || true
 
-# 3. Eliminar barra de tareas e íconos de escritorio (Kiosk Mode Puro)
-killall pcmanfm wf-panel-pi lwrespawn 2>/dev/null
-swaybg -i /home/screen/screen/logo.png -m center -c "#000000" &
-
-# 4. Auto-actualización al encender (Boot-Time Update de producción)
-if [ -f "/home/screen/screen/update.sh" ]; then
-    echo "[AUTOSTART] Comprobando actualizaciones de produccion en origin/main..."
-    bash /home/screen/screen/update.sh || true
+# 3. Desactivar reposo automático, salvapantallas y suspensión del sistema
+killall swayidle 2>/dev/null || true
+if command -v wlopm >/dev/null 2>&1; then
+    wlopm --on '*' 2>/dev/null || true
+fi
+if command -v xset >/dev/null 2>&1; then
+    xset s off 2>/dev/null || true
+    xset -dpms 2>/dev/null || true
+    xset s noblank 2>/dev/null || true
 fi
 
-# 5. Iniciar el servidor Node en segundo plano
-cd /home/screen/screen
-SCREEN_ID="${SCREEN_ID:-bc502bba-859c-461c-a795-f6e4bf2d4931}" REMOTE_VIDEO_SERVER_URL="https://videos.myplayad.com" node server.js &
+# 4. Eliminar barra de tareas e íconos de escritorio (Kiosk Mode Puro)
+killall pcmanfm wf-panel-pi lwrespawn 2>/dev/null
 
-# 6. Darle 3 segundos al servidor para que inicie y abrir Chromium en modo kiosco
-sleep 3
-chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 http://localhost:8090
+SCREEN_APP_DIR="$HOME/screen"
+
+if [ -f "$SCREEN_APP_DIR/logo.png" ]; then
+    swaybg -i "$SCREEN_APP_DIR/logo.png" -m center -c "#000000" &
+fi
+
+# 5. Encender televisor via HDMI-CEC inmediatamente al arrancar la Raspberry Pi 5
+if [ -f "$SCREEN_APP_DIR/power.sh" ]; then
+    echo "[AUTOSTART] Encendiendo pantalla de TV via HDMI-CEC..."
+    "$SCREEN_APP_DIR/power.sh" on &
+elif command -v cec-client >/dev/null 2>&1; then
+    (echo "on 0"; echo "tx 10:04"; sleep 1; echo "as") | cec-client -s -d 1 2>/dev/null &
+fi
+
+# 6. Auto-actualización al encender (Boot-Time Update de producción)
+if [ -f "$SCREEN_APP_DIR/update.sh" ]; then
+    echo "[AUTOSTART] Comprobando actualizaciones de produccion en origin/main..."
+    bash "$SCREEN_APP_DIR/update.sh" || true
+fi
+
+# 7. Iniciar el servidor Node en segundo plano
+cd "$SCREEN_APP_DIR"
+node server.js >> "$SCREEN_APP_DIR/server.log" 2>&1 &
+
+# 8. Esperar a que el servidor Node responda (hasta 15s) antes de lanzar Chromium
+for i in $(seq 1 30); do
+    if curl -s http://localhost:8090/api/config >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.5
+done
+
+# 9. Abrir Chromium en modo kiosco (Wayland nativo, sin sleep, sin throttling)
+chromium --ozone-platform=wayland --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --autoplay-policy=no-user-gesture-required http://localhost:8090
 EOF
 
-chmod +x ~/.config/labwc/autostart
+chmod +x "$TARGET_HOME/.config/labwc/autostart"
 
-# 5. Finalización
-echo "[5/5] Configuración completada."
-echo "================================================="
-echo "Pasos adicionales requeridos en nuevas instalaciones:"
-echo "1. Ejecutar npm install en la carpeta /home/screen/screen."
-echo "2. Asegurarse que logo.png y el proyecto base estén en /home/screen/screen."
-echo "3. Ejecutar 'sudo nano /boot/firmware/config.txt' para agregar el SCREEN_ID y SCREEN_ROTATE=90."
+# Ajustar propietarios de archivos en caso de haberse ejecutado con sudo
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.icons" "$TARGET_HOME/.config" 2>/dev/null || true
+    if [ -n "$PACKAGE_DIR" ]; then
+        chown -R "$TARGET_USER:$TARGET_USER" "$PACKAGE_DIR" 2>/dev/null || true
+    fi
+fi
+
+# 8. Configurar auto-encendido de TV temprano mediante servicio systemd y config.txt
 echo ""
-echo "Para aplicar los cambios de rotación y gráficos, reinicia la Raspberry Pi: sudo reboot"
+echo "[8/8] Configurando servicio systemd para encendido HDMI-CEC temprano de TV..."
+CONFIG_TXT_FILE="/boot/firmware/config.txt"
+if [ ! -f "$CONFIG_TXT_FILE" ] && [ -f "/boot/config.txt" ]; then
+    CONFIG_TXT_FILE="/boot/config.txt"
+fi
+
+if [ -f "$CONFIG_TXT_FILE" ]; then
+    if ! grep -q "hdmi_force_hotplug" "$CONFIG_TXT_FILE"; then
+        echo "Añadiendo forzado de señal HDMI y nombre CEC a $CONFIG_TXT_FILE..."
+        cat << 'CFG_EOF' | sudo tee -a "$CONFIG_TXT_FILE" >/dev/null
+
+# Forzar señal HDMI activa y CEC para encendido automático de televisor
+hdmi_force_hotplug=1
+hdmi_force_hotplug:0=1
+hdmi_force_hotplug:1=1
+cec_osd_name=MyPlayAd
+CFG_EOF
+    fi
+fi
+
+cat << 'SERVICE_EOF' | sudo tee /etc/systemd/system/myplayad-tv-poweron.service >/dev/null
+[Unit]
+Description=MyPlayAd Encender TV via HDMI-CEC al arrancar Raspberry Pi
+After=systemd-modules-load.service local-fs.target
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+User=root
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "if command -v cec-client >/dev/null 2>&1; then (echo 'on 0'; echo 'tx 10:04'; sleep 1; echo 'as') | cec-client -s -d 1 2>/dev/null || true; fi"
+TimeoutSec=15
+
+[Install]
+WantedBy=multi-user.target
+SERVICE_EOF
+
+sudo systemctl daemon-reload 2>/dev/null || true
+sudo systemctl enable myplayad-tv-poweron.service 2>/dev/null || true
+echo "✓ Servicio systemd myplayad-tv-poweron.service activado."
+
+# 9. Finalización
+echo ""
+echo "================================================="
+echo "   Configuración del Kiosco completada con éxito"
+echo "================================================="
+echo "Programas y dependencias instalados:"
+echo " - Herramientas: curl, wget, git, ffmpeg, cec-utils"
+echo " - Encendido automático de TV por HDMI-CEC en arranque (systemd + autostart)"
+echo " - Entorno Wayland/Kiosco: swaybg, kanshi, wlr-randr, chromium, tema cursor invisible"
+echo " - Node.js ($NODE_VER) y npm ($NPM_VER)"
+echo " - Dependencias npm del servidor compiladas exitosamente"
+echo ""
+echo "Paso adicional para nuevas MicroSD:"
+echo " -> Asegúrate de configurar SCREEN_ID en /boot/firmware/config.txt si no está definido."
+echo ""
+echo "Para aplicar los cambios de rotación y entorno gráfico, reinicia la Raspberry Pi:"
+echo "   sudo reboot"

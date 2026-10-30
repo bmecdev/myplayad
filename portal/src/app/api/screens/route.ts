@@ -75,14 +75,27 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, location, description, userId } = body;
+    const {
+      name,
+      location,
+      description,
+      userId,
+      consoleId,
+      autoPowerEnabled,
+      powerOnTime,
+      powerOffTime,
+    } = body;
 
     const screen = await prisma.screen.create({
       data: {
         name,
         location,
         description,
+        consoleId: consoleId && consoleId.trim() ? consoleId.trim() : null,
         userId: userId && userId !== 'none' ? userId : null,
+        autoPowerEnabled: autoPowerEnabled !== undefined ? Boolean(autoPowerEnabled) : true,
+        powerOnTime: powerOnTime && String(powerOnTime).trim() ? String(powerOnTime).trim() : '08:00',
+        powerOffTime: powerOffTime && String(powerOffTime).trim() ? String(powerOffTime).trim() : '22:00',
       },
       include: {
         user: {
