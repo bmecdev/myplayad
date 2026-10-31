@@ -531,3 +531,44 @@ setInterval(() => {
         sendInputData();
     }
 }, SEND_INTERVAL);
+
+// ==============================================================================
+// 🚫 Restricciones Móviles: Prohibir Zoom (Pellizco / Doble Toque) y Selección
+// ==============================================================================
+(function preventZoomAndSelection() {
+    // 1. Prevenir gestos de zoom en iOS Safari (pinch/gesture)
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+    // 2. Prevenir zoom por pellizco multitáctil en Android y navegadores web
+    document.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // 3. Prevenir doble toque para zoom (Double-tap zoom)
+    let lastTouchEndTime = 0;
+    document.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTouchEndTime <= 300) {
+            if (!e.target || (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA')) {
+                e.preventDefault();
+            }
+        }
+        lastTouchEndTime = now;
+    }, { passive: false });
+
+    // 4. Prevenir selección de texto accidental al tocar o arrastrar
+    document.addEventListener('selectstart', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+    });
+
+    // 5. Prevenir menú contextual de pulsación larga (Copy / Select All / Callout)
+    document.addEventListener('contextmenu', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+    });
+})();
