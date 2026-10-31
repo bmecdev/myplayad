@@ -41,7 +41,7 @@ MyPlayAd se adapta a cualquier infraestructura mediante **3 opciones de producto
 ## 🕹️ Catálogo de Minijuegos Disponibles en Producción
 
 <!-- GAMES_CATALOG_START -->
-Actualmente la rama principal (`main`) cuenta con **12 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
+Actualmente la rama principal (`main`) cuenta con **13 minijuegos** interactivos adaptados al estándar **Pure Arcade** (pantalla completa, gabinete centrado, bezel de 440px y QR local offline):
 
 | Juego | Género | Mecánica & Descripción | Controles Móviles / Teclado | Producción | Staging (Dev) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -57,6 +57,7 @@ Actualmente la rama principal (`main`) cuenta con **12 minijuegos** interactivos
 | **⚡ Pinball Arcade**<br>`pinball` | Arcade / Physics Pinball | Mesa arcade de pinball retro con bumpers luminosos, flippers de alta respuesta, rampas y multibola. | Flippers izquierdo/derecho y resorte de lanzamiento / Teclas Z, X y Espacio | 🖥️ [Pantalla](https://myplayad.com/pinball/)<br>📱 [Control](https://controllers.myplayad.com/pinball/) | 🖥️ [Pantalla](https://dev.myplayad.com/pinball/)<br>📱 [Control](https://dev-controllers.myplayad.com/pinball/) |
 | **🛸 Skyroads Clon**<br>`skyroads` | Space Platformer / Racing | Nave espacial recorriendo túneles y plataformas en gravedad cero con saltos y turbo. | Joystick analógico virtual + Botones Salto, Turbo y Freno / Teclas de flecha + Espacio | 🖥️ [Pantalla](https://myplayad.com/skyroads/)<br>📱 [Control](https://controllers.myplayad.com/skyroads/) | 🖥️ [Pantalla](https://dev.myplayad.com/skyroads/)<br>📱 [Control](https://dev-controllers.myplayad.com/skyroads/) |
 | **🐍 Snake Clon**<br>`snake` | Arcade Retro | La serpiente retro clásica que crece al devorar píldoras, evitando colisiones con bordes y su propio cuerpo. | D-Pad direccional y gestos táctiles de deslizamiento (Swipe) / Flechas del teclado | 🖥️ [Pantalla](https://myplayad.com/snake/)<br>📱 [Control](https://controllers.myplayad.com/snake/) | 🖥️ [Pantalla](https://dev.myplayad.com/snake/)<br>📱 [Control](https://dev-controllers.myplayad.com/snake/) |
+| **🛸 Star Wars: Falcon**<br>`starwars` | Shooter Espacial 3D | Pilota el legendario Halcón Milenario esquivando asteroides y combatiendo las escuadrillas de cazas Sith y del Imperio en perspectiva 3D retro. | Joystick virtual 360° y Cañón Láser / Flechas de cursor y Espacio | 🖥️ [Pantalla](https://myplayad.com/starwars/)<br>📱 [Control](https://controllers.myplayad.com/starwars/) | 🖥️ [Pantalla](https://dev.myplayad.com/starwars/)<br>📱 [Control](https://dev-controllers.myplayad.com/starwars/) |
 <!-- GAMES_CATALOG_END -->
 
 
