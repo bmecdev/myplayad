@@ -198,10 +198,14 @@ Verás la interfaz de la pantalla principal reproduciendo videos y cambiando a j
 
 ## 🎮 Pruebas de Juegos y Controladores
 
-Cuando la pantalla muestre un juego (ej. Snake), aparecerá un **Código QR**. 
-1. Escanea el código QR con tu teléfono o copia el enlace.
-2. El enlace abrirá la vista del controlador (Joystick/Trackpad) del juego en tu navegador web móvil.
-3. Ingresa tu Nickname y la comunicación en tiempo real (vía WebSockets/MQTT) conectará tu teléfono con el juego en la pantalla.
+Cuando la pantalla arcade cargue cualquier minijuego (ej. Arkanoid, Circus, Star Wars), se generará automáticamente un **Código QR local** con latencia cero:
+1. **Escaneo del Código QR**: Escanea el QR con la cámara de tu smartphone para abrir el controlador web correspondiente (`https://dev-controllers.myplayad.com/<slug>/?room=XXXX` en Staging o `https://controllers.myplayad.com/<slug>/?room=XXXX` en Producción).
+2. **Ingreso y Validación de Nickname**: Introduce tu apodo (mínimo 2 caracteres) y presiona **"EMPEZAR A JUGAR"**. El sistema establece una conexión directa Peer-to-Peer vía **WebRTC DataChannel** a 60 fps con vibración táctil háptica.
+3. **📺 Publicidad Pre-Juego Obligatoria**:
+   - Mientras arranca la partida, la pantalla arcade reproduce un spot de video publicitario (`#ad-video-overlay`) con cuenta regresiva.
+   - Simultáneamente, el celular entra en modo de espera con el mensaje: **"📺 ¡MIRA LA PANTALLA! Tu partida comenzará automáticamente al finalizar el video"**.
+   - Al finalizar el spot (o por fallback de seguridad), los controles móviles se activan de inmediato y arranca el juego interactivo.
+4. **📱 Bloqueo Táctil Inmune (Mobile Hardening)**: Todos los mandos móviles bloquean por completo gestos de zoom (pellizco multitáctil y doble toque rápido), menús contextuales y selección accidental de texto, manteniendo el encuadre arcade intacto durante toda la partida y protegiendo la escritura en el campo de apodo.
 
 ---
 
