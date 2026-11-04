@@ -379,9 +379,7 @@ export default function DemoKioskPage() {
             <iframe
               key={`game-${selectedGameSlug}-${reloadKey}`}
               ref={iframeRef}
-              src={`${getGameUrl(selectedGameSlug, 'KIOSK_SIMULATOR')}&adVideo=${encodeURIComponent(
-                getAbsoluteVideoUrl(activeVideoUrl)
-              )}`}
+              src={getGameUrl(selectedGameSlug, 'KIOSK_SIMULATOR')}
               title={currentGame.name}
               tabIndex={0}
               allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
