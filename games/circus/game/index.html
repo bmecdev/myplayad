@@ -64,9 +64,9 @@
                     </div>
                 </div>
 
-                <!-- Overlay de Espera / Escaneo QR -->
+                <!-- Overlay de Espera / Escaneo QR y Hall of Fame (Modo Atracción) -->
                 <div id="waiting-overlay">
-                    <div class="overlay-content">
+                    <div class="overlay-content" id="waiting-qr-panel">
                         <h2 class="arcade-title">CIRCUS <span>CHARLIE</span></h2>
                         <p class="pulse-text">¡ESCANEA EL QR PARA MONTAR AL LEÓN!</p>
                         <div class="qr-wrapper">
@@ -76,7 +76,23 @@
                         <div class="arcade-banner-hint">
                             <span>◀ FRENAR</span> • <span>ACELERAR ▶</span> • <span>▲ SALTO</span>
                         </div>
-                        <button id="instant-play-btn" class="instant-btn">▶ PROBAR CON TECLADO</button>
+                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                            <button id="instant-play-btn" class="instant-btn">▶ PROBAR CON TECLADO</button>
+                            <button id="toggle-hall-btn" class="instant-btn" style="background: rgba(255, 183, 3, 0.15); border-color: #ffb703; color: #ffb703;">🏆 VER RANKING</button>
+                        </div>
+                    </div>
+
+                    <div class="overlay-content hidden" id="waiting-ranking-panel">
+                        <h2 class="arcade-title" style="color: #ffb703; text-shadow: 0 0 10px rgba(255,183,3,0.7);">🏆 HALL OF FAME</h2>
+                        <p class="pulse-text" style="color: #3dff8a;">MEJORES DOMADORES</p>
+                        <div id="standby-ranking-container" style="width: 85%; max-width: 320px; margin: 6px auto;">
+                            <ul id="standby-ranking-list" class="ranking-list" style="list-style: none; padding: 0; margin: 0; font-family: 'Press Start 2P', monospace; font-size: 8px;"></ul>
+                        </div>
+                        <p class="status-text" style="color: #ffb703; font-size: 8px;">¡ESCANEA EL QR PARA ENTRAR AL RANKING!</p>
+                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
+                            <button id="back-to-qr-btn" class="instant-btn" style="background: rgba(61, 255, 138, 0.2); border-color: #3dff8a; color: #3dff8a;">📱 VER CÓDIGO QR</button>
+                            <button id="instant-play-btn-2" class="instant-btn">▶ JUGAR AHORA</button>
+                        </div>
                     </div>
                 </div>
             </div>

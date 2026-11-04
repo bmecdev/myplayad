@@ -16,6 +16,7 @@ import {
   Info,
   Check,
   Radio,
+  Trophy,
 } from 'lucide-react';
 import { ARCADE_GAMES_CATALOG, getGameUrl, getControllerUrl, CatalogGame } from '@/lib/gamesCatalog';
 
@@ -26,6 +27,105 @@ type VideoItem = {
   user?: {
     name?: string;
   };
+};
+
+type RankingEntry = {
+  name: string;
+  score: number;
+};
+
+const DEFAULT_GAME_RANKINGS: Record<string, RankingEntry[]> = {
+  circus: [
+    { name: 'CHARLIE', score: 20000 },
+    { name: 'DOMADOR', score: 15000 },
+    { name: 'LION', score: 10000 },
+    { name: 'RETRO', score: 7500 },
+    { name: 'ROOKIE', score: 5000 },
+  ],
+  arkanoid: [
+    { name: 'VAUS', score: 3500 },
+    { name: 'PILOT', score: 2500 },
+    { name: 'DOH', score: 1800 },
+    { name: 'RETRO', score: 1200 },
+    { name: 'ACE', score: 800 },
+  ],
+  galaga: [
+    { name: 'FIGHTER', score: 45000 },
+    { name: 'COMMANDER', score: 32000 },
+    { name: 'PILOT', score: 24000 },
+    { name: 'ROOKIE', score: 18000 },
+    { name: 'ACE', score: 12000 },
+  ],
+  pacman: [
+    { name: 'PACMAN', score: 12400 },
+    { name: 'MS PAC', score: 9800 },
+    { name: 'BLINKY', score: 7600 },
+    { name: 'INKY', score: 5400 },
+    { name: 'CLYDE', score: 3200 },
+  ],
+  outrun: [
+    { name: 'DRIVER', score: 58000 },
+    { name: 'FERRARI', score: 46000 },
+    { name: 'CRUISER', score: 35000 },
+    { name: 'TURBO', score: 28000 },
+    { name: 'SPEEDY', score: 19000 },
+  ],
+  megaman: [
+    { name: 'MEGAMAN', score: 30000 },
+    { name: 'ROCK', score: 24000 },
+    { name: 'ROLL', score: 18000 },
+    { name: 'PROTO', score: 14000 },
+    { name: 'BASS', score: 9000 },
+  ],
+  snake: [
+    { name: 'VIPER', score: 850 },
+    { name: 'COBRA', score: 620 },
+    { name: 'PYTHON', score: 480 },
+    { name: 'MAMBA', score: 350 },
+    { name: 'WORM', score: 210 },
+  ],
+  skyroads: [
+    { name: 'SKYWALKER', score: 4200 },
+    { name: 'ROADRUN', score: 3300 },
+    { name: 'NEO', score: 2500 },
+    { name: 'PILOT', score: 1800 },
+    { name: 'ACE', score: 1100 },
+  ],
+  pinball: [
+    { name: 'WIZARD', score: 150000 },
+    { name: 'FLIPPER', score: 110000 },
+    { name: 'TILT', score: 85000 },
+    { name: 'BALLER', score: 60000 },
+    { name: 'ROOKIE', score: 35000 },
+  ],
+  duckhunt: [
+    { name: 'HUNTER', score: 28000 },
+    { name: 'SNIPER', score: 21000 },
+    { name: 'DOG', score: 16000 },
+    { name: 'DUCK', score: 11000 },
+    { name: 'ACE', score: 7000 },
+  ],
+  cybercanyon: [
+    { name: 'CYBER', score: 38000 },
+    { name: 'RUNNER', score: 29000 },
+    { name: 'PILOT', score: 22000 },
+    { name: 'NEO', score: 16000 },
+    { name: 'ROOKIE', score: 10000 },
+  ],
+  invaders: [
+    { name: 'DEFENDER', score: 18500 },
+    { name: 'CANNON', score: 14200 },
+    { name: 'PILOT', score: 10800 },
+    { name: 'ALIEN', score: 7900 },
+    { name: 'BASE', score: 4500 },
+  ],
+  starwars: [
+    { name: 'SKYWALKER', score: 55000 },
+    { name: 'SOLO', score: 42000 },
+    { name: 'YODA', score: 33000 },
+    { name: 'VADER', score: 25000 },
+    { name: 'CHEWIE', score: 18000 },
+  ],
 };
 
 export default function DemoKioskPage() {
@@ -39,10 +139,13 @@ export default function DemoKioskPage() {
   const [activeVideoUrl, setActiveVideoUrl] = useState<string>('/videos/demo-spot.mp4');
   const [currentVideoIdx, setCurrentVideoIdx] = useState<number>(0);
   const [reloadKey, setReloadKey] = useState<number>(0);
+  const [isVideoRankingVisible, setIsVideoRankingVisible] = useState<boolean>(false);
+  const [rankingData, setRankingData] = useState<RankingEntry[]>([]);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const rankingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch available videos from database
   useEffect(() => {
@@ -139,6 +242,13 @@ export default function DemoKioskPage() {
           videoRef.current.play().catch(() => {});
         }
       }
+
+      // 4. El minijuego envía actualización de puntuaciones / Hall of Fame
+      if (event.data.type === 'RANKING_UPDATE') {
+        if (Array.isArray(event.data.ranking) && event.data.ranking.length > 0) {
+          setRankingData(event.data.ranking);
+        }
+      }
     };
 
     window.addEventListener('message', handleMessage);
@@ -174,6 +284,19 @@ export default function DemoKioskPage() {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
+  // Al cambiar de juego, reiniciar rankingData y solicitar ranking actualizado al iframe
+  useEffect(() => {
+    setRankingData([]);
+    const timer = setTimeout(() => {
+      if (iframeRef.current?.contentWindow) {
+        try {
+          iframeRef.current.contentWindow.postMessage({ type: 'GET_RANKING' }, '*');
+        } catch (_) {}
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [selectedGameSlug]);
+
   const toggleFullscreen = () => {
     if (!stageRef.current) return;
     if (!document.fullscreenElement) {
@@ -186,15 +309,24 @@ export default function DemoKioskPage() {
   };
 
   const handleVideoEnded = () => {
-    if (selectedVideoSource === 'playlist' && videos.length > 1) {
-      setCurrentVideoIdx((prev) => (prev + 1) % videos.length);
-    } else if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-    }
+    // Mostrar Ranking / Hall of Fame durante exactamente 5 segundos al terminar la secuencia de video
+    setIsVideoRankingVisible(true);
+    if (rankingTimeoutRef.current) clearTimeout(rankingTimeoutRef.current);
+
+    rankingTimeoutRef.current = setTimeout(() => {
+      setIsVideoRankingVisible(false);
+      if (selectedVideoSource === 'playlist' && videos.length > 1) {
+        setCurrentVideoIdx((prev) => (prev + 1) % videos.length);
+      } else if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(() => {});
+      }
+    }, 5000);
   };
 
   const reloadSimulator = () => {
+    if (rankingTimeoutRef.current) clearTimeout(rankingTimeoutRef.current);
+    setIsVideoRankingVisible(false);
     setIsGameLoading(true);
     setReloadKey((prev) => prev + 1);
     if (videoRef.current) {
@@ -205,6 +337,11 @@ export default function DemoKioskPage() {
 
   const currentGame =
     ARCADE_GAMES_CATALOG.find((g) => g.slug === selectedGameSlug) || ARCADE_GAMES_CATALOG[0];
+
+  const currentRanking =
+    rankingData.length > 0
+      ? rankingData
+      : DEFAULT_GAME_RANKINGS[selectedGameSlug] || DEFAULT_GAME_RANKINGS.circus;
 
   return (
     <div className="space-y-6 pb-12">
@@ -304,6 +441,21 @@ export default function DemoKioskPage() {
 
         {/* Botones de Control Derecho */}
         <div className="flex items-center gap-2">
+          {/* Botón Ver Leaderboard en Video */}
+          <button
+            type="button"
+            onClick={() => setIsVideoRankingVisible(!isVideoRankingVisible)}
+            className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium ${
+              isVideoRankingVisible
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_15px_rgba(255,183,3,0.3)]'
+                : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
+            }`}
+            title="Mostrar u ocultar tabla de posiciones (Hall of Fame) en el video"
+          >
+            <Trophy className="w-4 h-4 text-amber-400" />
+            <span className="hidden md:inline">Leaderboard {isVideoRankingVisible ? 'ON' : ''}</span>
+          </button>
+
           {/* Audio Toggle */}
           <button
             type="button"
@@ -386,11 +538,20 @@ export default function DemoKioskPage() {
               onLoad={() => {
                 setIsGameLoading(false);
                 const fullUrl = getAbsoluteVideoUrl(activeVideoUrl);
-                if (fullUrl && iframeRef.current?.contentWindow) {
+                if (iframeRef.current?.contentWindow) {
+                  if (fullUrl) {
+                    iframeRef.current.contentWindow.postMessage(
+                      {
+                        type: 'AD_VIDEO_RESPONSE',
+                        videoUrl: fullUrl,
+                      },
+                      '*'
+                    );
+                  }
+                  // Solicitar ranking al juego
                   iframeRef.current.contentWindow.postMessage(
                     {
-                      type: 'AD_VIDEO_RESPONSE',
-                      videoUrl: fullUrl,
+                      type: 'GET_RANKING',
                     },
                     '*'
                   );
@@ -422,9 +583,20 @@ export default function DemoKioskPage() {
                   <Radio className="w-3 h-3 text-[#3dff8a]" />
                   <span>MYPLAYAD TV</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[#ff4d6d] tracking-wider">
-                  <span className="w-2 h-2 rounded-full bg-[#ff4d6d] animate-kiosk-blink" />
-                  <span>ON AIR</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsVideoRankingVisible(!isVideoRankingVisible)}
+                    className="flex items-center gap-1 text-[8px] text-amber-400 hover:text-amber-300 font-arcade border border-amber-400/40 rounded px-1.5 py-0.5 bg-amber-400/10 cursor-pointer transition-colors"
+                    title="Ver Ranking / Hall of Fame"
+                  >
+                    <Trophy className="w-2.5 h-2.5" />
+                    <span>HALL OF FAME</span>
+                  </button>
+                  <div className="flex items-center gap-1.5 text-[#ff4d6d] tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-[#ff4d6d] animate-kiosk-blink" />
+                    <span>ON AIR</span>
+                  </div>
                 </div>
               </div>
 
@@ -439,7 +611,7 @@ export default function DemoKioskPage() {
                   ref={videoRef}
                   src={activeVideoUrl}
                   autoPlay
-                  loop={selectedVideoSource !== 'playlist' || videos.length <= 1}
+                  loop={false}
                   playsInline
                   muted={isMuted}
                   onEnded={handleVideoEnded}
@@ -453,6 +625,62 @@ export default function DemoKioskPage() {
                   }}
                   className="w-full h-full object-contain block kiosk-crt-flicker"
                 />
+
+                {/* Overlay de Ranking / Hall of Fame (aparece 5 segundos al terminar la secuencia de videos o por botón) */}
+                <div
+                  id="video-ranking-overlay"
+                  className={`absolute inset-0 bg-[#060b08]/95 z-20 flex flex-col items-center justify-center p-3 sm:p-4 transition-all duration-300 ${
+                    isVideoRankingVisible
+                      ? 'opacity-100 visible pointer-events-auto'
+                      : 'opacity-0 invisible pointer-events-none'
+                  }`}
+                >
+                  <div className="w-full max-w-[340px] text-center">
+                    <h2 className="font-arcade text-xs sm:text-sm text-amber-400 tracking-wider mb-2.5 drop-shadow-[0_0_10px_rgba(255,183,3,0.7)] flex items-center justify-center gap-1.5">
+                      <Trophy className="w-4 h-4 text-amber-400" />
+                      <span>HALL OF FAME</span>
+                    </h2>
+                    <div className="flex justify-between font-arcade text-[8px] sm:text-[9px] text-[#3dff8a]/70 border-b border-[#1f7d49] pb-1 mb-2 tracking-wider">
+                      <span className="w-8 text-left">POS</span>
+                      <span className="flex-1 text-left pl-2">PILOTO</span>
+                      <span className="text-right">SCORE</span>
+                    </div>
+                    <ul className="divide-y divide-[#1f7d49]/30 font-arcade text-[8px] sm:text-[9px]">
+                      {currentRanking.slice(0, 5).map((entry, index) => {
+                        const isTop1 = index === 0;
+                        const isTop2 = index === 1;
+                        const isTop3 = index === 2;
+                        const rankColor = isTop1
+                          ? 'text-amber-400 font-bold'
+                          : isTop2
+                          ? 'text-[#3dff8a]'
+                          : isTop3
+                          ? 'text-blue-400'
+                          : 'text-gray-300';
+                        return (
+                          <li
+                            key={index}
+                            className={`flex justify-between py-1.5 items-center ${rankColor}`}
+                          >
+                            <span className="w-8 text-left">
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            <span className="flex-1 text-left pl-2 truncate uppercase">
+                              {entry.name.slice(0, 10)}
+                            </span>
+                            <span className="text-right text-[#3dff8a]">
+                              {String(entry.score).padStart(6, '0')}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between text-[7px] font-arcade text-gray-400">
+                      <span>MYPLAYAD TV</span>
+                      <span className="text-amber-400">★ TOP PILOTOS ★</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Footer de la Consola Arcade */}
