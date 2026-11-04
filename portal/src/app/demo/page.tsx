@@ -90,6 +90,71 @@ export default function DemoKioskPage() {
     setActiveVideoUrl(targetUrl);
   }, [selectedVideoSource, currentVideoIdx, videos]);
 
+  // Obtener URL absoluta para el video (soporta URLs relativas en localhost/portal y absolutas en storage)
+  const getAbsoluteVideoUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+    }
+    return url;
+  };
+
+  // Escuchar mensajes del juego arcade en el iframe (comunicación pre-juego y sincronización)
+  useEffect(() => {
+    const sendAdVideo = (targetWindow?: Window | null) => {
+      const win = targetWindow || iframeRef.current?.contentWindow;
+      if (!win) return;
+      const fullUrl = getAbsoluteVideoUrl(activeVideoUrl);
+      if (!fullUrl) return;
+      try {
+        win.postMessage(
+          {
+            type: 'AD_VIDEO_RESPONSE',
+            videoUrl: fullUrl,
+          },
+          '*'
+        );
+      } catch (_) {}
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+
+      // 1. Minijuego solicita la URL del anuncio publicitario pre-juego
+      if (event.data.type === 'GET_AD_VIDEO') {
+        sendAdVideo(event.source as Window);
+      }
+
+      // 2. El minijuego comenzó a reproducir el video publicitario pre-juego en su pantalla
+      if (event.data.type === 'GAME_AD_START') {
+        if (videoRef.current && !videoRef.current.paused) {
+          videoRef.current.pause();
+        }
+      }
+
+      // 3. El minijuego terminó el video publicitario pre-juego y arrancó la partida
+      if (event.data.type === 'GAME_AD_END') {
+        if (videoRef.current) {
+          videoRef.current.play().catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Enviar periódicamente y tras inicialización para garantizar que el juego reciba el video
+    sendAdVideo();
+    const t1 = setTimeout(() => sendAdVideo(), 400);
+    const t2 = setTimeout(() => sendAdVideo(), 1200);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [activeVideoUrl]);
+
   // Asegurar autoplay y volumen en el elemento de video
   useEffect(() => {
     if (videoRef.current) {
@@ -314,11 +379,25 @@ export default function DemoKioskPage() {
             <iframe
               key={`game-${selectedGameSlug}-${reloadKey}`}
               ref={iframeRef}
-              src={getGameUrl(selectedGameSlug, 'KIOSK_SIMULATOR')}
+              src={`${getGameUrl(selectedGameSlug, 'KIOSK_SIMULATOR')}&adVideo=${encodeURIComponent(
+                getAbsoluteVideoUrl(activeVideoUrl)
+              )}`}
               title={currentGame.name}
               tabIndex={0}
               allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
-              onLoad={() => setIsGameLoading(false)}
+              onLoad={() => {
+                setIsGameLoading(false);
+                const fullUrl = getAbsoluteVideoUrl(activeVideoUrl);
+                if (fullUrl && iframeRef.current?.contentWindow) {
+                  iframeRef.current.contentWindow.postMessage(
+                    {
+                      type: 'AD_VIDEO_RESPONSE',
+                      videoUrl: fullUrl,
+                    },
+                    '*'
+                  );
+                }
+              }}
               className={`w-full h-full border-0 block bg-transparent transition-opacity duration-300 ${
                 isGameLoading ? 'opacity-0' : 'opacity-100'
               }`}
