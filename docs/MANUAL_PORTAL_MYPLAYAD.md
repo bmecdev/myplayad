@@ -191,18 +191,38 @@ Al pulsar sobre el botón de pantallas de un cliente se abre un modal de doble p
 
 ---
 
-## 11. Catálogo de Minijuegos Arcade (`/games`)
+## 11. Catálogo de Minijuegos Arcade y Reproductor Integrado (`/games`)
 
-El catálogo de juegos interactivos muestra la biblioteca de experiencias lúdicas disponibles en la plataforma MyPlayAd.
+El catálogo de juegos interactivos muestra la biblioteca completa de experiencias lúdicas disponibles en la plataforma MyPlayAd.
 
 ![Catálogo de Minijuegos Arcade](img/10-games-catalog.png)
 
-* **Juegos Clásicos y Nuevos:** Arkanoid, Snake Retro, Space Invaders, Cyber Canyon, etc.
+* **Reproductor Jugable en Vivo:** Al hacer clic en cualquier tarjeta de juego o en el botón **"Jugar Ahora"**, se abre un visor interactivo en modal que ejecuta el juego directamente en el navegador.
+  * **Controles por Teclado:** Soporte inmediato para teclas de flechas, `WASD`, `Espacio` y `Enter` para saltar el código QR y jugar al instante.
+  * **Enlace a Mando Móvil:** Botón directo para abrir el controlador táctil web en el celular o escanear el QR generado en la pantalla arcade.
+  * **Pantalla Completa:** Botón para expandir la consola de juego a pantalla completa sin distracciones.
+* **Juegos Clásicos y Nuevos:** Arkanoid, Circus Charlie, Cyber Canyon, Duck Hunt, Galaga, Space Invaders, Mega Man, OutRun, Pacman, Pinball, Skyroads, Snake Retro y Star Wars Falcon.
 * **Compatibilidad Móvil:** Cada juego cuenta con sus controladores web optimizados (joystick analógico, pad direccional de 4 vías o botones de acción hápticos) y su respectiva integración WebRTC de latencia cero.
 
 ---
 
-## 12. Videotutoriales Interactivos y Flujos de Negocio Paso a Paso
+## 12. Simulador de Kiosco Raspberry Pi (`/demo`)
+
+La sección **Demo Kiosco** recrea fielmente la pantalla física de los tótems y televisores comerciales alimentados por consolas Raspberry Pi 4 / Pi 5:
+
+* **Visualización Dual Simultánea:**
+  * **Lado Arcade (50%):** Ejecuta el minijuego seleccionado de forma interactiva con renderizado CRT retro, scanlines y conexión WebRTC en vivo.
+  * **Lado Video Publicitario (50%):** Consola arcade con bisel (`kiosk-bezel`), cabecera de canal comercial `MYPLAYAD TV` con indicador rojo pulsante `● ON AIR`, y altavoces estéreo simulados.
+* **Selector Dinámico de Minijuegos:** Permite alternar entre los 13 títulos arcade en tiempo real para verificar la jugabilidad y la integración del anuncio publicitario previo a la partida (*Pre-Game Ad*).
+* **Conmutador de Orientación de Pantalla:**
+  * **Horizontal (16:9):** Distribución para televisores y monitores comerciales apaisados (Juego a la izquierda, Video a la derecha).
+  * **Vertical (9:16):** Distribución para tótems publicitarios y kioscos de pie (Juego arriba, Video abajo).
+* **Gestión de Videos y Rotación:** Selector para reproducir el spot demostrativo base o alternar entre la lista de videos comerciales subidos por los clientes al sistema.
+* **Modo Pantalla Completa:** Permite proyectar el simulador en un monitor externo vía HDMI para realizar demostraciones comerciales ante anunciantes y dueños de locales.
+
+---
+
+## 13. Videotutoriales Interactivos y Flujos de Negocio Paso a Paso
 
 Para facilitar la capacitación de nuevos administradores y la inducción de clientes comerciales, el portal cuenta con una **suite completa de 8 cápsulas de video tutorial** grabadas en alta resolución (1440x900). 
 
