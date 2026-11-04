@@ -6,65 +6,98 @@
     <title>Arkanoid Clon Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20">
+    <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
     <div id="status">Conectando...</div>
     
     <div id="room-selection" class="welcome-container">
         <div class="header-logo">
-            <div class="snake-icon"></div>
+            <div class="vaus-badge">VAUS CONTROLLER</div>
             <h1>ARKANOID<span>CLON</span></h1>
         </div>
         
         <div class="input-group">
-            <p class="welcome-text">¡Bienvenido! Ingresa tu Nickname para empezar a jugar.</p>
-            <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10">
+            <p class="welcome-text">Ingresa tu Nickname para comandar la nave Vaus:</p>
+            <input type="text" id="nickname-input" placeholder="INGRESA TU NICK" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
             <input type="text" id="room-input" style="display: none;">
-            <button id="connect-btn">EMPEZAR A JUGAR</button>
+            <button id="connect-btn" disabled>EMPEZAR A JUGAR</button>
         </div>
         
-        <p class="footer-hint">Desliza horizontalmente para mover la paleta.</p>
+        <p class="footer-hint">◀ DESLIZA HORIZONTALMENTE PARA MOVER LA PALETA ▶</p>
     </div>
 
     <!-- Pantalla de Espera durante Publicidad en Pantalla -->
     <div id="ad-waiting-screen" class="welcome-container" style="display: none;">
         <div class="header-logo">
-            <div class="snake-icon"></div>
+            <div class="ad-tv-badge">MYPLAYAD TV</div>
             <h1>ARKANOID<span>CLON</span></h1>
         </div>
-        <div class="input-group" style="align-items: center; text-align: center;">
-            <div class="ad-pulse-icon" style="font-size: 3rem; margin: 12px 0; animation: pulse 1.2s infinite;">📺</div>
-            <p class="welcome-text" style="color: var(--amber); font-weight: bold; font-size: 1.1rem; line-height: 1.4;">
-                ¡MIRA LA PANTALLA!
-            </p>
-            <p class="welcome-text" style="color: var(--text-dim); font-size: 0.9rem; margin-top: 8px;">
-                Tu partida comenzará automáticamente al finalizar el video.
-            </p>
-            <div style="margin-top: 18px; font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--accent); background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--panel-border, #1a2e22);">
-                PILOTO: <span id="ad-pilot-badge">---</span>
+        <div class="ad-waiting-body">
+            <div class="ad-screen-frame">
+                <div class="ad-screen-glass">
+                    <div class="ad-scanline"></div>
+                    <div class="ad-tv-icon">📺</div>
+                    <div class="ad-live-pill">● EN VIVO</div>
+                </div>
+            </div>
+            <div class="ad-message-box">
+                <h2 class="ad-headline">¡MIRA LA PANTALLA!</h2>
+                <p class="ad-subtext">Tu partida comenzará automáticamente al finalizar el video publicitario.</p>
+            </div>
+            <div class="ad-pilot-pill">
+                <span class="ad-pilot-label">PILOTO:</span>
+                <span id="ad-pilot-badge" class="ad-pilot-name">---</span>
+            </div>
+            <div class="ad-status-hint">
+                <span class="pulse-dot"></span>
+                <span>CONTROLES TÁCTILES LISTOS</span>
             </div>
         </div>
     </div>
 
     <div id="thanks-screen" class="thanks-container" style="display: none;">
         <div class="header-logo">
+            <div class="vaus-badge">FIN DE PARTIDA</div>
             <h1>¡GRACIAS!</h1>
         </div>
-        <p>Tu partida ha finalizado.</p>
-        <p class="small">Vuelve a escanear el código QR para jugar de nuevo.</p>
+        <p class="thanks-text">Tu misión con la nave Vaus ha finalizado.</p>
+        <p class="thanks-hint">Escanea de nuevo el código QR en la pantalla arcade para iniciar una nueva partida.</p>
     </div>
 
     <div class="joystick-container" id="joystick-container" style="display: none;">
-        <div class="trackpad-container" id="trackpad-container">
-            <div class="trackpad-track">
-                <div class="trackpad-indicator" id="trackpad-indicator"></div>
+        <div class="control-hud">
+            <div class="hud-item">
+                <span class="hud-label">PILOTO</span>
+                <span id="hud-nickname" class="hud-value">PILOT</span>
+            </div>
+            <div class="hud-status-badge">
+                <span class="hud-dot"></span>
+                <span>EN VIVO</span>
             </div>
         </div>
-        <button id="fire-btn" class="fire-button">LANZAR / ACCIÓN</button>
+
+        <div class="trackpad-wrapper">
+            <div class="trackpad-header">
+                <span>◀ DESLIZA PARA MOVER ▶</span>
+            </div>
+            <div class="trackpad-container" id="trackpad-container">
+                <div class="trackpad-track">
+                    <div class="trackpad-center-mark"></div>
+                    <div class="trackpad-indicator" id="trackpad-indicator"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-actions">
+            <button id="fire-btn" class="fire-button">
+                <span class="btn-primary-text">LANZAR</span>
+                <span class="btn-sub-text">ACCIÓN</span>
+            </button>
+        </div>
     </div>
 
-    <script src="config.js?v=10"></script>
-    <script src="script.js?v=20"></script>
+    <script src="config.js?v=11"></script>
+    <script src="script.js?v=21"></script>
 </body>
 </html>
