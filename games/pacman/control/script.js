@@ -7,6 +7,8 @@ const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
 const thanksScreen = document.getElementById('thanks-screen');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 
 container.style.touchAction = 'none';
 
@@ -15,6 +17,7 @@ let dataChannel;
 let socket;
 let currentRoomId = null;
 let nickname = 'Pacman';
+let pendingCandidates = [];
 
 function getIceConfig() {
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -256,7 +259,13 @@ window.addEventListener('load', () => {
 connectBtn.addEventListener('click', () => {
     unlockAudio();
     const roomId = roomInput.value.trim().toUpperCase();
-    nickname = nicknameInput.value.trim() || 'PACMAN';
+    const rawNick = nicknameInput.value.trim();
+    if (!rawNick || rawNick.length < 2) {
+        alert('Por favor ingresa un Nickname de al menos 2 caracteres.');
+        nicknameInput.focus();
+        return;
+    }
+    nickname = rawNick.toUpperCase().substring(0, 10);
     if (roomId) {
         currentRoomId = roomId;
         connectSignaling(roomId);
@@ -298,15 +307,30 @@ function connectSignaling(roomId) {
                 }
 
                 if (data.type === 'host_ready') {
+                    pendingCandidates = [];
                     startWebRTC();
                 } else if (data.type === 'answer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    status.textContent = 'CONECTADO AL JUEGO';
-                    status.style.color = '#3dff8a';
+                    const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+                    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
+                    status.textContent = '📺 MIRA LA PANTALLA...';
+                    status.style.color = '#ffb703';
                     roomSelection.style.display = 'none';
-                    container.style.display = 'flex';
+                    if (adWaitingScreen) {
+                        adWaitingScreen.style.display = 'flex';
+                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                    }
+                    if (container) container.style.display = 'none';
+                    while (pendingCandidates.length > 0) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(pendingCandidates.shift())); } catch (_) {}
+                    }
                 } else if (data.type === 'candidate') {
-                    if (pc && data.candidate) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc && data.candidate) {
+                        if (pc.remoteDescription) {
+                            try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+                        } else {
+                            pendingCandidates.push(data.candidate);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error procesando mensaje signaling:', e);
@@ -334,17 +358,48 @@ async function startWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = 'PACMAN LISTO';
-        status.style.color = '#3dff8a';
+        status.textContent = '📺 MIRA LA PANTALLA...';
+        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+        }
+        if (container) container.style.display = 'none';
         dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+
+        setTimeout(() => {
+            if (container && container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                container.style.display = 'flex';
+                status.textContent = 'PACMAN LISTO';
+                status.style.color = '#3dff8a';
+            }
+        }, 40000);
     };
 
     dataChannel.onmessage = (e) => {
         try {
             const data = JSON.parse(e.data);
-            if (data.type === 'game_over') {
+            if (data.type === 'ad_playing') {
+                status.textContent = '📺 MIRA LA PANTALLA';
+                status.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (data.nickname || nickname)) {
+                        adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                    }
+                }
+                if (container) container.style.display = 'none';
+            } else if (data.type === 'game_start') {
+                status.textContent = 'PACMAN LISTO';
+                status.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                if (container) container.style.display = 'flex';
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            } else if (data.type === 'game_over') {
                 if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
                 mobileAudio.play('gameover');
                 showThanks(data.score || 0);

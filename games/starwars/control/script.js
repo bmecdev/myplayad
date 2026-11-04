@@ -8,6 +8,8 @@ const roomSelection = document.getElementById('room-selection');
 const flightContainer = document.getElementById('flight-container');
 const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 const nicknameInput = document.getElementById('nickname-input');
 const roomInput = document.getElementById('room-input');
 const connectBtn = document.getElementById('connect-btn');
@@ -84,6 +86,11 @@ function isPortraitMode() {
 }
 
 function updateOrientationView() {
+    if (adWaitingScreen && adWaitingScreen.style.display === 'flex') {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
     if (thanksScreen && thanksScreen.style.display === 'flex') {
         if (rotateScreen) rotateScreen.style.display = 'none';
         return;
@@ -162,8 +169,15 @@ function initSignaling() {
                         const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
                         await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdp }));
                         
-                        status.textContent = `⚡ CONECTADO • ${nickname}`;
-                        updateOrientationView();
+                        status.textContent = '📺 MIRA LA PANTALLA...';
+                        status.style.color = '#ffb703';
+                        roomSelection.style.display = 'none';
+                        if (adWaitingScreen) {
+                            adWaitingScreen.style.display = 'flex';
+                            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                        }
+                        if (rotateScreen) rotateScreen.style.display = 'none';
+                        if (flightContainer) flightContainer.style.display = 'none';
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -243,10 +257,15 @@ async function setupWebRTC() {
         dataChannel = pc.createDataChannel('control', { ordered: false });
 
         dataChannel.onopen = () => {
-            status.textContent = `⚡ HALCÓN LISTO • ${nickname}`;
-            updateOrientationView();
-
-            if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+            status.textContent = '📺 MIRA LA PANTALLA...';
+            status.style.color = '#ffb703';
+            roomSelection.style.display = 'none';
+            if (adWaitingScreen) {
+                adWaitingScreen.style.display = 'flex';
+                if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+            }
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (flightContainer) flightContainer.style.display = 'none';
 
             // Enviar handshake de unión inicial
             dataChannel.send(JSON.stringify({
@@ -254,12 +273,40 @@ async function setupWebRTC() {
                 nickname: nickname,
                 value: nickname
             }));
+
+            setTimeout(() => {
+                if (flightContainer && flightContainer.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                    updateOrientationView();
+                    status.textContent = `⚡ HALCÓN LISTO • ${nickname}`;
+                    status.style.color = '#3dff8a';
+                }
+            }, 40000);
         };
 
         dataChannel.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'game_over') {
+                if (data.type === 'ad_playing') {
+                    status.textContent = '📺 MIRA LA PANTALLA';
+                    status.style.color = '#ffb703';
+                    roomSelection.style.display = 'none';
+                    if (adWaitingScreen) {
+                        adWaitingScreen.style.display = 'flex';
+                        if (adPilotBadge && (data.nickname || nickname)) {
+                            adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                        }
+                    }
+                    if (rotateScreen) rotateScreen.style.display = 'none';
+                    if (flightContainer) flightContainer.style.display = 'none';
+                } else if (data.type === 'game_start') {
+                    status.textContent = `⚡ HALCÓN LISTO • ${nickname}`;
+                    status.style.color = '#3dff8a';
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                    roomSelection.style.display = 'none';
+                    updateOrientationView();
+                    if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                } else if (data.type === 'game_over') {
                     handleGameOver(data.score);
                 }
             } catch (_) {}

@@ -12,6 +12,13 @@ const videoRankingList = document.getElementById('video-ranking-list');
 const qrContainer = document.getElementById('qrcode');
 const iceRouteElement = document.getElementById('ice-route');
 
+const adVideoOverlay = document.getElementById('ad-video-overlay');
+const adVideoPlayer = document.getElementById('ad-video-player');
+const adCountdown = document.getElementById('ad-countdown');
+const adPilotName = document.getElementById('ad-pilot-name');
+let cachedAdVideoUrl = null;
+let adVideoPromise = null;
+
 // Retro Arcade Space Invaders Web Audio API Synthesizer
 class InvadersAudio {
     constructor() {
@@ -407,6 +414,7 @@ const GameState = {
     lives: 5,
     running: false,
     gameOver: false,
+    adPlaying: false,
     isRespawning: false,
     paused: false,
     invulnerableTimer: 0,
@@ -753,6 +761,185 @@ function connectSignaling() {
     };
 }
 
+// ==========================================
+// 📺 Sistema de Publicidad Pre-Juego
+// ==========================================
+function broadcastToControllers(msg) {
+    const payload = JSON.stringify(msg);
+    dataChannels.forEach(dc => {
+        if (dc && dc.readyState === 'open') {
+            try { dc.send(payload); } catch (_) {}
+        }
+    });
+}
+
+function requestAdVideo() {
+    if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
+    if (adVideoPromise) return adVideoPromise;
+
+    adVideoPromise = new Promise((resolve) => {
+        if (cachedAdVideoUrl) return resolve(cachedAdVideoUrl);
+
+        const sId = new URLSearchParams(window.location.search).get('screenId');
+        const isDev = typeof window !== 'undefined' && (
+            window.location.hostname.includes('dev') ||
+            window.location.hostname.includes('staging') ||
+            window.location.hostname.includes('test')
+        );
+        const videoServer = (typeof CONFIG !== 'undefined' && CONFIG.VIDEO_SERVER_URL)
+            ? CONFIG.VIDEO_SERVER_URL
+            : (isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com');
+
+        let settled = false;
+        const finalize = (url) => {
+            if (settled) return;
+            settled = true;
+            if (url) cachedAdVideoUrl = url;
+            resolve(cachedAdVideoUrl || null);
+        };
+
+        const msgHandler = (event) => {
+            if (event.data && event.data.type === 'AD_VIDEO_RESPONSE') {
+                window.removeEventListener('message', msgHandler);
+                if (event.data.videoUrl) {
+                    finalize(event.data.videoUrl);
+                }
+            }
+        };
+        window.addEventListener('message', msgHandler);
+
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*'); } catch (_) {}
+        }
+
+        if (sId) {
+            fetch(`${videoServer}/api/videos/${sId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    if (d && d.videos && d.videos.length > 0) {
+                        const rawName = d.videos[0] || '';
+                        const cleanName = rawName.split('/').pop();
+                        const fullUrl = `${videoServer}/videos/${sId}/${encodeURIComponent(cleanName)}`;
+                        finalize(fullUrl);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        setTimeout(() => {
+            window.removeEventListener('message', msgHandler);
+            finalize(cachedAdVideoUrl || null);
+        }, 1200);
+    });
+
+    return adVideoPromise;
+}
+
+window.addEventListener('message', (event) => {
+    if (!event.data) return;
+    if (event.data.type === 'AD_VIDEO_RESPONSE') {
+        if (event.data.videoUrl) {
+            cachedAdVideoUrl = event.data.videoUrl;
+        }
+    }
+});
+
+function playPreGameAdThenStart(nickname, startGameCallback) {
+    if (GameState.adPlaying) return;
+
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        broadcastToControllers({ type: 'game_start' });
+        startGameCallback();
+        return;
+    }
+
+    const startAdPlayback = (videoUrl) => {
+        if (!videoUrl) {
+            console.log('[ad] No hay video publicitario configurado. Arrancando partida.');
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+            return;
+        }
+
+        GameState.adPlaying = true;
+        if (adPilotName) adPilotName.textContent = `COMANDANTE: ${(nickname || 'COMMANDER').toUpperCase()}`;
+        if (adCountdown) adCountdown.textContent = 'INICIANDO...';
+        adVideoOverlay.classList.remove('hidden');
+
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
+        }
+
+        let adFinished = false;
+        let safetyTimer = null;
+
+        const finishAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+        };
+
+        window._finishCurrentAd = finishAd;
+
+        adVideoPlayer.onended = finishAd;
+        adVideoPlayer.onerror = (err) => {
+            console.warn('[ad] Error en video publicitario, omitiendo:', err);
+            finishAd();
+        };
+
+        adVideoPlayer.ontimeupdate = () => {
+            if (adVideoPlayer.duration && !isNaN(adVideoPlayer.duration)) {
+                const remaining = Math.max(0, Math.ceil(adVideoPlayer.duration - adVideoPlayer.currentTime));
+                if (adCountdown) adCountdown.textContent = `JUEGO EN: ${remaining}s`;
+            }
+        };
+
+        adVideoPlayer.src = videoUrl;
+        adVideoPlayer.currentTime = 0;
+        adVideoPlayer.muted = false;
+
+        const p = adVideoPlayer.play();
+        if (p !== undefined) {
+            p.catch(() => {
+                console.warn('[ad] Autoplay con audio bloqueado, reintentando silenciado...');
+                adVideoPlayer.muted = true;
+                adVideoPlayer.play().catch(finishAd);
+            });
+        }
+
+        safetyTimer = setTimeout(finishAd, 35000);
+    };
+
+    requestAdVideo().then((videoUrl) => {
+        startAdPlayback(videoUrl);
+    });
+}
+
 function handleControllerDisconnect(playerId) {
     console.log(`Controlador ${playerId} desconectado.`);
     const pc = peerConnections.get(playerId);
@@ -760,7 +947,7 @@ function handleControllerDisconnect(playerId) {
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    if (peerConnections.size === 0) {
+    if (peerConnections.size === 0 && !GameState.adPlaying) {
         waitingOverlay.classList.remove('hidden');
         GameState.running = false;
     }
@@ -800,9 +987,13 @@ async function handleOffer(data) {
         receiveChannel.onmessage = (e) => {
             try {
                 const input = JSON.parse(e.data);
-                if (input.type === 'nickname') {
-                    GameState.currentNickname = input.value;
+                if (input.type === 'nickname' || input.type === 'join') {
+                    GameState.currentNickname = input.value || input.nickname || 'COMMANDER';
                     if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
+                    playPreGameAdThenStart(GameState.currentNickname, () => {
+                        if (GameState.gameOver) resetGame();
+                        startGame();
+                    });
                 } else {
                     handleJoystickInput(input);
                 }
@@ -1803,6 +1994,17 @@ function startGame() {
 window.addEventListener('keydown', (e) => {
     if (GameState.isRespawning) return;
     const key = e.key.toLowerCase();
+
+    // Saltar publicidad durante pruebas de teclado si está activa
+    if (GameState.adPlaying) {
+        if ([' ', 'enter', 'escape'].includes(key) || e.code === 'Space') {
+            if (typeof window._finishCurrentAd === 'function') {
+                window._finishCurrentAd();
+            }
+            return;
+        }
+    }
+
     if (['arrowleft', 'a'].includes(key)) {
         GameState.player.inputX = -1;
     }
@@ -1813,10 +2015,10 @@ window.addEventListener('keydown', (e) => {
         GameState.fireRequested = true;
     }
     if ((key === ' ' || key === 'enter') && (!GameState.running || GameState.gameOver)) {
-        if (GameState.gameOver) {
-            resetGame();
-        }
-        startGame();
+        playPreGameAdThenStart('COMMANDER', () => {
+            if (GameState.gameOver) resetGame();
+            startGame();
+        });
     }
 });
 
@@ -1828,11 +2030,12 @@ window.addEventListener('keyup', (e) => {
 });
 
 mainScreen.addEventListener('click', () => {
-    if (GameState.gameOver) {
-        resetGame();
-        startGame();
-    } else if (!GameState.running) {
-        startGame();
+    audio.init();
+    if (!GameState.running || GameState.gameOver) {
+        playPreGameAdThenStart('COMMANDER', () => {
+            if (GameState.gameOver) resetGame();
+            startGame();
+        });
     }
 });
 
@@ -1916,11 +2119,5 @@ window.addEventListener('message', (event) => {
 // Periodic retries after mount to handle dynamic layout shifts (images, QR)
 [0, 50, 150, 300, 600, 1200].forEach(delay => setTimeout(autoScale, delay));
 
-mainScreen.addEventListener('click', () => {
-    audio.init();
-    if (!GameState.running || GameState.gameOver) {
-        resetGame();
-        startGame();
-    }
-});
+requestAdVideo();
 

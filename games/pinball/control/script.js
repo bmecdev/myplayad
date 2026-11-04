@@ -449,7 +449,7 @@ async function setupWebRTC() {
                 status.textContent = '⚡ FLIPPERS ACTIVOS';
                 status.style.color = '#3dff8a';
             }
-        }, 4000);
+        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {

@@ -338,7 +338,7 @@ async function startWebRTC() {
                 status.textContent = '¡Listo!';
                 status.style.color = '#3dff8a';
             }
-        }, 4000);
+        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {

@@ -534,21 +534,68 @@ function broadcastToControllers(msg) {
     });
 }
 
+let adVideoPromise = null;
+
 function requestAdVideo() {
-    if (window.parent && window.parent !== window) {
-        try { window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*'); } catch (_) {}
-    }
-    const sId = new URLSearchParams(window.location.search).get('screenId');
-    if (sId && !cachedAdVideoUrl) {
-        fetch(`/api/videos/${sId}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(d => {
-                if (d && d.videos && d.videos.length > 0) {
-                    cachedAdVideoUrl = `/videos/${sId}/${encodeURIComponent(d.videos[0])}`;
+    if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
+    if (adVideoPromise) return adVideoPromise;
+
+    adVideoPromise = new Promise((resolve) => {
+        if (cachedAdVideoUrl) return resolve(cachedAdVideoUrl);
+
+        const sId = new URLSearchParams(window.location.search).get('screenId');
+        const isDev = typeof window !== 'undefined' && (
+            window.location.hostname.includes('dev') ||
+            window.location.hostname.includes('staging') ||
+            window.location.hostname.includes('test')
+        );
+        const videoServer = (typeof CONFIG !== 'undefined' && CONFIG.VIDEO_SERVER_URL)
+            ? CONFIG.VIDEO_SERVER_URL
+            : (isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com');
+
+        let settled = false;
+        const finalize = (url) => {
+            if (settled) return;
+            settled = true;
+            if (url) cachedAdVideoUrl = url;
+            resolve(cachedAdVideoUrl || null);
+        };
+
+        const msgHandler = (event) => {
+            if (event.data && event.data.type === 'AD_VIDEO_RESPONSE') {
+                window.removeEventListener('message', msgHandler);
+                if (event.data.videoUrl) {
+                    finalize(event.data.videoUrl);
                 }
-            })
-            .catch(() => {});
-    }
+            }
+        };
+        window.addEventListener('message', msgHandler);
+
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*'); } catch (_) {}
+        }
+
+        if (sId) {
+            fetch(`${videoServer}/api/videos/${sId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    if (d && d.videos && d.videos.length > 0) {
+                        const rawName = d.videos[0] || '';
+                        const cleanName = rawName.split('/').pop();
+                        const fullUrl = `${videoServer}/videos/${sId}/${encodeURIComponent(cleanName)}`;
+                        finalize(fullUrl);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        setTimeout(() => {
+            window.removeEventListener('message', msgHandler);
+            finalize(cachedAdVideoUrl || null);
+        }, 1200);
+    });
+
+    return adVideoPromise;
 }
 
 window.addEventListener('message', (event) => {
@@ -656,14 +703,9 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
         safetyTimer = setTimeout(finishAd, 35000);
     };
 
-    if (cachedAdVideoUrl) {
-        startAdPlayback(cachedAdVideoUrl);
-    } else {
-        requestAdVideo();
-        setTimeout(() => {
-            startAdPlayback(cachedAdVideoUrl);
-        }, 300);
-    }
+    requestAdVideo().then((videoUrl) => {
+        startAdPlayback(videoUrl);
+    });
 }
 
 function handleControllerDisconnect(playerId) {
