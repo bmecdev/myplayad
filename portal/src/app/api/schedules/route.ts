@@ -76,7 +76,13 @@ export async function POST(request: Request) {
 
       // Segmentación estricta de videos por cliente:
       // Si la pantalla pertenece a un cliente, el video DEBE pertenecer a ese mismo cliente
-      if (screen.userId !== video.userId) {
+      if (!video.userId && screen.userId && currentUser.role === 'SUPER_ADMIN') {
+        // Si el video fue subido por Super Admin sin asignar (global), auto-asignarlo al cliente de esta pantalla
+        await prisma.video.update({
+          where: { id: video.id },
+          data: { userId: screen.userId },
+        });
+      } else if (screen.userId !== video.userId) {
         return NextResponse.json(
           {
             error:

@@ -44,6 +44,20 @@ export async function PUT(
           { status: 400 }
         );
       }
+    } else if (!video.userId && requestedScreenIds.length > 0 && currentUser.role === 'SUPER_ADMIN') {
+      // Si el video no tenía cliente asignado (global) y Super Admin lo asigna a pantallas de un cliente:
+      const assignedScreens = await prisma.screen.findMany({
+        where: { id: { in: requestedScreenIds } },
+        select: { userId: true },
+      });
+      const uniqueUserIds = Array.from(new Set(assignedScreens.map((s) => s.userId).filter(Boolean))) as string[];
+      if (uniqueUserIds.length === 1) {
+        // Auto-asignar el video al cliente dueño de estas pantallas
+        await prisma.video.update({
+          where: { id: videoId },
+          data: { userId: uniqueUserIds[0] },
+        });
+      }
     }
 
     let allowedTargetScreenIds = requestedScreenIds;

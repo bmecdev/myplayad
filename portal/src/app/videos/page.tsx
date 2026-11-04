@@ -356,11 +356,15 @@ export default function VideosPage() {
                       <button
                         type="button"
                         onClick={() => openClientModal(video)}
-                        className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 hover:border-blue-500/40 inline-flex items-center gap-1.5 transition-colors cursor-pointer group/badge"
+                        className={`text-[11px] font-medium px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 transition-colors cursor-pointer group/badge ${
+                          video.user 
+                            ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 hover:border-blue-500/40' 
+                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-500/50'
+                        }`}
                         title="Clic para asignar o cambiar el cliente propietario"
                       >
-                        <UserCheck className="w-3 h-3 text-blue-400" />
-                        <span className="truncate max-w-[130px]">{video.user ? video.user.name : 'Sin Asignar (Global)'}</span>
+                        <UserCheck className={`w-3 h-3 ${video.user ? 'text-blue-400' : 'text-amber-400'}`} />
+                        <span className="truncate max-w-[130px]">{video.user ? video.user.name : 'Sin Asignar (Asignar ahora)'}</span>
                         <span className="text-[10px] text-blue-400/70 group-hover/badge:text-blue-200">✎</span>
                       </button>
                     </div>
@@ -575,19 +579,14 @@ export default function VideosPage() {
                   if (selectedVideo.userId) {
                     return s.userId === selectedVideo.userId;
                   }
-                  // Si el video es global / sin cliente, solo mostrar pantallas sin cliente asignado
-                  return !s.userId;
+                  // Si el video no tiene cliente (es global / sin asignar), Super Admin puede asignarlo a cualquier pantalla
+                  return true;
                 });
 
                 if (assignableScreens.length === 0) {
                   return (
-                    <div className="text-center py-6 text-muted-foreground text-sm space-y-2">
-                      <p>No hay pantallas disponibles para este video.</p>
-                      {isSuperAdmin && !selectedVideo.userId && (
-                        <p className="text-xs text-blue-300/80 bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 text-left">
-                          💡 Este video es global (sin cliente). Para asignarlo a las pantallas de un cliente, asígnalo primero a ese cliente con el botón <strong>Cliente</strong>.
-                        </p>
-                      )}
+                    <div className="text-center py-6 text-muted-foreground text-sm">
+                      <p>No hay pantallas disponibles en el sistema.</p>
                     </div>
                   );
                 }
@@ -624,6 +623,7 @@ export default function VideosPage() {
                         <div>
                           <h4 className="font-bold text-sm">{screen.name}</h4>
                           <span className="text-[11px] text-muted-foreground">
+                            {screen.user ? `${screen.user.name} • ` : 'Sin cliente • '}
                             {sVideoCount} / {maxAllowed} videos en rotación
                           </span>
                         </div>
