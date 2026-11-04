@@ -76,11 +76,11 @@ export async function POST(request: Request) {
 
       // Segmentación estricta de videos por cliente:
       // Si la pantalla pertenece a un cliente, el video DEBE pertenecer a ese mismo cliente
-      if (screen.userId && video.userId && screen.userId !== video.userId) {
+      if (screen.userId !== video.userId) {
         return NextResponse.json(
           {
             error:
-              'Segmentación de videos: Este video pertenece a otro cliente y no puede asignarse a esta pantalla.',
+              'Segmentación estricta: Los videos de un cliente solo pueden asignarse a pantallas de ese mismo cliente.',
           },
           { status: 403 }
         );

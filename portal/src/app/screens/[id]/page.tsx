@@ -406,8 +406,12 @@ export default function ScreenDetailPage() {
         setAllVideos(
           data.filter((v: Video) => {
             if (existingIds.has(v.id)) return false;
-            if (screen?.userId && v.userId && v.userId !== screen.userId) return false;
-            return true;
+            // Si la pantalla pertenece a un cliente, SOLO mostrar videos de ese mismo cliente
+            if (screen?.userId) {
+              return v.userId === screen.userId;
+            }
+            // Si la pantalla no tiene cliente asignado, solo mostrar videos sin cliente (globales)
+            return !v.userId;
           })
         );
       }

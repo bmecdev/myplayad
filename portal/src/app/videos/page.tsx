@@ -511,8 +511,12 @@ export default function VideosPage() {
               {(() => {
                 const assignableScreens = screens.filter(s => {
                   if (!isSuperAdmin) return true;
-                  if (!selectedVideo.userId) return true;
-                  return s.userId === selectedVideo.userId;
+                  // Si el video pertenece a un cliente, SOLO mostrar pantallas de ese mismo cliente
+                  if (selectedVideo.userId) {
+                    return s.userId === selectedVideo.userId;
+                  }
+                  // Si el video es global / sin cliente, solo mostrar pantallas sin cliente asignado
+                  return !s.userId;
                 });
 
                 if (assignableScreens.length === 0) {
