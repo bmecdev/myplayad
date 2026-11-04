@@ -1065,6 +1065,12 @@ function broadcastToControllers(msg) {
 }
 
 function requestAdVideo() {
+    if (!cachedAdVideoUrl) {
+        try {
+            const urlAd = new URLSearchParams(window.location.search).get('adVideo');
+            if (urlAd) cachedAdVideoUrl = decodeURIComponent(urlAd);
+        } catch (_) {}
+    }
     if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
     if (adVideoPromise) return adVideoPromise;
 
@@ -1085,7 +1091,11 @@ function requestAdVideo() {
         const finalize = (url) => {
             if (settled) return;
             settled = true;
-            if (url) cachedAdVideoUrl = url;
+            if (url) {
+                cachedAdVideoUrl = url;
+            } else {
+                adVideoPromise = null;
+            }
             resolve(cachedAdVideoUrl || null);
         };
 
