@@ -102,6 +102,24 @@ export default function GamesPage() {
     }
   }, [activeGame]);
 
+  // Responder a peticiones GET_AD_VIDEO en el modal
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'GET_AD_VIDEO') {
+        const fullUrl = `${window.location.origin}/videos/demo-spot.mp4`;
+        event.source?.postMessage(
+          {
+            type: 'AD_VIDEO_RESPONSE',
+            videoUrl: fullUrl,
+          },
+          '*' as any
+        );
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!modalContainerRef.current) return;
     if (!document.fullscreenElement) {
@@ -346,13 +364,23 @@ export default function GamesPage() {
               )}
               <iframe
                 ref={iframeRef}
-                src={getGameUrl(activeGame.slug, 'PORTAL_PLAY')}
+                src={`${getGameUrl(activeGame.slug, 'PORTAL_PLAY')}&adVideo=${encodeURIComponent(
+                  `${typeof window !== 'undefined' ? window.location.origin : ''}/videos/demo-spot.mp4`
+                )}`}
                 title={activeGame.name}
                 tabIndex={0}
                 allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
                 onLoad={() => {
                   setIsIframeLoading(false);
                   setTimeout(() => iframeRef.current?.focus(), 150);
+                  const fullUrl = `${window.location.origin}/videos/demo-spot.mp4`;
+                  iframeRef.current?.contentWindow?.postMessage(
+                    {
+                      type: 'AD_VIDEO_RESPONSE',
+                      videoUrl: fullUrl,
+                    },
+                    '*'
+                  );
                 }}
                 className={`w-full h-full border-0 block bg-black transition-opacity duration-300 ${
                   isIframeLoading ? 'opacity-0' : 'opacity-100'
