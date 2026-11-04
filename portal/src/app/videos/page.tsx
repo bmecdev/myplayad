@@ -59,6 +59,12 @@ export default function VideosPage() {
   const [selectedScreenIds, setSelectedScreenIds] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
 
+  // Assign client modal state (for Super Admin)
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [videoForClientAssign, setVideoForClientAssign] = useState<Video | null>(null);
+  const [targetClientId, setTargetClientId] = useState<string>('none');
+  const [isSavingClient, setIsSavingClient] = useState(false);
+
   const fetchData = async () => {
     try {
       const [meRes, vidRes, scrRes] = await Promise.all([
@@ -215,6 +221,39 @@ export default function VideosPage() {
     }
   };
 
+  const openClientModal = (video: Video) => {
+    setVideoForClientAssign(video);
+    setTargetClientId(video.userId || 'none');
+    setIsClientModalOpen(true);
+  };
+
+  const handleSaveClientAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!videoForClientAssign) return;
+    setIsSavingClient(true);
+    try {
+      const res = await fetch(`/api/videos/${videoForClientAssign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: targetClientId === 'none' ? null : targetClientId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al asignar el video al cliente');
+      } else {
+        setIsClientModalOpen(false);
+        fetchData();
+      }
+    } catch (err: any) {
+      console.error('Error al asignar cliente:', err);
+      alert(err.message || 'Error de conexión');
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
+
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
   const filteredVideos = videos.filter(video => {
@@ -311,13 +350,19 @@ export default function VideosPage() {
                   </button>
                 </div>
                 <div className="p-4">
-                  {/* Badge de Cliente Propietario (Super Admin) */}
+                  {/* Badge de Cliente Propietario (Super Admin) - Clic para Asignar/Cambiar */}
                   {isSuperAdmin && (
                     <div className="mb-2">
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 inline-flex items-center gap-1">
-                        <UserCheck className="w-3 h-3" />
-                        {video.user ? video.user.name : 'Sin Asignar (Global)'}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openClientModal(video)}
+                        className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 hover:border-blue-500/40 inline-flex items-center gap-1.5 transition-colors cursor-pointer group/badge"
+                        title="Clic para asignar o cambiar el cliente propietario"
+                      >
+                        <UserCheck className="w-3 h-3 text-blue-400" />
+                        <span className="truncate max-w-[130px]">{video.user ? video.user.name : 'Sin Asignar (Global)'}</span>
+                        <span className="text-[10px] text-blue-400/70 group-hover/badge:text-blue-200">✎</span>
+                      </button>
                     </div>
                   )}
 
@@ -340,13 +385,28 @@ export default function VideosPage() {
                         : `${video.schedules.length} Pantallas`
                     }
                   </div>
-                  <button 
-                    onClick={() => openAssignModal(video)}
-                    className="text-xs flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                    title="Gestionar Pantallas"
-                  >
-                    Asignar
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {isSuperAdmin && (
+                      <button 
+                        type="button"
+                        onClick={() => openClientModal(video)}
+                        className="text-xs flex items-center gap-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                        title="Asignar o cambiar el cliente propietario"
+                      >
+                        <Users className="w-3 h-3" />
+                        Cliente
+                      </button>
+                    )}
+                    <button 
+                      type="button"
+                      onClick={() => openAssignModal(video)}
+                      className="text-xs flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                      title="Gestionar Pantallas"
+                    >
+                      <Monitor className="w-3 h-3" />
+                      Pantallas
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -521,8 +581,13 @@ export default function VideosPage() {
 
                 if (assignableScreens.length === 0) {
                   return (
-                    <div className="text-center py-6 text-muted-foreground text-sm">
-                      No hay pantallas disponibles para este video.
+                    <div className="text-center py-6 text-muted-foreground text-sm space-y-2">
+                      <p>No hay pantallas disponibles para este video.</p>
+                      {isSuperAdmin && !selectedVideo.userId && (
+                        <p className="text-xs text-blue-300/80 bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 text-left">
+                          💡 Este video es global (sin cliente). Para asignarlo a las pantallas de un cliente, asígnalo primero a ese cliente con el botón <strong>Cliente</strong>.
+                        </p>
+                      )}
                     </div>
                   );
                 }
@@ -592,6 +657,77 @@ export default function VideosPage() {
                 Guardar Asignación
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Asignar Video a Cliente (Super Admin) */}
+      {isClientModalOpen && videoForClientAssign && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-white/10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Asignar Video a Cliente</h2>
+                <p className="text-xs text-muted-foreground truncate max-w-[280px]">
+                  {videoForClientAssign.title}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveClientAssignment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-slate-200">
+                  Cliente Propietario
+                </label>
+                <select
+                  className="w-full bg-black/60 border border-white/20 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-white cursor-pointer"
+                  value={targetClientId}
+                  onChange={(e) => setTargetClientId(e.target.value)}
+                >
+                  <option value="none">-- Sin cliente específico (Global) --</option>
+                  {users
+                    .filter((u) => u.role !== 'SUPER_ADMIN')
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} (@{u.username}) {u.plan ? `• Plan ${u.plan.name}` : ''}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                  Al asignarlo a un cliente, el video pasará a su biblioteca personal y podrá asignarse a sus pantallas respetando los límites de su plan.
+                </p>
+              </div>
+
+              {videoForClientAssign.schedules.length > 0 && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-200/90 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Aviso:</strong> Este video está asignado a {videoForClientAssign.schedules.length} {videoForClientAssign.schedules.length === 1 ? 'pantalla' : 'pantallas'}. Si cambias el cliente, se desvinculará automáticamente de cualquier pantalla que no pertenezca al nuevo cliente seleccionado.
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsClientModalOpen(false)}
+                  className="px-4 py-2 rounded-xl hover:bg-white/5 transition-colors disabled:opacity-50 text-sm cursor-pointer"
+                  disabled={isSavingClient}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingClient}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors font-medium flex items-center gap-2 disabled:opacity-50 text-sm cursor-pointer shadow-lg shadow-blue-600/30"
+                >
+                  {isSavingClient && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Guardar Asignación
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
