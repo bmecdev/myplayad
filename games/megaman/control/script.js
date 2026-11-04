@@ -12,8 +12,8 @@ const playAgainBtn = document.getElementById('play-again-btn');
 const adWaitingScreen = document.getElementById('ad-waiting-screen');
 const adPilotBadge = document.getElementById('ad-pilot-badge');
 
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
+const joystickBase = document.getElementById('joystick-base');
+const joystickKnob = document.getElementById('joystick-knob');
 const btnJump = document.getElementById('btn-jump');
 const btnBuster = document.getElementById('btn-buster');
 const btnSlide = document.getElementById('btn-slide');
@@ -360,40 +360,126 @@ function sendCommand(cmd, value = true) {
 }
 
 // ==========================================
-// 🕹️ Captura de D-Pad y Botones de Acción
+// 🕹️ Joystick Virtual Analógico y Controles
 // ==========================================
-function bindDirectionButton(btn, directionName) {
-    if (!btn) return;
-    
-    let isPressed = false;
-    const startHandler = (e) => {
-        e.preventDefault();
-        if (isPressed) return;
-        isPressed = true;
-        btn.classList.add('pressed');
-        sendCommand(directionName, true);
-        if (navigator.vibrate) navigator.vibrate(12);
-    };
+let currentDir = { left: false, right: false, up: false, down: false };
 
-    const endHandler = (e) => {
-        e.preventDefault();
-        if (!isPressed) return;
-        isPressed = false;
-        btn.classList.remove('pressed');
-        sendCommand(directionName, false);
-    };
-
-    btn.addEventListener('pointerdown', startHandler);
-    btn.addEventListener('touchstart', startHandler, { passive: false });
-    btn.addEventListener('pointerup', endHandler);
-    btn.addEventListener('touchend', endHandler, { passive: false });
-    btn.addEventListener('pointercancel', endHandler);
-    btn.addEventListener('touchcancel', endHandler, { passive: false });
-    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+function updateJoystickState(left, right, up, down) {
+    if (left !== currentDir.left) {
+        currentDir.left = left;
+        sendCommand('left', left);
+    }
+    if (right !== currentDir.right) {
+        currentDir.right = right;
+        sendCommand('right', right);
+    }
+    if (up !== currentDir.up) {
+        currentDir.up = up;
+        sendCommand('up', up);
+    }
+    if (down !== currentDir.down) {
+        currentDir.down = down;
+        sendCommand('down', down);
+    }
 }
 
-bindDirectionButton(btnLeft, 'left');
-bindDirectionButton(btnRight, 'right');
+if (joystickBase && joystickKnob) {
+    const MAX_RADIUS = 50; // Límite de desplazamiento del pomo en px
+    let activePointerId = null;
+
+    function handleJoystickMove(clientX, clientY) {
+        const rect = joystickBase.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        const distance = Math.hypot(dx, dy);
+
+        let knobX = 0;
+        let knobY = 0;
+
+        if (distance > 0) {
+            const clampedDist = Math.min(distance, MAX_RADIUS);
+            const angle = Math.atan2(dy, dx);
+            knobX = Math.cos(angle) * clampedDist;
+            knobY = Math.sin(angle) * clampedDist;
+        }
+
+        joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+        // Normalizar valores entre -1.0 y +1.0
+        const normX = knobX / MAX_RADIUS;
+        const normY = knobY / MAX_RADIUS;
+
+        // Umbrales para activar movimientos
+        const DEADZONE = 0.22;
+        const isLeft = normX < -DEADZONE;
+        const isRight = normX > DEADZONE;
+        const isUp = normY < -DEADZONE;
+        const isDown = normY > DEADZONE;
+
+        updateJoystickState(isLeft, isRight, isUp, isDown);
+
+        // Envío continuo del vector joystick para el host
+        if (dataChannel && dataChannel.readyState === 'open') {
+            try {
+                dataChannel.send(JSON.stringify({
+                    type: 'joystick',
+                    x: normX,
+                    y: normY
+                }));
+            } catch (_) {}
+        }
+    }
+
+    function resetJoystick() {
+        activePointerId = null;
+        joystickBase.classList.remove('active');
+        joystickKnob.style.transform = 'translate(0px, 0px)';
+        updateJoystickState(false, false, false, false);
+        if (dataChannel && dataChannel.readyState === 'open') {
+            try {
+                dataChannel.send(JSON.stringify({
+                    type: 'joystick',
+                    x: 0,
+                    y: 0
+                }));
+            } catch (_) {}
+        }
+    }
+
+    joystickBase.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        try {
+            if (joystickBase.setPointerCapture) {
+                joystickBase.setPointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        joystickBase.classList.add('active');
+        if (navigator.vibrate) navigator.vibrate(10);
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    joystickBase.addEventListener('pointermove', (e) => {
+        if (activePointerId !== e.pointerId) return;
+        handleJoystickMove(e.clientX, e.clientY);
+    });
+
+    const endJoystick = (e) => {
+        if (activePointerId !== e.pointerId) return;
+        try {
+            if (e && joystickBase.hasPointerCapture && joystickBase.hasPointerCapture(e.pointerId)) {
+                joystickBase.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        resetJoystick();
+    };
+
+    joystickBase.addEventListener('pointerup', endJoystick);
+    joystickBase.addEventListener('pointercancel', endJoystick);
+}
 
 // Botón A: Salto
 if (btnJump) {

@@ -2633,6 +2633,12 @@ function setupDataChannel(channel, playerId) {
                     }
                 }
                 if (msg.cmd === 'slide') triggerSlide();
+            } else if (msg.type === 'joystick') {
+                const DEADZONE = 0.22;
+                inputKeys.left = msg.x < -DEADZONE;
+                inputKeys.right = msg.x > DEADZONE;
+                inputKeys.up = msg.y < -DEADZONE;
+                inputKeys.down = msg.y > DEADZONE;
             }
         } catch (_) {}
     };
