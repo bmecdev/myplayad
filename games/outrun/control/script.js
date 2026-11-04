@@ -8,6 +8,8 @@ const thanksScreen = document.getElementById('thanks-screen');
 const controllerContainer = document.getElementById('controller-container');
 const displayDriver = document.getElementById('display-driver');
 const thanksResultText = document.getElementById('thanks-result-text');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 
 // Elementos de Control Táctil
 const steerTrackpad = document.getElementById('steer-trackpad');
@@ -23,6 +25,7 @@ let dataChannel;
 let socket;
 let currentRoomId = null;
 let nickname = 'DRIVER';
+let pendingCandidates = [];
 
 const currentInput = {
     steer: 0,
@@ -215,7 +218,13 @@ window.addEventListener('load', () => {
 
 connectBtn.addEventListener('click', () => {
     const roomId = roomInput.value.trim().toUpperCase();
-    nickname = (nicknameInput.value.trim() || 'DRIVER').toUpperCase().substring(0, 10);
+    const rawNick = nicknameInput.value.trim();
+    if (!rawNick || rawNick.length < 2) {
+        alert('Por favor ingresa un Nickname de al menos 2 caracteres.');
+        nicknameInput.focus();
+        return;
+    }
+    nickname = rawNick.toUpperCase().substring(0, 10);
     if (roomId) {
         currentRoomId = roomId;
         connectSignaling(roomId);
@@ -268,13 +277,30 @@ function connectSignaling(roomId) {
                 }
 
                 if (data.type === 'host_ready') {
+                    pendingCandidates = [];
                     startWebRTC();
                 } else if (data.type === 'answer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    status.textContent = 'CONECTADO';
-                    status.style.color = '#3dff8a';
+                    const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+                    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
+                    status.textContent = '📺 MIRA LA PANTALLA...';
+                    status.style.color = '#ffb703';
+                    roomSelection.style.display = 'none';
+                    if (adWaitingScreen) {
+                        adWaitingScreen.style.display = 'flex';
+                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                    }
+                    if (controllerContainer) controllerContainer.style.display = 'none';
+                    while (pendingCandidates.length > 0) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(pendingCandidates.shift())); } catch (_) {}
+                    }
                 } else if (data.type === 'candidate') {
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc && data.candidate) {
+                        if (pc.remoteDescription) {
+                            try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+                        } else {
+                            pendingCandidates.push(data.candidate);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error JSON señalización:', e);
@@ -300,23 +326,63 @@ function connectSignaling(roomId) {
 async function startWebRTC() {
     pc = new RTCPeerConnection(getIceConfig());
 
+    pc.onicecandidate = (event) => {
+        if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'candidate',
+                candidate: event.candidate,
+                roomId: currentRoomId
+            }));
+        }
+    };
+
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = 'EN PISTA';
-        status.style.color = '#3dff8a';
+        status.textContent = '📺 MIRA LA PANTALLA...';
+        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        controllerContainer.style.display = 'flex';
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+        }
+        if (controllerContainer) controllerContainer.style.display = 'none';
         thanksScreen.style.display = 'none';
         if (displayDriver) displayDriver.textContent = `PILOTO: ${nickname}`;
-        dataChannel.send(JSON.stringify({ type: 'nickname', value: nickname }));
-        vibrate(40);
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+
+        setTimeout(() => {
+            if (controllerContainer && controllerContainer.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                controllerContainer.style.display = 'flex';
+                status.textContent = 'EN PISTA';
+                status.style.color = '#3dff8a';
+            }
+        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'game_over') {
+            if (data.type === 'ad_playing') {
+                status.textContent = '📺 MIRA LA PANTALLA';
+                status.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (data.nickname || nickname)) {
+                        adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                    }
+                }
+                if (controllerContainer) controllerContainer.style.display = 'none';
+            } else if (data.type === 'game_start') {
+                status.textContent = 'EN PISTA';
+                status.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                if (controllerContainer) controllerContainer.style.display = 'flex';
+                vibrate([40, 60, 40]);
+            } else if (data.type === 'game_over') {
                 showThanks(data.score, data.checkpoints, data.won, data.goal);
             } else if (data.type === 'sfx') {
                 mobileAudio.play(data.sound, data.param);

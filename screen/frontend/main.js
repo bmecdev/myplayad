@@ -103,7 +103,8 @@ async function syncLocalPlaylist() {
 function playCurrentVideo() {
     if (!videoPlaylist.length) return;
     if (videoIndex >= videoPlaylist.length) videoIndex = 0;
-    const filename = videoPlaylist[videoIndex];
+    const rawFilename = videoPlaylist[videoIndex] || '';
+    const filename = rawFilename.split('/').pop();
     const localSrc = `/videos/${screenId}/${encodeURIComponent(filename)}`;
     const remoteSrc = `${VIDEO_SERVER_URL}/videos/${screenId}/${encodeURIComponent(filename)}`;
     
@@ -540,8 +541,10 @@ window.addEventListener('message', async (event) => {
     } else if (event.data.type === 'GET_AD_VIDEO') {
         let adUrl = null;
         if (videoPlaylist && videoPlaylist.length > 0) {
-            const filename = videoPlaylist[videoIndex % videoPlaylist.length];
-            adUrl = `/videos/${screenId}/${encodeURIComponent(filename)}`;
+            const rawFilename = videoPlaylist[videoIndex % videoPlaylist.length] || '';
+            const filename = rawFilename.split('/').pop();
+            const baseUrl = VIDEO_SERVER_URL || window.location.origin;
+            adUrl = `${baseUrl}/videos/${screenId}/${encodeURIComponent(filename)}`;
         }
         if (gameFrame && gameFrame.contentWindow) {
             gameFrame.contentWindow.postMessage({
