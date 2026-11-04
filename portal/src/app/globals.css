@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -64,4 +65,49 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+}
+
+/* Retro CRT & Kiosk Simulator Styles */
+.font-arcade {
+  font-family: 'Press Start 2P', monospace;
+}
+
+.font-vt323 {
+  font-family: 'VT323', monospace;
+}
+
+.kiosk-bezel {
+  background: linear-gradient(180deg, #18231d, #0d1512);
+  border: 4px solid #2b4536;
+  box-shadow: 0 0 0 2px #060a08, 0 25px 70px rgba(0,0,0,.7), inset 0 0 40px rgba(61,255,138,.05);
+  border-radius: 18px;
+}
+
+.kiosk-scanlines {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 3px;
+  pointer-events: none;
+}
+
+.kiosk-crt-flicker {
+  animation: crtFlicker 6s infinite;
+}
+
+@keyframes crtFlicker {
+  0%, 97%, 100% { opacity: 1; }
+  98% { opacity: 0.90; }
+}
+
+@keyframes kioskBlinker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-kiosk-blink {
+  animation: kioskBlinker 1s infinite;
+}
+
+.speaker-grille-pattern {
+  background-image: radial-gradient(#000 25%, transparent 25%);
+  background-size: 5px 5px;
 }
