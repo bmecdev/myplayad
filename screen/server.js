@@ -417,16 +417,32 @@ async function applyRotation(targetOrientation) {
 
 let cachedGitInfo = null;
 /**
- * Obtiene la versión actual de Git (commit hash, fecha y rama)
+ * Obtiene la versión actual (secuencia alfanumérica v1.1, v1.2 y commit)
  */
 async function getSystemVersionInfo() {
     if (cachedGitInfo && Date.now() - cachedGitInfo.timestamp < 15000) {
         return cachedGitInfo;
     }
-    let commit = 'v1.0.0';
+    let version = 'v1.1';
+    let commit = '';
     let commitDate = '';
     let branch = 'main';
 
+    // 1. Obtener versión legible desde version.json o package.json
+    try {
+        const vInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8'));
+        if (vInfo.version) version = vInfo.version.startsWith('v') ? vInfo.version : `v${vInfo.version}`;
+        if (vInfo.commit) commit = vInfo.commit;
+        if (vInfo.commitDate) commitDate = vInfo.commitDate;
+        if (vInfo.branch) branch = vInfo.branch;
+    } catch (_) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+            if (pkg.version) version = pkg.version.startsWith('v') ? pkg.version : `v${pkg.version}`;
+        } catch (_) {}
+    }
+
+    // 2. Complementar con datos de Git si están disponibles
     try {
         let gitCwd = __dirname;
         if (!fs.existsSync(path.join(gitCwd, '.git')) && fs.existsSync(path.join(path.dirname(gitCwd), '.git'))) {
@@ -438,18 +454,14 @@ async function getSystemVersionInfo() {
         commitDate = date.trim();
         const { stdout: b } = await execPromise('git rev-parse --abbrev-ref HEAD', { cwd: gitCwd, timeout: 3000 });
         branch = b.trim();
-    } catch (_) {
-        try {
-            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-            commit = `v${pkg.version || '1.0.0'}`;
-        } catch (_) {}
-    }
+    } catch (_) {}
 
     cachedGitInfo = {
+        version: version || 'v1.1',
         commit,
         commitDate,
         branch,
-        versionStr: commitDate ? `${commit} (${commitDate})` : commit,
+        versionStr: version || 'v1.1',
         timestamp: Date.now()
     };
     return cachedGitInfo;
@@ -493,7 +505,7 @@ const server = http.createServer((req, res) => {
                 screenId: SCREEN_ID || null,
                 orientation: currentOrientation,
                 rotation: isLandscape ? 0 : 90,
-                version: versionInfo.versionStr,
+                version: versionInfo.version || 'v1.1',
                 commit: versionInfo.commit,
                 commitDate: versionInfo.commitDate,
                 branch: versionInfo.branch
@@ -504,7 +516,7 @@ const server = http.createServer((req, res) => {
                 screenId: SCREEN_ID || null,
                 orientation: currentOrientation,
                 rotation: isLandscape ? 0 : 90,
-                version: 'v1.0.0'
+                version: 'v1.1'
             }));
         });
         return;

@@ -264,14 +264,16 @@ function loadGame(slug) {
     }
 }
 
-let currentCommitHash = '';
+let currentVersionStr = 'v1.1';
 
-function updateVersionBadge(commit, orientation) {
-    if (commit) currentCommitHash = commit;
+function updateVersionBadge(version, orientation) {
+    if (version) {
+        currentVersionStr = version.startsWith('v') ? version : `v${version}`;
+    }
     const badge = document.getElementById('version-text');
     if (badge) {
         const orientStr = (orientation || activeOrientation) === 'LANDSCAPE' ? 'H' : 'V';
-        badge.textContent = `${currentCommitHash || 'myplayad'} [${orientStr}]`;
+        badge.textContent = `${currentVersionStr} [${orientStr}]`;
     }
 }
 
@@ -308,8 +310,8 @@ async function initialize() {
             activeOrientation = config.orientation;
             console.log(`[config] Orientación física local (config.txt): ${activeOrientation}`);
         }
-        if (config.commit || config.version) {
-            updateVersionBadge(config.commit || config.version, activeOrientation);
+        if (config.version || config.commit) {
+            updateVersionBadge(config.version || config.commit, activeOrientation);
         }
     } catch (e) {
         console.warn('No se pudo obtener config de pantalla:', e);
@@ -369,7 +371,7 @@ async function initialize() {
                     } catch (_) {}
                 }
             }, 500);
-            updateVersionBadge(currentCommitHash, activeOrientation);
+            updateVersionBadge(currentVersionStr, activeOrientation);
         } else if (event.data === 'updating') {
             console.log('[SSE] Actualización de software en curso...');
             showOtaBanner('ACTUALIZANDO SISTEMA (OTA)', 'Descargando última versión de GitHub origin/main...');
@@ -429,7 +431,7 @@ async function checkSchedule() {
             if (activeOrientation !== portalOrientation) {
                 console.log(`[orientacion] Discrepancia detectada: local=${activeOrientation}, portal=${portalOrientation}. Aplicando rotación en RPi...`);
                 activeOrientation = portalOrientation;
-                updateVersionBadge(currentCommitHash, activeOrientation);
+                updateVersionBadge(currentVersionStr, activeOrientation);
                 fetch(`/api/rotate?orientation=${portalOrientation}`).catch(() => {});
             }
         }
