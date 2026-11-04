@@ -154,6 +154,12 @@ if [ -f "$CMDLINE_FILE" ]; then
 fi
 
 # 5. Actualizar SCREEN_ROTATE en config.txt
+if [ -f "$SCRIPT_DIR/set_rotation.py" ]; then
+    echo "[ROTATE] Actualizando config.txt vía set_rotation.py..."
+    sudo python3 "$SCRIPT_DIR/set_rotation.py" "$ROT_CONFIG" 2>&1 || \
+    python3 "$SCRIPT_DIR/set_rotation.py" "$ROT_CONFIG" 2>&1 || true
+fi
+
 BOOT_CFG="/boot/firmware/config.txt"
 [ ! -f "$BOOT_CFG" ] && BOOT_CFG="/boot/config.txt"
 

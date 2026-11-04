@@ -265,16 +265,18 @@ function loadGame(slug) {
 }
 
 async function initialize() {
-    if (!screenId) {
-        try {
-            const res = await fetch('/api/config');
-            const config = await res.json();
-            if (config.screenId) {
-                screenId = config.screenId;
-            }
-        } catch (e) {
-            console.warn('No se pudo obtener config de pantalla:', e);
+    try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        if (config.screenId && !screenId) {
+            screenId = config.screenId;
         }
+        if (config.orientation) {
+            activeOrientation = config.orientation;
+            console.log(`[config] Orientación física local (config.txt): ${activeOrientation}`);
+        }
+    } catch (e) {
+        console.warn('No se pudo obtener config de pantalla:', e);
     }
 
     if (!screenId) {
@@ -378,15 +380,13 @@ async function checkSchedule() {
             setScreenSleepMode(false);
         }
 
-        // Sincronizar orientación con el Portal si cambia
+        // Sincronizar orientación con el Portal si cambia o si hay discrepancia física
         if (data.orientation) {
             const portalOrientation = data.orientation === 'LANDSCAPE' ? 'LANDSCAPE' : 'PORTRAIT';
-            if (activeOrientation && activeOrientation !== portalOrientation) {
-                console.log(`[orientacion] Portal cambió orientación a ${portalOrientation}. Aplicando en RPi...`);
+            if (activeOrientation !== portalOrientation) {
+                console.log(`[orientacion] Discrepancia detectada: local=${activeOrientation}, portal=${portalOrientation}. Aplicando rotación en RPi...`);
                 activeOrientation = portalOrientation;
                 fetch(`/api/rotate?orientation=${portalOrientation}`).catch(() => {});
-            } else if (!activeOrientation) {
-                activeOrientation = portalOrientation;
             }
         }
 

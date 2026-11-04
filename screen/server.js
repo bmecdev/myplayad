@@ -329,28 +329,9 @@ if (SCREEN_ID) {
                 console.log(`[mqtt] [ROTATE] Comando de orientación recibido: ${targetOrientation} (${topic})`);
 
                 try {
-                    const rotateScriptPath = path.join(__dirname, 'rotate.sh');
-                    let stdoutResult = '';
-                    if (fs.existsSync(rotateScriptPath)) {
-                        const { stdout, stderr } = await execPromise(`bash "${rotateScriptPath}" "${targetOrientation}"`, { timeout: 15000 });
-                        stdoutResult = stdout || '';
-                        console.log('[mqtt] [ROTATE] Resultado rotate.sh:\n', stdoutResult);
-                        if (stderr) console.warn('[mqtt] [ROTATE] Stderr rotate.sh:', stderr);
-                    } else {
-                        console.warn('[mqtt] [ROTATE] rotate.sh no encontrado, ejecutando fallback wlr-randr...');
-                        const rot = targetOrientation === 'LANDSCAPE' ? 'normal' : '90';
-                        await execPromise(`wlr-randr --output HDMI-A-1 --transform ${rot} 2>/dev/null || true`, { timeout: 10000 });
-                    }
-
-                    // Reportar nuevo estado de orientación al broker
-                    client.publish(`screens/${SCREEN_ID}/orientation_status`, targetOrientation, { qos: 1, retain: true });
-
-                    // Notificar a los navegadores locales conectados (SSE)
-                    sseClients.forEach(c => {
-                        c.write(`data: rotate\n\n`);
-                    });
-
-                    console.log(`[mqtt] [ROTATE] Orientación aplicada correctamente a ${targetOrientation}.`);
+                    const result = await applyRotation(targetOrientation);
+                    console.log(`[mqtt] [ROTATE] Rotación completada exitosamente:\n${result.output}`);
+                    client.publish(`screens/${SCREEN_ID}/orientation_status`, result.orientation, { qos: 1, retain: true });
                 } catch (err) {
                     console.error('[mqtt] [ROTATE] Error aplicando rotación:', err.message);
                 }
@@ -378,6 +359,59 @@ if (SCREEN_ID) {
 // ─── SSE (Server-Sent Events) para el Frontend ───────────────────────────────
 const sseClients = new Set();
 
+/**
+ * Aplica rotación de pantalla en caliente y persiste en config.txt y cmdline.txt
+ */
+async function applyRotation(targetOrientation) {
+    const isLandscape =
+        targetOrientation === 'LANDSCAPE' ||
+        targetOrientation === 'HORIZONTAL' ||
+        targetOrientation === '0' ||
+        targetOrientation === 'normal';
+    const normOrientation = isLandscape ? 'LANDSCAPE' : 'PORTRAIT';
+    const rotVal = isLandscape ? '0' : '90';
+
+    const rotateScriptPath = path.join(__dirname, 'rotate.sh');
+    const pyScriptPath = path.join(__dirname, 'set_rotation.py');
+    const logs = [];
+
+    // 1. Ejecutar set_rotation.py con sudo (o python directo) para actualizar config.txt sin problemas de VFAT
+    if (fs.existsSync(pyScriptPath)) {
+        try {
+            const pyRes = await execPromise(`sudo python3 "${pyScriptPath}" "${rotVal}" 2>&1 || python3 "${pyScriptPath}" "${rotVal}" 2>&1`, { timeout: 12000 });
+            logs.push(`[set_rotation.py] ${pyRes.stdout || ''}`);
+        } catch (pyErr) {
+            logs.push(`[set_rotation.py error] ${pyErr.message}`);
+        }
+    }
+
+    // 2. Ejecutar rotate.sh para aplicar en caliente sobre Wayland (wlr-randr y kanshi)
+    if (fs.existsSync(rotateScriptPath)) {
+        try {
+            const shRes = await execPromise(`sudo bash "${rotateScriptPath}" "${normOrientation}" 2>&1 || bash "${rotateScriptPath}" "${normOrientation}" 2>&1`, { timeout: 25000 });
+            logs.push(`[rotate.sh] ${shRes.stdout || ''}`);
+        } catch (shErr) {
+            logs.push(`[rotate.sh error] ${shErr.message}`);
+        }
+    } else {
+        const rot = isLandscape ? 'normal' : '90';
+        try {
+            await execPromise(`wlr-randr --output HDMI-A-1 --transform ${rot} 2>/dev/null || true`, { timeout: 10000 });
+        } catch (_) {}
+    }
+
+    // Notificar a los navegadores locales conectados (SSE)
+    sseClients.forEach(c => {
+        try { c.write(`data: rotate\n\n`); } catch (_) {}
+    });
+
+    return {
+        orientation: normOrientation,
+        rotation: isLandscape ? 0 : 90,
+        output: logs.join('\n')
+    };
+}
+
 
 // ─── HTTP Server ─────────────────────────────────────────────────────────────
 
@@ -394,10 +428,28 @@ const server = http.createServer((req, res) => {
     const parts = url.pathname.split('/').filter(Boolean);
 
     // GET /api/config
-    // Devuelve la configuración inicial al frontend
+    // Devuelve la configuración inicial al frontend (incluyendo orientación leída de config.txt)
     if (parts[0] === 'api' && parts[1] === 'config') {
+        const bootCfgPath = fs.existsSync('/boot/firmware/config.txt')
+            ? '/boot/firmware/config.txt'
+            : (fs.existsSync('/boot/config.txt') ? '/boot/config.txt' : null);
+        let currentRotate = '90';
+        if (bootCfgPath) {
+            try {
+                const content = fs.readFileSync(bootCfgPath, 'utf8');
+                const match = content.match(/^[ \t]*#?[ \t]*SCREEN_ROTATE[ \t]*=[ \t]*([0-9a-zA-Z]+)/m);
+                if (match) currentRotate = match[1];
+            } catch (_) {}
+        }
+        const isLandscape = currentRotate === '0' || currentRotate.toLowerCase() === 'landscape';
+        const currentOrientation = isLandscape ? 'LANDSCAPE' : 'PORTRAIT';
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ screenId: SCREEN_ID || null }));
+        res.end(JSON.stringify({
+            screenId: SCREEN_ID || null,
+            orientation: currentOrientation,
+            rotation: isLandscape ? 0 : 90
+        }));
         return;
     }
 
@@ -406,25 +458,17 @@ const server = http.createServer((req, res) => {
     if (parts[0] === 'api' && parts[1] === 'rotate') {
         const targetOrientation = url.searchParams.get('orientation') || 'PORTRAIT';
         console.log(`[http] [ROTATE] Solicitud de cambio de orientación: ${targetOrientation}`);
-        const rotateScriptPath = path.join(__dirname, 'rotate.sh');
-        if (fs.existsSync(rotateScriptPath)) {
-            execPromise(`bash "${rotateScriptPath}" "${targetOrientation}"`, { timeout: 25000 })
-                .then(({ stdout, stderr }) => {
-                    console.log('[http] [ROTATE] Resultado:\n', stdout);
-                    if (stderr) console.warn('[http] [ROTATE] Stderr:', stderr);
-                    sseClients.forEach(c => c.write(`data: rotate\n\n`));
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, orientation: targetOrientation, stdout }));
-                })
-                .catch(err => {
-                    console.error('[http] [ROTATE] Error ejecutando rotate.sh:', err.message);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: err.message }));
-                });
-        } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'rotate.sh no encontrado' }));
-        }
+        applyRotation(targetOrientation)
+            .then(result => {
+                console.log('[http] [ROTATE] Resultado:\n', result.output);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, ...result }));
+            })
+            .catch(err => {
+                console.error('[http] [ROTATE] Error ejecutando applyRotation:', err.message);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            });
         return;
     }
 
