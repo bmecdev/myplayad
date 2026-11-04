@@ -58,7 +58,7 @@ def main():
             "genre": genre,
             "desc": desc,
             "controls": controls,
-            "prod_screen": f"https://myplayad.com/{slug}/",
+            "prod_screen": f"https://games.myplayad.com/{slug}/",
             "prod_control": f"https://controllers.myplayad.com/{slug}/",
             "dev_screen": f"https://dev.myplayad.com/{slug}/",
             "dev_control": f"https://dev-controllers.myplayad.com/{slug}/"

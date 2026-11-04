@@ -118,7 +118,7 @@ export const ARCADE_GAMES_CATALOG: CatalogGame[] = [
 
 export function getGameUrl(slug: string, screenId: string = 'DEMO'): string {
   if (typeof window === 'undefined') {
-    return `https://dev.myplayad.com/${slug}/?screenId=${screenId}`;
+    return `https://games.myplayad.com/${slug}/?screenId=${screenId}`;
   }
   const hostname = window.location.hostname;
   const isDev =
@@ -126,13 +126,14 @@ export function getGameUrl(slug: string, screenId: string = 'DEMO'): string {
     hostname.includes('staging') ||
     hostname.includes('localhost') ||
     hostname === '127.0.0.1';
-  const base = isDev ? 'https://dev.myplayad.com' : 'https://myplayad.com';
+  // En dev/staging/localhost se usa dev.myplayad.com; en producción el host oficial es games.myplayad.com
+  const base = isDev ? 'https://dev.myplayad.com' : 'https://games.myplayad.com';
   return `${base}/${slug}/?screenId=${screenId}`;
 }
 
 export function getControllerUrl(slug: string, roomId?: string): string {
   if (typeof window === 'undefined') {
-    return `https://dev-controllers.myplayad.com/${slug}/`;
+    return `https://controllers.myplayad.com/${slug}/`;
   }
   const hostname = window.location.hostname;
   const isDev =
@@ -143,3 +144,4 @@ export function getControllerUrl(slug: string, roomId?: string): string {
   const base = isDev ? 'https://dev-controllers.myplayad.com' : 'https://controllers.myplayad.com';
   return roomId ? `${base}/${slug}/?room=${roomId}` : `${base}/${slug}/`;
 }
+
