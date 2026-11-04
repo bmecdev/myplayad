@@ -93,6 +93,7 @@ fi
 
 # Asegurar permisos de ejecución a los scripts auxiliares
 chmod +x "$SCRIPT_DIR/power.sh" 2>/dev/null || true
+chmod +x "$SCRIPT_DIR/rotate.sh" 2>/dev/null || true
 chmod +x "$SCRIPT_DIR/update.sh" 2>/dev/null || true
 chmod +x "$SCRIPT_DIR/disable_sleep.sh" 2>/dev/null || true
 

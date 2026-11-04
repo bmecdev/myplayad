@@ -81,10 +81,14 @@ export async function POST(request: Request) {
       description,
       userId,
       consoleId,
+      orientation,
       autoPowerEnabled,
       powerOnTime,
       powerOffTime,
     } = body;
+
+    const normalizedOrientation =
+      orientation === 'LANDSCAPE' || orientation === 'HORIZONTAL' ? 'LANDSCAPE' : 'PORTRAIT';
 
     const screen = await prisma.screen.create({
       data: {
@@ -93,6 +97,7 @@ export async function POST(request: Request) {
         description,
         consoleId: consoleId && consoleId.trim() ? consoleId.trim() : null,
         userId: userId && userId !== 'none' ? userId : null,
+        orientation: normalizedOrientation,
         autoPowerEnabled: autoPowerEnabled !== undefined ? Boolean(autoPowerEnabled) : true,
         powerOnTime: powerOnTime && String(powerOnTime).trim() ? String(powerOnTime).trim() : '08:00',
         powerOffTime: powerOffTime && String(powerOffTime).trim() ? String(powerOffTime).trim() : '22:00',

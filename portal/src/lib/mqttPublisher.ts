@@ -106,3 +106,35 @@ export async function publishPowerCommand(params: {
     console.error('[MQTT Publisher] Failed to publish power command:', err);
   }
 }
+
+export async function publishOrientationCommand(params: {
+  screenId: string;
+  orientation: 'PORTRAIT' | 'LANDSCAPE' | string;
+  triggeredBy?: string;
+}) {
+  try {
+    const client = getClient();
+    const isLandscape =
+      params.orientation === 'LANDSCAPE' ||
+      params.orientation === 'HORIZONTAL' ||
+      params.orientation === '0';
+    const normalizedOrientation = isLandscape ? 'LANDSCAPE' : 'PORTRAIT';
+    const rotation = isLandscape ? 0 : 90;
+
+    const payload = JSON.stringify({
+      action: 'SET_ORIENTATION',
+      orientation: normalizedOrientation,
+      rotation: rotation,
+      screenId: params.screenId,
+      triggeredBy: params.triggeredBy || 'portal',
+      timestamp: Date.now(),
+    });
+
+    client.publish(`screens/${params.screenId}/commands`, payload, { qos: 1 });
+    console.log(
+      `[MQTT Publisher] Published orientation command (${normalizedOrientation}) for screen ${params.screenId} by ${params.triggeredBy || 'portal'}`
+    );
+  } catch (err) {
+    console.error('[MQTT Publisher] Failed to publish orientation command:', err);
+  }
+}

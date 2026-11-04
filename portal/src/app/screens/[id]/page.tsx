@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check, Clock, Sun, Moon, Save, Unlink } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check, Clock, Sun, Moon, Save, Unlink, Smartphone, Tv } from 'lucide-react';
 import Link from 'next/link';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -30,6 +30,7 @@ type ScreenDetail = {
   location: string;
   description: string;
   consoleId?: string | null;
+  orientation?: 'PORTRAIT' | 'LANDSCAPE' | string;
   lastSeen?: string;
   userId?: string | null;
   displayState?: 'ON' | 'OFF' | string;
@@ -108,6 +109,11 @@ export default function ScreenDetailPage() {
   const [savingPowerSchedule, setSavingPowerSchedule] = useState(false);
   const [powerScheduleSuccess, setPowerScheduleSuccess] = useState(false);
 
+  // Screen Orientation State (Orientación de Pantalla)
+  const [orientation, setOrientation] = useState<'PORTRAIT' | 'LANDSCAPE'>('PORTRAIT');
+  const [savingOrientation, setSavingOrientation] = useState(false);
+  const [orientationSuccess, setOrientationSuccess] = useState(false);
+
   const fetchScreenData = async () => {
     try {
       const meRes = await fetch('/api/auth/me');
@@ -139,6 +145,7 @@ export default function ScreenDetailPage() {
         setAutoPowerEnabled(data.screen.autoPowerEnabled ?? true);
         setPowerOnTime(data.screen.powerOnTime || '08:00');
         setPowerOffTime(data.screen.powerOffTime || '22:00');
+        setOrientation(data.screen.orientation === 'LANDSCAPE' ? 'LANDSCAPE' : 'PORTRAIT');
       }
 
       const gamesRes = await fetch('/api/games');
@@ -178,6 +185,32 @@ export default function ScreenDetailPage() {
       alert(err.message || 'Error guardando horario de encendido/apagado');
     } finally {
       setSavingPowerSchedule(false);
+    }
+  };
+
+  const handleSaveOrientation = async (newOrientation: 'PORTRAIT' | 'LANDSCAPE') => {
+    setSavingOrientation(true);
+    setOrientationSuccess(false);
+    try {
+      const res = await fetch(`/api/screens/${screenId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orientation: newOrientation }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al actualizar orientación');
+      }
+      setOrientation(newOrientation);
+      setOrientationSuccess(true);
+      if (screen) {
+        setScreen({ ...screen, orientation: newOrientation });
+      }
+      setTimeout(() => setOrientationSuccess(false), 3500);
+    } catch (err: any) {
+      alert(err.message || 'Error de conexión al actualizar orientación');
+    } finally {
+      setSavingOrientation(false);
     }
   };
 
@@ -512,6 +545,28 @@ export default function ScreenDetailPage() {
               <span>Actualizaciones OTA</span>
             </button>
 
+            {/* Indicador de Orientación */}
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full border font-medium flex items-center gap-1.5 transition-colors ${
+                orientation === 'LANDSCAPE'
+                  ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}
+              title="Orientación física del display"
+            >
+              {orientation === 'LANDSCAPE' ? (
+                <>
+                  <Tv className="w-3 h-3 text-cyan-400" />
+                  <span>Horizontal (16:9)</span>
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-3 h-3 text-emerald-400" />
+                  <span>Vertical (9:16)</span>
+                </>
+              )}
+            </span>
+
             {/* Control de Energía (Encender / Apagar / Reiniciar) */}
             <button
               onClick={handleTogglePower}
@@ -736,6 +791,121 @@ export default function ScreenDetailPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+
+          {/* Orientación y Disposición de Pantalla (Hot Rotate) */}
+          <div className="mt-6 space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-cyan-400">
+              <Tv className="w-5 h-5" /> Orientación y Disposición de Pantalla
+            </h3>
+
+            <div className="glass-card rounded-2xl p-5 border border-cyan-500/20 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
+                <div>
+                  <p className="font-semibold text-sm text-slate-200">Rotación de Pantalla en Tiempo Real</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Modifica la rotación de video en la Raspberry Pi y ajusta la distribución del juego y video.
+                  </p>
+                </div>
+                <span
+                  className={`text-xs px-3 py-1 rounded-full font-semibold shrink-0 flex items-center gap-1.5 ${
+                    orientation === 'LANDSCAPE'
+                      ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  }`}
+                >
+                  {orientation === 'LANDSCAPE' ? (
+                    <>
+                      <Tv className="w-3.5 h-3.5" />
+                      <span>Horizontal 16:9</span>
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>Vertical 9:16</span>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Opción Vertical */}
+                <button
+                  type="button"
+                  onClick={() => handleSaveOrientation('PORTRAIT')}
+                  disabled={savingOrientation}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer relative ${
+                    orientation !== 'LANDSCAPE'
+                      ? 'bg-emerald-500/15 border-emerald-500/60 shadow-lg shadow-emerald-500/10'
+                      : 'bg-black/30 border-white/10 hover:bg-white/5 opacity-70'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-slate-100">Vertical (9:16)</p>
+                      <p className="text-[11px] text-emerald-400 font-medium">Tótem / Kiosco (90°)</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    El juego arcade se ubica en la mitad superior y el video publicitario en la mitad inferior.
+                  </p>
+                  {orientation !== 'LANDSCAPE' && (
+                    <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                  )}
+                </button>
+
+                {/* Opción Horizontal */}
+                <button
+                  type="button"
+                  onClick={() => handleSaveOrientation('LANDSCAPE')}
+                  disabled={savingOrientation}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer relative ${
+                    orientation === 'LANDSCAPE'
+                      ? 'bg-cyan-500/15 border-cyan-500/60 shadow-lg shadow-cyan-500/10'
+                      : 'bg-black/30 border-white/10 hover:bg-white/5 opacity-70'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="p-2 rounded-lg bg-cyan-500/20 text-cyan-400">
+                      <Tv className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-slate-100">Horizontal (16:9)</p>
+                      <p className="text-[11px] text-cyan-400 font-medium">TV / Monitor (0° Normal)</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    El juego arcade se ubica a la izquierda y el video a la derecha en formato dual simétrico.
+                  </p>
+                  {orientation === 'LANDSCAPE' && (
+                    <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {orientationSuccess && (
+                <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>¡Orientación actualizada y comando MQTT enviado a la pantalla!</span>
+                </div>
+              )}
+
+              {savingOrientation && (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                  <span>Aplicando rotación y sincronizando pantalla...</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

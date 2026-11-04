@@ -57,6 +57,7 @@ model Screen {
   location    String?
   description String?
   consoleId   String?     // Identificador de la consola física (ej: "consola1", "rpi5-01")
+  orientation String      @default("PORTRAIT") // "PORTRAIT" (Vertical 9:16) | "LANDSCAPE" (Horizontal 16:9)
   lastSeen    DateTime?
   
   userId      String?
@@ -108,7 +109,7 @@ model Schedule {
   gameId      String?
   game        Game?     @relation(fields: [gameId], references: [id])
   videoId     String?
-  video       Video?    @relation(fields: [videoId], references: [id])
+  video       Video?    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   
   startDate   DateTime
   endDate     DateTime?

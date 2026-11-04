@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film, Cpu, Copy, Check, Clock } from 'lucide-react';
+import { Monitor, Plus, Trash2, Settings, Lightbulb, UserCheck, UserX, Edit3, RefreshCw, Power, Users, Film, Cpu, Copy, Check, Clock, Smartphone, Tv } from 'lucide-react';
 import mqtt from 'mqtt';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -24,6 +24,7 @@ type Screen = {
   location: string;
   description: string;
   consoleId?: string | null;
+  orientation?: 'PORTRAIT' | 'LANDSCAPE' | string;
   userId?: string | null;
   user?: UserSummary | null;
   displayState?: 'ON' | 'OFF' | string;
@@ -54,6 +55,7 @@ export default function ScreensPage() {
     description: '',
     userId: '',
     consoleId: '',
+    orientation: 'PORTRAIT',
     autoPowerEnabled: true,
     powerOnTime: '08:00',
     powerOffTime: '22:00',
@@ -165,6 +167,7 @@ export default function ScreensPage() {
       description: '',
       userId: '',
       consoleId: '',
+      orientation: 'PORTRAIT',
       autoPowerEnabled: true,
       powerOnTime: '08:00',
       powerOffTime: '22:00',
@@ -589,6 +592,21 @@ export default function ScreensPage() {
                     </div>
                   )}
 
+                  {/* Badge de Orientación (Vertical vs Horizontal) */}
+                  <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      {screen.orientation === 'LANDSCAPE' ? (
+                        <Tv className="w-3.5 h-3.5 text-cyan-400" />
+                      ) : (
+                        <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                      )}
+                      Orientación:
+                    </span>
+                    <span className={`font-medium ${screen.orientation === 'LANDSCAPE' ? 'text-cyan-300' : 'text-emerald-300'}`}>
+                      {screen.orientation === 'LANDSCAPE' ? 'Horizontal (16:9 TV)' : 'Vertical (9:16 Tótem)'}
+                    </span>
+                  </div>
+
                   {/* Badge de Horario de Energía Programado */}
                   <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/5 border border-white/5">
                     <span className="text-muted-foreground flex items-center gap-1.5">
@@ -731,6 +749,40 @@ export default function ScreensPage() {
                 </select>
                 <p className="text-xs text-muted-foreground mt-1">
                   El cliente seleccionado tendrá acceso y control sobre esta pantalla al iniciar sesión.
+                </p>
+              </div>
+
+              {/* Orientación de la Pantalla */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Orientación de la Pantalla</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, orientation: 'PORTRAIT' })}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                      formData.orientation !== 'LANDSCAPE'
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                        : 'bg-black/30 border-white/10 text-muted-foreground hover:bg-white/5'
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    <span>Vertical (9:16 Tótem)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, orientation: 'LANDSCAPE' })}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                      formData.orientation === 'LANDSCAPE'
+                        ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-sm shadow-cyan-500/20'
+                        : 'bg-black/30 border-white/10 text-muted-foreground hover:bg-white/5'
+                    }`}
+                  >
+                    <Tv className="w-4 h-4 text-cyan-400" />
+                    <span>Horizontal (16:9 TV)</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Define la orientación física del display en la Raspberry Pi y adapta el diseño dual (juego y video).
                 </p>
               </div>
 

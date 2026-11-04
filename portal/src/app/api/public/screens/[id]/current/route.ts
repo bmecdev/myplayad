@@ -60,6 +60,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
               ? 'Pantalla suspendida: Plan expirado'
               : 'Pantalla en espera: Plan no iniciado',
             upcoming: [],
+            orientation: screen?.orientation || 'PORTRAIT',
             power: {
               autoPowerEnabled: screen.autoPowerEnabled,
               powerOnTime: screen.powerOnTime,
@@ -84,6 +85,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           scheduledPowerOff: true,
           message: `Pantalla en horario de reposo nocturno (${screen.powerOffTime} - ${screen.powerOnTime})`,
           upcoming: [],
+          orientation: screen?.orientation || 'PORTRAIT',
           power: {
             autoPowerEnabled: screen.autoPowerEnabled,
             powerOnTime: screen.powerOnTime,
@@ -179,10 +181,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       };
     }).filter(s => s.type !== 'standby');
 
-    let responseData: { type: string; url: string | null; upcoming: any[]; power?: any } = { 
+    let responseData: { type: string; url: string | null; upcoming: any[]; orientation?: string; power?: any } = { 
       type: 'standby', 
       url: null,
       upcoming,
+      orientation: screen?.orientation || 'PORTRAIT',
       power: screen ? {
         autoPowerEnabled: screen.autoPowerEnabled,
         powerOnTime: screen.powerOnTime,

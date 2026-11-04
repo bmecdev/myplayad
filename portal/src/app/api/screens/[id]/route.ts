@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
+import { publishOrientationCommand } from '@/lib/mqttPublisher';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -82,6 +83,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         lastSeen: screen.lastSeen,
         userId: screen.userId,
         user: screen.user,
+        orientation: screen.orientation || 'PORTRAIT',
         displayState: screen.displayState,
         autoPowerEnabled: screen.autoPowerEnabled,
         powerOnTime: screen.powerOnTime,
@@ -112,6 +114,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       description,
       userId,
       consoleId,
+      orientation,
       autoPowerEnabled,
       powerOnTime,
       powerOffTime,
@@ -149,6 +152,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
               : null
             : existingScreen.consoleId,
         userId: updatedUserId,
+        orientation:
+          orientation !== undefined
+            ? orientation === 'LANDSCAPE' || orientation === 'HORIZONTAL'
+              ? 'LANDSCAPE'
+              : 'PORTRAIT'
+            : existingScreen.orientation,
         autoPowerEnabled:
           autoPowerEnabled !== undefined ? Boolean(autoPowerEnabled) : existingScreen.autoPowerEnabled,
         powerOnTime:
@@ -174,6 +183,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         },
       },
     });
+
+    if (orientation !== undefined) {
+      const targetOrientation =
+        orientation === 'LANDSCAPE' || orientation === 'HORIZONTAL' ? 'LANDSCAPE' : 'PORTRAIT';
+      await publishOrientationCommand({
+        screenId: existingScreen.id,
+        orientation: targetOrientation,
+        triggeredBy: currentUser.username || currentUser.name,
+      });
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -320,6 +320,16 @@ async function initialize() {
         } else if (event.data === 'power_on') {
             console.log('[SSE] Pantalla encendida');
             setScreenSleepMode(false);
+        } else if (event.data === 'rotate') {
+            console.log('[SSE] Rotación de pantalla recibida, recalculando layout...');
+            setTimeout(autoScaleVideo, 300);
+            setTimeout(() => {
+                if (gameFrame && gameFrame.contentWindow) {
+                    try {
+                        gameFrame.contentWindow.postMessage({ type: 'RESCALE' }, '*');
+                    } catch (_) {}
+                }
+            }, 500);
         } else if (event.data === 'updated') {
             console.log('[SSE] Software actualizado, recargando página...');
             setTimeout(() => window.location.reload(), 1500);

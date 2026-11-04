@@ -324,6 +324,36 @@ if (SCREEN_ID) {
                 } catch (err) {
                     console.error('[mqtt] [POWER] Error reiniciando:', err.message);
                 }
+            } else if (payload.action === 'SET_ORIENTATION' || payload.action === 'ROTATE') {
+                const targetOrientation = payload.orientation || (payload.rotation === 0 ? 'LANDSCAPE' : 'PORTRAIT');
+                console.log(`[mqtt] [ROTATE] Comando de orientación recibido: ${targetOrientation} (${topic})`);
+
+                try {
+                    const rotateScriptPath = path.join(__dirname, 'rotate.sh');
+                    let stdoutResult = '';
+                    if (fs.existsSync(rotateScriptPath)) {
+                        const { stdout, stderr } = await execPromise(`bash "${rotateScriptPath}" "${targetOrientation}"`, { timeout: 15000 });
+                        stdoutResult = stdout || '';
+                        console.log('[mqtt] [ROTATE] Resultado rotate.sh:\n', stdoutResult);
+                        if (stderr) console.warn('[mqtt] [ROTATE] Stderr rotate.sh:', stderr);
+                    } else {
+                        console.warn('[mqtt] [ROTATE] rotate.sh no encontrado, ejecutando fallback wlr-randr...');
+                        const rot = targetOrientation === 'LANDSCAPE' ? 'normal' : '90';
+                        await execPromise(`wlr-randr --output HDMI-A-1 --transform ${rot} 2>/dev/null || true`, { timeout: 10000 });
+                    }
+
+                    // Reportar nuevo estado de orientación al broker
+                    client.publish(`screens/${SCREEN_ID}/orientation_status`, targetOrientation, { qos: 1, retain: true });
+
+                    // Notificar a los navegadores locales conectados (SSE)
+                    sseClients.forEach(c => {
+                        c.write(`data: rotate\n\n`);
+                    });
+
+                    console.log(`[mqtt] [ROTATE] Orientación aplicada correctamente a ${targetOrientation}.`);
+                } catch (err) {
+                    console.error('[mqtt] [ROTATE] Error aplicando rotación:', err.message);
+                }
             }
         }
     });
