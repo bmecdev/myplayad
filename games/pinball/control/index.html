@@ -27,6 +27,25 @@
         <p class="footer-hint">Toca la izquierda para Flipper Izq y la derecha para Flipper Der.</p>
     </div>
 
+    <!-- Pantalla de Espera durante Publicidad en Pantalla -->
+    <div id="ad-waiting-screen" class="welcome-container" style="display: none;">
+        <div class="header-logo">
+            <h1>PINBALL <span>ARCADE</span></h1>
+        </div>
+        <div class="input-group" style="align-items: center; text-align: center;">
+            <div class="ad-pulse-icon" style="font-size: 3rem; margin: 12px 0; animation: pulse 1.2s infinite;">📺</div>
+            <p class="welcome-text" style="color: var(--amber); font-weight: bold; font-size: 1.1rem; line-height: 1.4;">
+                ¡MIRA LA PANTALLA!
+            </p>
+            <p class="welcome-text" style="color: var(--text-dim); font-size: 0.9rem; margin-top: 8px;">
+                Tu partida comenzará automáticamente al finalizar el video.
+            </p>
+            <div style="margin-top: 18px; font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--accent); background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--panel-border);">
+                PILOTO: <span id="ad-pilot-badge">---</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Pantalla de Fin de Partida -->
     <div id="thanks-screen" class="thanks-container" style="display: none;">
         <div class="header-logo">

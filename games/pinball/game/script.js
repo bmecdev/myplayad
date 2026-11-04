@@ -24,6 +24,11 @@ const waitingOverlay = document.getElementById('waiting-overlay');
 const rankingList = document.getElementById('ranking-list');
 const audioToggleBtn = document.getElementById('audio-toggle-btn');
 const mainScreen = document.getElementById('main-screen');
+const adVideoOverlay = document.getElementById('ad-video-overlay');
+const adVideoPlayer = document.getElementById('ad-video-player');
+const adCountdown = document.getElementById('ad-countdown');
+const adPilotName = document.getElementById('ad-pilot-name');
+let cachedAdVideoUrl = null;
 
 // ==========================================
 // 🔊 Synthesized Web Audio API System
@@ -302,6 +307,7 @@ const audio = new SoundFX();
 const GameState = {
     running: false,
     gameOver: false,
+    adPlaying: false,
     score: 0,
     highScore: 0,
     ballsLeft: 3,
@@ -1646,6 +1652,16 @@ window.addEventListener('keydown', (e) => {
     audio.init();
     const key = e.key.toLowerCase();
 
+    // Saltar publicidad durante pruebas de teclado si está activa
+    if (GameState.adPlaying) {
+        if ([' ', 'enter', 'escape'].includes(key)) {
+            if (typeof window._finishCurrentAd === 'function') {
+                window._finishCurrentAd();
+            }
+            return;
+        }
+    }
+
     // Tecla 'R' para reiniciar partida manualmente en cualquier momento
     if (key === 'r') {
         startNewGame();
@@ -1654,19 +1670,19 @@ window.addEventListener('keydown', (e) => {
 
     if (['arrowleft', 'a', 'z'].includes(key)) {
         if (!GameState.running || GameState.gameOver) {
-            startNewGame();
+            playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
         activateFlipper('left', true);
     } else if (['arrowright', 'd', 'x', '/'].includes(key)) {
         if (!GameState.running || GameState.gameOver) {
-            startNewGame();
+            playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
         activateFlipper('right', true);
     } else if (key === ' ' || key === 'arrowdown' || key === 'enter') {
         if (!GameState.running || GameState.gameOver) {
-            startNewGame();
+            playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
         chargePlunger();
@@ -1688,13 +1704,17 @@ window.addEventListener('keyup', (e) => {
 
 mainScreen.addEventListener('click', () => {
     audio.init();
-    if (!GameState.running || GameState.gameOver) startNewGame();
+    if (!GameState.running || GameState.gameOver) {
+        playPreGameAdThenStart('PILOT', () => startNewGame());
+    }
 });
 
 if (waitingOverlay) {
     waitingOverlay.addEventListener('click', () => {
         audio.init();
-        if (!GameState.running || GameState.gameOver) startNewGame();
+        if (!GameState.running || GameState.gameOver) {
+            playPreGameAdThenStart('PILOT', () => startNewGame());
+        }
     });
 }
 
@@ -1880,10 +1900,154 @@ function connectSignaling() {
     } catch (_) {}
 }
 
+// ==========================================
+// 📺 Sistema de Publicidad Pre-Juego
+// ==========================================
+function broadcastToControllers(msg) {
+    const payload = JSON.stringify(msg);
+    dataChannels.forEach(dc => {
+        if (dc && dc.readyState === 'open') {
+            try { dc.send(payload); } catch (_) {}
+        }
+    });
+}
+
+function requestAdVideo() {
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*'); } catch (_) {}
+    }
+    const sId = new URLSearchParams(window.location.search).get('screenId');
+    if (sId && !cachedAdVideoUrl) {
+        fetch(`/api/videos/${sId}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (d && d.videos && d.videos.length > 0) {
+                    cachedAdVideoUrl = `/videos/${sId}/${encodeURIComponent(d.videos[0])}`;
+                }
+            })
+            .catch(() => {});
+    }
+}
+
+window.addEventListener('message', (event) => {
+    if (!event.data) return;
+    if (event.data.type === 'AD_VIDEO_RESPONSE') {
+        if (event.data.videoUrl) {
+            cachedAdVideoUrl = event.data.videoUrl;
+        }
+    }
+});
+
+function playPreGameAdThenStart(nickname, startGameCallback) {
+    if (GameState.adPlaying) return;
+
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        broadcastToControllers({ type: 'game_start' });
+        startGameCallback();
+        return;
+    }
+
+    const startAdPlayback = (videoUrl) => {
+        if (!videoUrl) {
+            console.log('[ad] No hay video publicitario configurado. Arrancando partida.');
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+            return;
+        }
+
+        GameState.adPlaying = true;
+        if (adPilotName) adPilotName.textContent = `PILOTO: ${(nickname || 'PILOT').toUpperCase()}`;
+        if (adCountdown) adCountdown.textContent = 'INICIANDO...';
+        adVideoOverlay.classList.remove('hidden');
+
+        // Avisar a la pantalla principal para pausar el reproductor lateral
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
+        }
+
+        let adFinished = false;
+        let safetyTimer = null;
+
+        const finishAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+
+            // Reanudar reproductor lateral
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+
+            // Avisar a los celulares que el juego empezó (activar flippers)
+            broadcastToControllers({ type: 'game_start' });
+
+            // Iniciar la partida
+            startGameCallback();
+        };
+
+        window._finishCurrentAd = finishAd;
+
+        adVideoPlayer.onended = finishAd;
+        adVideoPlayer.onerror = (err) => {
+            console.warn('[ad] Error en video publicitario, omitiendo:', err);
+            finishAd();
+        };
+
+        adVideoPlayer.ontimeupdate = () => {
+            if (adVideoPlayer.duration && !isNaN(adVideoPlayer.duration)) {
+                const remaining = Math.max(0, Math.ceil(adVideoPlayer.duration - adVideoPlayer.currentTime));
+                if (adCountdown) adCountdown.textContent = `JUEGO EN: ${remaining}s`;
+            }
+        };
+
+        adVideoPlayer.src = videoUrl;
+        adVideoPlayer.currentTime = 0;
+        adVideoPlayer.muted = false;
+
+        const p = adVideoPlayer.play();
+        if (p !== undefined) {
+            p.catch(() => {
+                console.warn('[ad] Autoplay con audio bloqueado, reintentando silenciado...');
+                adVideoPlayer.muted = true;
+                adVideoPlayer.play().catch(finishAd);
+            });
+        }
+
+        safetyTimer = setTimeout(finishAd, 35000);
+    };
+
+    if (cachedAdVideoUrl) {
+        startAdPlayback(cachedAdVideoUrl);
+    } else {
+        requestAdVideo();
+        setTimeout(() => {
+            startAdPlayback(cachedAdVideoUrl);
+        }, 300);
+    }
+}
+
 function handleControllerDisconnect(playerId) {
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
-    if (dataChannels.size === 0 && !GameState.running) {
+    if (dataChannels.size === 0 && !GameState.running && !GameState.adPlaying) {
         waitingOverlay.classList.remove('hidden');
     }
 }
@@ -1903,7 +2067,9 @@ function setupDataChannel(dc, senderId) {
             if (data.type === 'join' || data.type === 'nickname') {
                 GameState.currentNickname = data.nickname || data.value || 'Player';
                 playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
-                startNewGame();
+                playPreGameAdThenStart(GameState.currentNickname, () => {
+                    startNewGame();
+                });
             } else if (data.action === 'FLIPPER_LEFT_DOWN') {
                 activateFlipper('left', true);
             } else if (data.action === 'FLIPPER_LEFT_UP') {
@@ -1965,6 +2131,7 @@ window.addEventListener('message', (e) => {
 initTableElements();
 spawnBallInPlunger();
 loadRanking();
+requestAdVideo();
 updateUI();
 updateQrCode();
 autoScale();

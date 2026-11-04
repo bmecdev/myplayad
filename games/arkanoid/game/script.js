@@ -11,6 +11,11 @@ const rankingList = document.getElementById('ranking-list');
 const videoRankingList = document.getElementById('video-ranking-list');
 const qrContainer = document.getElementById('qrcode');
 const iceRouteElement = document.getElementById('ice-route');
+const adVideoOverlay = document.getElementById('ad-video-overlay');
+const adVideoPlayer = document.getElementById('ad-video-player');
+const adCountdown = document.getElementById('ad-countdown');
+const adPilotName = document.getElementById('ad-pilot-name');
+let cachedAdVideoUrl = null;
 
 // WebRTC State (Declarado al inicio para acceso global en broadcastSFX)
 const peerConnections = new Map();
@@ -294,6 +299,7 @@ const GameState = {
     lives: 3,
     running: false,
     gameOver: false,
+    adPlaying: false,
     paused: false,
     lastTime: 0,
     paddle: {
@@ -516,13 +522,157 @@ function connectSignalingServer() {
     };
 }
 
+// ==========================================
+// 📺 Sistema de Publicidad Pre-Juego
+// ==========================================
+function broadcastToControllers(msg) {
+    const payload = JSON.stringify(msg);
+    dataChannels.forEach(dc => {
+        if (dc && dc.readyState === 'open') {
+            try { dc.send(payload); } catch (_) {}
+        }
+    });
+}
+
+function requestAdVideo() {
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*'); } catch (_) {}
+    }
+    const sId = new URLSearchParams(window.location.search).get('screenId');
+    if (sId && !cachedAdVideoUrl) {
+        fetch(`/api/videos/${sId}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (d && d.videos && d.videos.length > 0) {
+                    cachedAdVideoUrl = `/videos/${sId}/${encodeURIComponent(d.videos[0])}`;
+                }
+            })
+            .catch(() => {});
+    }
+}
+
+window.addEventListener('message', (event) => {
+    if (!event.data) return;
+    if (event.data.type === 'AD_VIDEO_RESPONSE') {
+        if (event.data.videoUrl) {
+            cachedAdVideoUrl = event.data.videoUrl;
+        }
+    }
+});
+
+function playPreGameAdThenStart(nickname, startGameCallback) {
+    if (GameState.adPlaying) return;
+
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        broadcastToControllers({ type: 'game_start' });
+        startGameCallback();
+        return;
+    }
+
+    const startAdPlayback = (videoUrl) => {
+        if (!videoUrl) {
+            console.log('[ad] No hay video publicitario configurado. Arrancando partida.');
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+            return;
+        }
+
+        GameState.adPlaying = true;
+        if (adPilotName) adPilotName.textContent = `PILOTO: ${(nickname || 'PILOT').toUpperCase()}`;
+        if (adCountdown) adCountdown.textContent = 'INICIANDO...';
+        adVideoOverlay.classList.remove('hidden');
+
+        // Avisar a la pantalla principal para pausar el reproductor lateral
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
+        }
+
+        let adFinished = false;
+        let safetyTimer = null;
+
+        const finishAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+
+            // Reanudar reproductor lateral
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+
+            // Avisar a los celulares que el juego empezó (activar controles)
+            broadcastToControllers({ type: 'game_start' });
+
+            // Iniciar la partida
+            startGameCallback();
+        };
+
+        window._finishCurrentAd = finishAd;
+
+        adVideoPlayer.onended = finishAd;
+        adVideoPlayer.onerror = (err) => {
+            console.warn('[ad] Error en video publicitario, omitiendo:', err);
+            finishAd();
+        };
+
+        adVideoPlayer.ontimeupdate = () => {
+            if (adVideoPlayer.duration && !isNaN(adVideoPlayer.duration)) {
+                const remaining = Math.max(0, Math.ceil(adVideoPlayer.duration - adVideoPlayer.currentTime));
+                if (adCountdown) adCountdown.textContent = `JUEGO EN: ${remaining}s`;
+            }
+        };
+
+        adVideoPlayer.src = videoUrl;
+        adVideoPlayer.currentTime = 0;
+        adVideoPlayer.muted = false;
+
+        const p = adVideoPlayer.play();
+        if (p !== undefined) {
+            p.catch(() => {
+                console.warn('[ad] Autoplay con audio bloqueado, reintentando silenciado...');
+                adVideoPlayer.muted = true;
+                adVideoPlayer.play().catch(finishAd);
+            });
+        }
+
+        safetyTimer = setTimeout(finishAd, 35000);
+    };
+
+    if (cachedAdVideoUrl) {
+        startAdPlayback(cachedAdVideoUrl);
+    } else {
+        requestAdVideo();
+        setTimeout(() => {
+            startAdPlayback(cachedAdVideoUrl);
+        }, 300);
+    }
+}
+
 function handleControllerDisconnect(playerId) {
     const pc = peerConnections.get(playerId);
     if (pc) pc.close();
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    if (peerConnections.size === 0) {
+    if (peerConnections.size === 0 && !GameState.adPlaying) {
         waitingOverlay.classList.remove('hidden');
         GameState.running = false;
         GameState.gameOver = true; // Auto game over on disconnect
@@ -560,10 +710,12 @@ async function handleOffer(data) {
         receiveChannel.onmessage = (e) => {
             try {
                 const input = JSON.parse(e.data);
-                if (input.type === 'nickname') {
-                    GameState.currentNickname = input.value;
+                if (input.type === 'nickname' || input.type === 'join') {
+                    GameState.currentNickname = input.value || input.nickname || 'Player';
                     if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
-                    resetGame(); // Start game
+                    playPreGameAdThenStart(GameState.currentNickname, () => {
+                        resetGame(); // Start game
+                    });
                 } else {
                     handleJoystickInput(input);
                 }
@@ -1121,6 +1273,16 @@ window.addEventListener('message', (event) => {
 // Controles de teclado para pruebas en navegador
 window.addEventListener('keydown', (e) => {
     audio.init();
+
+    if (GameState.adPlaying) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+            if (typeof window._finishCurrentAd === 'function') {
+                window._finishCurrentAd();
+            }
+            return;
+        }
+    }
+
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
         GameState.paddle.targetX = undefined;
         GameState.paddle.dx = -GameState.paddle.speed;
@@ -1130,8 +1292,11 @@ window.addEventListener('keydown', (e) => {
         GameState.paddle.dx = GameState.paddle.speed;
     }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter') {
-        if (!GameState.running || GameState.gameOver) resetGame();
-        else handleJoystickInput({ fire: true });
+        if (!GameState.running || GameState.gameOver) {
+            playPreGameAdThenStart('PILOT', () => resetGame());
+        } else {
+            handleJoystickInput({ fire: true });
+        }
     }
 });
 
@@ -1142,7 +1307,11 @@ window.addEventListener('keyup', (e) => {
 
 mainScreen.addEventListener('click', () => {
     audio.init();
-    if (!GameState.running || GameState.gameOver) resetGame();
+    if (!GameState.running || GameState.gameOver) {
+        playPreGameAdThenStart('PILOT', () => resetGame());
+    }
 });
+
+requestAdVideo();
 
 
