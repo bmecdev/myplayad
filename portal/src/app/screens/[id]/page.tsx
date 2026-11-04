@@ -397,7 +397,10 @@ export default function ScreenDetailPage() {
     setIsExistingVideoModalOpen(true);
     setSelectedVideoIds([]);
     try {
-      const endpoint = screen?.userId ? `/api/videos?userId=${screen.userId}` : '/api/videos';
+      const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+      const endpoint = isSuperAdmin 
+        ? '/api/videos' 
+        : (screen?.userId ? `/api/videos?userId=${screen.userId}` : '/api/videos');
       const res = await fetch(endpoint);
       if (res.ok) {
         const data = await res.json();
@@ -406,6 +409,13 @@ export default function ScreenDetailPage() {
         setAllVideos(
           data.filter((v: Video) => {
             if (existingIds.has(v.id)) return false;
+            if (isSuperAdmin) {
+              // Super Admin puede ver videos de este cliente Y videos sin cliente asignado (globales)
+              if (screen?.userId) {
+                return v.userId === screen.userId || !v.userId;
+              }
+              return true;
+            }
             // Si la pantalla pertenece a un cliente, SOLO mostrar videos de ese mismo cliente
             if (screen?.userId) {
               return v.userId === screen.userId;
@@ -1190,13 +1200,8 @@ export default function ScreenDetailPage() {
             
             <div className="overflow-y-auto flex-1 space-y-2 mb-4 pr-2">
               {allVideos.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground text-sm space-y-2">
+                <div className="text-center py-6 text-muted-foreground text-sm">
                   <p>No hay videos disponibles para esta pantalla o todos ya están asignados.</p>
-                  {currentUser?.role === 'SUPER_ADMIN' && screen?.userId && (
-                    <p className="text-xs text-blue-300/80 bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 text-left">
-                      💡 Si subiste videos como Super Admin sin asignar cliente (globales), ve a la sección <strong>Videos</strong> y asígnalos a este cliente con el botón <strong>Cliente</strong> para habilitarlos aquí.
-                    </p>
-                  )}
                 </div>
               ) : (
                 allVideos.map(video => (
@@ -1218,7 +1223,14 @@ export default function ScreenDetailPage() {
                         <Film className="w-5 h-5 text-purple-500/50" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm">{video.title}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-sm">{video.title}</h4>
+                          {!video.userId && (
+                            <span className="text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-1.5 py-0.5 rounded font-medium">
+                              Global / Sin cliente
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">{new Date(video.createdAt).toLocaleDateString()}</p>
                       </div>
                     </div>
