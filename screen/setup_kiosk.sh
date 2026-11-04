@@ -225,9 +225,17 @@ esac
 # 2. Configurar y lanzar Kanshi (Rotación y Resolución Hotplug-safe)
 mkdir -p ~/.config/kanshi
 cat << KANSHI_EOF > ~/.config/kanshi/config
-profile default {
+profile hdmi1 {
+    output HDMI-A-1 transform ${SCREEN_TRANSFORM}
+}
+profile hdmi2 {
+    output HDMI-A-2 transform ${SCREEN_TRANSFORM}
+}
+profile dual {
     output HDMI-A-1 transform ${SCREEN_TRANSFORM}
     output HDMI-A-2 transform ${SCREEN_TRANSFORM}
+}
+profile fallback {
     output * transform ${SCREEN_TRANSFORM}
 }
 KANSHI_EOF
