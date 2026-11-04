@@ -8,6 +8,8 @@ const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
 const thanksScreen = document.getElementById('thanks-screen');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 
 const joystickBase = document.getElementById('joystick-base');
 const joystickKnob = document.getElementById('joystick-knob');
@@ -127,11 +129,14 @@ async function connectToHost() {
                 }
                 pendingCandidates = [];
 
-                // Transición visual inmediata al control
+                // Transición a pantalla de espera publicitaria
                 roomSelection.style.display = 'none';
-                container.style.display = 'flex';
-                status.textContent = `PILOTO CONECTADO: ${nickname}`;
-                haptic([40, 30, 40]);
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                }
+                status.textContent = '📺 MIRA LA PANTALLA...';
+                status.style.color = '#ffb703';
             } else if (data.type === 'candidate') {
                 if (pc && pc.remoteDescription) {
                     try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (e) {}
@@ -153,18 +158,53 @@ async function initPeerConnection() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = `EN VUELO: ${nickname}`;
+        status.textContent = '📺 MIRA LA PANTALLA...';
+        status.style.color = '#ffb703';
+        roomSelection.style.display = 'none';
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+        }
+        if (container) container.style.display = 'none';
+
         dataChannel.send(JSON.stringify({
             type: 'join',
             nickname: nickname,
             value: nickname
         }));
+
+        setTimeout(() => {
+            if (container && container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                container.style.display = 'flex';
+                status.textContent = `PILOTO CONECTADO: ${nickname}`;
+                status.style.color = '#3dff8a';
+            }
+        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'game_over') {
+            if (data.type === 'ad_playing') {
+                status.textContent = '📺 MIRA LA PANTALLA';
+                status.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (data.nickname || nickname)) {
+                        adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                    }
+                }
+                if (container) container.style.display = 'none';
+            } else if (data.type === 'game_start') {
+                status.textContent = `⚡ ENLACE ACTIVO: ${nickname}`;
+                status.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                if (container) container.style.display = 'flex';
+                haptic([40, 60, 40]);
+            } else if (data.type === 'game_over') {
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
                 if (data.sound === 'hit') haptic([60, 40, 80]);

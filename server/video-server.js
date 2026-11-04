@@ -117,10 +117,10 @@ async function syncScreenVideos(screenId) {
 
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'x-file-name, content-type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'x-file-name, content-type, range');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-    if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST') { res.writeHead(405); res.end(); return; }
 
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const parts = url.pathname.split('/').filter(Boolean);
@@ -225,13 +225,17 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // GET /videos/:screenId/:filename  →  stream del archivo (ignora screenId y usa pool)
+    // GET / HEAD /videos/:screenId/:filename  →  stream del archivo (ignora screenId y usa pool)
     if (parts[0] === 'videos' && parts[1] && parts[2]) {
         const screenId = parts[1];
-        const filename = path.basename(parts[2]); // basename evita path traversal
         if (!GUID_RE.test(screenId)) {
             res.writeHead(400); res.end('screenId inválido'); return;
         }
+
+        // Obtener el nombre del archivo sin importar subdirectorios (ej: 'pool/...') o si viene codificado
+        let rawFilename = parts.slice(2).join('/');
+        try { rawFilename = decodeURIComponent(rawFilename); } catch (_) {}
+        const filename = path.basename(rawFilename); // basename evita path traversal
 
         // TODOS los videos ahora están en la carpeta 'pool'
         const filePath = path.join(VIDEOS_DIR, 'pool', filename);
@@ -239,6 +243,16 @@ const server = http.createServer((req, res) => {
             if (err) { res.writeHead(404); res.end('No encontrado'); return; }
             const ext = path.extname(filename).toLowerCase();
             const mime = MIME[ext] || 'application/octet-stream';
+            res.setHeader('Content-Type', mime);
+            res.setHeader('Accept-Ranges', 'bytes');
+
+            if (req.method === 'HEAD') {
+                res.setHeader('Content-Length', stat.size);
+                res.writeHead(200);
+                res.end();
+                return;
+            }
+
             const range = req.headers.range;
             if (range) {
                 const [startStr, endStr] = range.replace(/bytes=/, '').split('-');

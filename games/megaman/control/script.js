@@ -9,6 +9,8 @@ const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
 const playAgainBtn = document.getElementById('play-again-btn');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
@@ -193,9 +195,15 @@ async function initConnection() {
                             sdp: sdp
                         }));
                         isGameConnected = true;
-                        status.textContent = '⚡ CONECTADO';
+                        status.textContent = '📺 MIRA LA PANTALLA...';
+                        status.style.color = '#ffb703';
                         roomSelection.style.display = 'none';
-                        updateOrientationView();
+                        if (adWaitingScreen) {
+                            adWaitingScreen.style.display = 'flex';
+                            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                        }
+                        if (rotateScreen) rotateScreen.style.display = 'none';
+                        if (container) container.style.display = 'none';
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -269,9 +277,15 @@ async function setupWebRTC() {
 
     dataChannel.onopen = () => {
         isGameConnected = true;
-        status.textContent = '⚡ EN LÍNEA';
+        status.textContent = '📺 MIRA LA PANTALLA...';
+        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        updateOrientationView();
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+        }
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (container) container.style.display = 'none';
 
         dataChannel.send(JSON.stringify({
             type: 'join',
@@ -279,13 +293,39 @@ async function setupWebRTC() {
             value: nickname
         }));
 
-        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+        setTimeout(() => {
+            if (container && container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                updateOrientationView();
+                status.textContent = '⚡ CONECTADO';
+                status.style.color = '#3dff8a';
+            }
+        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'game_over') {
+            if (data.type === 'ad_playing') {
+                status.textContent = '📺 MIRA LA PANTALLA';
+                status.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (data.nickname || nickname)) {
+                        adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                    }
+                }
+                if (rotateScreen) rotateScreen.style.display = 'none';
+                if (container) container.style.display = 'none';
+            } else if (data.type === 'game_start') {
+                status.textContent = '⚡ CONECTADO';
+                status.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                updateOrientationView();
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            } else if (data.type === 'game_over') {
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
                 if (data.sound === 'hit') {
@@ -509,6 +549,11 @@ function isPortraitMode() {
 }
 
 function updateOrientationView() {
+    if (adWaitingScreen && adWaitingScreen.style.display === 'flex') {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
     if (thanksScreen && thanksScreen.style.display === 'flex') {
         if (rotateScreen) rotateScreen.style.display = 'none';
         return;

@@ -20,6 +20,13 @@ const qrContainer = document.getElementById('qrcode');
 const roomIdElement = document.getElementById('room-id');
 const livesCountElement = document.getElementById('lives-count');
 
+const adVideoOverlay = document.getElementById('ad-video-overlay');
+const adVideoPlayer = document.getElementById('ad-video-player');
+const adCountdown = document.getElementById('ad-countdown');
+const adPilotName = document.getElementById('ad-pilot-name');
+let cachedAdVideoUrl = null;
+let adVideoPromise = null;
+
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
 const GROUND_Y = 245;
@@ -412,6 +419,7 @@ const audio = new DuckHuntAudio();
 const GameState = {
     running: false,
     gameOver: false,
+    adPlaying: false,
     score: 0,
     highScore: 0,
     round: 1,
@@ -2735,7 +2743,7 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mousedown', (e) => {
     if (audio.init) audio.init();
     if (!GameState.running || GameState.gameOver) {
-        startNewGame();
+        playPreGameAdThenStart('HUNTER', () => startNewGame());
     } else {
         fireShot(Reticle.x, Reticle.y);
     }
@@ -2749,6 +2757,16 @@ window.addEventListener('keydown', (e) => {
     }
     if (audio.init) audio.init();
 
+    // Saltar publicidad durante pruebas de teclado si está activa
+    if (GameState.adPlaying) {
+        if ([' ', 'enter', 'escape'].includes(key) || e.code === 'Space') {
+            if (typeof window._finishCurrentAd === 'function') {
+                window._finishCurrentAd();
+            }
+            return;
+        }
+    }
+
     if (key === 'arrowleft' || key === 'a') Reticle.vx = -1;
     if (key === 'arrowright' || key === 'd') Reticle.vx = 1;
     if (key === 'arrowup' || key === 'w') Reticle.vy = -1;
@@ -2756,7 +2774,7 @@ window.addEventListener('keydown', (e) => {
 
     if (e.code === 'Space' || key === 'enter') {
         if (!GameState.running || GameState.gameOver) {
-            startNewGame();
+            playPreGameAdThenStart('HUNTER', () => startNewGame());
         } else {
             fireShot(Reticle.x, Reticle.y);
         }
@@ -2780,7 +2798,7 @@ if (mainScreen) {
         if (!audio.ctx) audio.init();
         else audio.resume();
         if (!GameState.running && !GameState.gameOver) {
-            startNewGame();
+            playPreGameAdThenStart('HUNTER', () => startNewGame());
         }
     });
 }
@@ -2796,7 +2814,7 @@ if (waitingOverlay) {
         if (!audio.ctx) audio.init();
         else audio.resume();
         if (!GameState.running || GameState.gameOver) {
-            startNewGame();
+            playPreGameAdThenStart('HUNTER', () => startNewGame());
         }
     });
 }
@@ -2932,6 +2950,185 @@ async function handleOffer(data) {
     }));
 }
 
+// ==========================================
+// 📺 Sistema de Publicidad Pre-Juego
+// ==========================================
+function broadcastToControllers(msg) {
+    const payload = JSON.stringify(msg);
+    dataChannels.forEach(dc => {
+        if (dc && dc.readyState === 'open') {
+            try { dc.send(payload); } catch (_) {}
+        }
+    });
+}
+
+function requestAdVideo() {
+    if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
+    if (adVideoPromise) return adVideoPromise;
+
+    adVideoPromise = new Promise((resolve) => {
+        if (cachedAdVideoUrl) return resolve(cachedAdVideoUrl);
+
+        const sId = new URLSearchParams(window.location.search).get('screenId');
+        const isDev = typeof window !== 'undefined' && (
+            window.location.hostname.includes('dev') ||
+            window.location.hostname.includes('staging') ||
+            window.location.hostname.includes('test')
+        );
+        const videoServer = (typeof CONFIG !== 'undefined' && CONFIG.VIDEO_SERVER_URL)
+            ? CONFIG.VIDEO_SERVER_URL
+            : (isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com');
+
+        let settled = false;
+        const finalize = (url) => {
+            if (settled) return;
+            settled = true;
+            if (url) cachedAdVideoUrl = url;
+            resolve(cachedAdVideoUrl || null);
+        };
+
+        const msgHandler = (event) => {
+            if (event.data && event.data.type === 'AD_VIDEO_RESPONSE') {
+                window.removeEventListener('message', msgHandler);
+                if (event.data.videoUrl) {
+                    finalize(event.data.videoUrl);
+                }
+            }
+        };
+        window.addEventListener('message', msgHandler);
+
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*'); } catch (_) {}
+        }
+
+        if (sId) {
+            fetch(`${videoServer}/api/videos/${sId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    if (d && d.videos && d.videos.length > 0) {
+                        const rawName = d.videos[0] || '';
+                        const cleanName = rawName.split('/').pop();
+                        const fullUrl = `${videoServer}/videos/${sId}/${encodeURIComponent(cleanName)}`;
+                        finalize(fullUrl);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        setTimeout(() => {
+            window.removeEventListener('message', msgHandler);
+            finalize(cachedAdVideoUrl || null);
+        }, 1200);
+    });
+
+    return adVideoPromise;
+}
+
+window.addEventListener('message', (event) => {
+    if (!event.data) return;
+    if (event.data.type === 'AD_VIDEO_RESPONSE') {
+        if (event.data.videoUrl) {
+            cachedAdVideoUrl = event.data.videoUrl;
+        }
+    }
+});
+
+function playPreGameAdThenStart(nickname, startGameCallback) {
+    if (GameState.adPlaying) return;
+
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        broadcastToControllers({ type: 'game_start' });
+        startGameCallback();
+        return;
+    }
+
+    const startAdPlayback = (videoUrl) => {
+        if (!videoUrl) {
+            console.log('[ad] No hay video publicitario configurado. Arrancando partida.');
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+            return;
+        }
+
+        GameState.adPlaying = true;
+        if (adPilotName) adPilotName.textContent = `CAZADOR: ${(nickname || 'HUNTER').toUpperCase()}`;
+        if (adCountdown) adCountdown.textContent = 'INICIANDO...';
+        adVideoOverlay.classList.remove('hidden');
+
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
+        }
+
+        let adFinished = false;
+        let safetyTimer = null;
+
+        const finishAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+        };
+
+        window._finishCurrentAd = finishAd;
+
+        adVideoPlayer.onended = finishAd;
+        adVideoPlayer.onerror = (err) => {
+            console.warn('[ad] Error en video publicitario, omitiendo:', err);
+            finishAd();
+        };
+
+        adVideoPlayer.ontimeupdate = () => {
+            if (adVideoPlayer.duration && !isNaN(adVideoPlayer.duration)) {
+                const remaining = Math.max(0, Math.ceil(adVideoPlayer.duration - adVideoPlayer.currentTime));
+                if (adCountdown) adCountdown.textContent = `JUEGO EN: ${remaining}s`;
+            }
+        };
+
+        adVideoPlayer.src = videoUrl;
+        adVideoPlayer.currentTime = 0;
+        adVideoPlayer.muted = false;
+
+        const p = adVideoPlayer.play();
+        if (p !== undefined) {
+            p.catch(() => {
+                console.warn('[ad] Autoplay con audio bloqueado, reintentando silenciado...');
+                adVideoPlayer.muted = true;
+                adVideoPlayer.play().catch(finishAd);
+            });
+        }
+
+        safetyTimer = setTimeout(finishAd, 35000);
+    };
+
+    requestAdVideo().then((videoUrl) => {
+        startAdPlayback(videoUrl);
+    });
+}
+
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
         GameState.isMobileSession = true;
@@ -2944,7 +3141,9 @@ function setupDataChannel(channel, playerId) {
             if (msg.type === 'join' || msg.type === 'nickname') {
                 GameState.currentNickname = (msg.nickname || msg.value || 'HUNTER').toUpperCase().substring(0, 10);
                 if (playerNickElement) playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
-                startNewGame(true);
+                playPreGameAdThenStart(GameState.currentNickname, () => {
+                    startNewGame(true);
+                });
             } else if (msg.type === 'aim') {
                 // Mapear coordenadas normalizadas (0 a 1) al Canvas
                 Reticle.x = (msg.x || 0.5) * CANVAS_WIDTH;
@@ -3080,6 +3279,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     const scores = JSON.parse(localStorage.getItem('duckhunt_scores') || '[]');
     renderRanking(scores);
+    requestAdVideo();
     requestAnimationFrame(gameLoop);
 });
 

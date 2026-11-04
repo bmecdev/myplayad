@@ -6,6 +6,8 @@ const statusEl = document.getElementById('status');
 const roomSelection = document.getElementById('room-selection');
 const gameContainer = document.getElementById('game-container');
 const thanksScreen = document.getElementById('thanks-screen');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const hudNick = document.getElementById('hud-nick');
@@ -468,10 +470,14 @@ function initSignaling() {
                         const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
                         await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
 
-                        // Transición inmediata a los controles al recibir answer
+                        // Transición a pantalla de espera publicitaria
                         roomSelection.style.display = 'none';
-                        gameContainer.style.display = 'flex';
-                        statusEl.textContent = 'ZAPPER CONECTADO';
+                        if (adWaitingScreen) {
+                            adWaitingScreen.style.display = 'flex';
+                            if (adPilotBadge) adPilotBadge.textContent = playerNickname.toUpperCase();
+                        }
+                        statusEl.textContent = '📺 MIRA LA PANTALLA...';
+                        statusEl.style.color = '#ffb703';
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -538,9 +544,14 @@ async function setupWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        statusEl.textContent = 'ZAPPER LISTO';
+        statusEl.textContent = '📺 MIRA LA PANTALLA...';
+        statusEl.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        gameContainer.style.display = 'flex';
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = playerNickname.toUpperCase();
+        }
+        if (gameContainer) gameContainer.style.display = 'none';
 
         // Enviar identificación del jugador
         dataChannel.send(JSON.stringify({
@@ -548,12 +559,39 @@ async function setupWebRTC() {
             nickname: playerNickname,
             value: playerNickname
         }));
+
+        setTimeout(() => {
+            if (gameContainer && gameContainer.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                gameContainer.style.display = 'flex';
+                statusEl.textContent = 'ZAPPER LISTO';
+                statusEl.style.color = '#3dff8a';
+            }
+        }, 40000);
     };
 
     dataChannel.onmessage = (e) => {
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'ammo') {
+            if (msg.type === 'ad_playing') {
+                statusEl.textContent = '📺 MIRA LA PANTALLA';
+                statusEl.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (msg.nickname || playerNickname)) {
+                        adPilotBadge.textContent = (msg.nickname || playerNickname).toUpperCase();
+                    }
+                }
+                if (gameContainer) gameContainer.style.display = 'none';
+            } else if (msg.type === 'game_start') {
+                statusEl.textContent = 'ZAPPER CONECTADO';
+                statusEl.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                if (gameContainer) gameContainer.style.display = 'flex';
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            } else if (msg.type === 'ammo') {
                 updateAmmoHUD(msg.count);
             } else if (msg.type === 'state') {
                 if (msg.round) updateLevelHUD(msg.round);
