@@ -310,18 +310,24 @@ body {
     margin-bottom: 6px;
 }
 
-#ranking-list {
+#ranking-list, #standby-ranking-list {
     list-style: none;
-    font-size: 7px;
+    font-size: 8px;
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-#ranking-list li {
+#ranking-list li, #standby-ranking-list li {
     display: flex;
     justify-content: space-between;
     color: var(--white);
+    padding: 2px 0;
+    border-bottom: 1px dashed rgba(61, 255, 138, 0.2);
+}
+
+#ranking-list li:first-child, #standby-ranking-list li:first-child {
+    color: var(--amber);
 }
 
 .instruction {
