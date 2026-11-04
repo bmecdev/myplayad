@@ -7,7 +7,7 @@
     <title>MyPlayAd Screen</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
     <!-- Pantalla Standby (cuando no hay ID o está cargando) -->
@@ -70,6 +70,21 @@
     <!-- Capa de Reposo / Apagado (Blackout) -->
     <div id="sleep-overlay" class="sleep-overlay hidden"></div>
 
-    <script src="main.js?v=6"></script>
+    <!-- Badge Discreto de Versión y Estado (Esquina inferior derecha) -->
+    <div id="system-version-badge" class="system-version-badge" title="Versión de software / commit activo">
+        <span class="version-dot">●</span>
+        <span id="version-text">v...</span>
+    </div>
+
+    <!-- Banner Flotante de Actualización OTA en pantalla -->
+    <div id="ota-banner" class="ota-banner hidden">
+        <div class="ota-spinner"></div>
+        <div class="ota-text-container">
+            <div id="ota-title" class="ota-title">ACTUALIZANDO SISTEMA (OTA)</div>
+            <div id="ota-desc" class="ota-desc">Descargando última versión de GitHub origin/main...</div>
+        </div>
+    </div>
+
+    <script src="main.js?v=7"></script>
 </body>
 </html>

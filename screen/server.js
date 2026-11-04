@@ -261,6 +261,9 @@ if (SCREEN_ID) {
                         stdoutResult = stdout || '';
                     }
 
+                    // Invalidar caché de versión para que el reload entregue el nuevo commit
+                    cachedGitInfo = null;
+
                     // Reportar éxito al broker MQTT
                     client.publish(`screens/${SCREEN_ID}/status`, 'online', { qos: 1, retain: true });
                     client.publish(`screens/${SCREEN_ID}/update_ack`, JSON.stringify({
@@ -412,6 +415,46 @@ async function applyRotation(targetOrientation) {
     };
 }
 
+let cachedGitInfo = null;
+/**
+ * Obtiene la versión actual de Git (commit hash, fecha y rama)
+ */
+async function getSystemVersionInfo() {
+    if (cachedGitInfo && Date.now() - cachedGitInfo.timestamp < 15000) {
+        return cachedGitInfo;
+    }
+    let commit = 'v1.0.0';
+    let commitDate = '';
+    let branch = 'main';
+
+    try {
+        let gitCwd = __dirname;
+        if (!fs.existsSync(path.join(gitCwd, '.git')) && fs.existsSync(path.join(path.dirname(gitCwd), '.git'))) {
+            gitCwd = path.dirname(gitCwd);
+        }
+        const { stdout: hash } = await execPromise('git rev-parse --short HEAD', { cwd: gitCwd, timeout: 3000 });
+        commit = hash.trim();
+        const { stdout: date } = await execPromise('git log -1 --format="%cs"', { cwd: gitCwd, timeout: 3000 });
+        commitDate = date.trim();
+        const { stdout: b } = await execPromise('git rev-parse --abbrev-ref HEAD', { cwd: gitCwd, timeout: 3000 });
+        branch = b.trim();
+    } catch (_) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+            commit = `v${pkg.version || '1.0.0'}`;
+        } catch (_) {}
+    }
+
+    cachedGitInfo = {
+        commit,
+        commitDate,
+        branch,
+        versionStr: commitDate ? `${commit} (${commitDate})` : commit,
+        timestamp: Date.now()
+    };
+    return cachedGitInfo;
+}
+
 
 // ─── HTTP Server ─────────────────────────────────────────────────────────────
 
@@ -428,7 +471,7 @@ const server = http.createServer((req, res) => {
     const parts = url.pathname.split('/').filter(Boolean);
 
     // GET /api/config
-    // Devuelve la configuración inicial al frontend (incluyendo orientación leída de config.txt)
+    // Devuelve la configuración inicial al frontend (incluyendo orientación leída de config.txt y versión de software)
     if (parts[0] === 'api' && parts[1] === 'config') {
         const bootCfgPath = fs.existsSync('/boot/firmware/config.txt')
             ? '/boot/firmware/config.txt'
@@ -444,12 +487,39 @@ const server = http.createServer((req, res) => {
         const isLandscape = currentRotate === '0' || currentRotate.toLowerCase() === 'landscape';
         const currentOrientation = isLandscape ? 'LANDSCAPE' : 'PORTRAIT';
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            screenId: SCREEN_ID || null,
-            orientation: currentOrientation,
-            rotation: isLandscape ? 0 : 90
-        }));
+        getSystemVersionInfo().then(versionInfo => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                screenId: SCREEN_ID || null,
+                orientation: currentOrientation,
+                rotation: isLandscape ? 0 : 90,
+                version: versionInfo.versionStr,
+                commit: versionInfo.commit,
+                commitDate: versionInfo.commitDate,
+                branch: versionInfo.branch
+            }));
+        }).catch(() => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                screenId: SCREEN_ID || null,
+                orientation: currentOrientation,
+                rotation: isLandscape ? 0 : 90,
+                version: 'v1.0.0'
+            }));
+        });
+        return;
+    }
+
+    // GET /api/version
+    // Devuelve metadatos del commit y versión instalada
+    if (parts[0] === 'api' && parts[1] === 'version') {
+        getSystemVersionInfo().then(versionInfo => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(versionInfo));
+        }).catch(err => {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+        });
         return;
     }
 

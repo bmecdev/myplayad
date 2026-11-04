@@ -264,6 +264,39 @@ function loadGame(slug) {
     }
 }
 
+let currentCommitHash = '';
+
+function updateVersionBadge(commit, orientation) {
+    if (commit) currentCommitHash = commit;
+    const badge = document.getElementById('version-text');
+    if (badge) {
+        const orientStr = (orientation || activeOrientation) === 'LANDSCAPE' ? 'H' : 'V';
+        badge.textContent = `${currentCommitHash || 'myplayad'} [${orientStr}]`;
+    }
+}
+
+function showOtaBanner(title, desc, isSuccess = false) {
+    const banner = document.getElementById('ota-banner');
+    const titleEl = document.getElementById('ota-title');
+    const descEl = document.getElementById('ota-desc');
+    if (!banner) return;
+
+    if (titleEl && title) titleEl.textContent = title;
+    if (descEl && desc) descEl.textContent = desc;
+
+    if (isSuccess) {
+        banner.classList.add('success');
+    } else {
+        banner.classList.remove('success');
+    }
+    banner.classList.remove('hidden');
+}
+
+function hideOtaBanner() {
+    const banner = document.getElementById('ota-banner');
+    if (banner) banner.classList.add('hidden');
+}
+
 async function initialize() {
     try {
         const res = await fetch('/api/config');
@@ -274,6 +307,9 @@ async function initialize() {
         if (config.orientation) {
             activeOrientation = config.orientation;
             console.log(`[config] Orientación física local (config.txt): ${activeOrientation}`);
+        }
+        if (config.commit || config.version) {
+            updateVersionBadge(config.commit || config.version, activeOrientation);
         }
     } catch (e) {
         console.warn('No se pudo obtener config de pantalla:', e);
@@ -333,9 +369,16 @@ async function initialize() {
                     } catch (_) {}
                 }
             }, 500);
+            updateVersionBadge(currentCommitHash, activeOrientation);
+        } else if (event.data === 'updating') {
+            console.log('[SSE] Actualización de software en curso...');
+            showOtaBanner('ACTUALIZANDO SISTEMA (OTA)', 'Descargando última versión de GitHub origin/main...');
+            const badge = document.getElementById('version-text');
+            if (badge) badge.textContent = 'ACTUALIZANDO...';
         } else if (event.data === 'updated') {
-            console.log('[SSE] Software actualizado, recargando página...');
-            setTimeout(() => window.location.reload(), 1500);
+            console.log('[SSE] Software actualizado exitosamente, recargando...');
+            showOtaBanner('¡ACTUALIZACIÓN EXITOSA!', 'Software instalado correctamente. Reiniciando pantalla...', true);
+            setTimeout(() => window.location.reload(), 1800);
         }
     };
     eventSource.onerror = (err) => {
@@ -386,6 +429,7 @@ async function checkSchedule() {
             if (activeOrientation !== portalOrientation) {
                 console.log(`[orientacion] Discrepancia detectada: local=${activeOrientation}, portal=${portalOrientation}. Aplicando rotación en RPi...`);
                 activeOrientation = portalOrientation;
+                updateVersionBadge(currentCommitHash, activeOrientation);
                 fetch(`/api/rotate?orientation=${portalOrientation}`).catch(() => {});
             }
         }
