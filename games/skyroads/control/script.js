@@ -8,6 +8,8 @@ const roomSelection = document.getElementById('room-selection');
 const rotateScreen = document.getElementById('rotate-screen');
 const thanksScreen = document.getElementById('thanks-screen');
 const thanksMessage = document.getElementById('thanks-message');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 
 const btnJump = document.getElementById('btn-jump');
 const btnTurbo = document.getElementById('btn-turbo');
@@ -275,9 +277,12 @@ async function initConnection() {
                             type: 'answer',
                             sdp: sdp
                         }));
-                        status.textContent = '⚡ ENLACE ACTIVO';
+                        status.textContent = 'Enlazando...';
                         roomSelection.style.display = 'none';
-                        updateOrientationView();
+                        if (adWaitingScreen) {
+                            adWaitingScreen.style.display = 'flex';
+                            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                        }
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -349,6 +354,7 @@ async function setupWebRTC() {
         if (state === 'disconnected' || state === 'failed') {
             status.textContent = 'Desconectado';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                 container.style.display = 'none';
                 roomSelection.style.display = 'block';
             }
@@ -358,9 +364,14 @@ async function setupWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = '⚡ ENLACE ACTIVO';
+        status.textContent = '📺 MIRA LA PANTALLA...';
+        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        updateOrientationView();
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+        }
+        container.style.display = 'none';
 
         // Enviar evento de inicio con nickname
         dataChannel.send(JSON.stringify({
@@ -369,13 +380,38 @@ async function setupWebRTC() {
             value: nickname
         }));
 
-        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+        setTimeout(() => {
+            if (container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                updateOrientationView();
+                status.textContent = '⚡ ENLACE ACTIVO';
+                status.style.color = '#3dff8a';
+            }
+        }, 4000);
     };
 
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'game_over') {
+            if (data.type === 'ad_playing') {
+                status.textContent = '📺 MIRA LA PANTALLA';
+                status.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (data.nickname || nickname)) {
+                        adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                    }
+                }
+                container.style.display = 'none';
+            } else if (data.type === 'game_start') {
+                status.textContent = '⚡ ENLACE ACTIVO';
+                status.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                updateOrientationView();
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            } else if (data.type === 'game_over') {
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
                 if (data.sound === 'jump') {
