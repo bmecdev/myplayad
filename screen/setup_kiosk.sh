@@ -164,6 +164,22 @@ EOF
 # Volver al directorio de trabajo
 cd "$SCRIPT_DIR"
 
+# Bloquear popups de GNOME Keyring y almacenar contraseñas en modo plano
+mkdir -p "$TARGET_HOME/.config/autostart"
+for comp in secrets pkcs11 ssh; do
+    echo -e "[Desktop Entry]\nType=Application\nHidden=true" > "$TARGET_HOME/.config/autostart/gnome-keyring-$comp.desktop"
+done
+
+cat << 'EOF' > "$TARGET_HOME/.config/chromium-flags.conf"
+--password-store=basic
+--use-mock-keychain
+--noerrdialogs
+--disable-infobars
+--no-first-run
+--disable-features=Translate
+--disable-features=LockProfileCookieDatabase
+EOF
+
 # 7. Configurar labwc (Entorno y Autostart)
 echo ""
 echo "[7/7] Configurando compositor Wayland (labwc)..."
@@ -256,8 +272,8 @@ if command -v xset >/dev/null 2>&1; then
     xset s noblank 2>/dev/null || true
 fi
 
-# 4. Eliminar barra de tareas e íconos de escritorio (Kiosk Mode Puro)
-killall pcmanfm wf-panel-pi lwrespawn 2>/dev/null
+# 4. Eliminar barra de tareas, popups de keyring e íconos de escritorio (Kiosk Mode Puro)
+killall pcmanfm wf-panel-pi lwrespawn gcr-prompter gnome-keyring-daemon 2>/dev/null || true
 
 SCREEN_APP_DIR="$HOME/screen"
 
@@ -297,7 +313,7 @@ for i in $(seq 1 30); do
 done
 
 # 9. Abrir Chromium en modo kiosco (Wayland nativo, sin sleep, sin throttling)
-chromium --ozone-platform=wayland --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --autoplay-policy=no-user-gesture-required http://localhost:8090
+chromium --ozone-platform=wayland --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --use-mock-keychain --enable-features=OverlayScrollbar --disable-features=Translate --disable-pinch --overscroll-history-navigation=0 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --autoplay-policy=no-user-gesture-required http://localhost:8090
 EOF
 
 chmod +x "$TARGET_HOME/.config/labwc/autostart"
