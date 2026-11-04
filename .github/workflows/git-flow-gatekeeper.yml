@@ -1,0 +1,86 @@
+name: Git Flow & Staging Gatekeeper
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: git-flow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-git-flow:
+    name: Validar Flujo Staging -> Main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Regla 1: Todo PR hacia 'main' DEBE provenir exclusivamente de 'staging'
+      - name: Verificar rama de origen para Pull Request a Main
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: |
+          echo "=========================================================================="
+          echo "🔍 Verificando regla de promoción a Producción (Main)..."
+          echo "   Rama Destino (base): ${{ github.base_ref }}"
+          echo "   Rama Origen (head):   ${{ github.head_ref }}"
+          echo "=========================================================================="
+          
+          if [ "${{ github.head_ref }}" != "staging" ]; then
+            echo "❌ [ERROR DE SEGURIDAD]: VIOLACIÓN DEL FLUJO DE TRABAJO MYPLAYAD"
+            echo ""
+            echo "Se intentó abrir un Pull Request hacia 'main' directamente desde '${{ github.head_ref }}'."
+            echo ""
+            echo "📋 REGLAS OBLIGATORIAS DEL PROYECTO:"
+            echo "1. Todo cambio (feat, fix, game) debe ir PRIMERO hacia la rama 'staging'."
+            echo "2. Al mergear en 'staging', se despliega automáticamente en:"
+            echo "   - Portal Staging:   https://dev-portal.myplayad.com"
+            echo "   - Pantalla Staging: https://dev.myplayad.com"
+            echo "   - Videos Staging:   https://dev-videos.myplayad.com"
+            echo "3. Una vez probado y validado en Staging, se abre el PR desde 'staging' hacia 'main'."
+            echo "4. La rama 'staging' NUNCA debe borrarse al hacer merge."
+            echo ""
+            echo "👉 Por favor cambia la rama base de este Pull Request para que apunte a 'staging'."
+            echo "=========================================================================="
+            exit 1
+          fi
+          
+          echo "✓ [APROBADO]: El PR hacia 'main' proviene correctamente de la rama 'staging'."
+
+      # Regla 2: Todo push directo a 'main' debe contener commits presentes en 'staging'
+      - name: Verificar que los commits de Main provienen de Staging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "=========================================================================="
+          echo "🔍 Verificando integridad de commits en 'main' respecto a 'staging'..."
+          echo "=========================================================================="
+          
+          git fetch origin staging:refs/remotes/origin/staging --depth=200
+          
+          # Verificar si HEAD de main es ancestro o está contenido en origin/staging
+          if ! git merge-base --is-ancestor HEAD origin/staging 2>/dev/null && \
+             ! git merge-base --is-ancestor origin/staging HEAD 2>/dev/null; then
+            echo "⚠️ [ALERTA DE DESVIACIÓN]: El commit en 'main' no comparte historia con 'staging'."
+          fi
+          
+          echo "✓ Integridad de historial revisada."
+
+      # Regla 3: Verificación de sintaxis de código para evitar roturas
+      - name: Validar Sintaxis de JavaScript y Python
+        run: |
+          echo "🔎 Validando sintaxis de scripts de consola y servidor..."
+          node -c screen/server.js
+          node -c screen/frontend/main.js
+          python3 -m py_compile screen/set_rotation.py
+          bash -n screen/rotate.sh
+          bash -n screen/power.sh
+          bash -n screen/setup_kiosk.sh
+          bash -n screen/update.sh
+          echo "✓ Todos los scripts pasaron la validación de sintaxis con 0 errores."

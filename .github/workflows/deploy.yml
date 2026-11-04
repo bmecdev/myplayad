@@ -16,6 +16,22 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Gatekeeper - Verificar que el código proviene de Staging
+        run: |
+          echo "=========================================================================="
+          echo "🔒 Verificando que los cambios de Producción provienen de 'staging'..."
+          echo "=========================================================================="
+          git fetch origin staging:refs/remotes/origin/staging --depth=200
+          if ! git merge-base --is-ancestor origin/staging HEAD 2>/dev/null && \
+             ! git merge-base --is-ancestor HEAD origin/staging 2>/dev/null; then
+            echo "❌ [DESPLIEGUE RECHAZADO]: Este commit no comparte historial con 'staging'."
+            echo "Por política de seguridad de MyPlayAd, ningún cambio puede llegar a Producción"
+            echo "sin haber sido mergeado y validado previamente en la rama 'staging'."
+            exit 1
+          fi
+          echo "✓ [VERIFICADO]: El código proviene de la rama 'staging'. Continuando despliegue..."
 
       - name: Update Games Catalog in README.md
         run: |
