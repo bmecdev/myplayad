@@ -1190,8 +1190,13 @@ export default function ScreenDetailPage() {
             
             <div className="overflow-y-auto flex-1 space-y-2 mb-4 pr-2">
               {allVideos.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  No hay videos disponibles o todos ya están asignados.
+                <div className="text-center py-6 text-muted-foreground text-sm space-y-2">
+                  <p>No hay videos disponibles para esta pantalla o todos ya están asignados.</p>
+                  {currentUser?.role === 'SUPER_ADMIN' && screen?.userId && (
+                    <p className="text-xs text-blue-300/80 bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 text-left">
+                      💡 Si subiste videos como Super Admin sin asignar cliente (globales), ve a la sección <strong>Videos</strong> y asígnalos a este cliente con el botón <strong>Cliente</strong> para habilitarlos aquí.
+                    </p>
+                  )}
                 </div>
               ) : (
                 allVideos.map(video => (

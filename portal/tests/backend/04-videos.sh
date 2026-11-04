@@ -54,5 +54,13 @@ RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" -X DELETE "${PORTAL_URL}/api
 CODE=$(echo "$RESP" | tail -n 1)
 assert_status "Desasignación con pantalla inexistente retorna HTTP 404" 404 "$CODE"
 
+# 6. Validar endpoint de actualización y reasignación de video (PUT /api/videos/[id])
+log_info "6. Validando endpoint de reasignación de video a cliente (PUT /api/videos/[id])..."
+RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" -X PUT "${PORTAL_URL}/api/videos/video-inexistente" \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"none"}')
+CODE=$(echo "$RESP" | tail -n 1)
+assert_status "Actualización de video inexistente retorna HTTP 404" 404 "$CODE"
+
 echo -e "\nResultados Videos: ${GREEN}${TESTS_PASSED} pasados${NC}, ${RED}${TESTS_FAILED} fallados${NC}"
 exit $TESTS_FAILED
