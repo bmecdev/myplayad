@@ -6,7 +6,7 @@ Este repositorio contiene el código fuente completo del sistema MyPlayAd, una p
 
 El proyecto está dividido en tres componentes principales:
 
-1. **`portal/` (Next.js):** El panel de administración web y la API pública. Maneja la programación de campañas, gestión de pantallas y proporciona los endpoints que consumen las pantallas.
+1. **`portal/` (Next.js):** El panel de administración web y la API pública. Maneja la programación de campañas, gestión de pantallas, catálogo arcade con reproductor interactivo por teclado/QR (`/games`), y simulador en vivo de kiosco dual con rotación de videos (`/demo`).
 2. **`screen/` (Node.js + HTML/JS):** El servidor local y frontend que corre físicamente en cada pantalla (ej. Raspberry Pi). Sincroniza y almacena en caché los videos localmente para evitar cortes de internet, y reproduce el bucle publicitario.
 3. **`games/` (Static HTML/JS):** Los juegos retro interactivos. Tienen dos vistas: la del juego (que carga la pantalla) y el control (que carga el usuario en su móvil escaneando un código QR).
 
@@ -16,8 +16,8 @@ El proyecto está dividido en tres componentes principales:
 
 Toda la documentación oficial del sistema y sus guías interactivas se encuentran disponibles en la carpeta [`docs/`](docs/):
 
-* 📖 **[Manual del Portal MyPlayAd (Markdown)](docs/MANUAL_PORTAL_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PORTAL_MYPLAYAD.docx)**: Guía detallada con capturas de pantalla de autenticación, control de energía HDMI-CEC, biblioteca de videos con cuotas, planes de suscripción y gestión de clientes.
-* 📖 **[Manual de Producto & Arquitectura (Markdown)](docs/MANUAL_PRODUCTO_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PRODUCTO_MYPLAYAD.docx)**: Documento integral sobre la arquitectura física, cloud, protocolos WebRTC y ensamblaje de quioscos.
+* 📖 **[Manual del Portal MyPlayAd (Markdown)](docs/MANUAL_PORTAL_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PORTAL_MYPLAYAD.docx)**: Guía detallada con 13 capturas de pantalla oficiales de autenticación, control de energía HDMI-CEC, biblioteca de videos con cuotas, planes de suscripción, gestión de clientes, catálogo arcade interactivo y simulador de kiosco Raspberry Pi.
+* 📖 **[Manual de Producto & Arquitectura (Markdown)](docs/MANUAL_PRODUCTO_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PRODUCTO_MYPLAYAD.docx)**: Documento integral sobre la arquitectura física, cloud, protocolos WebRTC, publicidad pre-juego con fallback inteligente, hardening táctil móvil y ensamblaje de quioscos.
 * 🎬 **[Serie de 8 Videotutoriales Interactivos (`docs/videos/`)](docs/videos/)**: Cápsulas audiovisuales HD (1440x900) con cursor interactivo, banners explicativos paso a paso y flujos de negocio completos (alta de planes, tótems, clientes, pauta de videos, programación arcade y bajas).
 
 ---

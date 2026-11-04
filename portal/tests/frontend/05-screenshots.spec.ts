@@ -13,7 +13,7 @@ test.describe('Captura de Pantallas para Manuales del Portal MyPlayAd', () => {
   });
 
   test('Capturar todas las pantallas del portal para el manual', async ({ page }) => {
-    test.setTimeout(90000);
+    test.setTimeout(120000);
     await page.setViewportSize({ width: 1440, height: 900 });
 
     // 1. Pantalla de Login
@@ -104,6 +104,33 @@ test.describe('Captura de Pantallas para Manuales del Portal MyPlayAd', () => {
     await page.waitForTimeout(1000);
     await page.screenshot({ path: path.join(OUT_DIR, '10-games-catalog.png'), fullPage: false });
     console.log('Capturado: 10-games-catalog.png');
+
+    // 11. Modal del Juego Arcade Interactivo
+    const playBtn = page.locator('button:has-text("Jugar Ahora")').first();
+    if (await playBtn.isVisible()) {
+      await playBtn.click();
+      await page.waitForTimeout(2500);
+      await page.screenshot({ path: path.join(OUT_DIR, '11-game-play-modal.png'), fullPage: false });
+      console.log('Capturado: 11-game-play-modal.png');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(600);
+    }
+
+    // 12. Simulador de Kiosco Raspberry Pi - Horizontal (16:9 TV)
+    await page.goto('/demo');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: path.join(OUT_DIR, '12-demo-kiosk-landscape.png'), fullPage: false });
+    console.log('Capturado: 12-demo-kiosk-landscape.png');
+
+    // 13. Simulador de Kiosco Raspberry Pi - Vertical (9:16 Tótem)
+    const portraitBtn = page.locator('button:has-text("Vertical (9:16 Tótem)")');
+    if (await portraitBtn.isVisible()) {
+      await portraitBtn.click();
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: path.join(OUT_DIR, '13-demo-kiosk-portrait.png'), fullPage: false });
+      console.log('Capturado: 13-demo-kiosk-portrait.png');
+    }
   });
 });
 
