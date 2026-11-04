@@ -285,10 +285,7 @@ function connectSignaling(roomId) {
                     status.textContent = '📺 MIRA LA PANTALLA...';
                     status.style.color = '#ffb703';
                     roomSelection.style.display = 'none';
-                    if (adWaitingScreen) {
-                        adWaitingScreen.style.display = 'flex';
-                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-                    }
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                     if (controllerContainer) controllerContainer.style.display = 'none';
                     while (pendingCandidates.length > 0) {
                         try { await pc.addIceCandidate(new RTCIceCandidate(pendingCandidates.shift())); } catch (_) {}
@@ -339,26 +336,12 @@ async function startWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = '📺 MIRA LA PANTALLA...';
-        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        if (adWaitingScreen) {
-            adWaitingScreen.style.display = 'flex';
-            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-        }
-        if (controllerContainer) controllerContainer.style.display = 'none';
-        thanksScreen.style.display = 'none';
-        if (displayDriver) displayDriver.textContent = `PILOTO: ${nickname}`;
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        status.textContent = 'EN PISTA';
+        status.style.color = '#3dff8a';
+        if (controllerContainer) controllerContainer.style.display = 'flex';
         dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
-
-        setTimeout(() => {
-            if (controllerContainer && controllerContainer.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                controllerContainer.style.display = 'flex';
-                status.textContent = 'EN PISTA';
-                status.style.color = '#3dff8a';
-            }
-        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {

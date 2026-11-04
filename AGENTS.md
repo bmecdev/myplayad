@@ -106,20 +106,28 @@ Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Con
     * Al inicializar o registrar la sala, solicitar la URL del video publicitario activo mediante consulta al kiosco (`/api/kiosk/current` o endpoint del portal) o `window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*')`.
   * **Ciclo de Reproducción (`playPreGameAdThenStart(nickname, startGameCallback)`)**:
     * Al recibir el evento `{ type: 'join' }` o apodo desde el móvil:
-      1. Enviar mensaje por DataChannel a los mandos móviles: `{ type: 'ad_playing', nickname: nickname }`.
-      2. Ocultar overlays de espera y Game Over.
-      3. Pausar el reproductor lateral del kiosco si aplica: `window.parent.postMessage({ type: 'GAME_AD_START' }, '*')`.
-      4. Mostrar `#ad-video-overlay`, actualizar `#ad-pilot-name` y reproducir `adVideoPlayer.play()`.
-      5. Actualizar la cuenta regresiva en `#ad-countdown` con `adVideoPlayer.ontimeupdate`.
-      6. Al finalizar el video (`onended`), por error (`onerror`) o por fallback de seguridad (timeout de 65s):
-         - Ocultar `#ad-video-overlay`.
-         - Notificar al kiosco: `window.parent.postMessage({ type: 'GAME_AD_END' }, '*')`.
-         - Notificar a todos los celulares conectados: `{ type: 'game_start' }` para activar los controles táctiles.
-         - Ejecutar `startGameCallback()` para arrancar el bucle del juego.
+      1. Consultar de inmediato `requestAdVideo()`.
+      2. **Si NO hay video disponible (`!videoUrl`)**:
+         - **NUNCA enviar `ad_playing`** al celular.
+         - Enviar `{ type: 'game_start' }` para confirmar la activación directa de los controles táctiles.
+         - Iniciar inmediatamente la partida (`startGameCallback()`).
+      3. **Si SÍ hay video disponible (`videoUrl` válido)**:
+         - Enviar mensaje por DataChannel a los mandos móviles: `{ type: 'ad_playing', nickname: nickname }`.
+         - Ocultar overlays de espera y Game Over.
+         - Pausar el reproductor lateral del kiosco si aplica: `window.parent.postMessage({ type: 'GAME_AD_START' }, '*')`.
+         - Mostrar `#ad-video-overlay`, actualizar `#ad-pilot-name` y reproducir `adVideoPlayer.play()`.
+         - Actualizar la cuenta regresiva en `#ad-countdown` con `adVideoPlayer.ontimeupdate`.
+         - Al finalizar el video (`onended`), por error (`onerror`) o por fallback de seguridad (timeout de 65s):
+           - Ocultar `#ad-video-overlay`.
+           - Notificar al kiosco: `window.parent.postMessage({ type: 'GAME_AD_END' }, '*')`.
+           - Notificar a todos los celulares conectados: `{ type: 'game_start' }` para activar los controles táctiles.
+           - Ejecutar `startGameCallback()` para arrancar el bucle del juego.
 
 * **Controlador Móvil (`control/index.html` y `control/script.js`)**:
   * **Pantalla de Espera Publicitaria `#ad-waiting-screen`**:
     * Debe existir en `control/index.html` con el texto *"¡MIRA LA PANTALLA! Tu partida comenzará automáticamente al finalizar el video"* y el badge del piloto.
+  * **Estado Inicial y Conexión (`onopen` / `answer`)**:
+    * Al recibir `answer` o abrir el canal DataChannel (`onopen`), los controles táctiles deben activarse de una vez y `#ad-waiting-screen` permanecer oculta (`display: none`). NUNCA bloquear al usuario en la pantalla de espera de video antes de que la pantalla confirme que existe un anuncio.
   * **Manejo de Mensajes en DataChannel**:
     * Al recibir `{ type: 'ad_playing' }`: ocultar controles táctiles y mostrar `#ad-waiting-screen`.
     * Al recibir `{ type: 'game_start' }`: ocultar `#ad-waiting-screen` y mostrar los controles táctiles listos para jugar.

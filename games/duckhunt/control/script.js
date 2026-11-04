@@ -472,10 +472,7 @@ function initSignaling() {
 
                         // Transición a pantalla de espera publicitaria
                         roomSelection.style.display = 'none';
-                        if (adWaitingScreen) {
-                            adWaitingScreen.style.display = 'flex';
-                            if (adPilotBadge) adPilotBadge.textContent = playerNickname.toUpperCase();
-                        }
+                        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                         statusEl.textContent = '📺 MIRA LA PANTALLA...';
                         statusEl.style.color = '#ffb703';
 
@@ -544,30 +541,12 @@ async function setupWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        statusEl.textContent = '📺 MIRA LA PANTALLA...';
-        statusEl.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        if (adWaitingScreen) {
-            adWaitingScreen.style.display = 'flex';
-            if (adPilotBadge) adPilotBadge.textContent = playerNickname.toUpperCase();
-        }
-        if (gameContainer) gameContainer.style.display = 'none';
-
-        // Enviar identificación del jugador
-        dataChannel.send(JSON.stringify({
-            type: 'join',
-            nickname: playerNickname,
-            value: playerNickname
-        }));
-
-        setTimeout(() => {
-            if (gameContainer && gameContainer.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                gameContainer.style.display = 'flex';
-                statusEl.textContent = 'ZAPPER LISTO';
-                statusEl.style.color = '#3dff8a';
-            }
-        }, 40000);
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        statusEl.textContent = 'ZAPPER LISTO';
+        statusEl.style.color = '#3dff8a';
+        if (gameContainer) gameContainer.style.display = 'flex';
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: playerNickname, value: playerNickname }));
     };
 
     dataChannel.onmessage = (e) => {

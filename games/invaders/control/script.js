@@ -230,10 +230,7 @@ function connectSignaling(roomId) {
                     status.textContent = '📺 MIRA LA PANTALLA...';
                     status.style.color = '#ffb703';
                     roomSelection.style.display = 'none';
-                    if (adWaitingScreen) {
-                        adWaitingScreen.style.display = 'flex';
-                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-                    }
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                     if (container) container.style.display = 'none';
                 } else if (data.type === 'candidate') {
                     if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -273,25 +270,12 @@ async function startWebRTC() {
         try { window.GAME_CONFIG.attachDataChannelDiagnostics(dataChannel, 'controller-dc'); } catch (e) { console.warn('attachDataChannelDiagnostics failed', e); }
     }
     dataChannel.onopen = () => {
-        status.textContent = '📺 MIRA LA PANTALLA...';
-        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        if (adWaitingScreen) {
-            adWaitingScreen.style.display = 'flex';
-            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-        }
-        if (container) container.style.display = 'none';
-        if (thanksScreen) thanksScreen.style.display = 'none';
-        dataChannel.send(JSON.stringify({ type: 'nickname', value: nickname }));
-
-        setTimeout(() => {
-            if (container && container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                container.style.display = 'flex';
-                status.textContent = '¡Listo!';
-                status.style.color = '#3dff8a';
-            }
-        }, 40000);
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        status.textContent = '¡Listo!';
+        status.style.color = '#3dff8a';
+        if (container) container.style.display = 'flex';
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
     };
 
     dataChannel.onmessage = (event) => {

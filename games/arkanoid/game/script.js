@@ -564,9 +564,7 @@ function requestAdVideo() {
         const msgHandler = (event) => {
             if (event.data && event.data.type === 'AD_VIDEO_RESPONSE') {
                 window.removeEventListener('message', msgHandler);
-                if (event.data.videoUrl) {
-                    finalize(event.data.videoUrl);
-                }
+                finalize(event.data.videoUrl || null);
             }
         };
         window.addEventListener('message', msgHandler);
@@ -613,8 +611,6 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
-
     if (!adVideoOverlay || !adVideoPlayer) {
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
@@ -623,11 +619,14 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
-            console.log('[ad] No hay video publicitario configurado. Arrancando partida.');
+            console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
             broadcastToControllers({ type: 'game_start' });
             startGameCallback();
             return;
         }
+
+        // SOLO avisar al celular si REALMENTE hay un video publicitario válido para reproducir
+        broadcastToControllers({ type: 'ad_playing', nickname: nickname });
 
         GameState.adPlaying = true;
         if (adPilotName) adPilotName.textContent = `PILOTO: ${(nickname || 'PILOT').toUpperCase()}`;

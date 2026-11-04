@@ -418,9 +418,6 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    // Avisar al celular que muestre la pantalla de espera
-    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
-
     if (!adVideoOverlay || !adVideoPlayer) {
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
@@ -429,10 +426,14 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
+            // Sin video: no mostrar espera en el móvil y arrancar de una
             broadcastToControllers({ type: 'game_start' });
             startGameCallback();
             return;
         }
+
+        // SOLO si HAY video válido, avisar al celular y activar reproducción
+        broadcastToControllers({ type: 'ad_playing', nickname: nickname });
 
         GameState.adPlaying = true;
         if (adPilotName) adPilotName.textContent = `PILOTO: ${(nickname || 'PILOT').toUpperCase()}`;
