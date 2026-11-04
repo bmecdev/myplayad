@@ -297,7 +297,7 @@ export default function DemoKioskPage() {
         >
           {/* SECCIÓN JUEGO ARCADE */}
           <div
-            className={`relative flex items-center justify-center overflow-hidden rounded-2xl border-2 border-[#1f3327] bg-black shadow-inner min-h-0 ${
+            className={`relative flex items-center justify-center overflow-hidden min-h-0 ${
               orientation === 'LANDSCAPE'
                 ? 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
                 : 'w-full h-1/2 min-h-[340px]'
@@ -319,7 +319,7 @@ export default function DemoKioskPage() {
               tabIndex={0}
               allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
               onLoad={() => setIsGameLoading(false)}
-              className={`w-full h-full border-0 block bg-black transition-opacity duration-300 ${
+              className={`w-full h-full border-0 block bg-transparent transition-opacity duration-300 ${
                 isGameLoading ? 'opacity-0' : 'opacity-100'
               }`}
             />
