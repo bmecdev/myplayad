@@ -401,6 +401,33 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // GET /api/rotate?orientation=PORTRAIT|LANDSCAPE
+    // Ejecuta la rotación de pantalla en caliente y actualiza config.txt
+    if (parts[0] === 'api' && parts[1] === 'rotate') {
+        const targetOrientation = url.searchParams.get('orientation') || 'PORTRAIT';
+        console.log(`[http] [ROTATE] Solicitud de cambio de orientación: ${targetOrientation}`);
+        const rotateScriptPath = path.join(__dirname, 'rotate.sh');
+        if (fs.existsSync(rotateScriptPath)) {
+            execPromise(`bash "${rotateScriptPath}" "${targetOrientation}"`, { timeout: 25000 })
+                .then(({ stdout, stderr }) => {
+                    console.log('[http] [ROTATE] Resultado:\n', stdout);
+                    if (stderr) console.warn('[http] [ROTATE] Stderr:', stderr);
+                    sseClients.forEach(c => c.write(`data: rotate\n\n`));
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, orientation: targetOrientation, stdout }));
+                })
+                .catch(err => {
+                    console.error('[http] [ROTATE] Error ejecutando rotate.sh:', err.message);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: err.message }));
+                });
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'rotate.sh no encontrado' }));
+        }
+        return;
+    }
+
     // GET /api/sync-stream
     // Server-Sent Events endpoint for real-time notifications
     if (parts[0] === 'api' && parts[1] === 'sync-stream') {

@@ -47,7 +47,8 @@ if [ "$LOCAL_HASH" != "$REMOTE_HASH" ] && [ "$REMOTE_HASH" != "unknown" ]; then
         npm install --omit=dev --no-audit --no-fund
     fi
 
-    # Asegurar permisos y aplicar directivas de prevención de reposo
+    # Asegurar permisos de ejecución a scripts auxiliares y aplicar prevención de reposo
+    chmod +x "$SCRIPT_DIR/rotate.sh" "$SCRIPT_DIR/power.sh" 2>/dev/null || true
     if [ -f "$SCRIPT_DIR/disable_sleep.sh" ]; then
         chmod +x "$SCRIPT_DIR/disable_sleep.sh" 2>/dev/null || true
         bash "$SCRIPT_DIR/disable_sleep.sh" || true

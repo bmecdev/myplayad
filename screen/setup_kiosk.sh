@@ -206,20 +206,36 @@ export SCREEN_RESOLUTION="${SCREEN_RESOLUTION:-1920x1080}"
 export SCREEN_ROTATE="${SCREEN_ROTATE:-90}"
 export REMOTE_VIDEO_SERVER_URL="https://videos.myplayad.com"
 
+# Normalizar rotación para Wayland (wlr-randr y kanshi requieren 'normal' para 0 grados)
+case "$SCREEN_ROTATE" in
+    0|normal|LANDSCAPE|landscape|horizontal|HORIZONTAL)
+        SCREEN_TRANSFORM="normal"
+        ;;
+    270|inverted|INVERTED)
+        SCREEN_TRANSFORM="270"
+        ;;
+    180)
+        SCREEN_TRANSFORM="180"
+        ;;
+    90|PORTRAIT|portrait|vertical|VERTICAL|*)
+        SCREEN_TRANSFORM="90"
+        ;;
+esac
+
 # 2. Configurar y lanzar Kanshi (Rotación y Resolución Hotplug-safe)
 mkdir -p ~/.config/kanshi
 cat << KANSHI_EOF > ~/.config/kanshi/config
 profile default {
-    output HDMI-A-1 transform ${SCREEN_ROTATE}
-    output HDMI-A-2 transform ${SCREEN_ROTATE}
-    output * transform ${SCREEN_ROTATE}
+    output HDMI-A-1 transform ${SCREEN_TRANSFORM}
+    output HDMI-A-2 transform ${SCREEN_TRANSFORM}
+    output * transform ${SCREEN_TRANSFORM}
 }
 KANSHI_EOF
 kanshi &
 
 # Forzar rotación inicial vía wlr-randr si está disponible
-wlr-randr --output HDMI-A-1 --transform ${SCREEN_ROTATE} 2>/dev/null || true
-wlr-randr --output HDMI-A-2 --transform ${SCREEN_ROTATE} 2>/dev/null || true
+wlr-randr --output HDMI-A-1 --transform ${SCREEN_TRANSFORM} 2>/dev/null || true
+wlr-randr --output HDMI-A-2 --transform ${SCREEN_TRANSFORM} 2>/dev/null || true
 
 # 3. Desactivar reposo automático, salvapantallas y suspensión del sistema
 killall swayidle 2>/dev/null || true
@@ -255,9 +271,14 @@ if [ -f "$SCREEN_APP_DIR/update.sh" ]; then
     bash "$SCREEN_APP_DIR/update.sh" || true
 fi
 
-# 7. Iniciar el servidor Node en segundo plano
+# 7. Iniciar el servidor Node en segundo plano con reinicio automático
 cd "$SCREEN_APP_DIR"
-node server.js >> "$SCREEN_APP_DIR/server.log" 2>&1 &
+(
+    while true; do
+        node server.js >> "$SCREEN_APP_DIR/server.log" 2>&1
+        sleep 2
+    done
+) &
 
 # 8. Esperar a que el servidor Node responda (hasta 15s) antes de lanzar Chromium
 for i in $(seq 1 30); do

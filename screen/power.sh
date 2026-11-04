@@ -43,14 +43,31 @@ elif [ "$ACTION" = "on" ] || [ "$ACTION" = "wake" ] || [ "$ACTION" = "POWER_ON" 
 
     # 1. Reactivar salida HDMI en Wayland (labwc / wlr-randr)
     if command -v wlr-randr >/dev/null 2>&1; then
-        # Obtener rotacion desde config.txt si existe
-        ROTATION="90"
+        # Obtener rotacion desde config.txt si existe y normalizar para Wayland
+        ROT_VAL="90"
         if [ -f "/boot/firmware/config.txt" ]; then
             PARSED_ROT=$(grep -oP '^SCREEN_ROTATE=\K.*' "/boot/firmware/config.txt" | tr -d '"' | tr -d "'" || true)
-            if [ -n "$PARSED_ROT" ]; then
-                ROTATION="$PARSED_ROT"
-            fi
+            [ -n "$PARSED_ROT" ] && ROT_VAL="$PARSED_ROT"
+        elif [ -f "/boot/config.txt" ]; then
+            PARSED_ROT=$(grep -oP '^SCREEN_ROTATE=\K.*' "/boot/config.txt" | tr -d '"' | tr -d "'" || true)
+            [ -n "$PARSED_ROT" ] && ROT_VAL="$PARSED_ROT"
         fi
+
+        case "$ROT_VAL" in
+            0|normal|LANDSCAPE|landscape|horizontal|HORIZONTAL)
+                ROTATION="normal"
+                ;;
+            270|inverted|INVERTED)
+                ROTATION="270"
+                ;;
+            180)
+                ROTATION="180"
+                ;;
+            90|PORTRAIT|portrait|vertical|VERTICAL|*)
+                ROTATION="90"
+                ;;
+        esac
+
         wlr-randr --output HDMI-A-1 --on --transform "$ROTATION" 2>/dev/null || wlr-randr --output HDMI-A-1 --on 2>/dev/null || true
         wlr-randr --output HDMI-A-2 --on --transform "$ROTATION" 2>/dev/null || wlr-randr --output HDMI-A-2 --on 2>/dev/null || true
     fi

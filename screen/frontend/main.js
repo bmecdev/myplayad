@@ -23,6 +23,7 @@ let videoPlaylist = [];
 let videoIndex = 0;
 let playlistSyncInterval = null;
 let upcomingGamesData = [];
+let activeOrientation = null;
 
 let cachedRanking = null;
 
@@ -375,6 +376,18 @@ async function checkSchedule() {
             return;
         } else if (data.power && data.power.shouldBeOn === true) {
             setScreenSleepMode(false);
+        }
+
+        // Sincronizar orientación con el Portal si cambia
+        if (data.orientation) {
+            const portalOrientation = data.orientation === 'LANDSCAPE' ? 'LANDSCAPE' : 'PORTRAIT';
+            if (activeOrientation && activeOrientation !== portalOrientation) {
+                console.log(`[orientacion] Portal cambió orientación a ${portalOrientation}. Aplicando en RPi...`);
+                activeOrientation = portalOrientation;
+                fetch(`/api/rotate?orientation=${portalOrientation}`).catch(() => {});
+            } else if (!activeOrientation) {
+                activeOrientation = portalOrientation;
+            }
         }
 
         // Si el cliente está inactivo o suspendido, no mostrar ni videos ni juegos
