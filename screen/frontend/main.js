@@ -537,6 +537,31 @@ window.addEventListener('message', async (event) => {
                 renderRankingOverlay();
             }
         }
+    } else if (event.data.type === 'GET_AD_VIDEO') {
+        let adUrl = null;
+        if (videoPlaylist && videoPlaylist.length > 0) {
+            const filename = videoPlaylist[videoIndex % videoPlaylist.length];
+            adUrl = `/videos/${screenId}/${encodeURIComponent(filename)}`;
+        }
+        if (gameFrame && gameFrame.contentWindow) {
+            gameFrame.contentWindow.postMessage({
+                type: 'AD_VIDEO_RESPONSE',
+                videoUrl: adUrl,
+                screenId: screenId
+            }, '*');
+        }
+    } else if (event.data.type === 'GAME_AD_START') {
+        console.log('[screen] Minijuego inició video publicitario: pausando reproductor TV lateral');
+        if (videoPlayer && !videoPlayer.paused) {
+            videoPlayer.pause();
+        }
+    } else if (event.data.type === 'GAME_AD_END') {
+        console.log('[screen] Minijuego terminó video publicitario: reanudando reproductor TV lateral');
+        const sleepOverlay = document.getElementById('sleep-overlay');
+        const isSleeping = sleepOverlay && !sleepOverlay.classList.contains('hidden');
+        if (!isSleeping && videoPlayer && videoPlayer.paused && videoPlaylist.length > 0) {
+            videoPlayer.play().catch(e => console.warn('Error reanudando video lateral:', e));
+        }
     } else if (event.data.type === 'FETCH_LOCAL_CACHE') {
         const sId = event.data.screenId || screenId;
         if (!sId) return;

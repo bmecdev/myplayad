@@ -6,6 +6,8 @@ const nicknameInput = document.getElementById('nickname-input');
 const connectBtn = document.getElementById('connect-btn');
 const roomSelection = document.getElementById('room-selection');
 const thanksScreen = document.getElementById('thanks-screen');
+const adWaitingScreen = document.getElementById('ad-waiting-screen');
+const adPilotBadge = document.getElementById('ad-pilot-badge');
 
 container.style.touchAction = 'none';
 
@@ -271,9 +273,12 @@ function connectSignaling(roomId) {
                     startWebRTC();
                 } else if (data.type === 'answer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    status.textContent = 'Conectado';
+                    status.textContent = 'Enlazado. Esperando video...';
                     roomSelection.style.display = 'none';
-                    container.style.display = 'flex';
+                    if (adWaitingScreen) {
+                        adWaitingScreen.style.display = 'flex';
+                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+                    }
                 } else if (data.type === 'candidate') {
                     if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
@@ -312,19 +317,53 @@ async function startWebRTC() {
         try { window.GAME_CONFIG.attachDataChannelDiagnostics(dataChannel, 'controller-dc'); } catch (e) { console.warn('attachDataChannelDiagnostics failed', e); }
     }
     dataChannel.onopen = () => {
-        status.textContent = '¡Listo!';
+        status.textContent = '📺 MIRA LA PANTALLA...';
+        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        container.style.display = 'flex';
+        if (adWaitingScreen) {
+            adWaitingScreen.style.display = 'flex';
+            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
+        }
+        container.style.display = 'none';
         thanksScreen.style.display = 'none';
         dataChannel.send(JSON.stringify({ type: 'nickname', value: nickname }));
         updateTrackpadDimensions();
         dataChannel.send(JSON.stringify({ pos: currentSliderPos }));
+
+        // Fallback de seguridad si no hay ad o tarda demasiado
+        setTimeout(() => {
+            if (container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                container.style.display = 'flex';
+                status.textContent = '¡Listo!';
+                status.style.color = '#3dff8a';
+            }
+        }, 4000);
     };
 
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'game_over') {
+            if (data.type === 'ad_playing') {
+                status.textContent = '📺 MIRA LA PANTALLA';
+                status.style.color = '#ffb703';
+                roomSelection.style.display = 'none';
+                if (adWaitingScreen) {
+                    adWaitingScreen.style.display = 'flex';
+                    if (adPilotBadge && (data.nickname || nickname)) {
+                        adPilotBadge.textContent = (data.nickname || nickname).toUpperCase();
+                    }
+                }
+                container.style.display = 'none';
+            } else if (data.type === 'game_start') {
+                status.textContent = '¡Listo!';
+                status.style.color = '#3dff8a';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'none';
+                container.style.display = 'flex';
+                updateTrackpadDimensions();
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+            } else if (data.type === 'game_over') {
                 mobileAudio.play('gameover');
                 if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
                 showThanks(data.score);
@@ -342,6 +381,7 @@ async function startWebRTC() {
         status.textContent = 'Desconectado del juego';
         status.style.color = 'orange';
         if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+            if (adWaitingScreen) adWaitingScreen.style.display = 'none';
             container.style.display = 'none';
             roomSelection.style.display = 'block';
         }
