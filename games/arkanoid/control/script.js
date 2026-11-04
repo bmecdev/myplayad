@@ -211,6 +211,12 @@ window.addEventListener('load', () => {
         roomInput.value = roomFromUrl.toUpperCase();
         nicknameInput.focus();
     }
+
+    nicknameInput.addEventListener('input', () => {
+        const val = nicknameInput.value.trim();
+        connectBtn.disabled = val.length < 2;
+    });
+
     // Soporte rápido para pasar TURN por query params: ?turn_ip=1.2.3.4&turn_pass=abc
     const turnIp = urlParams.get('turn_ip');
     const turnUser = urlParams.get('turn_user');
@@ -221,9 +227,17 @@ window.addEventListener('load', () => {
 });
 
 connectBtn.addEventListener('click', () => {
+    const val = nicknameInput.value.trim();
+    if (val.length < 2) {
+        nicknameInput.focus();
+        return;
+    }
     mobileAudio.init();
+    nickname = val.toUpperCase();
+    const hudNick = document.getElementById('hud-nickname');
+    if (hudNick) hudNick.textContent = nickname;
+
     const roomId = roomInput.value.trim().toUpperCase();
-    nickname = nicknameInput.value.trim() || 'Player';
     if (roomId) {
         currentRoomId = roomId;
         connectSignaling(roomId);
@@ -291,7 +305,7 @@ function connectSignaling(roomId) {
 
         socket.onclose = () => {
             if (thanksScreen.style.display === 'none') {
-                roomSelection.style.display = 'block';
+                roomSelection.style.display = 'flex';
                 container.style.display = 'none';
             }
         };
@@ -364,7 +378,7 @@ async function startWebRTC() {
         if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
             if (adWaitingScreen) adWaitingScreen.style.display = 'none';
             container.style.display = 'none';
-            roomSelection.style.display = 'block';
+            roomSelection.style.display = 'flex';
         }
     };
 
@@ -386,7 +400,7 @@ async function startWebRTC() {
             status.style.color = 'orange';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 container.style.display = 'none';
-                roomSelection.style.display = 'block';
+                roomSelection.style.display = 'flex';
             }
         }
     };
@@ -399,7 +413,7 @@ async function startWebRTC() {
 function showThanks(finalScore) {
     container.style.display = 'none';
     roomSelection.style.display = 'none';
-    thanksScreen.style.display = 'block';
+    thanksScreen.style.display = 'flex';
 
     const thanksTitle = thanksScreen.querySelector('h1');
     const thanksText = thanksScreen.querySelector('p');
