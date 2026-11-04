@@ -52,6 +52,10 @@ export default function DemoKioskPage() {
         if (res.ok) {
           const data: VideoItem[] = await res.json();
           setVideos(data);
+          // Si hay videos subidos en el sistema, iniciar directamente con rotación
+          if (data.length > 0) {
+            setSelectedVideoSource('playlist');
+          }
         }
       } catch (err) {
         console.warn('No se pudieron cargar videos adicionales:', err);
@@ -62,32 +66,39 @@ export default function DemoKioskPage() {
 
   // Update active video URL when selection changes
   useEffect(() => {
-    if (selectedVideoSource === 'default') {
-      setActiveVideoUrl('/videos/demo-spot.mp4');
-    } else if (selectedVideoSource === 'playlist' && videos.length > 0) {
+    const isDev =
+      typeof window !== 'undefined' &&
+      (window.location.hostname.includes('dev') ||
+        window.location.hostname.includes('staging') ||
+        window.location.hostname.includes('localhost'));
+    const videoServer = isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com';
+
+    let targetUrl = '/videos/demo-spot.mp4';
+
+    if (selectedVideoSource === 'playlist' && videos.length > 0) {
       const vid = videos[currentVideoIdx % videos.length];
-      const isDev =
-        typeof window !== 'undefined' &&
-        (window.location.hostname.includes('dev') ||
-          window.location.hostname.includes('staging') ||
-          window.location.hostname.includes('localhost'));
-      const videoServer = isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com';
-      setActiveVideoUrl(`${videoServer}/pool/${vid.filename}`);
-    } else {
+      const cleanName = vid.filename.replace(/^pool\//, '').split('/').pop() || vid.filename;
+      targetUrl = `${videoServer}/videos/00000000-0000-0000-0000-000000000000/${encodeURIComponent(cleanName)}`;
+    } else if (selectedVideoSource !== 'default') {
       const vid = videos.find((v) => v.id === selectedVideoSource);
-      if (vid) {
-        const isDev =
-          typeof window !== 'undefined' &&
-          (window.location.hostname.includes('dev') ||
-            window.location.hostname.includes('staging') ||
-            window.location.hostname.includes('localhost'));
-        const videoServer = isDev ? 'https://dev-videos.myplayad.com' : 'https://videos.myplayad.com';
-        setActiveVideoUrl(`${videoServer}/pool/${vid.filename}`);
-      } else {
-        setActiveVideoUrl('/videos/demo-spot.mp4');
+      if (vid && vid.filename) {
+        const cleanName = vid.filename.replace(/^pool\//, '').split('/').pop() || vid.filename;
+        targetUrl = `${videoServer}/videos/00000000-0000-0000-0000-000000000000/${encodeURIComponent(cleanName)}`;
       }
     }
+
+    setActiveVideoUrl(targetUrl);
   }, [selectedVideoSource, currentVideoIdx, videos]);
+
+  // Asegurar autoplay y volumen en el elemento de video
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+      videoRef.current.play().catch((err) => {
+        console.warn('Autoplay bloqueado por navegador:', err);
+      });
+    }
+  }, [activeVideoUrl, isMuted]);
 
   // Fullscreen listener
   useEffect(() => {
@@ -209,9 +220,6 @@ export default function DemoKioskPage() {
               onChange={(e) => setSelectedVideoSource(e.target.value)}
               className="bg-black/50 border border-white/15 text-white text-sm rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-purple-500/50 outline-none cursor-pointer max-w-[220px] truncate"
             >
-              <option value="default" className="bg-[#121c16] text-white">
-                Spot Demo MyPlayAd
-              </option>
               {videos.length > 0 && (
                 <option value="playlist" className="bg-[#121c16] text-white">
                   Rotación de Videos ({videos.length})
@@ -222,6 +230,9 @@ export default function DemoKioskPage() {
                   {v.title} {v.user?.name ? `(${v.user.name})` : ''}
                 </option>
               ))}
+              <option value="default" className="bg-[#121c16] text-white">
+                Spot Demo MyPlayAd
+              </option>
             </select>
           </div>
         </div>
@@ -351,13 +362,17 @@ export default function DemoKioskPage() {
                   ref={videoRef}
                   src={activeVideoUrl}
                   autoPlay
-                  loop={selectedVideoSource !== 'playlist'}
+                  loop={selectedVideoSource !== 'playlist' || videos.length <= 1}
                   playsInline
                   muted={isMuted}
                   onEnded={handleVideoEnded}
                   onError={() => {
                     console.warn('Error cargando video remoto, recurriendo al video local');
-                    setActiveVideoUrl('/videos/demo-spot.mp4');
+                    if (videos.length > 0 && selectedVideoSource === 'default') {
+                      setSelectedVideoSource('playlist');
+                    } else if (activeVideoUrl !== '/videos/demo-spot.mp4') {
+                      setActiveVideoUrl('/videos/demo-spot.mp4');
+                    }
                   }}
                   className="w-full h-full object-contain block kiosk-crt-flicker"
                 />

@@ -225,15 +225,17 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // GET / HEAD /videos/:screenId/:filename  →  stream del archivo (ignora screenId y usa pool)
-    if (parts[0] === 'videos' && parts[1] && parts[2]) {
-        const screenId = parts[1];
-        if (!GUID_RE.test(screenId)) {
-            res.writeHead(400); res.end('screenId inválido'); return;
+    // GET / HEAD /videos/:screenId/:filename o /videos/pool/:filename o /pool/:filename o /videos/:filename
+    if ((parts[0] === 'videos' && parts[1]) || (parts[0] === 'pool' && parts[1])) {
+        let rawFilename = '';
+        if (parts[0] === 'pool') {
+            rawFilename = parts.slice(1).join('/');
+        } else if (parts[2]) {
+            rawFilename = parts.slice(2).join('/');
+        } else {
+            rawFilename = parts[1];
         }
 
-        // Obtener el nombre del archivo sin importar subdirectorios (ej: 'pool/...') o si viene codificado
-        let rawFilename = parts.slice(2).join('/');
         try { rawFilename = decodeURIComponent(rawFilename); } catch (_) {}
         const filename = path.basename(rawFilename); // basename evita path traversal
 
