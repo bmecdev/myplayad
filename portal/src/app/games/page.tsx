@@ -31,6 +31,7 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [activeGame, setActiveGame] = useState<CatalogGame | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -164,7 +165,10 @@ export default function GamesPage() {
               <div
                 key={game.slug}
                 onClick={() => {
-                  if (hasAccess) setActiveGame(game);
+                  if (hasAccess) {
+                    setIsIframeLoading(true);
+                    setActiveGame(game);
+                  }
                 }}
                 className={`glass-card rounded-2xl p-6 relative group border transition-all flex flex-col justify-between ${
                   hasAccess
@@ -234,6 +238,7 @@ export default function GamesPage() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setIsIframeLoading(true);
                         setActiveGame(game);
                       }}
                       className="w-full py-2.5 px-4 rounded-xl bg-green-500/15 hover:bg-green-500 text-green-400 hover:text-black font-semibold text-sm border border-green-500/30 flex items-center justify-center gap-2 transition-all duration-200 group-hover:bg-green-500 group-hover:text-black shadow-sm cursor-pointer"
@@ -330,14 +335,28 @@ export default function GamesPage() {
             </div>
 
             {/* Modal Body: Iframe del Juego */}
-            <div className="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
+            <div className="flex-1 min-h-0 min-w-0 bg-black relative flex items-center justify-center overflow-hidden">
+              {isIframeLoading && (
+                <div className="absolute inset-0 z-10 bg-[#0a0f0d] flex flex-col items-center justify-center gap-3">
+                  <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="font-arcade text-xs text-green-400 tracking-wider">
+                    CARGANDO CONSOLA ARCADE...
+                  </span>
+                </div>
+              )}
               <iframe
                 ref={iframeRef}
                 src={getGameUrl(activeGame.slug, 'PORTAL_PLAY')}
                 title={activeGame.name}
                 tabIndex={0}
-                allow="autoplay; fullscreen"
-                className="w-full h-full border-0 block"
+                allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
+                onLoad={() => {
+                  setIsIframeLoading(false);
+                  setTimeout(() => iframeRef.current?.focus(), 150);
+                }}
+                className={`w-full h-full border-0 block bg-black transition-opacity duration-300 ${
+                  isIframeLoading ? 'opacity-0' : 'opacity-100'
+                }`}
               />
             </div>
 

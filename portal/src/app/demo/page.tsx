@@ -33,6 +33,7 @@ export default function DemoKioskPage() {
   const [orientation, setOrientation] = useState<'LANDSCAPE' | 'PORTRAIT'>('LANDSCAPE');
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isGameLoading, setIsGameLoading] = useState<boolean>(true);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [selectedVideoSource, setSelectedVideoSource] = useState<string>('default');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string>('/videos/demo-spot.mp4');
@@ -118,6 +119,7 @@ export default function DemoKioskPage() {
   };
 
   const reloadSimulator = () => {
+    setIsGameLoading(true);
     setReloadKey((prev) => prev + 1);
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
@@ -159,7 +161,10 @@ export default function DemoKioskPage() {
             <Gamepad2 className="w-4 h-4 text-green-400" />
             <select
               value={selectedGameSlug}
-              onChange={(e) => setSelectedGameSlug(e.target.value)}
+              onChange={(e) => {
+                setIsGameLoading(true);
+                setSelectedGameSlug(e.target.value);
+              }}
               className="bg-black/50 border border-white/15 text-white text-sm rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-green-500/50 outline-none cursor-pointer"
             >
               {ARCADE_GAMES_CATALOG.map((g) => (
@@ -281,20 +286,31 @@ export default function DemoKioskPage() {
         >
           {/* SECCIÓN JUEGO ARCADE */}
           <div
-            className={`relative flex items-center justify-center overflow-hidden rounded-2xl border-2 border-[#1f3327] bg-black shadow-inner ${
+            className={`relative flex items-center justify-center overflow-hidden rounded-2xl border-2 border-[#1f3327] bg-black shadow-inner min-h-0 ${
               orientation === 'LANDSCAPE'
                 ? 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
-                : 'w-full h-1/2'
+                : 'w-full h-1/2 min-h-[340px]'
             }`}
           >
+            {isGameLoading && (
+              <div className="absolute inset-0 z-10 bg-[#060a08] flex flex-col items-center justify-center gap-3">
+                <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                <span className="font-arcade text-xs text-green-400 tracking-wider">
+                  CONECTANDO MINIJUEGO...
+                </span>
+              </div>
+            )}
             <iframe
               key={`game-${selectedGameSlug}-${reloadKey}`}
               ref={iframeRef}
               src={getGameUrl(selectedGameSlug, 'KIOSK_SIMULATOR')}
               title={currentGame.name}
               tabIndex={0}
-              allow="autoplay; fullscreen"
-              className="w-full h-full border-0 block bg-black"
+              allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
+              onLoad={() => setIsGameLoading(false)}
+              className={`w-full h-full border-0 block bg-black transition-opacity duration-300 ${
+                isGameLoading ? 'opacity-0' : 'opacity-100'
+              }`}
             />
           </div>
 
@@ -406,3 +422,4 @@ export default function DemoKioskPage() {
     </div>
   );
 }
+
