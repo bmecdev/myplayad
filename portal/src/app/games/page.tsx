@@ -364,9 +364,7 @@ export default function GamesPage() {
               )}
               <iframe
                 ref={iframeRef}
-                src={`${getGameUrl(activeGame.slug, 'PORTAL_PLAY')}&adVideo=${encodeURIComponent(
-                  `${typeof window !== 'undefined' ? window.location.origin : ''}/videos/demo-spot.mp4`
-                )}`}
+                src={getGameUrl(activeGame.slug, 'PORTAL_PLAY')}
                 title={activeGame.name}
                 tabIndex={0}
                 allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
