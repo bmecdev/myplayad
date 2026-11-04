@@ -9,7 +9,8 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/api/public') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
-    pathname === '/api/auth/login'
+    pathname === '/api/auth/login' ||
+    /\.(mp4|webm|ogg|png|jpg|jpeg|gif|svg|ico|webp)$/i.test(pathname)
   ) {
     return NextResponse.next();
   }
@@ -78,5 +79,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api/public|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api/public|_next/static|_next/image|favicon.ico|.*\\.(?:mp4|webm|ogg|png|jpg|jpeg|gif|svg|ico|webp)).*)'],
 };

@@ -35,6 +35,7 @@ jobs:
               echo "Copiando archivos de video de produccion a staging..."
               cp -rn /srv/videos/* /srv/videos-staging/ 2>/dev/null || true
             fi
+            cp /opt/myplayad-staging/portal/scripts/fixtures/sample-spot.mp4 /srv/videos-staging/pool/demo-spot.mp4 2>/dev/null || true
             chmod -R 777 /srv/videos-staging
 
       - name: Copy Frontend (games & screen) to Staging via scp
