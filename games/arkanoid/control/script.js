@@ -275,10 +275,7 @@ function connectSignaling(roomId) {
                     await pc.setRemoteDescription(new RTCSessionDescription(data));
                     status.textContent = 'Enlazado. Esperando video...';
                     roomSelection.style.display = 'none';
-                    if (adWaitingScreen) {
-                        adWaitingScreen.style.display = 'flex';
-                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-                    }
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                 } else if (data.type === 'candidate') {
                     if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
@@ -317,28 +314,12 @@ async function startWebRTC() {
         try { window.GAME_CONFIG.attachDataChannelDiagnostics(dataChannel, 'controller-dc'); } catch (e) { console.warn('attachDataChannelDiagnostics failed', e); }
     }
     dataChannel.onopen = () => {
-        status.textContent = '📺 MIRA LA PANTALLA...';
-        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        if (adWaitingScreen) {
-            adWaitingScreen.style.display = 'flex';
-            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-        }
-        container.style.display = 'none';
-        thanksScreen.style.display = 'none';
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        status.textContent = '¡Listo!';
+        status.style.color = '#3dff8a';
+        container.style.display = 'flex'; updateTrackpadDimensions(); dataChannel.send(JSON.stringify({ pos: currentSliderPos }));
         dataChannel.send(JSON.stringify({ type: 'nickname', value: nickname }));
-        updateTrackpadDimensions();
-        dataChannel.send(JSON.stringify({ pos: currentSliderPos }));
-
-        // Fallback de seguridad si no hay ad o tarda demasiado
-        setTimeout(() => {
-            if (container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                container.style.display = 'flex';
-                status.textContent = '¡Listo!';
-                status.style.color = '#3dff8a';
-            }
-        }, 40000);
     };
 
     dataChannel.onmessage = (event) => {

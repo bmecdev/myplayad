@@ -172,10 +172,7 @@ function initSignaling() {
                         status.textContent = '📺 MIRA LA PANTALLA...';
                         status.style.color = '#ffb703';
                         roomSelection.style.display = 'none';
-                        if (adWaitingScreen) {
-                            adWaitingScreen.style.display = 'flex';
-                            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-                        }
+                        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                         if (rotateScreen) rotateScreen.style.display = 'none';
                         if (flightContainer) flightContainer.style.display = 'none';
 
@@ -257,34 +254,15 @@ async function setupWebRTC() {
         dataChannel = pc.createDataChannel('control', { ordered: false });
 
         dataChannel.onopen = () => {
-            status.textContent = '📺 MIRA LA PANTALLA...';
-            status.style.color = '#ffb703';
-            roomSelection.style.display = 'none';
-            if (adWaitingScreen) {
-                adWaitingScreen.style.display = 'flex';
-                if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-            }
-            if (rotateScreen) rotateScreen.style.display = 'none';
-            if (flightContainer) flightContainer.style.display = 'none';
+        roomSelection.style.display = 'none';
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        status.textContent = `⚡ HALCÓN LISTO • ${nickname}`;
+        status.style.color = '#3dff8a';
+        updateOrientationView();
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+    };
 
-            // Enviar handshake de unión inicial
-            dataChannel.send(JSON.stringify({
-                type: 'join',
-                nickname: nickname,
-                value: nickname
-            }));
-
-            setTimeout(() => {
-                if (flightContainer && flightContainer.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                    updateOrientationView();
-                    status.textContent = `⚡ HALCÓN LISTO • ${nickname}`;
-                    status.style.color = '#3dff8a';
-                }
-            }, 40000);
-        };
-
-        dataChannel.onmessage = (event) => {
+    dataChannel.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'ad_playing') {
