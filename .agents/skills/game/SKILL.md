@@ -19,11 +19,14 @@ flowchart TD
     C -- No --> E[Definir concepto y slug del juego]
     D --> E
     E --> F[Fase 2: Aislamiento en Rama Git game/<slug>]
-    F --> G[Fase 3: Generación del Juego games/<slug>/game/]
-    G --> H[Fase 4: Generación del Controlador games/<slug>/control/]
-    H --> I[Fase 5: Pruebas Locales con Teclado Pre-Push]
-    I --> J[Fase 6: Despliegue en Staging y Verificación Móvil]
-    J --> K[Fase 7: Pull Request y Promoción a Producción Main]
+    F --> G[Fase 3: Estructura de Archivos Estándar]
+    G --> H[Fase 4: Estándares Visuales y de Estilo]
+    H --> I[Fase 5: Protocolo WebRTC y Señalización]
+    I --> J[Fase 6: Publicidad Pre-Juego Obligatoria]
+    J --> K[Fase 7: Bloqueo de Zoom y Selección Móvil]
+    K --> L[Fase 8: Pruebas Locales con Teclado Pre-Push]
+    L --> M[Fase 9: Despliegue en Staging y Verificación Móvil]
+    M --> N[Fase 10: Pull Request y Promoción a Producción]
 ```
 
 ---
@@ -365,7 +368,205 @@ El servidor de señalización WebSockets enruta respuestas del Host al Controlle
 
 ---
 
-## ⌨️ Fase 6: Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
+## 📺 Fase 6: Sistema de Publicidad Pre-Juego Obligatorio (Pre-Game Video Ad Architecture)
+
+> [!IMPORTANT]
+> **TODO juego DEBE incluir el sistema de reproducción de video publicitario pre-juego.**
+> Cuando un jugador escanea el QR y conecta su teléfono, antes de iniciar la partida se reproduce un anuncio en la pantalla arcade mientras el celular muestra la pantalla de espera ("📺 ¡MIRA LA PANTALLA!").
+
+### 1. Elementos HTML y CSS Obligatorios:
+* **En la Pantalla Arcade (`games/<slug>/game/index.html`)**:
+  ```html
+  <div id="ad-video-overlay" class="hidden">
+      <video id="ad-video-player" playsinline preload="auto"></video>
+      <div class="ad-hud-header">
+          <span class="ad-badge">📺 PUBLICIDAD</span>
+          <span class="ad-countdown" id="ad-countdown">INICIANDO...</span>
+      </div>
+      <div class="ad-hud-footer">
+          <span class="ad-pilot-name" id="ad-pilot-name">PILOTO: ----</span>
+          <span class="ad-subtext">EL JUEGO COMENZARÁ AL FINALIZAR</span>
+      </div>
+  </div>
+  ```
+* **En el Controlador Móvil (`games/<slug>/control/index.html`)**:
+  ```html
+  <div id="ad-waiting-screen" class="welcome-container" style="display: none;">
+      <div class="header-logo">
+          <h1>ARCADE<span>GAME</span></h1>
+      </div>
+      <div class="input-group" style="align-items: center; text-align: center;">
+          <div class="ad-pulse-icon" style="font-size: 3rem; margin: 12px 0;">📺</div>
+          <p class="welcome-text" style="color: var(--amber); font-weight: bold; font-size: 1.1rem; line-height: 1.4;">
+              ¡MIRA LA PANTALLA!
+          </p>
+          <p class="welcome-text" style="color: var(--text-dim); font-size: 0.9rem; margin-top: 8px;">
+              Tu partida comenzará automáticamente al finalizar el video.
+          </p>
+          <div style="margin-top: 18px; font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--accent); background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--panel-border, #1a2e22);">
+              PILOTO: <span id="ad-pilot-badge">---</span>
+          </div>
+      </div>
+  </div>
+  ```
+
+### 2. Flujo de Control en `game/script.js`:
+```javascript
+function playPreGameAdThenStart(nickname, startGameCallback) {
+    if (GameState.adPlaying) return;
+
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+    // Avisar al celular que muestre la pantalla de espera
+    broadcastToControllers({ type: 'ad_playing', nickname: nickname });
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        broadcastToControllers({ type: 'game_start' });
+        startGameCallback();
+        return;
+    }
+
+    const startAdPlayback = (videoUrl) => {
+        if (!videoUrl) {
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+            return;
+        }
+
+        GameState.adPlaying = true;
+        if (adPilotName) adPilotName.textContent = `PILOTO: ${(nickname || 'PILOT').toUpperCase()}`;
+        if (adCountdown) adCountdown.textContent = 'INICIANDO...';
+        adVideoOverlay.classList.remove('hidden');
+
+        // Pausar video lateral del Kiosco TV
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
+        }
+
+        let adFinished = false;
+        let safetyTimer = null;
+
+        const finishAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+
+            // Reanudar reproductor de cartelería lateral
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+
+            // Activar controles en el móvil y arrancar el juego
+            broadcastToControllers({ type: 'game_start' });
+            startGameCallback();
+        };
+
+        window._finishCurrentAd = finishAd;
+        adVideoPlayer.onended = finishAd;
+        adVideoPlayer.onerror = finishAd;
+
+        adVideoPlayer.ontimeupdate = () => {
+            if (adVideoPlayer.duration && !isNaN(adVideoPlayer.duration)) {
+                const remaining = Math.max(0, Math.ceil(adVideoPlayer.duration - adVideoPlayer.currentTime));
+                if (adCountdown) adCountdown.textContent = `JUEGO EN ${remaining}S`;
+            }
+        };
+
+        safetyTimer = setTimeout(finishAd, 65000);
+        adVideoPlayer.src = videoUrl;
+        adVideoPlayer.play().catch(finishAd);
+    };
+
+    requestAdVideo().then(startAdPlayback).catch(() => startAdPlayback(null));
+}
+```
+
+---
+
+## 📱 Fase 7: Bloqueo Obligatorio de Zoom y Selección Táctil en Celulares (Mobile Hardening)
+
+> [!CAUTION]
+> **PROHIBIDO permitir zoom o selección de texto en controles móviles.**
+> En un videojuego arcade táctil, el pellizco multitáctil, el doble toque rápido, el menú de copia o la selección involuntaria de texto bloquean los controles y arruinan la experiencia de usuario.
+
+### 1. Viewport Meta en `control/index.html`:
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+```
+
+### 2. Reglas CSS Globales en `control/style.css`:
+```css
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+```
+
+### 3. Script Bloqueador Inmune en `control/script.js`:
+**Debe colocarse como una IIFE inmediatamente al inicio de `control/script.js`**:
+```javascript
+(function preventZoomAndSelection() {
+    // 1. Prevenir gestos de zoom en iOS Safari (pinch/gesture)
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+    // 2. Prevenir zoom por pellizco multitáctil en Android y navegadores web
+    document.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // 3. Prevenir doble toque rápido para zoom (Double-tap zoom)
+    let lastTouchEndTime = 0;
+    document.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTouchEndTime <= 300) {
+            if (!e.target || (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA')) {
+                e.preventDefault();
+            }
+        }
+        lastTouchEndTime = now;
+    }, { passive: false });
+
+    // 4. Prevenir selección de texto accidental al arrastrar controles
+    document.addEventListener('selectstart', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+    });
+
+    // 5. Prevenir menú contextual de pulsación larga (Copy / Select All / Callout)
+    document.addEventListener('contextmenu', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+    });
+})();
+```
+*(Se conservan intactos los campos `<input>` y `<textarea>` para permitir la escritura fluida del Nickname).*
+
+---
+
+## ⌨️ Fase 8: Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
 
 > [!IMPORTANT]
 > **TODO juego DEBE poder jugarse primero con teclado localmente antes de hacer push a Git.**
@@ -431,7 +632,7 @@ Antes de ejecutar `git push`:
 
 ---
 
-## 🧪 Fase 7: Despliegue en Staging y Verificación Móvil en Vivo
+## 🧪 Fase 9: Despliegue en Staging y Verificación Móvil en Vivo
 
 Una vez implementado y verificado localmente el juego en la rama `game/<slug>`:
 1. **Comprobar la rama activa**:
@@ -459,7 +660,7 @@ Una vez implementado y verificado localmente el juego en la rama `game/<slug>`:
 
 ---
 
-## 🚀 Fase 8: Pull Request y Promoción a Producción (`main`)
+## 🚀 Fase 10: Pull Request y Promoción a Producción (`main`)
 
 Solo cuando el usuario y el desarrollador hayan verificado el juego en Staging:
 1. **Crear Pull Request**:

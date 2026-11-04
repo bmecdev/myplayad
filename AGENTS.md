@@ -84,7 +84,114 @@ Para evitar fallos de conexión P2P entre la pantalla (Host) y el teléfono (Con
   * Al cargar con `?room=XXXX`, mostrar `"INGRESA TU NICKNAME"` (no `"Conectando..."` antes de que el usuario pulse el botón de jugar).
   * **Validación Obligatoria de Nickname**: En NINGÚN juego se debe permitir iniciar la partida sin haber escrito un nickname (mínimo 2 caracteres). El botón de inicio debe comenzar deshabilitado (`disabled`), activarse únicamente cuando el usuario escriba su apodo (evento `input`), y advertir visualmente si intenta enviar vacío. El placeholder del campo de texto debe ser sutil y de baja opacidad (`color: rgba(255, 255, 255, 0.22)`), NUNCA un valor prellenado ni un placeholder llamativo como `PILOT` o `PLAYER` que confunda al usuario haciéndole creer que ya está escrito.
 
-### 4. Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
+### 4. Obligatoriedad de Publicidad Pre-Juego (Pre-Game Video Ad)
+**TODO juego DEBE reproducir obligatoriamente un video publicitario en la pantalla arcade antes de iniciar cada partida.** Mientras tanto, el controlador móvil entra en pantalla de espera invitando al jugador a mirar la TV:
+
+* **Pantalla del Juego (`game/index.html` y `game/script.js`)**:
+  * **Overlay HTML Obligatorio**:
+    ```html
+    <div id="ad-video-overlay" class="hidden">
+        <video id="ad-video-player" playsinline preload="auto"></video>
+        <div class="ad-hud-header">
+            <span class="ad-badge">📺 PUBLICIDAD</span>
+            <span class="ad-countdown" id="ad-countdown">INICIANDO...</span>
+        </div>
+        <div class="ad-hud-footer">
+            <span class="ad-pilot-name" id="ad-pilot-name">PILOTO: ----</span>
+            <span class="ad-subtext">EL JUEGO COMENZARÁ AL FINALIZAR</span>
+        </div>
+    </div>
+    ```
+  * **Consulta de Video (`requestAdVideo()`)**:
+    * Al inicializar o registrar la sala, solicitar la URL del video publicitario activo mediante consulta al kiosco (`/api/kiosk/current` o endpoint del portal) o `window.parent.postMessage({ type: 'GET_AD_VIDEO' }, '*')`.
+  * **Ciclo de Reproducción (`playPreGameAdThenStart(nickname, startGameCallback)`)**:
+    * Al recibir el evento `{ type: 'join' }` o apodo desde el móvil:
+      1. Enviar mensaje por DataChannel a los mandos móviles: `{ type: 'ad_playing', nickname: nickname }`.
+      2. Ocultar overlays de espera y Game Over.
+      3. Pausar el reproductor lateral del kiosco si aplica: `window.parent.postMessage({ type: 'GAME_AD_START' }, '*')`.
+      4. Mostrar `#ad-video-overlay`, actualizar `#ad-pilot-name` y reproducir `adVideoPlayer.play()`.
+      5. Actualizar la cuenta regresiva en `#ad-countdown` con `adVideoPlayer.ontimeupdate`.
+      6. Al finalizar el video (`onended`), por error (`onerror`) o por fallback de seguridad (timeout de 65s):
+         - Ocultar `#ad-video-overlay`.
+         - Notificar al kiosco: `window.parent.postMessage({ type: 'GAME_AD_END' }, '*')`.
+         - Notificar a todos los celulares conectados: `{ type: 'game_start' }` para activar los controles táctiles.
+         - Ejecutar `startGameCallback()` para arrancar el bucle del juego.
+
+* **Controlador Móvil (`control/index.html` y `control/script.js`)**:
+  * **Pantalla de Espera Publicitaria `#ad-waiting-screen`**:
+    * Debe existir en `control/index.html` con el texto *"¡MIRA LA PANTALLA! Tu partida comenzará automáticamente al finalizar el video"* y el badge del piloto.
+  * **Manejo de Mensajes en DataChannel**:
+    * Al recibir `{ type: 'ad_playing' }`: ocultar controles táctiles y mostrar `#ad-waiting-screen`.
+    * Al recibir `{ type: 'game_start' }`: ocultar `#ad-waiting-screen` y mostrar los controles táctiles listos para jugar.
+
+---
+
+### 5. Obligatoriedad de Bloqueo de Zoom y Selección Táctil en Celulares (Mobile Hardening)
+**En NINGÚN control móvil se debe permitir zoom ni selección accidental de texto.**
+En un smartphone, cualquier gesto involuntario de zoom (pellizco multitáctil o doble toque rápido), selección de texto o menú contextual arruina la jugabilidad y descoloca la pantalla arcade:
+
+* **Meta Viewport Obligatorio en `control/index.html`**:
+  ```html
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  ```
+* **Estilos CSS Obligatorios en `control/style.css`**:
+  ```css
+  * {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+  }
+  input, textarea {
+      -webkit-user-select: text;
+      user-select: text;
+  }
+  ```
+* **Función Inmune de Prevención en `control/script.js`**:
+  **DEBE ejecutarse de forma inmediata (IIFE) en la cabecera de todo `control/script.js`**:
+  ```javascript
+  (function preventZoomAndSelection() {
+      // 1. Prevenir gestos de zoom en iOS Safari (pinch / gesture)
+      document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+      document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+      document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+      // 2. Prevenir zoom por pellizco multitáctil en Android y navegadores web
+      document.addEventListener('touchmove', (e) => {
+          if (e.touches && e.touches.length > 1) {
+              e.preventDefault();
+          }
+      }, { passive: false });
+
+      // 3. Prevenir doble toque rápido para zoom (Double-tap zoom)
+      let lastTouchEndTime = 0;
+      document.addEventListener('touchend', (e) => {
+          const now = Date.now();
+          if (now - lastTouchEndTime <= 300) {
+              if (!e.target || (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA')) {
+                  e.preventDefault();
+              }
+          }
+          lastTouchEndTime = now;
+      }, { passive: false });
+
+      // 4. Prevenir selección de texto accidental al arrastrar controles
+      document.addEventListener('selectstart', (e) => {
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+          e.preventDefault();
+      });
+
+      // 5. Prevenir menú contextual de pulsación larga (Copy / Select All / Callout)
+      document.addEventListener('contextmenu', (e) => {
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+          e.preventDefault();
+      });
+  })();
+  ```
+  *(Nota crítica: los campos `<input>` y `<textarea>` quedan explícitamente protegidos para permitir al jugador escribir su apodo sin problemas).*
+
+---
+
+### 6. Soporte Obligatorio de Teclado y Pruebas Locales (Pre-Push)
 **TODO juego DEBE poder jugarse y probarse al 100% con teclado antes de hacer push a Git.**
 Esto permite al desarrollador y al agente verificar la jugabilidad, mecánicas y colisiones inmediatamente en el navegador sin requerir obligatoriamente el móvil:
 
@@ -102,7 +209,7 @@ Esto permite al desarrollador y al agente verificar la jugabilidad, mecánicas y
     4. Audio sintetizado Web Audio API operativo tras interacción.
     5. Transición limpia a Game Over y reinicio.
 
-### 5. Flujo Git y CI/CD Obligatorio para Juegos (`game/<slug>`)
+### 7. Flujo Git y CI/CD Obligatorio para Juegos (`game/<slug>`)
 **PROHIBIDO desarrollar o commitear juegos directamente en `main`.**
 Cualquier push a `main` dispara el despliegue a **PRODUCCIÓN** (`/var/www/myplayad/`). Para garantizar que todo juego se pruebe antes en dispositivos móviles reales sobre el VPS:
 
