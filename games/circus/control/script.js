@@ -160,10 +160,7 @@ async function initConnection() {
                         }));
                         status.textContent = 'Enlazando...';
                         roomSelection.style.display = 'none';
-                        if (adWaitingScreen) {
-                            adWaitingScreen.style.display = 'flex';
-                            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-                        }
+                        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
 
                         while (pendingCandidates.length > 0) {
                             try {
@@ -231,29 +228,12 @@ async function setupWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = '📺 MIRA LA PANTALLA...';
-        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        if (adWaitingScreen) {
-            adWaitingScreen.style.display = 'flex';
-            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-        }
-        if (container) container.style.display = 'none';
-
-        dataChannel.send(JSON.stringify({
-            type: 'join',
-            nickname: nickname,
-            value: nickname
-        }));
-
-        setTimeout(() => {
-            if (container && container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                updateOrientationView();
-                status.textContent = '⚡ EN LÍNEA';
-                status.style.color = '#3dff8a';
-            }
-        }, 40000);
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        status.textContent = '⚡ EN LÍNEA';
+        status.style.color = '#3dff8a';
+        updateOrientationView();
+        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
     };
 
     dataChannel.onmessage = (event) => {

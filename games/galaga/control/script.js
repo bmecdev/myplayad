@@ -229,10 +229,7 @@ function connectSignaling(roomId) {
                     status.textContent = '📺 MIRA LA PANTALLA...';
                     status.style.color = '#ffb703';
                     roomSelection.style.display = 'none';
-                    if (adWaitingScreen) {
-                        adWaitingScreen.style.display = 'flex';
-                        if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-                    }
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                     if (container) container.style.display = 'none';
                 } else if (data.type === 'candidate') {
                     if (pc) {
@@ -272,26 +269,12 @@ async function startWebRTC() {
     dataChannel = pc.createDataChannel('control', { ordered: false });
 
     dataChannel.onopen = () => {
-        status.textContent = '📺 MIRA LA PANTALLA...';
-        status.style.color = '#ffb703';
         roomSelection.style.display = 'none';
-        if (adWaitingScreen) {
-            adWaitingScreen.style.display = 'flex';
-            if (adPilotBadge) adPilotBadge.textContent = nickname.toUpperCase();
-        }
-        if (container) container.style.display = 'none';
-
-        // Enviar Join con nickname
+        if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+        status.textContent = 'CONECTADO AL JUEGO';
+        status.style.color = '#3dff8a';
+        if (container) container.style.display = 'flex';
         dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
-
-        setTimeout(() => {
-            if (container && container.style.display === 'none' && (!thanksScreen || thanksScreen.style.display === 'none' || !thanksScreen.style.display)) {
-                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
-                container.style.display = 'flex';
-                status.textContent = 'LISTO PARA DESPEGAR';
-                status.style.color = '#3dff8a';
-            }
-        }, 40000);
     };
 
     dataChannel.onmessage = (e) => {
