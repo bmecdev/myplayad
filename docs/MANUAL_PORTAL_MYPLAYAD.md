@@ -114,6 +114,10 @@ Al hacer clic en **Subir Video**, se despliega el modal inteligente de carga:
 * **Restricción de Pantallas Cruzadas:** El sistema impide asignar un video de un cliente a la pantalla de otro cliente distinto, tanto en la interfaz como en el backend (`HTTP 400`).
 * **Sincronización Segura en Kiosco:** La API pública (`/api/public/screens/:id/videos`) únicamente entrega los videos que pertenezcan al cliente dueño de la pantalla, garantizando que un televisor nunca descargue ni reproduzca contenido publicitario ajeno.
 
+### 7.2. Desasignación de Pantalla vs. Eliminación Definitiva de la Biblioteca
+* **Desasignar de una Pantalla (`/screens/:id`):** Si deseas retirar un video de la rotación de un televisor específico sin borrarlo de tu inventario, pulsa el botón **Desasignar** en la lista de *"Videos en Rotación"* de la pantalla. El video dejará de reproducirse en ese kiosco, liberará de inmediato 1 espacio en la cuota de videos permitidos por el plan y enviará una notificación MQTT para refrescar la cartelera. El archivo permanecerá disponible en tu biblioteca.
+* **Eliminar Definitivamente (`/videos`):** Si deseas dar de baja un spot por completo, pulsa el icono de papelera en la tarjeta del video dentro de la biblioteca. El sistema desvinculará automáticamente el video de todas las pantallas donde estuviese asignado, notificará por MQTT a las pantallas afectadas y eliminará el registro y los archivos físicos en disco.
+
 ---
 
 ## 8. Módulo de Planes y Cuotas (`/plans`)

@@ -48,5 +48,11 @@ RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" -X PATCH "${PORTAL_URL}/api/
 CODE=$(echo "$RESP" | tail -n 1)
 assert_status "Método no soportado retorna HTTP 405" 405 "$CODE"
 
+# 5. Validar endpoint de desasignación de video de pantalla (DELETE /api/screens/[id]/videos/[videoId])
+log_info "5. Validando endpoint de desasignación de video de pantalla..."
+RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" -X DELETE "${PORTAL_URL}/api/screens/pantalla-inexistente/videos/video-inexistente")
+CODE=$(echo "$RESP" | tail -n 1)
+assert_status "Desasignación con pantalla inexistente retorna HTTP 404" 404 "$CODE"
+
 echo -e "\nResultados Videos: ${GREEN}${TESTS_PASSED} pasados${NC}, ${RED}${TESTS_FAILED} fallados${NC}"
 exit $TESTS_FAILED

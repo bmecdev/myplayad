@@ -166,10 +166,20 @@ export default function VideosPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('¿Estás seguro de borrar este video y sus programaciones?')) {
-      await fetch(`/api/videos/${id}`, { method: 'DELETE' });
-      fetchData();
+  const handleDelete = async (id: string, title?: string) => {
+    const videoName = title ? `"${title}"` : 'este video';
+    if (confirm(`¿Estás seguro de borrar ${videoName} y todas sus programaciones?\n\nSe eliminará de la biblioteca y de todas las pantallas donde esté asignado actualmente.`)) {
+      try {
+        const res = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || 'Error al eliminar el video.');
+        } else {
+          fetchData();
+        }
+      } catch (err: any) {
+        alert(err.message || 'Error de conexión al eliminar el video.');
+      }
     }
   };
 
@@ -293,8 +303,8 @@ export default function VideosPage() {
                 <div className="aspect-video bg-black/50 flex items-center justify-center relative">
                   <Film className="w-12 h-12 text-purple-500/30" />
                   <button 
-                    onClick={() => handleDelete(video.id)}
-                    className="absolute top-2 right-2 bg-black/60 text-destructive hover:bg-destructive hover:text-white p-2 rounded-lg backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    onClick={() => handleDelete(video.id, video.title)}
+                    className="absolute top-2 right-2 bg-black/60 text-destructive hover:bg-destructive hover:text-white p-2 rounded-lg backdrop-blur-md opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-all cursor-pointer"
                     title="Eliminar Video"
                   >
                     <Trash2 className="w-4 h-4" />

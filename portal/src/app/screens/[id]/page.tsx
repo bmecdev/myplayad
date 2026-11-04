@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check, Clock, Sun, Moon, Save } from 'lucide-react';
+import { Monitor, ArrowLeft, Film, Gamepad2, Trash2, Upload, Loader2, CheckCircle2, AlertCircle, Calendar, RefreshCw, Power, RotateCw, Cpu, Copy, Check, Clock, Sun, Moon, Save, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import UpdateModal from '@/components/UpdateModal';
 
@@ -283,10 +283,19 @@ export default function ScreenDetailPage() {
     }
   };
 
-  const handleDeleteVideo = async (id: string) => {
-    if (confirm('¿Estás seguro de borrar este video de esta pantalla?')) {
-      await fetch(`/api/videos/${id}`, { method: 'DELETE' });
-      fetchScreenData();
+  const handleRemoveVideoFromScreen = async (videoId: string, videoTitle: string) => {
+    if (confirm(`¿Deseas desasignar el video "${videoTitle}" de esta pantalla?\n\nDejará de rotar en este televisor, pero seguirá disponible en tu biblioteca de videos.`)) {
+      try {
+        const res = await fetch(`/api/screens/${screenId}/videos/${videoId}`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || 'Error al desasignar el video.');
+        } else {
+          fetchScreenData();
+        }
+      } catch (err: any) {
+        alert(err.message || 'Error de conexión');
+      }
     }
   };
 
@@ -787,11 +796,12 @@ export default function ScreenDetailPage() {
                     </div>
                   </div>
                   <button 
-                    onClick={() => handleDeleteVideo(video.id)}
-                    className="text-destructive/50 hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Eliminar Video"
+                    onClick={() => handleRemoveVideoFromScreen(video.id, video.title)}
+                    className="text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors opacity-90 sm:opacity-0 sm:group-hover:opacity-100 flex items-center gap-1.5 text-xs font-medium cursor-pointer border border-amber-500/20"
+                    title="Desasignar de esta pantalla"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Unlink className="w-3.5 h-3.5" />
+                    <span>Desasignar</span>
                   </button>
                 </div>
               ))
