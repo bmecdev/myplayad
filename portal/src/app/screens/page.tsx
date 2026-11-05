@@ -527,6 +527,14 @@ export default function ScreensPage() {
                         <Settings className="w-5 h-5" />
                       </Link>
 
+                      <Link 
+                        href={`/demo?screenId=${screen.id}`}
+                        className="text-cyan-400/80 hover:text-cyan-300 transition-colors p-2 rounded-lg hover:bg-cyan-500/10"
+                        title="Lanzar como Kiosco Virtual en este PC"
+                      >
+                        <Tv className="w-5 h-5" />
+                      </Link>
+
                       {/* Solo el Super Administrador puede eliminar pantallas */}
                       {isSuperAdmin && (
                         <button 
