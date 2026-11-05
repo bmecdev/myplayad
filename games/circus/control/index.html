@@ -86,19 +86,28 @@
     <!-- Pantalla de Espera durante Publicidad en Pantalla -->
     <div id="ad-waiting-screen" class="welcome-container" style="display: none;">
         <div class="header-logo">
-            <div class="circus-icon">🎪</div>
+            <div class="ad-tv-badge">MYPLAYAD TV</div>
             <h1>CIRCUS<span>CHARLIE</span></h1>
         </div>
-        <div class="input-group" style="align-items: center; text-align: center;">
-            <div class="ad-pulse-icon" style="font-size: 3rem; margin: 12px 0; animation: pulse 1.2s infinite;">📺</div>
-            <p class="welcome-text" style="color: var(--amber, #ffb703); font-weight: bold; font-size: 1.1rem; line-height: 1.4;">
-                ¡MIRA LA PANTALLA!
-            </p>
-            <p class="welcome-text" style="color: var(--text-dim, #7fae94); font-size: 0.9rem; margin-top: 8px;">
-                Tu partida comenzará automáticamente al finalizar el video.
-            </p>
-            <div style="margin-top: 18px; font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--accent, #3dff8a); background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--panel-border, #1a2e22);">
-                DOMADOR: <span id="ad-pilot-badge">---</span>
+        <div class="ad-waiting-body">
+            <div class="ad-screen-frame">
+                <div class="ad-screen-glass">
+                    <div class="ad-scanline"></div>
+                    <div class="ad-tv-icon">📺</div>
+                    <div class="ad-live-pill">● EN VIVO</div>
+                </div>
+            </div>
+            <div class="ad-message-box">
+                <h2 class="ad-headline">¡MIRA LA PANTALLA!</h2>
+                <p class="ad-subtext">Tu show comenzará automáticamente al finalizar el video publicitario.</p>
+            </div>
+            <div class="ad-pilot-pill">
+                <span class="ad-pilot-label">DOMADOR:</span>
+                <span id="ad-pilot-badge" class="ad-pilot-name">---</span>
+            </div>
+            <div class="ad-status-hint">
+                <span class="pulse-dot"></span>
+                <span>CONTROLES TÁCTILES LISTOS</span>
             </div>
         </div>
     </div>

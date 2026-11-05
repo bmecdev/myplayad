@@ -2259,29 +2259,25 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// Clic directo en pantalla para volver al QR si es Game Over, o arrancar juego local si es pantalla de espera
-if (mainScreen) {
-    mainScreen.addEventListener('click', () => {
-        audio.init();
-        if (GameState.gameOver) {
-            returnToQrCode();
-        } else if (!GameState.running) {
-            startNewGame();
-        }
-    });
-}
+// Clic directo en pantalla para volver al QR si es Game Over, o arrancar juego local con video pre-juego
+[mainScreen, waitingOverlay].forEach(el => {
+    if (el) {
+        el.addEventListener('click', () => {
+            audio.init();
+            if (GameState.gameOver) {
+                returnToQrCode();
+            } else if (!GameState.running) {
+                playPreGameAdThenStart('MEGAMAN', () => startNewGame());
+            }
+        });
+    }
+});
 if (gameOverOverlay) {
     gameOverOverlay.addEventListener('click', () => {
         audio.init();
         if (GameState.gameOver) {
             returnToQrCode();
         }
-    });
-}
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        audio.init();
-        if (!GameState.running) startNewGame();
     });
 }
 
