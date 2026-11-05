@@ -3101,27 +3101,24 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// Clic directo en pantalla para volver al QR o iniciar partida local
-if (mainScreen) {
-    mainScreen.addEventListener('click', () => {
-        audio.init();
-        if (GameState.gameOver) {
-            returnToQrCode();
-        } else if (!GameState.running) {
-            startNewGame();
-        }
-    });
-}
+// Clic directo en pantalla para volver al QR o iniciar partida local con video pre-juego
+[mainScreen, waitingOverlay].forEach(el => {
+    if (el) {
+        el.addEventListener('click', () => {
+            audio.init();
+            if (GameState.gameOver) {
+                returnToQrCode();
+            } else if (!GameState.running) {
+                stopAttractMode();
+                playPreGameAdThenStart('CHARLIE', () => startNewGame());
+            }
+        });
+    }
+});
 if (gameOverOverlay) {
     gameOverOverlay.addEventListener('click', () => {
         audio.init();
         if (GameState.gameOver) returnToQrCode();
-    });
-}
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        audio.init();
-        if (!GameState.running) startNewGame();
     });
 }
 
@@ -3684,16 +3681,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 attractModeState = 'qr';
                 rankingPanel.classList.add('hidden');
                 qrPanel.classList.remove('hidden');
-            }
-        });
-    }
-
-    if (mainScreen) {
-        mainScreen.addEventListener('click', () => {
-            audio.init();
-            if (!GameState.running || GameState.gameOver) {
-                stopAttractMode();
-                playPreGameAdThenStart('CHARLIE', () => startNewGame());
             }
         });
     }
