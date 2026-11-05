@@ -410,7 +410,7 @@ export default function VirtualKioskPage() {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [activeVideoUrl]);
+  }, [activeVideoUrl, selectedGameSlug]);
 
   // Asegurar autoplay y volumen en el elemento de video
   useEffect(() => {
@@ -491,7 +491,9 @@ export default function VirtualKioskPage() {
       : DEFAULT_GAME_RANKINGS[selectedGameSlug] || DEFAULT_GAME_RANKINGS.circus;
 
   const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
-  const gameIframeSrc = getGameUrl(selectedGameSlug, screenIdForGame);
+  const baseGameUrl = getGameUrl(selectedGameSlug, screenIdForGame);
+  const adVideoParam = activeVideoUrl ? `&adVideo=${encodeURIComponent(getAbsoluteVideoUrl(activeVideoUrl))}` : '';
+  const gameIframeSrc = `${baseGameUrl}${adVideoParam}`;
 
   return (
     <div className="space-y-6 pb-12">
