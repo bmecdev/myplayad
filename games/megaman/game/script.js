@@ -1613,29 +1613,129 @@ function render() {
 function renderBackground() {
     const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
 
-    // Fondo de cielo según el escenario
-    ctx.fillStyle = cfg.bgColor;
+    // 1. Cielo con degradado atmosférico dinámico según el Boss/Stage
+    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+    if (cfg.hazardType === 'lava') {
+        // Fire Man: fundición volcánica con fuego y brasas
+        grad.addColorStop(0, '#140303');
+        grad.addColorStop(0.5, '#300808');
+        grad.addColorStop(1, '#5c0f0f');
+    } else if (cfg.stageNum === 3) {
+        // Guts Man: cantera / mina industrial pesada
+        grad.addColorStop(0, '#020b05');
+        grad.addColorStop(0.5, '#0b1f11');
+        grad.addColorStop(1, '#15381f');
+    } else {
+        // Cut Man: ciudad futurista / noche neón cyberpunk
+        grad.addColorStop(0, '#020617');
+        grad.addColorStop(0.5, '#0a192f');
+        grad.addColorStop(1, '#112e4d');
+    }
+    ctx.fillStyle = grad;
     ctx.fillRect(GameState.cameraX, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Siluetas distantes
-    ctx.fillStyle = cfg.bgCityColor;
-    for (let bx = 0; bx < STAGE_LENGTH; bx += 32) {
-        const h = 40 + ((bx * 13) % 45);
-        ctx.fillRect(bx - GameState.cameraX * 0.15, 136 - h, 28, h);
+    // 2. Estrellas y polvo atmosférico en el fondo distante
+    const t = Date.now() / 1000;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    for (let s = 0; s < 25; s++) {
+        const sx = ((s * 47) % (CANVAS_WIDTH + 80)) + GameState.cameraX * 0.95;
+        const sy = (s * 23) % 70;
+        const twinkle = Math.sin(t * 3 + s) > 0.3 ? 1 : 0.4;
+        ctx.globalAlpha = twinkle;
+        ctx.fillRect(sx - GameState.cameraX * 0.05, sy, 1.2, 1.2);
+    }
+    ctx.globalAlpha = 1.0;
+
+    // 3. Siluetas de rascacielos y agujas industriales (Parallax lejana)
+    for (let bx = 0; bx < STAGE_LENGTH; bx += 36) {
+        const h = 48 + ((bx * 17) % 55);
+        const drawX = bx - GameState.cameraX * 0.15;
+        if (drawX < GameState.cameraX - 40 || drawX > GameState.cameraX + CANVAS_WIDTH + 40) continue;
+
+        // Cuerpo del edificio con bisel
+        ctx.fillStyle = cfg.bgCityColor;
+        ctx.beginPath();
+        ctx.rect(drawX, 136 - h, 30, h);
+        ctx.fill();
+
+        // Techo angular o aguja
+        ctx.fillStyle = cfg.bgBeamColor;
+        ctx.beginPath();
+        ctx.moveTo(drawX + 6, 136 - h);
+        ctx.lineTo(drawX + 15, 136 - h - 12);
+        ctx.lineTo(drawX + 24, 136 - h);
+        ctx.closePath();
+        ctx.fill();
+
+        // Luz de baliza roja parpadeante en la antena
+        if (Math.sin(t * 4 + bx) > 0.2) {
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(drawX + 14, 136 - h - 13, 2, 2);
+        }
+
+        // Ventanas iluminadas en cuadrícula minuciosa
+        for (let wy = 136 - h + 8; wy < 136 - 6; wy += 8) {
+            for (let wx = drawX + 4; wx < drawX + 26; wx += 6) {
+                const isLit = ((wx * 7 + wy * 13) % 5) < 3;
+                if (isLit) {
+                    ctx.fillStyle = cfg.hazardType === 'lava' ? 'rgba(251, 191, 36, 0.45)' : 'rgba(56, 189, 248, 0.45)';
+                    ctx.fillRect(wx, wy, 3, 4);
+                    // Brillo interior de la ventana
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(wx + 1, wy + 1, 1, 1);
+                }
+            }
+        }
     }
 
-    // Tuberías, vigas o chimeneas
-    ctx.fillStyle = cfg.bgBeamColor;
-    for (let px = 0; px < STAGE_LENGTH; px += 80) {
-        ctx.fillRect(px - GameState.cameraX * 0.35, 20, 8, 116);
-        ctx.fillRect(px - 10 - GameState.cameraX * 0.35, 45, 28, 6);
+    // 4. Vigas estructurales, tuberías gigantes y chimeneas industriales (Parallax media)
+    for (let px = 0; px < STAGE_LENGTH; px += 88) {
+        const drawPx = px - GameState.cameraX * 0.35;
+        if (drawPx < GameState.cameraX - 50 || drawPx > GameState.cameraX + CANVAS_WIDTH + 50) continue;
+
+        // Columna vertical metálica
+        ctx.fillStyle = cfg.bgBeamColor;
+        ctx.fillRect(drawPx, 15, 12, 121);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(drawPx + 2, 15, 3, 121); // Brillo metálico longitudinal
+
+        // Vigas horizontales cruzadas
+        ctx.fillStyle = cfg.bgBeamColor;
+        ctx.fillRect(drawPx - 16, 42, 44, 8);
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(drawPx - 16, 48, 44, 2);
+
+        // Remaches en cruces de vigas
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(drawPx + 1, 44, 2, 2);
+        ctx.fillRect(drawPx + 9, 44, 2, 2);
+
+        // Ventilador industrial gigante en el fondo
+        const fanAngle = t * 3 + px;
+        ctx.save();
+        ctx.translate(drawPx + 6, 26);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        ctx.stroke();
+        for (let b = 0; b < 4; b++) {
+            const a = fanAngle + (b * Math.PI / 2);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+            ctx.beginPath();
+            ctx.arc(Math.cos(a) * 5, Math.sin(a) * 5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
     }
 
-    // Si es escenario de lava (Fire Man), brillo cálido en la base
+    // 5. Brillo volcánico / vapor en la base
     if (cfg.hazardType === 'lava') {
-        ctx.fillStyle = 'rgba(255, 69, 0, 0.15)';
-        const pulse = Math.sin(Date.now() / 250) * 8;
-        ctx.fillRect(GameState.cameraX, 136 - 10 - pulse, CANVAS_WIDTH, pulse + 34);
+        const heatGrad = ctx.createLinearGradient(0, 95, 0, 140);
+        heatGrad.addColorStop(0, 'rgba(239, 68, 68, 0)');
+        heatGrad.addColorStop(1, 'rgba(249, 115, 22, 0.35)');
+        ctx.fillStyle = heatGrad;
+        ctx.fillRect(GameState.cameraX, 90, CANVAS_WIDTH, 50);
     }
 }
 
@@ -1643,39 +1743,125 @@ function renderPlatforms() {
     const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
 
     GameState.platforms.forEach(plat => {
+        if (plat.x + plat.w < GameState.cameraX - 10 || plat.x > GameState.cameraX + CANVAS_WIDTH + 10) return;
+
         if (plat.type === 'ground' || plat.type === 'block') {
-            ctx.fillStyle = cfg.platformGround;
+            // Cuerpo base con gradiente vertical metálico
+            const baseGrad = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
+            baseGrad.addColorStop(0, cfg.platformGround);
+            baseGrad.addColorStop(1, '#071018');
+            ctx.fillStyle = baseGrad;
+            ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+
+            // Rejilla antideslizante superior (Catwalk Tread Grating)
+            ctx.fillStyle = cfg.platformBorder;
+            ctx.fillRect(plat.x, plat.y, plat.w, 1.5);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.fillRect(plat.x, plat.y, plat.w, 0.8);
+
+            // Micro-estrías de agarre en el borde
+            ctx.fillStyle = '#061320';
+            for (let gx = plat.x; gx < plat.x + plat.w; gx += 4) {
+                ctx.fillRect(gx, plat.y + 1.5, 1.5, 1.5);
+            }
+
+            // Paneles modulares de blindaje con remaches y juntas
+            const panelW = 24;
+            for (let px = plat.x; px < plat.x + plat.w; px += panelW) {
+                const curW = Math.min(panelW, plat.x + plat.w - px);
+                // Línea divisoria de panel
+                ctx.fillStyle = '#060d15';
+                ctx.fillRect(px, plat.y + 3, 1, plat.h - 3);
+
+                // Bisel interior del panel
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.fillRect(px + 1, plat.y + 4, curW - 2, 1);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                ctx.fillRect(px + 1, plat.y + plat.h - 2, curW - 2, 1);
+
+                // Remaches hexagonales en esquinas
+                if (curW >= 8 && plat.h >= 14) {
+                    ctx.fillStyle = '#060d15';
+                    ctx.fillRect(px + 3, plat.y + 6, 2.5, 2.5);
+                    ctx.fillRect(px + curW - 5, plat.y + 6, 2.5, 2.5);
+                    // Brillo del perno
+                    ctx.fillStyle = '#e2e8f0';
+                    ctx.fillRect(px + 3.5, plat.y + 6.5, 1, 1);
+                    ctx.fillRect(px + curW - 4.5, plat.y + 6.5, 1, 1);
+                }
+            }
+
+            // Franja de advertencia con chevrons amarillos/negros en el borde inferior
+            if (plat.h >= 20) {
+                const stripeY = plat.y + plat.h - 4;
+                ctx.fillStyle = '#eab308';
+                ctx.fillRect(plat.x, stripeY, plat.w, 3);
+                ctx.fillStyle = '#020617';
+                for (let cx = plat.x; cx < plat.x + plat.w; cx += 8) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx, stripeY);
+                    ctx.lineTo(cx + 4, stripeY + 3);
+                    ctx.lineTo(cx + 2, stripeY + 3);
+                    ctx.lineTo(cx - 2, stripeY);
+                    ctx.fill();
+                }
+            }
+        } else if (plat.type === 'pipe') {
+            // Tubería cilíndrica con gradiente metálico
+            const pipeGrad = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
+            const isLava = cfg.hazardType === 'lava';
+            const colDark = isLava ? '#7f1d1d' : '#14532d';
+            const colMid = isLava ? '#dc2626' : '#16a34a';
+            const colLight = isLava ? '#fca5a5' : '#86efac';
+
+            pipeGrad.addColorStop(0, colDark);
+            pipeGrad.addColorStop(0.3, colLight);
+            pipeGrad.addColorStop(0.6, colMid);
+            pipeGrad.addColorStop(1, colDark);
+
+            ctx.fillStyle = pipeGrad;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(plat.x, plat.y, plat.w, plat.h, 2);
+            else ctx.rect(plat.x, plat.y, plat.w, plat.h);
+            ctx.fill();
+
+            // Bridas / Anillos de unión de la tubería
+            for (let fx = plat.x + 8; fx < plat.x + plat.w - 4; fx += 24) {
+                ctx.fillStyle = colDark;
+                ctx.fillRect(fx - 1, plat.y - 1, 4, plat.h + 2);
+                ctx.fillStyle = colLight;
+                ctx.fillRect(fx, plat.y, 1.5, plat.h);
+            }
+        } else if (plat.type === 'metal') {
+            // Plataforma flotante estilo viga I de acero
+            ctx.fillStyle = cfg.hazardType === 'lava' ? '#451a03' : '#1e293b';
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
             // Borde superior brillante
-            ctx.fillStyle = cfg.platformBorder;
-            ctx.fillRect(plat.x, plat.y, plat.w, 2);
-
-            // Patrón de remaches de acero NES
-            ctx.fillStyle = '#0f172a';
-            for (let rx = plat.x + 4; rx < plat.x + plat.w - 4; rx += 16) {
-                ctx.fillRect(rx, plat.y + 6, 2, 2);
-            }
-        } else if (plat.type === 'pipe') {
-            ctx.fillStyle = cfg.hazardType === 'lava' ? '#b91c1c' : '#16a34a';
-            ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = cfg.hazardType === 'lava' ? '#f87171' : '#4ade80';
-            ctx.fillRect(plat.x, plat.y + 1, plat.w, 2);
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(plat.x, plat.y + plat.h - 2, plat.w, 2);
-        } else if (plat.type === 'metal') {
-            ctx.fillStyle = cfg.hazardType === 'lava' ? '#451a03' : '#334155';
-            ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = cfg.hazardType === 'lava' ? '#d97706' : '#64748b';
+            ctx.fillStyle = cfg.hazardType === 'lava' ? '#f59e0b' : '#38bdf8';
             ctx.fillRect(plat.x, plat.y, plat.w, 1.5);
+
+            // Alma de la viga con celosía diagonal
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 1;
+            for (let lx = plat.x + 4; lx < plat.x + plat.w - 4; lx += 8) {
+                ctx.beginPath();
+                ctx.moveTo(lx, plat.y + 2);
+                ctx.lineTo(lx + 4, plat.y + plat.h - 1);
+                ctx.stroke();
+            }
+
+            // Sombra inferior
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(plat.x, plat.y + plat.h - 1.5, plat.w, 1.5);
         } else if (plat.type === 'wall') {
             ctx.fillStyle = cfg.platformGround;
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
             ctx.fillStyle = cfg.platformBorder;
             ctx.fillRect(plat.x, plat.y, 2, plat.h);
-            ctx.fillStyle = '#0f172a';
-            for (let ry = 8; ry < plat.h; ry += 16) {
-                ctx.fillRect(plat.x + 4, ry, 4, 2);
+            ctx.fillStyle = '#060d15';
+            for (let ry = 8; ry < plat.h; ry += 12) {
+                ctx.fillRect(plat.x + 4, ry, 3, 2);
             }
         }
     });
@@ -1695,7 +1881,7 @@ function renderBossGate() {
     ctx.fillRect(gate.x - 2, 8, 2, 6);
     ctx.fillRect(gate.x + gate.w, 8, 2, 6);
 
-    // Persiana corrediza amarilla (Hazard Shutter NES)
+    // Persiana corrediza con biseles
     ctx.save();
     ctx.beginPath();
     ctx.rect(gate.x, 0, gate.w, 136);
@@ -1733,10 +1919,14 @@ function renderSpikes() {
     if (cfg.hazardType === 'lava') {
         GameState.spikes.forEach(sp => {
             // Fondo de lava volcánica ardiente
-            ctx.fillStyle = '#dc2626';
+            const lavaGrad = ctx.createLinearGradient(0, sp.y, 0, sp.y + sp.h);
+            lavaGrad.addColorStop(0, '#f97316');
+            lavaGrad.addColorStop(0.3, '#dc2626');
+            lavaGrad.addColorStop(1, '#7f1d1d');
+            ctx.fillStyle = lavaGrad;
             ctx.fillRect(sp.x, sp.y, sp.w, sp.h);
-            ctx.fillStyle = '#f97316';
-            ctx.fillRect(sp.x, sp.y, sp.w, 4);
+
+            // Cresta de magma incandescente
             ctx.fillStyle = '#fef08a';
             ctx.fillRect(sp.x, sp.y, sp.w, 1.5);
 
@@ -1745,19 +1935,36 @@ function renderSpikes() {
             for (let bx = sp.x + 4; bx < sp.x + sp.w; bx += 14) {
                 const bOffset = Math.sin(t + bx) * 2;
                 ctx.fillStyle = '#ffea00';
-                ctx.fillRect(bx, sp.y + bOffset, 3, 2);
+                ctx.beginPath();
+                ctx.arc(bx, sp.y + 1 + bOffset, 2, 0, Math.PI * 2);
+                ctx.fill();
             }
         });
     } else {
         GameState.spikes.forEach(sp => {
-            ctx.fillStyle = cfg.hazardColor || '#ef4444';
+            // Pinchos metálicos 3D con facetado y punta afilada
             for (let sx = sp.x; sx < sp.x + sp.w; sx += 6) {
+                // Faceta izquierda brillante
+                ctx.fillStyle = '#f87171';
                 ctx.beginPath();
                 ctx.moveTo(sx, sp.y + sp.h);
                 ctx.lineTo(sx + 3, sp.y);
-                ctx.lineTo(sx + 6, sp.y + sp.h);
+                ctx.lineTo(sx + 3, sp.y + sp.h);
                 ctx.closePath();
                 ctx.fill();
+
+                // Faceta derecha sombreada
+                ctx.fillStyle = '#991b1b';
+                ctx.beginPath();
+                ctx.moveTo(sx + 3, sp.y);
+                ctx.lineTo(sx + 6, sp.y + sp.h);
+                ctx.lineTo(sx + 3, sp.y + sp.h);
+                ctx.closePath();
+                ctx.fill();
+
+                // Reflejo blanco en el filo central
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(sx + 2.5, sp.y, 1, 3);
             }
         });
     }
@@ -1766,14 +1973,41 @@ function renderSpikes() {
 function renderPickups() {
     GameState.pickups.forEach(pick => {
         if (pick.collected) return;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(pick.x, pick.y, pick.w, pick.h);
+        // Cápsula redondeada 3D brillante
+        ctx.save();
+        ctx.translate(pick.x, pick.y);
+
+        // Sombra de cápsula
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(pick.w / 2, pick.h + 1, pick.w / 2, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Contenedor cilíndrico de vidrio
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(0, 0, pick.w, pick.h, 4);
+        else ctx.rect(0, 0, pick.w, pick.h);
+        ctx.fill();
+
+        // Núcleo de energía de plasma cian
         ctx.fillStyle = '#38bdf8';
-        ctx.fillRect(pick.x + 2, pick.y + 2, pick.w - 4, pick.h - 4);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(2, 2, pick.w - 4, pick.h - 4, 3);
+        else ctx.rect(2, 2, pick.w - 4, pick.h - 4);
+        ctx.fill();
+
+        // Brillo blanco interior
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(3, 3, 2, pick.h - 6);
+
+        // Letra P de Power
         ctx.fillStyle = '#ffffff';
         ctx.font = '5px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillText('P', pick.x + pick.w / 2, pick.y + pick.h - 2);
+        ctx.fillText('P', pick.w / 2, pick.h - 2.5);
+
+        ctx.restore();
     });
 }
 
@@ -1792,91 +2026,277 @@ function renderMegaMan() {
         ctx.scale(-1, 1);
     }
 
-    // Colores del sprite clásico NES de Mega Man
-    let armorColor = '#2563eb';      // Azul oscuro
-    let bodyColor = '#00d2ff';       // Cyan brillante
-    let faceColor = '#fed7aa';       // Piel
-    const eyeColor = '#0f172a';
+    // Colores del sprite orgánico de Mega Man
+    let armorDark = '#1d4ed8';       // Azul cobalto profundo
+    let armorMid = '#2563eb';        // Azul clásico
+    let armorLight = '#60a5fa';      // Resplandor azul
+    let bodyColor = '#00d2ff';       // Cian brillante
+    let bodyLight = '#a5f3fc';       // Brillo cian
+    let faceColor = '#fed7aa';       // Tono piel anime
+    let faceShadow = '#fba268';      // Sombra facial
 
     // Aura de carga pulsante
     if (p.isCharging) {
-        const pulse = Math.floor(Date.now() / 80) % 3;
+        const pulse = Math.floor(Date.now() / 70) % 3;
         if (pulse === 1) {
-            armorColor = '#16a34a';
-            bodyColor = '#86efac';
+            armorDark = '#15803d';
+            armorMid = '#16a34a';
+            armorLight = '#86efac';
+            bodyColor = '#4ade80';
         } else if (pulse === 2 && p.chargeTime >= 1.0) {
-            armorColor = '#ea580c';
-            bodyColor = '#fde047';
+            armorDark = '#c2410c';
+            armorMid = '#ea580c';
+            armorLight = '#fde047';
+            bodyColor = '#facc15';
         }
+
+        // Ondas de plasma circulares alrededor de Mega Man
+        ctx.strokeStyle = bodyColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const rWave = 12 + (Date.now() % 200) / 15;
+        ctx.arc(p.w / 2, p.h / 2, rWave, 0, Math.PI * 2);
+        ctx.stroke();
     }
 
     if (p.isSliding) {
-        // Sprite de deslizamiento (Pose baja)
-        ctx.fillStyle = armorColor;
-        ctx.fillRect(0, 10, 20, 10);
-        ctx.fillStyle = bodyColor;
-        ctx.fillRect(6, 12, 10, 6);
+        // --- POSE DE DESLIZAMIENTO (SLIDE) CURVADA Y AERODINÁMICA ---
+        // Líneas de velocidad / plasma cian en la estela
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+        ctx.fillRect(-6, 15, 8, 2);
+        ctx.fillRect(-10, 18, 10, 2);
+
+        // Casco bajo aerodinámico
+        ctx.fillStyle = armorDark;
+        ctx.beginPath();
+        ctx.ellipse(15, 14, 5, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = armorLight;
+        ctx.fillRect(13, 11, 4, 2);
+
+        // Rostro mirando al frente
         ctx.fillStyle = faceColor;
-        ctx.fillRect(14, 11, 4, 4);
+        ctx.fillRect(16, 13, 4, 3);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(18, 14, 1.5, 1.5);
+
+        // Torso bajo extendido
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(7, 13, 8, 6);
+        ctx.fillStyle = bodyLight;
+        ctx.fillRect(7, 13, 8, 1.5);
+
+        // Piernas y botas extendidas horizontalmente
+        ctx.fillStyle = armorMid;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(0, 16, 16, 6, 3);
+        else ctx.rect(0, 16, 16, 6);
+        ctx.fill();
+
+        // Suela de las botas
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 21, 16, 2);
+
+        // Destellos de fricción en el piso
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(1, 22, 2, 1);
+        ctx.fillRect(8, 22, 2, 1);
     } else {
-        // 1. Casco azul de Mega Man
-        ctx.fillStyle = armorColor;
-        ctx.fillRect(2, 0, 11, 8);
-        ctx.fillRect(5, -1, 5, 2); // Cresta central del casco
-        ctx.fillStyle = bodyColor;
-        ctx.fillRect(1, 3, 2, 4);  // Orejera izquierda
+        // --- MEGA MAN DE PIE / CORRIENDO / SALTANDO (ALTA DEFINICIÓN) ---
+        const bobY = (!p.onGround) ? -1 : (Math.abs(p.vx) > 0 ? (Math.floor(p.runAnimTimer * 2) % 2) : 0);
 
-        // 2. Rostro y ojos
+        // 1. Casco azul redondeado y estilizado
+        ctx.fillStyle = armorDark;
+        ctx.beginPath();
+        ctx.arc(8, 5 + bobY, 6.5, Math.PI, 0); // Corona superior redondeada
+        ctx.lineTo(14.5, 9 + bobY);
+        ctx.lineTo(2.5, 9 + bobY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Cresta central del casco (elevación aerodinámica)
+        ctx.fillStyle = armorMid;
+        ctx.beginPath();
+        ctx.moveTo(6, 2 + bobY);
+        ctx.lineTo(8, -1 + bobY);
+        ctx.lineTo(10, 2 + bobY);
+        ctx.closePath();
+        ctx.fill();
+        // Brillo de la cresta
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(7.5, 0 + bobY, 1.5, 4);
+
+        // Brillo especular en la frente del casco
+        ctx.fillStyle = armorLight;
+        ctx.beginPath();
+        ctx.ellipse(7.5, 3 + bobY, 3.5, 1.2, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Orejera cilíndrica con sensor cian brillante
+        ctx.fillStyle = armorDark;
+        ctx.beginPath();
+        ctx.arc(3.5, 6 + bobY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.arc(3.5, 6 + bobY, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Rostro anime detallado con expresión determinada
+        ctx.fillStyle = faceShadow;
+        ctx.fillRect(7, 5 + bobY, 6.5, 1.5); // Sombra del casco sobre la frente
         ctx.fillStyle = faceColor;
-        ctx.fillRect(6, 2, 7, 6);
-        ctx.fillStyle = eyeColor;
-        ctx.fillRect(10, 3, 2, 3); // Ojo mirando al frente
+        ctx.beginPath();
+        ctx.moveTo(6.5, 6.5 + bobY);
+        ctx.lineTo(13.5, 6.5 + bobY);
+        ctx.lineTo(13, 10.5 + bobY);
+        ctx.lineTo(8.5, 11.5 + bobY); // Mentón redondeado
+        ctx.lineTo(6.5, 9.5 + bobY);
+        ctx.closePath();
+        ctx.fill();
 
-        // 3. Torso / Pecho
-        ctx.fillStyle = armorColor;
-        ctx.fillRect(3, 8, 9, 7);
+        // Ojo grande expresivo
+        ctx.fillStyle = '#0f172a'; // Contorno / pestaña superior
+        ctx.fillRect(9.5, 6.5 + bobY, 3, 3.5);
+        ctx.fillStyle = '#1e3a8a'; // Iris azul zafiro
+        ctx.fillRect(10, 7 + bobY, 2.2, 2.8);
+        ctx.fillStyle = '#ffffff'; // Destello blanco en la pupila (vida en la mirada)
+        ctx.fillRect(11, 7 + bobY, 1.2, 1.2);
+
+        // 3. Torso y coraza pectoral cian
+        ctx.fillStyle = armorDark; // Cuello y hombros base
+        ctx.fillRect(4.5, 10.5 + bobY, 7.5, 2.5);
+
+        // Pectoral cian contorneado
         ctx.fillStyle = bodyColor;
-        ctx.fillRect(5, 9, 5, 5);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(4, 11 + bobY, 8.5, 5.5, 2);
+        else ctx.rect(4, 11 + bobY, 8.5, 5.5);
+        ctx.fill();
+        // Brillo superior del pectoral
+        ctx.fillStyle = bodyLight;
+        ctx.fillRect(4.5, 11.5 + bobY, 7.5, 1.5);
+        // Sombra inferior del pectoral
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(4.5, 15 + bobY, 7.5, 1.5);
+
+        // Cinturón azul marino
+        ctx.fillStyle = armorDark;
+        ctx.fillRect(4.5, 16.5 + bobY, 7.5, 2);
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(7.5, 16.5 + bobY, 2, 2); // Hebilla
 
         // 4. Brazos / Mega Buster
         if (p.isShooting) {
-            // Brazo extendido como cañón Buster
-            ctx.fillStyle = armorColor;
-            ctx.fillRect(10, 9, 7, 4);
+            // Cañón Buster extendido hacia adelante
+            ctx.fillStyle = armorDark;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(9, 11 + bobY, 9, 5, 2);
+            else ctx.rect(9, 11 + bobY, 9, 5);
+            ctx.fill();
+
+            // Ranura de ventilación y anillo de la boca
+            ctx.fillStyle = bodyColor;
+            ctx.fillRect(12, 12 + bobY, 3, 1.2);
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(15, 10, 2, 2); // Boca del cañón
+            ctx.fillRect(17, 11.5 + bobY, 2, 4); // Anillo de salida
+
+            // Núcleo de energía dentro del cañón
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(18.5, 12 + bobY, 1, 3);
         } else {
-            ctx.fillStyle = armorColor;
-            ctx.fillRect(2, 9, 3, 5);
+            // Brazo izquierdo en reposo con guantelete
+            ctx.fillStyle = armorMid;
+            ctx.beginPath();
+            ctx.arc(3.5, 13.5 + bobY, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = armorDark;
+            ctx.fillRect(2, 13.5 + bobY, 3, 3);
         }
 
-        // 5. Cinturón / Calzón
-        ctx.fillStyle = armorColor;
-        ctx.fillRect(4, 14, 7, 3);
+        // 5. Piernas y Botas acampanadas (Animación dinámica)
+        ctx.fillStyle = armorDark;
 
-        // 6. Piernas y Botas (Animación de correr / salto)
-        ctx.fillStyle = armorColor;
         if (!p.onGround) {
-            // Pose de salto: piernas flexionadas
-            ctx.fillRect(2, 17, 4, 5);
-            ctx.fillRect(8, 16, 5, 4);
+            // --- SALTO: Piernas recogidas aerodinámicas ---
+            // Pierna izquierda doblada
+            ctx.beginPath();
+            ctx.arc(4, 18, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillRect(1, 18, 6, 5);
+
+            // Pierna derecha extendida hacia atrás
+            ctx.beginPath();
+            ctx.arc(11, 17, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillRect(9, 17, 6, 5);
+
+            // Suelas de salto
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(1, 22, 6, 1.5);
+            ctx.fillRect(9, 21, 6, 1.5);
         } else if (Math.abs(p.vx) > 0) {
-            // Ciclo de correr NES (3 frames)
+            // --- CORRER: Zancada fluida con botas acampanadas (3 frames) ---
             const frame = Math.floor(p.runAnimTimer) % 3;
             if (frame === 0) {
-                ctx.fillRect(1, 16, 5, 6);
-                ctx.fillRect(9, 16, 5, 5);
+                // Pierna delantera adelantada con bota curvada
+                ctx.fillStyle = armorMid;
+                ctx.fillRect(1, 17 + bobY, 5, 6);
+                ctx.fillStyle = armorDark;
+                ctx.fillRect(0, 20 + bobY, 6, 3.5);
+
+                // Pierna trasera retrasada
+                ctx.fillStyle = armorMid;
+                ctx.fillRect(9, 17 + bobY, 5, 5);
+                ctx.fillStyle = armorDark;
+                ctx.fillRect(9, 19 + bobY, 6, 4);
             } else if (frame === 1) {
-                ctx.fillRect(3, 16, 4, 6);
-                ctx.fillRect(7, 16, 4, 6);
+                // Posición intermedia
+                ctx.fillStyle = armorMid;
+                ctx.fillRect(3.5, 17 + bobY, 4.5, 6.5);
+                ctx.fillStyle = armorDark;
+                ctx.fillRect(2.5, 20.5 + bobY, 5.5, 3.5);
+
+                ctx.fillStyle = armorMid;
+                ctx.fillRect(8.5, 17 + bobY, 4.5, 6.5);
+                ctx.fillStyle = armorDark;
+                ctx.fillRect(7.5, 20.5 + bobY, 5.5, 3.5);
             } else {
-                ctx.fillRect(0, 16, 5, 5);
-                ctx.fillRect(8, 16, 6, 6);
+                // Pierna trasera adelantada
+                ctx.fillStyle = armorMid;
+                ctx.fillRect(0, 17 + bobY, 5, 5);
+                ctx.fillStyle = armorDark;
+                ctx.fillRect(0, 19 + bobY, 6, 4);
+
+                ctx.fillStyle = armorMid;
+                ctx.fillRect(8, 17 + bobY, 5, 6);
+                ctx.fillStyle = armorDark;
+                ctx.fillRect(8, 20 + bobY, 6, 3.5);
             }
+
+            // Suelas de las botas
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 23 + bobY, 14, 1.5);
         } else {
-            // De pie
-            ctx.fillRect(3, 16, 4, 6);
-            ctx.fillRect(8, 16, 4, 6);
+            // --- DE PIE: Pose heroica con botas firmes ---
+            ctx.fillStyle = armorMid;
+            ctx.fillRect(2.5, 17, 4.5, 6);
+            ctx.fillRect(8.5, 17, 4.5, 6);
+
+            // Botas acampanadas en la base
+            ctx.fillStyle = armorDark;
+            ctx.fillRect(1.5, 20, 5.5, 3.5);
+            ctx.fillRect(7.5, 20, 5.5, 3.5);
+
+            // Reflejo en la rodilla
+            ctx.fillStyle = armorLight;
+            ctx.fillRect(3, 18, 2, 2);
+            ctx.fillRect(9, 18, 2, 2);
+
+            // Suelas de goma
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(1.5, 23, 5.5, 1.5);
+            ctx.fillRect(7.5, 23, 5.5, 1.5);
         }
     }
 
@@ -1899,91 +2319,172 @@ function renderBoss() {
     const isFlashing = b.invulnTimer > 0 && Math.floor(Date.now() / 40) % 2 === 0;
 
     if (b.bossType === 'fireman') {
-        // --- FIRE MAN (Nivel 2) ---
-        // Cuerpo rojo carmesí
+        // --- FIRE MAN: Antorcha de fuego fluida y cañones de llama ---
+        // Cabeza y coraza
         ctx.fillStyle = isFlashing ? '#ffffff' : '#dc2626';
-        ctx.fillRect(2, 4, 16, 12);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(3, 2, 14, 14, 3);
+        else ctx.rect(3, 2, 14, 14);
+        ctx.fill();
 
-        // Pecho / Coraza dorada de llama
-        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
-        ctx.fillRect(6, 6, 8, 8);
+        // Llama orgánica en la cabeza (Curvas Bézier vivas)
+        const tFlame = Date.now() / 90;
+        const flameWave = Math.sin(tFlame) * 2;
+        // Capa exterior roja
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.moveTo(6, 2);
+        ctx.quadraticCurveTo(7 + flameWave, -7, 10 + flameWave, -11);
+        ctx.quadraticCurveTo(13 - flameWave, -6, 14, 2);
+        ctx.closePath();
+        ctx.fill();
 
-        // Cabeza
-        ctx.fillStyle = isFlashing ? '#ffffff' : '#ef4444';
-        ctx.fillRect(4, 0, 12, 8);
-
-        // Antorcha de fuego en la cabeza (llama oscilante)
-        const flameOffset = Math.floor(Date.now() / 80) % 2;
+        // Capa media naranja
         ctx.fillStyle = '#f97316';
-        ctx.fillRect(7, -8, 6, 8);
-        ctx.fillStyle = '#fde047';
-        ctx.fillRect(8 + flameOffset, -6, 4, 6);
+        ctx.beginPath();
+        ctx.moveTo(7, 2);
+        ctx.quadraticCurveTo(8 + flameWave, -5, 10 + flameWave, -8);
+        ctx.quadraticCurveTo(12 - flameWave, -4, 13, 2);
+        ctx.closePath();
+        ctx.fill();
 
-        // Ojos
+        // Núcleo caliente amarillo
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.moveTo(8.5, 2);
+        ctx.lineTo(10 + flameWave, -4);
+        ctx.lineTo(11.5, 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Visor / Ojos
         ctx.fillStyle = '#0f172a';
-        ctx.fillRect(6, 3, 2, 2);
+        ctx.fillRect(6, 5, 4, 3);
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(7, 6, 2, 1.5);
+
+        // Pecho con reactor de fuego
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(10, 11, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(9, 10, 2, 2);
 
         // Cañones de fuego en las manos
         ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
-        ctx.fillRect(0, 7, 4, 6);
-        ctx.fillRect(16, 7, 4, 6);
+        ctx.fillRect(0, 8, 4, 6);
+        ctx.fillRect(16, 8, 4, 6);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(0, 10, 1.5, 3);
+        ctx.fillRect(18.5, 10, 1.5, 3);
 
-        // Botas
+        // Botas acampanadas
         ctx.fillStyle = isFlashing ? '#ffffff' : '#991b1b';
         ctx.fillRect(2, 16, 6, 10);
-        ctx.fillRect(11, 16, 6, 10);
+        ctx.fillRect(12, 16, 6, 10);
     } else if (b.bossType === 'gutsman') {
-        // --- GUTS MAN (Nivel 3) ---
-        // Cuerpo masivo marrón
-        ctx.fillStyle = isFlashing ? '#ffffff' : '#5c3d1e';
-        ctx.fillRect(1, 4, 20, 13);
-
-        // Coraza verde musgo
-        ctx.fillStyle = isFlashing ? '#ffffff' : '#65a30d';
-        ctx.fillRect(5, 5, 12, 8);
-
-        // Casco pesado de construcción
+        // --- GUTS MAN: Robot de construcción pesado con hombreras gigantes ---
+        // Casco pesado con visera
         ctx.fillStyle = isFlashing ? '#ffffff' : '#eab308';
-        ctx.fillRect(4, -2, 14, 9);
-        ctx.fillRect(3, 4, 16, 3);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(3, -3, 16, 10, 3);
+        else ctx.rect(3, -3, 16, 10);
+        ctx.fill();
+        ctx.fillStyle = '#ca8a04';
+        ctx.fillRect(2, 3, 18, 3);
 
-        // Ojos visor
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(7, 2, 3, 2);
-
-        // Hombros gigantescos
-        ctx.fillStyle = isFlashing ? '#ffffff' : '#84cc16';
-        ctx.fillRect(-2, 3, 5, 8);
-        ctx.fillRect(19, 3, 5, 8);
-
-        // Botas de acero macizo
+        // Mandíbula blindada
         ctx.fillStyle = isFlashing ? '#ffffff' : '#334155';
-        ctx.fillRect(2, 16, 7, 12);
-        ctx.fillRect(13, 16, 7, 12);
+        ctx.fillRect(4, 6, 14, 5);
+
+        // Visor de ojos
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(6, 2, 4, 2);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(7, 2, 2, 1.5);
+
+        // Hombreras redondeadas gigantes
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#65a30d';
+        ctx.beginPath();
+        ctx.arc(1, 7, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(21, 7, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Torso marrón acorazado
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#5c3d1e';
+        ctx.fillRect(3, 7, 16, 10);
+        ctx.fillStyle = '#84cc16';
+        ctx.fillRect(6, 9, 10, 6);
+
+        // Botas macizas
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#1e293b';
+        ctx.fillRect(1, 17, 8, 11);
+        ctx.fillRect(13, 17, 8, 11);
     } else {
-        // --- CUT MAN (Nivel 1) ---
-        // Cuerpo
-        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
-        ctx.fillRect(2, 4, 16, 12);
+        // --- CUT MAN: Tijeras curvas afiladas y chasis cerámico ---
+        // Cuchillas tijera superiores (Curvas reales con filo brillante)
+        ctx.fillStyle = '#cbd5e1';
+        // Hoja izquierda
+        ctx.beginPath();
+        ctx.moveTo(8, -1);
+        ctx.quadraticCurveTo(3, -6, 2, -12);
+        ctx.quadraticCurveTo(6, -11, 9, -2);
+        ctx.closePath();
+        ctx.fill();
 
-        // Cabeza
+        // Hoja derecha
+        ctx.beginPath();
+        ctx.moveTo(11, -1);
+        ctx.quadraticCurveTo(16, -6, 17, -12);
+        ctx.quadraticCurveTo(13, -11, 10, -2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Filo cortante blanco
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(2, -12);
+        ctx.lineTo(8, -1);
+        ctx.moveTo(17, -12);
+        ctx.lineTo(11, -1);
+        ctx.stroke();
+
+        // Perno central de las tijeras
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(9.5, -1.5, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cabeza redondeada
         ctx.fillStyle = isFlashing ? '#ffffff' : '#fcd34d';
-        ctx.fillRect(4, 0, 12, 10);
-
-        // Cuchilla tijera en la cabeza (Cut Blade)
-        ctx.fillStyle = '#e2e8f0';
-        ctx.fillRect(6, -8, 3, 9);
-        ctx.fillRect(11, -8, 3, 9);
-        ctx.fillRect(8, -9, 4, 2);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(4, 0, 12, 10, 3);
+        else ctx.rect(4, 0, 12, 10);
+        ctx.fill();
 
         // Ojos
         ctx.fillStyle = '#0f172a';
-        ctx.fillRect(5, 3, 2, 3);
+        ctx.fillRect(6, 3, 2.5, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(7, 3, 1, 1);
+
+        // Chasis naranja
+        ctx.fillStyle = isFlashing ? '#ffffff' : '#f59e0b';
+        ctx.fillRect(3, 10, 14, 7);
+        // Emblema circular en el pecho
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(10, 13.5, 2.5, 0, Math.PI * 2);
+        ctx.fill();
 
         // Botas
         ctx.fillStyle = isFlashing ? '#ffffff' : '#b45309';
-        ctx.fillRect(2, 16, 6, 10);
-        ctx.fillRect(11, 16, 6, 10);
+        ctx.fillRect(2, 17, 6, 9);
+        ctx.fillRect(12, 17, 6, 9);
     }
 
     ctx.restore();
@@ -1997,40 +2498,100 @@ function renderEnemies() {
         const isHurt = e.hurtTimer > 0;
 
         if (e.type === 'metool') {
+            // --- METOOL: Casco de construcción redondeado con insignia de cruz ---
             const helmColor = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#ea580c' : e.subtype === 'miner' ? '#78350f' : '#facc15');
+
+            // Cúpula del casco
             ctx.fillStyle = helmColor;
             ctx.beginPath();
-            ctx.arc(7, 6, 7, Math.PI, 0);
+            ctx.arc(7, 6, 6.5, Math.PI, 0);
             ctx.fill();
-            ctx.fillRect(0, 6, 14, 4);
+
+            // Ala delantera del casco
+            ctx.fillRect(0, 6, 14, 3);
+
+            // Reflejo brillante superior
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.ellipse(6, 3, 3, 1, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Insignia de cruz de seguridad
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(6, 3.5, 2, 2);
 
             if (e.state === 'ATTACKING') {
+                // Asoma los ojos
                 ctx.fillStyle = isHurt ? '#ffffff' : '#0f172a';
                 ctx.fillRect(2, 7, 10, 4);
+                // Ojos brillantes
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(3, 8, 2, 2);
                 ctx.fillRect(8, 8, 2, 2);
             }
+
+            // Pies pequeños
             ctx.fillStyle = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#991b1b' : '#78350f');
-            ctx.fillRect(1, 10, 4, 2);
-            ctx.fillRect(9, 10, 4, 2);
+            ctx.beginPath();
+            ctx.arc(3, 10, 1.5, 0, Math.PI * 2);
+            ctx.arc(11, 10, 1.5, 0, Math.PI * 2);
+            ctx.fill();
         } else if (e.type === 'blader') {
+            // --- BLADER: Dron helicóptero con aspas giratorias ---
             const bodyColor = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#ef4444' : e.subtype === 'quarry' ? '#65a30d' : '#38bdf8');
+
+            // Cuerpo aerodinámico
             ctx.fillStyle = bodyColor;
-            ctx.fillRect(2, 4, 10, 8);
-            ctx.fillStyle = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#facc15' : '#ef4444');
-            ctx.fillRect(4, 6, 4, 3);
-            ctx.fillStyle = '#ffffff';
-            const hRot = Math.floor(Date.now() / 40) % 2;
-            ctx.fillRect(hRot ? 0 : 3, 1, hRot ? 14 : 8, 2);
+            ctx.beginPath();
+            ctx.ellipse(7, 7, 5, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Visor rojo
+            ctx.fillStyle = isHurt ? '#ffffff' : '#ef4444';
+            ctx.fillRect(7, 6, 4, 2.5);
+
+            // Aspas giratorias con difuminado de movimiento
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            const hRot = Math.floor(Date.now() / 35) % 2;
+            if (hRot) {
+                ctx.fillRect(0, 2, 14, 1.5);
+            } else {
+                ctx.fillRect(3, 1.5, 8, 2);
+            }
         } else if (e.type === 'spikey') {
+            // --- SPIKEY: Rueda con púas cónicas 3D y centro metálico ---
             const wheelColor = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#dc2626' : e.subtype === 'boulder' ? '#475569' : '#64748b');
+
+            // Giro animado
+            ctx.save();
+            ctx.translate(7, 6);
+            ctx.rotate(Date.now() / 80);
+
+            // Púas cónicas en 4 direcciones
+            ctx.fillStyle = isHurt ? '#ffffff' : '#ef4444';
+            for (let a = 0; a < 4; a++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.moveTo(-2, -5);
+                ctx.lineTo(0, -8);
+                ctx.lineTo(2, -5);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Cuerpo circular de la rueda
             ctx.fillStyle = wheelColor;
             ctx.beginPath();
-            ctx.arc(7, 6, 6, 0, Math.PI * 2);
+            ctx.arc(0, 0, 5, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = isHurt ? '#ffffff' : (e.subtype === 'fire' ? '#fef08a' : '#f87171');
-            ctx.fillRect(4, 4, 6, 4);
+
+            // Centro del eje
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
         }
 
         ctx.restore();
@@ -2041,18 +2602,50 @@ function renderBullets() {
     // Balas de Mega Man
     GameState.bullets.forEach(b => {
         if (b.charged) {
-            // Super disparo cargado: anillo plasmático de alta energía
+            // Super disparo cargado: esfera de plasma cósmica con anillos de choque
+            ctx.save();
+            ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+
+            // Resplandor exterior pulsante
+            const rPulse = 7 + (Date.now() % 100) / 30;
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.arc(0, 0, rPulse, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Núcleo plasmático brillante
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Centro blanco ardiente
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4);
-            ctx.strokeStyle = '#00ffff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(b.x, b.y, b.w, b.h);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, b.w / 3, b.h / 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
         } else {
-            // Lemon pellet amarillo clásico
-            ctx.fillStyle = '#ffea00';
-            ctx.fillRect(b.x, b.y, b.w, b.h);
+            // Disparo normal de Buster: Lemon pellet redondeado con resplandor
+            ctx.save();
+            ctx.translate(b.x, b.y);
+
+            // Halo exterior amarillo / cian
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(0, 0, b.w, b.h, 2.5);
+            else ctx.rect(0, 0, b.w, b.h);
+            ctx.fill();
+
+            // Centro blanco de alta energía
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2);
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(1, 0.8, b.w - 2, b.h - 1.6, 2);
+            else ctx.rect(1, 0.8, b.w - 2, b.h - 1.6);
+            ctx.fill();
+
+            ctx.restore();
         }
     });
 
@@ -2060,39 +2653,75 @@ function renderBullets() {
     GameState.enemyBullets.forEach(eb => {
         if (eb.isBlade) {
             // Cuchilla rodante de Cut Man
-            ctx.fillStyle = '#ffffff';
             ctx.save();
             ctx.translate(eb.x + 5, eb.y + 5);
-            ctx.rotate(Date.now() / 60);
-            ctx.fillRect(-5, -2, 10, 4);
-            ctx.fillRect(-2, -5, 4, 10);
+            ctx.rotate(Date.now() / 45);
+
+            ctx.fillStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.moveTo(-5, -2);
+            ctx.lineTo(0, -6);
+            ctx.lineTo(5, -2);
+            ctx.lineTo(2, 0);
+            ctx.lineTo(5, 5);
+            ctx.lineTo(-2, 2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.restore();
         } else if (eb.isFire) {
-            // Fuego de Fire Man
+            // Bola de fuego de Fire Man
             ctx.save();
             ctx.translate(eb.x + 5, eb.y + 5);
             ctx.fillStyle = '#f97316';
             ctx.beginPath();
             ctx.arc(0, 0, 5, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#fde047';
-            ctx.fillRect(-2, -2, 4, 4);
+
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.restore();
         } else if (eb.isBoulder) {
-            // Roca rodante de Guts Man
+            // Roca rodante de Guts Man facetada con cráteres
             ctx.save();
             ctx.translate(eb.x + 6, eb.y + 6);
-            ctx.rotate(Date.now() / 100);
+            ctx.rotate(Date.now() / 80);
+
+            // Silueta de roca facetada
             ctx.fillStyle = '#78716c';
-            ctx.fillRect(-6, -6, 12, 12);
+            ctx.beginPath();
+            ctx.moveTo(-5, -3);
+            ctx.lineTo(-2, -6);
+            ctx.lineTo(4, -5);
+            ctx.lineTo(6, 1);
+            ctx.lineTo(3, 6);
+            ctx.lineTo(-4, 5);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cráteres / sombras interiores
             ctx.fillStyle = '#44403c';
-            ctx.fillRect(-4, -4, 8, 8);
+            ctx.fillRect(-2, -2, 3, 3);
+            ctx.fillRect(2, 1, 2, 2);
+
+            // Reflejo
             ctx.fillStyle = '#d6d3d1';
-            ctx.fillRect(-2, -2, 4, 4);
+            ctx.fillRect(-1, -4, 2, 1.5);
+
             ctx.restore();
         } else {
             ctx.fillStyle = '#f97316';
-            ctx.fillRect(eb.x, eb.y, eb.w, eb.h);
+            ctx.beginPath();
+            ctx.arc(eb.x + eb.w / 2, eb.y + eb.h / 2, eb.w / 2, 0, Math.PI * 2);
+            ctx.fill();
         }
     });
 }
