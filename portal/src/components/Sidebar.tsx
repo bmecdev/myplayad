@@ -72,7 +72,7 @@ export default function Sidebar() {
       : []),
     { name: isSuperAdmin ? 'Juegos' : 'Juegos de mi Plan', href: '/games', icon: Gamepad2 },
     { name: 'Videos', href: '/videos', icon: Film },
-    { name: 'Demo Kiosco', href: '/demo', icon: Tv },
+    { name: 'Kiosco Virtual', href: '/demo', icon: Tv },
   ];
 
   return (
