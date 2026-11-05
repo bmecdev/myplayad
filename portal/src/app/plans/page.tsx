@@ -126,10 +126,15 @@ export default function PlansPage() {
       const url = editingPlan ? `/api/plans/${editingPlan.id}` : '/api/plans';
       const method = editingPlan ? 'PUT' : 'POST';
 
+      const payload = {
+        ...formData,
+        maxVideosPerScreen: Math.max(1, formData.maxVideosPerScreen || 1),
+      };
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -319,8 +324,11 @@ export default function PlansPage() {
                     min="1"
                     max="100"
                     placeholder="15"
-                    value={formData.maxVideosPerScreen}
-                    onChange={(e) => setFormData({ ...formData, maxVideosPerScreen: parseInt(e.target.value) || 1 })}
+                    value={formData.maxVideosPerScreen === 0 ? '' : formData.maxVideosPerScreen}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                      setFormData({ ...formData, maxVideosPerScreen: isNaN(val) ? 0 : val });
+                    }}
                     className="w-full bg-black/40 border border-slate-700/80 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                   <Film className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
