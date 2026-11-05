@@ -3190,6 +3190,7 @@ function startNewGame(fromController = false) {
     killsCountElement.textContent = '00';
     playerNickElement.textContent = `PILOT: ${GameState.currentNickname}`;
 
+    stopAttractMode();
     waitingOverlay.classList.add('hidden');
     gameOverOverlay.classList.add('hidden');
 
@@ -3398,6 +3399,12 @@ function broadcastToControllers(msg) {
 }
 
 function requestAdVideo() {
+    if (!cachedAdVideoUrl) {
+        try {
+            const urlAd = new URLSearchParams(window.location.search).get('adVideo');
+            if (urlAd) cachedAdVideoUrl = decodeURIComponent(urlAd);
+        } catch (_) {}
+    }
     if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
     if (adVideoPromise) return adVideoPromise;
 
@@ -3418,7 +3425,11 @@ function requestAdVideo() {
         const finalize = (url) => {
             if (settled) return;
             settled = true;
-            if (url) cachedAdVideoUrl = url;
+            if (url) {
+                cachedAdVideoUrl = url;
+            } else {
+                adVideoPromise = null;
+            }
             resolve(cachedAdVideoUrl || null);
         };
 
@@ -3625,6 +3636,12 @@ function resetSignalingAndRoom() {
     updateQrCode();
     if (!GameState.running) {
         waitingOverlay.classList.remove('hidden');
+        const qrPanel = document.getElementById('waiting-qr-panel');
+        const rankingPanel = document.getElementById('waiting-ranking-panel');
+        if (qrPanel) qrPanel.classList.remove('hidden');
+        if (rankingPanel) rankingPanel.classList.add('hidden');
+        attractModeState = 'qr';
+        startAttractMode();
     }
     gameOverOverlay.classList.add('hidden');
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -3637,23 +3654,97 @@ function resetSignalingAndRoom() {
     }
 }
 
+const DEFAULT_STARWARS_SCORES = [
+    { name: 'SKYWALKER', score: 55000 },
+    { name: 'SOLO', score: 42000 },
+    { name: 'YODA', score: 33000 },
+    { name: 'VADER', score: 25000 },
+    { name: 'CHEWIE', score: 18000 }
+];
+
+function getStarwarsScores() {
+    try {
+        const stored = JSON.parse(localStorage.getItem('starwars_scores') || '[]');
+        if (Array.isArray(stored) && stored.length > 0) return stored;
+    } catch (_) {}
+    return DEFAULT_STARWARS_SCORES;
+}
+
+function broadcastRankingUpdate() {
+    try {
+        const scores = getStarwarsScores();
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'RANKING_UPDATE',
+                slug: 'starwars',
+                game: 'starwars',
+                ranking: scores
+            }, '*');
+        }
+    } catch (_) {}
+}
+
 function submitScore(nickname, score) {
-    let scores = JSON.parse(localStorage.getItem('starwars_scores') || '[]');
-    scores.push({ name: nickname, score: score, date: new Date().toLocaleDateString() });
+    let scores = getStarwarsScores().slice();
+    scores.push({ name: nickname || 'JEDI', score: score, date: new Date().toLocaleDateString() });
     scores.sort((a, b) => b.score - a.score);
     scores = scores.slice(0, 5);
     localStorage.setItem('starwars_scores', JSON.stringify(scores));
     renderRanking(scores);
+    broadcastRankingUpdate();
 }
 
 function renderRanking(scores) {
-    if (!rankingList) return;
-    rankingList.innerHTML = '';
-    scores.forEach((s, idx) => {
-        const li = document.createElement('li');
-        li.textContent = `${idx + 1}. ${s.name.padEnd(8, ' ')} - ${String(s.score).padStart(6, '0')}`;
-        rankingList.appendChild(li);
-    });
+    const list = scores || getStarwarsScores();
+    const renderToList = (ul) => {
+        if (!ul) return;
+        ul.innerHTML = '';
+        list.forEach((s, idx) => {
+            const li = document.createElement('li');
+            li.textContent = `${idx + 1}. ${s.name.padEnd(8, ' ')} - ${String(s.score).padStart(6, '0')}`;
+            ul.appendChild(li);
+        });
+    };
+    renderToList(rankingList);
+    renderToList(document.getElementById('standby-ranking-list'));
+}
+
+let attractModeInterval = null;
+let attractModeState = 'qr';
+
+function startAttractMode() {
+    stopAttractMode();
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+    if (!qrPanel || !rankingPanel) return;
+
+    renderRanking();
+    broadcastRankingUpdate();
+
+    attractModeInterval = setInterval(() => {
+        if (!waitingOverlay || waitingOverlay.classList.contains('hidden')) {
+            stopAttractMode();
+            return;
+        }
+
+        if (attractModeState === 'qr') {
+            attractModeState = 'ranking';
+            qrPanel.classList.add('hidden');
+            rankingPanel.classList.remove('hidden');
+            renderRanking();
+        } else {
+            attractModeState = 'qr';
+            rankingPanel.classList.add('hidden');
+            qrPanel.classList.remove('hidden');
+        }
+    }, 10000);
+}
+
+function stopAttractMode() {
+    if (attractModeInterval) {
+        clearInterval(attractModeInterval);
+        attractModeInterval = null;
+    }
 }
 
 function autoScale() {
@@ -3689,9 +3780,65 @@ window.addEventListener('DOMContentLoaded', () => {
         GameState.highScore = parseInt(savedHi, 10);
         highScoreElement.textContent = `HI: ${String(GameState.highScore).padStart(6, '0')}`;
     }
-    const scores = JSON.parse(localStorage.getItem('starwars_scores') || '[]');
-    renderRanking(scores);
+    renderRanking();
+    startAttractMode();
+
+    const instantPlayBtn = document.getElementById('instant-play-btn');
+    const instantPlayBtn2 = document.getElementById('instant-play-btn-2');
+    const toggleHallBtn = document.getElementById('toggle-hall-btn');
+    const backToQrBtn = document.getElementById('back-to-qr-btn');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+
+    if (instantPlayBtn) {
+        instantPlayBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopAttractMode();
+            audio.init();
+            playPreGameAdThenStart('JEDI', () => startNewGame());
+        });
+    }
+
+    if (instantPlayBtn2) {
+        instantPlayBtn2.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopAttractMode();
+            audio.init();
+            playPreGameAdThenStart('JEDI', () => startNewGame());
+        });
+    }
+
+    if (toggleHallBtn) {
+        toggleHallBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPanel && rankingPanel) {
+                attractModeState = 'ranking';
+                qrPanel.classList.add('hidden');
+                rankingPanel.classList.remove('hidden');
+                renderRanking();
+            }
+        });
+    }
+
+    if (backToQrBtn) {
+        backToQrBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPanel && rankingPanel) {
+                attractModeState = 'qr';
+                rankingPanel.classList.add('hidden');
+                qrPanel.classList.remove('hidden');
+            }
+        });
+    }
+
     requestAnimationFrame(gameLoop);
+});
+
+window.addEventListener('message', (event) => {
+    if (!event.data) return;
+    if (event.data.type === 'GET_RANKING') {
+        broadcastRankingUpdate();
+    }
 });
 
 window.addEventListener('resize', autoScale);

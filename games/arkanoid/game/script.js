@@ -537,6 +537,12 @@ function broadcastToControllers(msg) {
 let adVideoPromise = null;
 
 function requestAdVideo() {
+    if (!cachedAdVideoUrl) {
+        try {
+            const urlAd = new URLSearchParams(window.location.search).get('adVideo');
+            if (urlAd) cachedAdVideoUrl = decodeURIComponent(urlAd);
+        } catch (_) {}
+    }
     if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
     if (adVideoPromise) return adVideoPromise;
 
@@ -557,7 +563,11 @@ function requestAdVideo() {
         const finalize = (url) => {
             if (settled) return;
             settled = true;
-            if (url) cachedAdVideoUrl = url;
+            if (url) {
+                cachedAdVideoUrl = url;
+            } else {
+                adVideoPromise = null;
+            }
             resolve(cachedAdVideoUrl || null);
         };
 
@@ -846,6 +856,7 @@ function resetBall() {
 }
 
 function resetGame() {
+    stopAttractMode();
     audio.playStart();
     GameState.score = 0;
     GameState.lives = 3;
@@ -1051,6 +1062,13 @@ function endGame() {
     setTimeout(() => {
         gameOverOverlay.classList.add('hidden');
         waitingOverlay.classList.remove('hidden');
+        const qrPanel = document.getElementById('waiting-qr-panel');
+        const rankingPanel = document.getElementById('waiting-ranking-panel');
+        if (qrPanel) qrPanel.classList.remove('hidden');
+        if (rankingPanel) rankingPanel.classList.add('hidden');
+        attractModeState = 'qr';
+        startAttractMode();
+
         GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
         document.getElementById('room-id').textContent = `ROOM: ${GameState.roomId}`;
         updateQrCode();
@@ -1107,10 +1125,21 @@ function updateQrCode() {
     }
 }
 
-// API Functions
+// API Functions & Ranking
+const DEFAULT_ARKANOID_RANKING = [
+    { name: 'VAUS', score: 3500 },
+    { name: 'PILOT', score: 2500 },
+    { name: 'DOH', score: 1800 },
+    { name: 'RETRO', score: 1200 },
+    { name: 'ACE', score: 800 }
+];
+
 function fetchRanking() {
     try {
-        const ranking = JSON.parse(localStorage.getItem('arkanoid-ranking')) || [];
+        let ranking = JSON.parse(localStorage.getItem('arkanoid-ranking')) || [];
+        if (!Array.isArray(ranking) || ranking.length === 0) {
+            ranking = DEFAULT_ARKANOID_RANKING;
+        }
         const top5 = ranking.slice(0, 5);
         if (top5.length > 0) {
             GameState.highScore = top5[0].score;
@@ -1125,7 +1154,7 @@ function fetchRanking() {
                 li.innerHTML = `
                     <span class="rank">${index + 1}.</span>
                     <span class="nick">${entry.name.toUpperCase().substring(0, 10)}</span>
-                    <span class="score">${entry.score.toString().padStart(3, '0')}</span>
+                    <span class="score">${entry.score.toString().padStart(4, '0')}</span>
                 `;
                 listElement.appendChild(li);
             });
@@ -1133,6 +1162,8 @@ function fetchRanking() {
 
         renderList(rankingList);
         renderList(videoRankingList);
+        const standbyList = document.getElementById('standby-ranking-list');
+        renderList(standbyList);
 
         if (window.parent && window.parent !== window) {
             try {
@@ -1145,6 +1176,43 @@ function fetchRanking() {
         }
     } catch (error) {
         console.error('Error fetching ranking:', error);
+    }
+}
+
+let attractModeInterval = null;
+let attractModeState = 'qr';
+
+function startAttractMode() {
+    stopAttractMode();
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+    if (!qrPanel || !rankingPanel) return;
+
+    fetchRanking();
+
+    attractModeInterval = setInterval(() => {
+        if (!waitingOverlay || waitingOverlay.classList.contains('hidden')) {
+            stopAttractMode();
+            return;
+        }
+
+        if (attractModeState === 'qr') {
+            attractModeState = 'ranking';
+            qrPanel.classList.add('hidden');
+            rankingPanel.classList.remove('hidden');
+            fetchRanking();
+        } else {
+            attractModeState = 'qr';
+            rankingPanel.classList.add('hidden');
+            qrPanel.classList.remove('hidden');
+        }
+    }, 10000);
+}
+
+function stopAttractMode() {
+    if (attractModeInterval) {
+        clearInterval(attractModeInterval);
+        attractModeInterval = null;
     }
 }
 
@@ -1272,12 +1340,63 @@ function autoScale() {
 window.addEventListener('DOMContentLoaded', () => {
     updateQrCode();
     autoScale();
+    fetchRanking();
+    startAttractMode();
+
     const audioToggleBtn = document.getElementById('audio-toggle-btn');
     if (audioToggleBtn) {
         audioToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!audio.ctx) audio.init();
             else audio.resume();
+        });
+    }
+
+    const instantPlayBtn = document.getElementById('instant-play-btn');
+    const instantPlayBtn2 = document.getElementById('instant-play-btn-2');
+    const toggleHallBtn = document.getElementById('toggle-hall-btn');
+    const backToQrBtn = document.getElementById('back-to-qr-btn');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+
+    if (instantPlayBtn) {
+        instantPlayBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopAttractMode();
+            audio.init();
+            playPreGameAdThenStart('PILOT', () => resetGame());
+        });
+    }
+
+    if (instantPlayBtn2) {
+        instantPlayBtn2.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopAttractMode();
+            audio.init();
+            playPreGameAdThenStart('PILOT', () => resetGame());
+        });
+    }
+
+    if (toggleHallBtn) {
+        toggleHallBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPanel && rankingPanel) {
+                attractModeState = 'ranking';
+                qrPanel.classList.add('hidden');
+                rankingPanel.classList.remove('hidden');
+                fetchRanking();
+            }
+        });
+    }
+
+    if (backToQrBtn) {
+        backToQrBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPanel && rankingPanel) {
+                attractModeState = 'qr';
+                rankingPanel.classList.add('hidden');
+                qrPanel.classList.remove('hidden');
+            }
         });
     }
 });

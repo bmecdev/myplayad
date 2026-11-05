@@ -50,7 +50,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (description !== undefined) updateData.description = description ? String(description).trim() : null;
     if (maxVideosPerScreen !== undefined) {
       const parsedMax = Number(maxVideosPerScreen);
-      if (parsedMax > 0) updateData.maxVideosPerScreen = parsedMax;
+      if (parsedMax > 0) updateData.maxVideosPerScreen = Math.floor(parsedMax);
     }
     if (slug) {
       const cleanSlug = String(slug).trim();

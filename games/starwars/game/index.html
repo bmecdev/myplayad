@@ -69,16 +69,32 @@
                     </div>
                 </div>
 
-                <!-- Overlay de Conexión -->
+                <!-- Overlay de Conexión & Modo Atracción -->
                 <div id="waiting-overlay">
-                    <div class="overlay-content">
+                    <div class="overlay-content" id="waiting-qr-panel">
                         <h2 class="arcade-title">STAR WARS <span>FALCON</span></h2>
                         <p class="pulse-text">ESCANEA PARA PILOTAR !!</p>
                         <div class="qr-wrapper">
                             <div id="qrcode"></div>
                         </div>
                         <p class="status-text">ESPERANDO CONTROL...</p>
-                        <p class="keyboard-hint">CLICK O [ESPACIO] PARA JUGAR CON TECLADO</p>
+                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
+                            <button id="instant-play-btn" class="instant-btn" style="background: rgba(61, 255, 138, 0.2); border: 1px solid #3dff8a; color: #3dff8a; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">▶ PROBAR CON TECLADO</button>
+                            <button id="toggle-hall-btn" class="instant-btn" style="background: rgba(255, 183, 3, 0.15); border: 1px solid #ffb703; color: #ffb703; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">🏆 VER RANKING</button>
+                        </div>
+                    </div>
+
+                    <div class="overlay-content hidden" id="waiting-ranking-panel">
+                        <h2 class="arcade-title" style="color: #ffb703; text-shadow: 0 0 10px rgba(255,183,3,0.7);">🏆 HALL OF FAME</h2>
+                        <p class="pulse-text" style="color: #3dff8a;">MEJORES PILOTOS</p>
+                        <div id="standby-ranking-container" style="width: 85%; max-width: 320px; margin: 6px auto; background: rgba(15, 23, 42, 0.8); border: 1px solid #1e293b; border-radius: 6px; padding: 8px;">
+                            <ul id="standby-ranking-list" class="ranking-list" style="list-style: none; font-family: 'VT323', monospace; font-size: 15px; color: #cbd5e1; display: flex; flex-direction: column; gap: 2px; padding: 0; margin: 0;"></ul>
+                        </div>
+                        <p class="status-text" style="color: #ffb703; font-size: 8px;">¡ESCANEA EL QR PARA ENTRAR AL RANKING!</p>
+                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
+                            <button id="back-to-qr-btn" class="instant-btn" style="background: rgba(61, 255, 138, 0.2); border: 1px solid #3dff8a; color: #3dff8a; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">📱 VER CÓDIGO QR</button>
+                            <button id="instant-play-btn-2" class="instant-btn" style="background: rgba(255, 183, 3, 0.2); border: 1px solid #ffb703; color: #ffb703; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">▶ JUGAR AHORA</button>
+                        </div>
                     </div>
                 </div>
 

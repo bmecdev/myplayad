@@ -74,6 +74,8 @@ jobs:
           script: |
             mkdir -p /srv/videos/pool
             chmod -R 777 /srv/videos 2>/dev/null || true
+            cp /opt/myplayad/portal/scripts/fixtures/sample-spot.mp4 /srv/videos/pool/demo-spot.mp4 2>/dev/null || true
+            chmod 666 /srv/videos/pool/demo-spot.mp4 2>/dev/null || true
             cd /opt/myplayad/server
             docker compose up -d postgres
             sleep 3

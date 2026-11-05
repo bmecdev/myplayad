@@ -713,6 +713,7 @@ function clearGameOverTimers() {
 
 function returnToQrCode() {
     clearGameOverTimers();
+    stopAttractMode();
 
     GameState.running = false;
     GameState.gameOver = false;
@@ -724,6 +725,13 @@ function returnToQrCode() {
 
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+    if (rankingPanel) rankingPanel.classList.add('hidden');
+    attractModeState = 'qr';
+    startAttractMode();
 
     try {
         dataChannels.forEach(dc => {
@@ -759,6 +767,7 @@ function returnToQrCode() {
 
 function startNewGame() {
     clearGameOverTimers();
+    stopAttractMode();
 
     GameState.running = true;
     GameState.gameOver = false;
@@ -804,8 +813,8 @@ function endGame(isVictory = false) {
 
     gameOverOverlay.classList.remove('hidden');
 
-    // Cuenta regresiva visible de 3s
-    let secondsLeft = 3;
+    // Cuenta regresiva visible de 10s para visualización del Hall of Fame
+    let secondsLeft = 10;
     const cdEl = document.getElementById('return-countdown');
     if (cdEl) cdEl.textContent = secondsLeft;
 
@@ -820,10 +829,10 @@ function endGame(isVictory = false) {
         }
     }, 1000);
 
-    // Retorno automático rápido tras 3.5 segundos
+    // Retorno automático tras 10 segundos
     gameOverTimer = setTimeout(() => {
         returnToQrCode();
-    }, 3500);
+    }, 10000);
 
     // Notificar a los teléfonos
     dataChannels.forEach(ch => {
@@ -3092,27 +3101,24 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// Clic directo en pantalla para volver al QR o iniciar partida local
-if (mainScreen) {
-    mainScreen.addEventListener('click', () => {
-        audio.init();
-        if (GameState.gameOver) {
-            returnToQrCode();
-        } else if (!GameState.running) {
-            startNewGame();
-        }
-    });
-}
+// Clic directo en pantalla para volver al QR o iniciar partida local con video pre-juego
+[mainScreen, waitingOverlay].forEach(el => {
+    if (el) {
+        el.addEventListener('click', () => {
+            audio.init();
+            if (GameState.gameOver) {
+                returnToQrCode();
+            } else if (!GameState.running) {
+                stopAttractMode();
+                playPreGameAdThenStart('CHARLIE', () => startNewGame());
+            }
+        });
+    }
+});
 if (gameOverOverlay) {
     gameOverOverlay.addEventListener('click', () => {
         audio.init();
         if (GameState.gameOver) returnToQrCode();
-    });
-}
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        audio.init();
-        if (!GameState.running) startNewGame();
     });
 }
 
@@ -3248,6 +3254,12 @@ function broadcastToControllers(msg) {
 }
 
 function requestAdVideo() {
+    if (!cachedAdVideoUrl) {
+        try {
+            const urlAd = new URLSearchParams(window.location.search).get('adVideo');
+            if (urlAd) cachedAdVideoUrl = decodeURIComponent(urlAd);
+        } catch (_) {}
+    }
     if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
     if (adVideoPromise) return adVideoPromise;
 
@@ -3268,7 +3280,11 @@ function requestAdVideo() {
         const finalize = (url) => {
             if (settled) return;
             settled = true;
-            if (url) cachedAdVideoUrl = url;
+            if (url) {
+                cachedAdVideoUrl = url;
+            } else {
+                adVideoPromise = null;
+            }
             resolve(cachedAdVideoUrl || null);
         };
 
@@ -3485,11 +3501,41 @@ function updateQrCode() {
 }
 
 // ==========================================
-// 🏆 Hall of Fame
+// 🏆 Hall of Fame & Modo Atracción
 // ==========================================
+const DEFAULT_CIRCUS_SCORES = [
+    { name: 'CHARLIE', score: 20000 },
+    { name: 'DOMADOR', score: 15000 },
+    { name: 'LION', score: 10000 },
+    { name: 'RETRO', score: 7500 },
+    { name: 'ROOKIE', score: 5000 }
+];
+
+function getCircusScores() {
+    try {
+        const stored = JSON.parse(localStorage.getItem('circus_halloffame') || '[]');
+        if (Array.isArray(stored) && stored.length > 0) return stored;
+    } catch (_) {}
+    return DEFAULT_CIRCUS_SCORES;
+}
+
+function broadcastRankingUpdate() {
+    try {
+        const scores = getCircusScores();
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'RANKING_UPDATE',
+                slug: 'circus',
+                game: 'circus',
+                ranking: scores
+            }, '*');
+        }
+    } catch (_) {}
+}
+
 function saveScore(name, score) {
     try {
-        const scores = JSON.parse(localStorage.getItem('circus_halloffame') || '[]');
+        const scores = getCircusScores().slice();
         scores.push({ name: name || 'CHARLIE', score: score, date: new Date().toLocaleDateString() });
         scores.sort((a, b) => b.score - a.score);
         const top5 = scores.slice(0, 5);
@@ -3498,17 +3544,60 @@ function saveScore(name, score) {
             GameState.highScore = top5[0].score;
             localStorage.setItem('circus_highscore', GameState.highScore.toString());
         }
+        renderHallOfFame();
+        broadcastRankingUpdate();
     } catch (_) {}
 }
 
 function renderHallOfFame() {
-    if (!rankingList) return;
     try {
-        const scores = JSON.parse(localStorage.getItem('circus_halloffame') || '[]');
-        rankingList.innerHTML = scores.map((s, idx) => `
+        const scores = getCircusScores();
+        const html = scores.map((s, idx) => `
             <li><span>#${idx + 1} ${s.name}</span><span>${s.score.toString().padStart(6, '0')}</span></li>
-        `).join('') || '<li><span>NO RECORDS</span><span>000000</span></li>';
+        `).join('');
+
+        if (rankingList) rankingList.innerHTML = html;
+        const standbyList = document.getElementById('standby-ranking-list');
+        if (standbyList) standbyList.innerHTML = html;
     } catch (_) {}
+}
+
+let attractModeInterval = null;
+let attractModeState = 'qr'; // 'qr' o 'ranking'
+
+function startAttractMode() {
+    stopAttractMode();
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+    if (!qrPanel || !rankingPanel) return;
+
+    renderHallOfFame();
+    broadcastRankingUpdate();
+
+    attractModeInterval = setInterval(() => {
+        if (!waitingOverlay || waitingOverlay.classList.contains('hidden')) {
+            stopAttractMode();
+            return;
+        }
+
+        if (attractModeState === 'qr') {
+            attractModeState = 'ranking';
+            qrPanel.classList.add('hidden');
+            rankingPanel.classList.remove('hidden');
+            renderHallOfFame();
+        } else {
+            attractModeState = 'qr';
+            rankingPanel.classList.add('hidden');
+            qrPanel.classList.remove('hidden');
+        }
+    }, 10000);
+}
+
+function stopAttractMode() {
+    if (attractModeInterval) {
+        clearInterval(attractModeInterval);
+        attractModeInterval = null;
+    }
 }
 
 // ==========================================
@@ -3540,6 +3629,7 @@ function autoScale() {
 window.addEventListener('DOMContentLoaded', () => {
     initStage(1);
     renderHallOfFame();
+    startAttractMode();
 
     if (!GameState.roomId || GameState.roomId === '----') {
         GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -3548,19 +3638,49 @@ window.addEventListener('DOMContentLoaded', () => {
     updateQrCode();
 
     const instantPlayBtn = document.getElementById('instant-play-btn');
+    const instantPlayBtn2 = document.getElementById('instant-play-btn-2');
+    const toggleHallBtn = document.getElementById('toggle-hall-btn');
+    const backToQrBtn = document.getElementById('back-to-qr-btn');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    const rankingPanel = document.getElementById('waiting-ranking-panel');
+
     if (instantPlayBtn) {
         instantPlayBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            stopAttractMode();
             audio.init();
             playPreGameAdThenStart('CHARLIE', () => startNewGame());
         });
     }
 
-    if (mainScreen) {
-        mainScreen.addEventListener('click', () => {
+    if (instantPlayBtn2) {
+        instantPlayBtn2.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopAttractMode();
             audio.init();
-            if (!GameState.running || GameState.gameOver) {
-                playPreGameAdThenStart('CHARLIE', () => startNewGame());
+            playPreGameAdThenStart('CHARLIE', () => startNewGame());
+        });
+    }
+
+    if (toggleHallBtn) {
+        toggleHallBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPanel && rankingPanel) {
+                attractModeState = 'ranking';
+                qrPanel.classList.add('hidden');
+                rankingPanel.classList.remove('hidden');
+                renderHallOfFame();
+            }
+        });
+    }
+
+    if (backToQrBtn) {
+        backToQrBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPanel && rankingPanel) {
+                attractModeState = 'qr';
+                rankingPanel.classList.add('hidden');
+                qrPanel.classList.remove('hidden');
             }
         });
     }
@@ -3569,6 +3689,13 @@ window.addEventListener('DOMContentLoaded', () => {
     autoScale();
     setTimeout(initSignaling, 30);
     requestAnimationFrame(gameLoop);
+});
+
+window.addEventListener('message', (e) => {
+    if (!e.data) return;
+    if (e.data.type === 'GET_RANKING') {
+        broadcastRankingUpdate();
+    }
 });
 
 window.addEventListener('resize', autoScale);

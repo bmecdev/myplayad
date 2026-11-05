@@ -2259,29 +2259,25 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// Clic directo en pantalla para volver al QR si es Game Over, o arrancar juego local si es pantalla de espera
-if (mainScreen) {
-    mainScreen.addEventListener('click', () => {
-        audio.init();
-        if (GameState.gameOver) {
-            returnToQrCode();
-        } else if (!GameState.running) {
-            startNewGame();
-        }
-    });
-}
+// Clic directo en pantalla para volver al QR si es Game Over, o arrancar juego local con video pre-juego
+[mainScreen, waitingOverlay].forEach(el => {
+    if (el) {
+        el.addEventListener('click', () => {
+            audio.init();
+            if (GameState.gameOver) {
+                returnToQrCode();
+            } else if (!GameState.running) {
+                playPreGameAdThenStart('MEGAMAN', () => startNewGame());
+            }
+        });
+    }
+});
 if (gameOverOverlay) {
     gameOverOverlay.addEventListener('click', () => {
         audio.init();
         if (GameState.gameOver) {
             returnToQrCode();
         }
-    });
-}
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        audio.init();
-        if (!GameState.running) startNewGame();
     });
 }
 
@@ -2417,6 +2413,12 @@ function broadcastToControllers(msg) {
 }
 
 function requestAdVideo() {
+    if (!cachedAdVideoUrl) {
+        try {
+            const urlAd = new URLSearchParams(window.location.search).get('adVideo');
+            if (urlAd) cachedAdVideoUrl = decodeURIComponent(urlAd);
+        } catch (_) {}
+    }
     if (cachedAdVideoUrl) return Promise.resolve(cachedAdVideoUrl);
     if (adVideoPromise) return adVideoPromise;
 
@@ -2437,7 +2439,11 @@ function requestAdVideo() {
         const finalize = (url) => {
             if (settled) return;
             settled = true;
-            if (url) cachedAdVideoUrl = url;
+            if (url) {
+                cachedAdVideoUrl = url;
+            } else {
+                adVideoPromise = null;
+            }
             resolve(cachedAdVideoUrl || null);
         };
 

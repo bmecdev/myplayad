@@ -144,6 +144,9 @@ function getRankingData() {
     
     // Mapeo exhaustivo de posibles claves según el slug del juego
     const keyMap = {
+        'circus': ['circus_halloffame', 'circus-ranking'],
+        'starwars': ['starwars_scores', 'starwars-ranking'],
+        'arkanoid': ['arkanoid-ranking', 'arkanoid_halloffame'],
         'invaders': ['space-invaders-ranking', 'invaders-ranking'],
         'duckhunt': ['duckhunt_scores', 'duckhunt-ranking'],
         'megaman': ['megaman_halloffame', 'megaman-ranking']
