@@ -559,6 +559,16 @@ export default function ScreenDetailPage() {
               <span>Actualizaciones OTA</span>
             </button>
 
+            {/* Abrir como Kiosco Virtual */}
+            <Link
+              href={`/demo?screenId=${screen.id}`}
+              className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Lanzar esta pantalla en el navegador como Kiosco Virtual para PC o Smart TV"
+            >
+              <Tv className="w-3 h-3 text-cyan-400" />
+              <span>Kiosco Virtual</span>
+            </Link>
+
             {/* Indicador de Orientación */}
             <span
               className={`text-xs px-2.5 py-0.5 rounded-full border font-medium flex items-center gap-1.5 transition-colors ${

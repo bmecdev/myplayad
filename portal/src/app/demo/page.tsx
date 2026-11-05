@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Tv,
   Gamepad2,
@@ -17,6 +18,10 @@ import {
   Check,
   Radio,
   Trophy,
+  Monitor,
+  ShieldCheck,
+  ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 import { ARCADE_GAMES_CATALOG, getGameUrl, getControllerUrl, CatalogGame } from '@/lib/gamesCatalog';
 
@@ -27,6 +32,49 @@ type VideoItem = {
   user?: {
     name?: string;
   };
+};
+
+type ScreenOption = {
+  id: string;
+  name: string;
+  location?: string | null;
+  orientation?: 'PORTRAIT' | 'LANDSCAPE' | string;
+  userId?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    username: string;
+  } | null;
+  schedules?: Array<{
+    id: string;
+    isActive: boolean;
+    videoId?: string | null;
+    video?: VideoItem | null;
+    gameId?: string | null;
+    game?: {
+      id: string;
+      name: string;
+      slug: string;
+    } | null;
+  }>;
+};
+
+type CurrentUser = {
+  id: string;
+  name: string;
+  username: string;
+  role: 'SUPER_ADMIN' | 'CLIENT';
+  plan?: {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string | null;
+    games: Array<{
+      id: string;
+      name: string;
+      slug: string;
+    }>;
+  } | null;
 };
 
 type RankingEntry = {
@@ -128,7 +176,10 @@ const DEFAULT_GAME_RANKINGS: Record<string, RankingEntry[]> = {
   ],
 };
 
-export default function DemoKioskPage() {
+export default function VirtualKioskPage() {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [screens, setScreens] = useState<ScreenOption[]>([]);
+  const [selectedScreenId, setSelectedScreenId] = useState<string>('default');
   const [selectedGameSlug, setSelectedGameSlug] = useState<string>('arkanoid');
   const [orientation, setOrientation] = useState<'LANDSCAPE' | 'PORTRAIT'>('LANDSCAPE');
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -147,27 +198,124 @@ export default function DemoKioskPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const rankingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch available videos from database
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+
+  // 1. Obtener usuario de sesión y pantallas accesibles al cargar la página
   useEffect(() => {
-    const fetchVideos = async () => {
-      try {
-        const res = await fetch('/api/videos');
-        if (res.ok) {
-          const data: VideoItem[] = await res.json();
-          setVideos(data);
-          // Si hay videos subidos en el sistema, iniciar directamente con rotación
-          if (data.length > 0) {
-            setSelectedVideoSource('playlist');
+    // Sesión
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user) setCurrentUser(data.user);
+      })
+      .catch((err) => console.error('Error fetching session in Virtual Kiosk:', err));
+
+    // Pantallas
+    fetch('/api/screens')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: ScreenOption[]) => {
+        if (Array.isArray(data)) {
+          setScreens(data);
+          // Si la URL contiene ?screenId=, priorizarla
+          const params = new URLSearchParams(window.location.search);
+          const qScreenId = params.get('screenId');
+          if (qScreenId && data.some((s) => s.id === qScreenId)) {
+            setSelectedScreenId(qScreenId);
+          } else if (data.length > 0) {
+            // Seleccionar por defecto la primera pantalla si el usuario tiene pantallas creadas
+            setSelectedScreenId(data[0].id);
           }
         }
-      } catch (err) {
-        console.warn('No se pudieron cargar videos adicionales:', err);
-      }
-    };
-    fetchVideos();
+      })
+      .catch((err) => console.error('Error fetching screens for Virtual Kiosk:', err));
   }, []);
 
-  // Update active video URL when selection changes
+  // Pantalla seleccionada actual
+  const selectedScreen = useMemo(() => {
+    return screens.find((s) => s.id === selectedScreenId) || null;
+  }, [screens, selectedScreenId]);
+
+  // 2. Juegos permitidos según el plan del usuario o superadmin
+  const allowedGames = useMemo(() => {
+    if (isSuperAdmin) {
+      return ARCADE_GAMES_CATALOG;
+    }
+    if (!currentUser?.plan?.games || currentUser.plan.games.length === 0) {
+      // Fallback si no tiene juegos asignados aún: mostrar Arkanoid como muestra
+      return [ARCADE_GAMES_CATALOG[0]];
+    }
+    const allowedSlugs = new Set(currentUser.plan.games.map((g) => g.slug.toLowerCase()));
+    const filtered = ARCADE_GAMES_CATALOG.filter((catalogGame) =>
+      allowedSlugs.has(catalogGame.slug.toLowerCase())
+    );
+    return filtered.length > 0 ? filtered : [ARCADE_GAMES_CATALOG[0]];
+  }, [isSuperAdmin, currentUser]);
+
+  // Si el juego actual no está en la lista permitida, reajustar al primero permitido
+  useEffect(() => {
+    if (allowedGames.length > 0 && !allowedGames.some((g) => g.slug === selectedGameSlug)) {
+      setSelectedGameSlug(allowedGames[0].slug);
+    }
+  }, [allowedGames, selectedGameSlug]);
+
+  // 3. Sincronizar pantalla seleccionada: orientación, videos asignados y juego programado
+  useEffect(() => {
+    if (selectedScreen) {
+      // Orientación de la pantalla
+      if (selectedScreen.orientation === 'PORTRAIT' || selectedScreen.orientation === 'LANDSCAPE') {
+        setOrientation(selectedScreen.orientation);
+      }
+
+      // Videos asignados a esta pantalla específica
+      const screenVideos: VideoItem[] = [];
+      if (Array.isArray(selectedScreen.schedules)) {
+        selectedScreen.schedules.forEach((sch) => {
+          if (sch.video && sch.video.filename) {
+            // Evitar duplicados
+            if (!screenVideos.some((v) => v.id === sch.video!.id)) {
+              screenVideos.push(sch.video);
+            }
+          }
+        });
+      }
+
+      if (screenVideos.length > 0) {
+        setVideos(screenVideos);
+        setSelectedVideoSource('playlist');
+        setCurrentVideoIdx(0);
+      } else {
+        // Sin videos asignados aún a esta pantalla
+        setVideos([]);
+        setSelectedVideoSource('default');
+      }
+
+      // Juego activo programado en la pantalla
+      const activeGameSchedule = selectedScreen.schedules?.find(
+        (sch) => sch.game && sch.game.slug && sch.isActive
+      );
+      if (activeGameSchedule?.game?.slug) {
+        const gameSlug = activeGameSchedule.game.slug;
+        if (allowedGames.some((g) => g.slug === gameSlug)) {
+          setSelectedGameSlug(gameSlug);
+        }
+      }
+    } else {
+      // Modo libre (Super Admin sin pantalla seleccionada o catálogo global)
+      fetch('/api/videos')
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data: VideoItem[]) => {
+          if (Array.isArray(data)) {
+            setVideos(data);
+            if (data.length > 0) {
+              setSelectedVideoSource('playlist');
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedScreen, allowedGames]);
+
+  // 4. Actualizar URL de video activo cuando cambia la selección o el índice de rotación
   useEffect(() => {
     const isDev =
       typeof window !== 'undefined' &&
@@ -203,7 +351,7 @@ export default function DemoKioskPage() {
     return url;
   };
 
-  // Escuchar mensajes del juego arcade en el iframe (comunicación pre-juego y sincronización)
+  // 5. Escuchar mensajes del juego arcade en el iframe (comunicación pre-juego y sincronización)
   useEffect(() => {
     const sendAdVideo = (targetWindow?: Window | null) => {
       const win = targetWindow || iframeRef.current?.contentWindow;
@@ -253,7 +401,6 @@ export default function DemoKioskPage() {
 
     window.addEventListener('message', handleMessage);
 
-    // Enviar periódicamente y tras inicialización para garantizar que el juego reciba el video
     sendAdVideo();
     const t1 = setTimeout(() => sendAdVideo(), 400);
     const t2 = setTimeout(() => sendAdVideo(), 1200);
@@ -336,40 +483,96 @@ export default function DemoKioskPage() {
   };
 
   const currentGame =
-    ARCADE_GAMES_CATALOG.find((g) => g.slug === selectedGameSlug) || ARCADE_GAMES_CATALOG[0];
+    allowedGames.find((g) => g.slug === selectedGameSlug) || allowedGames[0] || ARCADE_GAMES_CATALOG[0];
 
   const currentRanking =
     rankingData.length > 0
       ? rankingData
       : DEFAULT_GAME_RANKINGS[selectedGameSlug] || DEFAULT_GAME_RANKINGS.circus;
 
+  const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
+  const gameIframeSrc = getGameUrl(selectedGameSlug, screenIdForGame);
+
   return (
     <div className="space-y-6 pb-12">
-      {/* Encabezado */}
+      {/* Encabezado Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Tv className="w-8 h-8 text-green-400" />
-            <span>Simulador de Kiosco Raspberry Pi</span>
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Previsualiza en vivo la consola arcade dual: minijuego interactivo a un lado y canal
-            de video publicitario al otro.
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30 flex items-center justify-center text-green-400 shadow-[0_0_20px_rgba(61,255,138,0.2)]">
+              <Tv className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Kiosco Virtual</h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-green-500/20 text-green-400 border border-green-500/40">
+                  VIRTUAL KIOSK
+                </span>
+              </div>
+              <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+                Convierte cualquier PC, laptop o Smart TV en una consola arcade interactiva con canal de video publicitario.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Badges de Información de Sesión y Plan */}
+        <div className="flex flex-wrap items-center gap-2">
+          {currentUser && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs">
+              <span className="text-gray-400">Usuario:</span>
+              <span className="text-white font-medium">{currentUser.name || currentUser.username}</span>
+              {isSuperAdmin ? (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  SUPER ADMIN
+                </span>
+              ) : currentUser.plan ? (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  {currentUser.plan.name} ({allowedGames.length} juegos)
+                </span>
+              ) : null}
+            </div>
+          )}
+
           <span className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/30 text-xs font-mono text-green-400">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />
-            RPI KIOSK V7 EN VIVO
+            CONSOLA ACTIVA
           </span>
         </div>
       </div>
 
-      {/* Barra de Control del Simulador */}
+      {/* Barra de Control del Kiosco Virtual */}
       <div className="glass-card rounded-2xl p-4 border border-white/10 flex flex-wrap items-center justify-between gap-4 shadow-xl">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Selector de Juego */}
+          {/* 1. Selector de Pantalla */}
+          <div className="flex items-center gap-2">
+            <Monitor className="w-4 h-4 text-cyan-400" />
+            <select
+              value={selectedScreenId}
+              onChange={(e) => setSelectedScreenId(e.target.value)}
+              className="bg-black/50 border border-cyan-500/30 text-cyan-300 text-sm rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-cyan-500/50 outline-none cursor-pointer max-w-[240px] truncate"
+              title="Pantalla asociada al Kiosco Virtual"
+            >
+              {isSuperAdmin && (
+                <option value="default" className="bg-[#0b1612] text-white">
+                  ★ Catálogo Libre (Todas las pantallas)
+                </option>
+              )}
+              {screens.map((s) => (
+                <option key={s.id} value={s.id} className="bg-[#0b1612] text-white">
+                  🖥️ {s.name} {s.user?.name && isSuperAdmin ? `(${s.user.name})` : ''}
+                </option>
+              ))}
+              {screens.length === 0 && !isSuperAdmin && (
+                <option value="default" className="bg-[#0b1612] text-white">
+                  Pantalla Virtual por Defecto
+                </option>
+              )}
+            </select>
+          </div>
+
+          {/* 2. Selector de Juego */}
           <div className="flex items-center gap-2">
             <Gamepad2 className="w-4 h-4 text-green-400" />
             <select
@@ -378,17 +581,17 @@ export default function DemoKioskPage() {
                 setIsGameLoading(true);
                 setSelectedGameSlug(e.target.value);
               }}
-              className="bg-black/50 border border-white/15 text-white text-sm rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-green-500/50 outline-none cursor-pointer"
+              className="bg-black/50 border border-white/15 text-white text-sm rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-green-500/50 outline-none cursor-pointer max-w-[220px] truncate"
             >
-              {ARCADE_GAMES_CATALOG.map((g) => (
+              {allowedGames.map((g) => (
                 <option key={g.slug} value={g.slug} className="bg-[#121c16] text-white">
-                  {g.icon} {g.name} (/{g.slug})
+                  {g.icon} {g.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Selector de Orientación */}
+          {/* 3. Selector de Orientación */}
           <div className="flex items-center bg-black/40 p-1 rounded-xl border border-white/10">
             <button
               type="button"
@@ -399,7 +602,7 @@ export default function DemoKioskPage() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              <span>📺 Horizontal (16:9 TV)</span>
+              <span>📺 Horizontal (16:9)</span>
             </button>
             <button
               type="button"
@@ -410,11 +613,11 @@ export default function DemoKioskPage() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              <span>📱 Vertical (9:16 Tótem)</span>
+              <span>📱 Vertical (9:16)</span>
             </button>
           </div>
 
-          {/* Selector de Video Comercial */}
+          {/* 4. Selector de Video Comercial */}
           <div className="flex items-center gap-2">
             <Film className="w-4 h-4 text-purple-400" />
             <select
@@ -429,11 +632,13 @@ export default function DemoKioskPage() {
               )}
               {videos.map((v) => (
                 <option key={v.id} value={v.id} className="bg-[#121c16] text-white">
-                  {v.title} {v.user?.name ? `(${v.user.name})` : ''}
+                  {v.title}
                 </option>
               ))}
               <option value="default" className="bg-[#121c16] text-white">
-                Spot Demo MyPlayAd
+                {videos.length === 0 && selectedScreen
+                  ? 'Spot Demo (Sin videos asignados)'
+                  : 'Spot Demo MyPlayAd'}
               </option>
             </select>
           </div>
@@ -450,7 +655,7 @@ export default function DemoKioskPage() {
                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_15px_rgba(255,183,3,0.3)]'
                 : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
             }`}
-            title="Mostrar u ocultar tabla de posiciones (Hall of Fame) en el video"
+            title="Mostrar u ocultar tabla de posiciones (Hall of Fame) en el canal de video"
           >
             <Trophy className="w-4 h-4 text-amber-400" />
             <span className="hidden md:inline">Leaderboard {isVideoRankingVisible ? 'ON' : ''}</span>
@@ -476,18 +681,18 @@ export default function DemoKioskPage() {
             type="button"
             onClick={reloadSimulator}
             className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-medium"
-            title="Reiniciar Kiosco"
+            title="Reiniciar Kiosco Virtual"
           >
             <RotateCcw className="w-4 h-4" />
             <span className="hidden md:inline">Reiniciar</span>
           </button>
 
-          {/* Pantalla Completa */}
+          {/* Lanzar Kiosco (Pantalla Completa) */}
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl bg-green-500/15 hover:bg-green-500 text-green-400 hover:text-black border border-green-500/30 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-            title="Pantalla Completa Kiosco"
+            className="p-2 rounded-xl bg-green-500/20 hover:bg-green-500 text-green-400 hover:text-black border border-green-500/40 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold shadow-[0_0_15px_rgba(61,255,138,0.2)]"
+            title="Lanzar en Pantalla Completa para usar este PC/TV como Kiosco Arcade"
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
@@ -495,7 +700,26 @@ export default function DemoKioskPage() {
         </div>
       </div>
 
-      {/* Escenario del Kiosco (The Raspberry Pi Stage) */}
+      {/* Alerta contextual si la pantalla no tiene videos asignados */}
+      {selectedScreen && videos.length === 0 && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              La pantalla <strong>{selectedScreen.name}</strong> aún no tiene videos comerciales asignados. Reproduciendo el spot de demostración.
+            </span>
+          </div>
+          <Link
+            href="/videos"
+            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold transition-colors flex items-center gap-1 text-[11px]"
+          >
+            <span>Asignar videos</span>
+            <ExternalLink className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+
+      {/* Escenario del Kiosco (The Stage) */}
       <div
         ref={stageRef}
         className={`w-full relative transition-all duration-300 flex items-center justify-center ${
@@ -504,51 +728,82 @@ export default function DemoKioskPage() {
             : 'bg-[#060a08]/90 p-4 sm:p-6 rounded-3xl border-4 border-[#1f3327] shadow-[0_0_80px_rgba(0,0,0,0.9)]'
         }`}
       >
+        {/* Barra Flotante Mínima en Pantalla Completa (Auto-ocultable o sutil en TV) */}
+        {isFullscreen && (
+          <div className="absolute top-3 left-4 right-4 z-40 flex items-center justify-between bg-black/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/15 opacity-20 hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping" />
+              <span className="font-arcade text-[10px] text-green-400 tracking-wider">
+                MYPLAYAD KIOSK • {selectedScreen ? selectedScreen.name.toUpperCase() : 'PC CONSOLE'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsVideoRankingVisible(!isVideoRankingVisible)}
+                className="text-[10px] text-amber-400 hover:text-amber-300 font-arcade border border-amber-400/40 px-2 py-1 rounded bg-amber-400/10 cursor-pointer"
+              >
+                🏆 HALL OF FAME
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMuted(!isMuted)}
+                className="text-[10px] text-gray-300 hover:text-white font-arcade px-2 py-1 rounded bg-white/10 cursor-pointer"
+              >
+                {isMuted ? '🔇 MUDO' : '🔊 AUDIO'}
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="text-[10px] text-red-400 hover:text-red-300 font-arcade px-2 py-1 rounded bg-red-500/10 border border-red-500/30 cursor-pointer"
+              >
+                ✕ SALIR
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Contenedor Kiosco según Orientación */}
         <div
-          className={`w-full transition-all duration-300 flex ${
+          className={`relative transition-all duration-300 ${
             orientation === 'LANDSCAPE'
-              ? 'flex-col lg:flex-row items-stretch justify-center max-w-6xl aspect-[16/9] min-h-[500px] gap-4'
-              : 'flex-col items-center justify-center max-w-md aspect-[9/16] min-h-[720px] gap-4'
+              ? 'w-full max-w-[1200px] h-[480px] sm:h-[580px] lg:h-[650px] flex flex-col lg:flex-row gap-4 items-center justify-center'
+              : 'w-full max-w-[480px] h-[820px] sm:h-[920px] flex flex-col gap-4 items-center justify-center'
           }`}
         >
-          {/* SECCIÓN JUEGO ARCADE */}
+          {/* SECCIÓN JUEGO ARCADE (IFRAME RETRO CONSOLA) */}
           <div
-            className={`relative flex items-center justify-center overflow-hidden min-h-0 ${
+            className={`relative flex items-center justify-center ${
               orientation === 'LANDSCAPE'
                 ? 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
-                : 'w-full h-1/2 min-h-[340px]'
+                : 'w-full h-1/2'
             }`}
           >
             {isGameLoading && (
-              <div className="absolute inset-0 z-10 bg-[#060a08] flex flex-col items-center justify-center gap-3">
-                <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-                <span className="font-arcade text-xs text-green-400 tracking-wider">
-                  CONECTANDO MINIJUEGO...
-                </span>
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#070d0a] rounded-2xl border-2 border-[#1f7d49]/50">
+                <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin mb-3" />
+                <p className="font-arcade text-xs text-green-400 animate-pulse tracking-wider">
+                  CARGANDO ROM ARCADE...
+                </p>
               </div>
             )}
+
             <iframe
-              key={`game-${selectedGameSlug}-${reloadKey}`}
+              key={`game-${selectedGameSlug}-${reloadKey}-${selectedScreenId}`}
               ref={iframeRef}
-              src={getGameUrl(selectedGameSlug, 'KIOSK_SIMULATOR')}
-              title={currentGame.name}
-              tabIndex={0}
-              allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
+              src={gameIframeSrc}
               onLoad={() => {
                 setIsGameLoading(false);
+                // Enviar inmediatamente la URL del anuncio pre-juego al iframe cargado
                 const fullUrl = getAbsoluteVideoUrl(activeVideoUrl);
-                if (iframeRef.current?.contentWindow) {
-                  if (fullUrl) {
-                    iframeRef.current.contentWindow.postMessage(
-                      {
-                        type: 'AD_VIDEO_RESPONSE',
-                        videoUrl: fullUrl,
-                      },
-                      '*'
-                    );
-                  }
-                  // Solicitar ranking al juego
+                if (iframeRef.current?.contentWindow && fullUrl) {
+                  iframeRef.current.contentWindow.postMessage(
+                    {
+                      type: 'AD_VIDEO_RESPONSE',
+                      videoUrl: fullUrl,
+                    },
+                    '*'
+                  );
                   iframeRef.current.contentWindow.postMessage(
                     {
                       type: 'GET_RANKING',
@@ -557,9 +812,9 @@ export default function DemoKioskPage() {
                   );
                 }
               }}
-              className={`w-full h-full border-0 block bg-transparent transition-opacity duration-300 ${
-                isGameLoading ? 'opacity-0' : 'opacity-100'
-              }`}
+              className="w-full h-full rounded-2xl border-0 shadow-2xl bg-[#0a0f0d]"
+              title={`Consola Arcade - ${currentGame.name}`}
+              allow="autoplay; fullscreen"
             />
           </div>
 
@@ -684,62 +939,62 @@ export default function DemoKioskPage() {
               </div>
 
               {/* Footer de la Consola Arcade */}
-              <div className="flex justify-between items-center pt-2.5 px-2 select-none">
-                <div className="w-10 sm:w-12 h-3 speaker-grille-pattern rounded-sm opacity-60" />
-                <div className="text-[9px] text-[#4a755d] font-arcade tracking-wider">
-                  MYPLAYAD-MEDIA
+              <div className="pt-2 mt-2 border-t border-[#1f7d49] flex justify-between items-center text-[8px] font-arcade text-[#3dff8a]/70 select-none">
+                <div className="flex items-center gap-1">
+                  <span>CHANNEL:</span>
+                  <span className="text-white">PUBLICITY-01</span>
                 </div>
-                <div className="w-10 sm:w-12 h-3 speaker-grille-pattern rounded-sm opacity-60" />
+                <div className="flex items-center gap-1">
+                  <span>SYSTEM:</span>
+                  <span className="text-amber-400">
+                    {selectedScreen ? selectedScreen.name.slice(0, 14) : 'VIRTUAL-01'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Barra de Instrucciones y Guía del Kiosco */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-        <div className="glass-card rounded-2xl p-5 border border-white/5 space-y-2">
-          <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
-            <Keyboard className="w-4 h-4" />
-            <span>1. Juega con Teclado</span>
-          </div>
-          <p className="text-xs text-gray-300 leading-relaxed">
-            Haz clic en el lado del juego y presiona <strong>Espacio</strong> o las flechas para
-            retirar el QR e iniciar la partida de inmediato en la pantalla.
-          </p>
-        </div>
-
-        <div className="glass-card rounded-2xl p-5 border border-white/5 space-y-2">
-          <div className="flex items-center gap-2 text-blue-400 font-bold text-sm">
+      {/* Tarjeta de Información y Controles de Jugabilidad */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Guía Móvil */}
+        <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-2">
+          <div className="flex items-center gap-2 text-green-400 font-semibold text-sm">
             <Smartphone className="w-4 h-4" />
-            <span>2. Conecta tu Celular</span>
+            <span>Mando Móvil WebRTC</span>
           </div>
-          <p className="text-xs text-gray-300 leading-relaxed">
-            Escanea el código QR generado en la pantalla arcade con la cámara de tu smartphone para
-            abrir el mando táctil WebRTC en tiempo real a 60 FPS.
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Escanea el código QR que se muestra en la pantalla del juego con cualquier smartphone para
+            convertir el teléfono en un mando arcade háptico en tiempo real a 60 FPS sin instalar apps.
           </p>
-          <a
-            href={getControllerUrl(selectedGameSlug)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 underline font-medium"
-          >
-            O abre el mando aquí en otra pestaña &rarr;
-          </a>
         </div>
 
-        <div className="glass-card rounded-2xl p-5 border border-white/5 space-y-2">
-          <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
-            <Sparkles className="w-4 h-4" />
-            <span>3. Canal Publicitario Dual</span>
+        {/* Guía Teclado */}
+        <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-2">
+          <div className="flex items-center gap-2 text-blue-400 font-semibold text-sm">
+            <Keyboard className="w-4 h-4" />
+            <span>Controles por Teclado</span>
           </div>
-          <p className="text-xs text-gray-300 leading-relaxed">
-            El video comercial rota ininterrumpidamente sin solapar la jugabilidad. Antes de arrancar
-            cada partida, se sincroniza el anuncio pre-juego.
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Para pruebas directas en este PC, haz clic sobre el juego y usa las flechas del cursor, teclas{' '}
+            <code className="text-white font-mono bg-white/10 px-1 py-0.5 rounded">WASD</code> y la barra
+            espaciadora para moverte y disparar.
+          </p>
+        </div>
+
+        {/* Info Comercial */}
+        <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-2">
+          <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm">
+            <Sparkles className="w-4 h-4" />
+            <span>Rotación Publicitaria</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Antes de iniciar cada partida, el minijuego reproduce obligatoriamente un spot publicitario en
+            pantalla completa mientras el celular entra en pantalla de espera invitando a mirar la TV.
           </p>
         </div>
       </div>
     </div>
   );
 }
-
