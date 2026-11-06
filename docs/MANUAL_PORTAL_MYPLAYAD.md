@@ -123,15 +123,15 @@ Al hacer clic en **Subir Video**, se despliega el modal inteligente de carga:
 
 ## 8. Módulo de Planes y Cuotas (`/plans`)
 
-El módulo de planes define las condiciones comerciales y técnicas del servicio publicitario.
+El módulo de planes define las condiciones comerciales y técnicas del servicio publicitario, permitiendo segmentar el catálogo de juegos y limitar la cantidad máxima de videos en rotación activa por pantalla.
 
 ![Catálogo de Planes de Suscripción](img/07-plans-catalog.png)
 
 ### Elementos de cada Plan:
-* **Nombre y Slug:** Identificador comercial (ej. *Plan Básico*, *Plan Pro*, *Plan Enterprise*).
-* **Badge de Videos por Pantalla (`maxVideosPerScreen`):** Límite estricto de videos que cada pantalla asignada a este plan puede reproducir simultáneamente en su bucle (ej. `3 videos por pantalla` o `10 videos por pantalla`).
-* **Precio Mensual:** Tarifa de suscripción periódica.
-* **Juegos Incluidos:** Catálogo de minijuegos retro habilitados para los clientes suscritos a este plan.
+* **Nombre y Slug:** Identificador comercial único (ej. *Plan Básico*, *Plan Pro*, *Plan Enterprise*).
+* **Badge de Videos por Pantalla (`maxVideosPerScreen`):** Cuota estricta y 100% editable de anuncios simultáneos en rotación que cada pantalla vinculada a este plan puede reproducir en su bucle (ej. `3 videos por pantalla`, `7 videos por pantalla` o `15 videos por pantalla`). El sistema no impone mínimos forzados ni límites predeterminados arbitrarios.
+* **Precio Mensual:** Tarifa periódica de suscripción por pantalla o cliente.
+* **Juegos Incluidos:** Catálogo de minijuegos retro habilitados exclusivamente para las pantallas y el Kiosco Virtual de los clientes suscritos a este plan.
 
 ---
 
@@ -142,10 +142,10 @@ Al pulsar en **Nuevo Plan** o en el botón de edición de un plan existente:
 ![Modal de Creación y Edición de Planes](img/08-plans-new-modal.png)
 
 ### Campos a Configurar:
-1. **Nombre del Plan:** Nombre descriptivo visible para los clientes.
-2. **Máximo de Videos por Pantalla:** Parámetro numérico clave que regula la cuota de rotación en el reproductor.
+1. **Nombre del Plan:** Nombre descriptivo visible para los clientes comerciales.
+2. **Máximo de Videos por Pantalla:** Parámetro numérico clave que regula la cuota de rotación en el reproductor. Es completamente personalizable y persistente en la base de datos para cualquier número entero positivo (sin forzar reajustes a 15).
 3. **Precio ($):** Valor en moneda local o USD.
-4. **Minijuegos Permitidos:** Selección múltiple de los juegos arcade que se desbloquearán en las pantallas vinculadas a este plan.
+4. **Minijuegos Permitidos:** Selección individual o masiva de los minijuegos arcade que se desbloquearán en las pantallas físicas y en el Kiosco Virtual de los clientes vinculados a este plan.
 
 ---
 
@@ -209,23 +209,36 @@ El catálogo de juegos interactivos muestra la biblioteca completa de experienci
 
 ---
 
-## 12. Simulador de Kiosco Raspberry Pi (`/demo`)
+## 12. Kiosco Virtual (`/demo`) — Reproductor Digital Signage para PC, Laptops y Smart TVs
 
-La sección **Demo Kiosco** recrea fielmente la pantalla física de los tótems y televisores comerciales alimentados por consolas Raspberry Pi 4 / Pi 5:
+El módulo **Kiosco Virtual** (accesible desde la barra lateral o mediante el botón de TV en cada pantalla de `/screens`) cumple una doble función estratégica en la plataforma MyPlayAd:
+
+1. **Simulador Arcade y Laboratorio de Demostración:** Recrea fielmente el entorno visual dual de las consolas físicas comerciales (Raspberry Pi 4 / Pi 5) para verificar la rotación publicitaria y la jugabilidad WebRTC con mandos móviles.
+2. **Consola Digital Signage Basada en Navegador (Sin Hardware RPi):** Permite a aquellos clientes comerciales o franquicias que no disponen de una consola física Raspberry Pi utilizar cualquier ordenador, mini-PC, laptop o Smart TV con navegador web moderno como un punto de cartelería digital interactiva 100% operativo y conectado a la nube.
+
+![Kiosco Virtual en Modo Horizontal (16:9 TV)](img/12-demo-kiosk-landscape.png)
+
+### 12.1. Segmentación Inteligente por Rol de Usuario
+
+* **Para Clientes Comerciales (`ROLE_CLIENT`):**
+  * **Filtrado Estricto de Minijuegos:** El selector de juegos solo muestra los títulos arcade incluidos en el plan de suscripción contratado (`currentUser.plan.games`), impidiendo el acceso a juegos no contratados.
+  * **Asociación Automática de Pantallas y Videos:** Carga automáticamente las pantallas registradas por el cliente y reproduce exclusivamente la lista de videos publicitarios aprobados y asignados a esa pantalla.
+* **Para Super Administradores (`SUPER_ADMIN`):**
+  * **Acceso Total al Catálogo:** Acceso ilimitado a los 13 minijuegos retro del sistema.
+  * **Selector Global de Pantallas:** Posibilidad de vincular el Kiosco Virtual a cualquier pantalla del ecosistema o utilizar la *Pantalla Virtual por Defecto* para pruebas comerciales y auditorías técnicas.
+
+### 12.2. Características y Modos de Operación
 
 * **Visualización Dual Simultánea:**
-  * **Lado Arcade (50%):** Ejecuta el minijuego seleccionado de forma interactiva con renderizado CRT retro, scanlines y conexión WebRTC en vivo. La consola se renderiza de manera limpia y sin marcos exteriores duplicados, adaptándose automáticamente al espacio disponible.
-  * **Lado Video Publicitario (50%):** Consola arcade con bisel (`kiosk-bezel`), cabecera de canal comercial `MYPLAYAD TV` con indicador rojo pulsante `● ON AIR`, y altavoces estéreo simulados.
-* **Selector Dinámico de Minijuegos:** Permite alternar entre los 13 títulos arcade en tiempo real para verificar la jugabilidad y la integración del anuncio publicitario previo a la partida (*Pre-Game Ad*).
+  * **Lado Arcade (50%):** Ejecuta el minijuego seleccionado de forma interactiva con renderizado CRT retro, scanlines, audio sintetizado Web Audio API y conexión WebRTC P2P con teléfonos móviles en tiempo real (QR generado localmente a 0ms de latencia).
+  * **Lado Video Publicitario (50%):** Consola arcade con bisel (`kiosk-bezel`), cabecera de canal comercial `MYPLAYAD TV` con indicador rojo pulsante `● ON AIR`, y altavoces estéreo simulados con reproducción continua de la lista de reproducción activa.
+* **Obligatoriedad de Publicidad Pre-Juego (*Pre-Game Ad*):** Al escanear el QR o pulsar iniciar partida desde el móvil, el Kiosco Virtual activa de inmediato el spot publicitario asignado a pantalla completa sobre la zona arcade (`#ad-video-overlay`) con cuenta regresiva regresiva, mientras el mando móvil muestra la pantalla de espera *"📺 ¡MIRA LA PANTALLA!"*. Al culminar el video (o ante fallback de seguridad de 65s), se activan los controles táctiles y comienza el juego.
 * **Conmutador de Orientación de Pantalla:**
   * **Horizontal (16:9):** Distribución para televisores y monitores comerciales apaisados (Juego a la izquierda, Video a la derecha).
-  * **Vertical (9:16):** Distribución para tótems publicitarios y kioscos de pie (Juego arriba, Video abajo).
-* **Gestión de Videos y Rotación:** Selector para reproducir el spot demostrativo base o alternar entre la lista de videos comerciales subidos por los clientes al sistema.
-* **Modo Pantalla Completa:** Permite proyectar el simulador en un monitor externo vía HDMI para realizar demostraciones comerciales ante anunciantes y dueños de locales.
+  * **Vertical (9:16):** Distribución para tótems publicitarios, pantallas verticales y kioscos de pie (Juego arriba, Video abajo).
+* **Modo Pantalla Completa:** Al proyectar el Kiosco Virtual en un monitor o televisor comercial y pulsar pantalla completa (tecla `F11`), el navegador oculta todos los controles del portal y despliega la experiencia comercial pura en resolución nativa.
 
-![Simulador de Kiosco Raspberry Pi en Modo Horizontal](img/12-demo-kiosk-landscape.png)
-
-![Simulador de Kiosco Raspberry Pi en Modo Vertical (Tótem)](img/13-demo-kiosk-portrait.png)
+![Kiosco Virtual en Modo Vertical (9:16 Tótem)](img/13-demo-kiosk-portrait.png)
 
 ---
 
