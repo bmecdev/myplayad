@@ -123,11 +123,11 @@ test.describe('Captura de Pantallas para Manuales del Portal MyPlayAd', () => {
     await page.screenshot({ path: path.join(OUT_DIR, '12-demo-kiosk-landscape.png'), fullPage: false });
     console.log('Capturado: 12-demo-kiosk-landscape.png');
 
-    // 13. Simulador de Kiosco Raspberry Pi - Vertical (9:16 Tótem)
-    const portraitBtn = page.locator('button:has-text("Vertical (9:16 Tótem)")');
+    // 13. Kiosco Virtual - Vertical (9:16 Tótem)
+    const portraitBtn = page.locator('button:has-text("Vertical")');
     if (await portraitBtn.isVisible()) {
       await portraitBtn.click();
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
       await page.screenshot({ path: path.join(OUT_DIR, '13-demo-kiosk-portrait.png'), fullPage: false });
       console.log('Capturado: 13-demo-kiosk-portrait.png');
     }

@@ -104,6 +104,15 @@ MyPlayAd elimina completamente esta fricción:
 * **Cero Configuración de Red Local:** No requiere solicitar contraseñas de redes Wi-Fi públicas ni lidiar con portales cautivos.
 * **Plug & Play Total:** **¡Lo único que necesitas es una toma de electricidad (110V/220V)!** Al conectar el enchufe, la pantalla enciende, se conecta a Internet mediante 4G en menos de 10 segundos, contacta al Portal MyPlayAd, sincroniza los videos locales y comienza su rotación publicitaria y juegos arcade.
 
+### 3.4. Modalidad Kiosco Virtual (Digital Signage en Navegador para PC, Laptops y Smart TVs)
+Para establecimientos comerciales, oficinas, franquicias o stands que deseen proyectar la experiencia publicitaria e interactiva MyPlayAd **sin necesidad de adquirir hardware físico adicional** (consola Raspberry Pi 5 ni módems 4G):
+
+* **Operación 100% Basada en Navegador:** Cualquier ordenador con Windows, macOS, Linux o televisor Smart TV con navegador web moderno puede transformarse instantáneamente en un quiosco MyPlayAd accediendo a `/demo` desde el Portal Web.
+* **Segmentación por Plan y Pantalla:**
+  * Al ingresar con credenciales de **Cliente Comercial**, el Kiosco Virtual detecta el plan suscrito (`currentUser.plan.games`) y desbloquea únicamente los minijuegos contratados, cargando la lista de reproducción de videos asignada a su pantalla virtual.
+  * Al ingresar como **Super Administrador**, habilita el catálogo íntegro de los 13 minijuegos arcade y permite asociar cualquier pantalla registrada o la pantalla virtual global.
+* **Soporte de Pantalla Completa y Orientaciones:** Permite alternar entre formato apaisado (16:9) y tótem vertical (9:16) con un solo clic o mediante el atajo `F11` para una experiencia inmersiva limpia.
+
 ---
 
 ## 4. Especificaciones de Hardware del Kiosco
@@ -180,11 +189,14 @@ El reproductor local consulta de forma periódica (`/api/public/screens/:id/curr
    * **Con Video Activo:** Se reproduce el video en pantalla completa (`#ad-video-overlay`) con temporizador regresivo. El smartphone muestra la pantalla de espera publicitaria (`#ad-waiting-screen` con *"📺 ¡MIRA LA PANTALLA! Tu partida comenzará automáticamente al finalizar el video"*). Al finalizar el video (o por timeout de 65s), el kiosco envía `{ type: 'game_start' }` por DataChannel, activando los controles táctiles y comenzando el juego.
    * **Sin Video Asignado (Fallback):** Si la pantalla no tiene videos asignados, **nunca envía `ad_playing`** al celular; envía inmediatamente `{ type: 'game_start' }` para habilitar el mando táctil sin esperas ni bloqueos en el móvil.
 5. **Endurecimiento Táctil en Celulares (Mobile Hardening Anti-Zoom & Anti-Selección):** Todos los controladores móviles incorporan bloqueo estricto de gestos de zoom en iOS Safari (`gesturestart`), pellizco multitáctil en Android (`touchmove`), doble toque rápido (`touchend <= 300ms`), menús contextuales (`contextmenu`) y selección accidental de texto (`user-select: none`). Los campos de texto (`<input>` y `<textarea>`) quedan expresamente protegidos para permitir la escritura del apodo sin impedimentos.
-6. **Simulador de Kiosco Raspberry Pi en la Nube (`/demo`):** Para agilizar pruebas, soporte y presentaciones comerciales a anunciantes sin requerir hardware físico in situ, el Portal Web incluye un simulador fiel de la consola dual en ambas orientaciones de pantalla:
+6. **Kiosco Virtual en la Nube (`/demo`):** Para agilizar pruebas, auditorías comerciales y permitir a los clientes operar sin hardware dedicado, el Portal Web incluye el **Kiosco Virtual**:
+   * **Modo Twin Console:** Replica fielmente la distribución dual de pantalla (50% juego arcade CRT + 50% video publicitario activo con cabecera `MYPLAYAD TV`).
+   * **Segmentación Estricta por Plan:** Los usuarios clientes únicamente pueden seleccionar y jugar los títulos autorizados en su plan de suscripción (`currentUser.plan.games`), reproduciendo la playlist comercial asignada a su pantalla virtual.
+   * **Control Remoto Directo:** Soporta el escaneo de código QR local y enlace WebRTC en tiempo real idéntico al quiosco físico comercial.
 
-![Simulador de Kiosco MyPlayAd en Modo Horizontal 16:9](img/12-demo-kiosk-landscape.png)
+![Kiosco Virtual MyPlayAd en Modo Horizontal (16:9 TV)](img/12-demo-kiosk-landscape.png)
 
-![Simulador de Kiosco MyPlayAd en Modo Vertical 9:16](img/13-demo-kiosk-portrait.png)
+![Kiosco Virtual MyPlayAd en Modo Vertical (9:16 Tótem)](img/13-demo-kiosk-portrait.png)
 
 ---
 
