@@ -6,7 +6,7 @@
     <title>Mega Man Arcade Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20">
+    <link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
     <div id="status">INGRESA TU NICKNAME</div>
@@ -25,7 +25,7 @@
             <button id="connect-btn">EMPEZAR A JUGAR</button>
         </div>
         
-        <p class="footer-hint">◀ ▶ Moverse • A: Salto • B: Buster • SLIDE: Barrida</p>
+        <p class="footer-hint">🕹️ Joystick • A: Salto • B: Buster • SLIDE: Barrida</p>
     </div>
 
     <!-- Pantalla de Espera durante Publicidad en Pantalla -->
@@ -82,18 +82,25 @@
         </div>
     </div>
 
-    <!-- Interfaz de Controles Táctiles -->
+    <!-- Interfaz de Controles Táctiles (Modo Horizontal con Joystick) -->
     <div class="controls-container" id="controls-container" style="display: none;">
-        <!-- Botones de Dirección (Solo Izquierda y Derecha) -->
-        <div class="dir-wrapper">
-            <button class="dir-btn dir-left" id="btn-left" data-dir="left">
-                <span class="dir-arrow">◀</span>
-                <span class="dir-label">IZQ</span>
-            </button>
-            <button class="dir-btn dir-right" id="btn-right" data-dir="right">
-                <span class="dir-arrow">▶</span>
-                <span class="dir-label">DER</span>
-            </button>
+        <!-- Panel de Dirección: Joystick Analógico Virtual -->
+        <div class="joystick-panel">
+            <div class="joystick-wrapper">
+                <div class="joystick-base" id="joystick-base">
+                    <div class="joystick-guide-ring"></div>
+                    <div class="joystick-axis-x"></div>
+                    <div class="joystick-axis-y"></div>
+                    <span class="joystick-dir-arrow dir-l">◀</span>
+                    <span class="joystick-dir-arrow dir-r">▶</span>
+                    <span class="joystick-dir-arrow dir-u">▲</span>
+                    <span class="joystick-dir-arrow dir-d">▼</span>
+                    <div class="joystick-knob" id="joystick-knob">
+                        <div class="knob-cap"></div>
+                    </div>
+                </div>
+                <span class="joystick-label">🕹️ DIRECCIÓN</span>
+            </div>
         </div>
 
         <!-- Botones de Acción a la derecha -->
@@ -118,6 +125,6 @@
     </div>
 
     <script src="config.js?v=6"></script>
-    <script src="script.js?v=20"></script>
+    <script src="script.js?v=22"></script>
 </body>
 </html>
