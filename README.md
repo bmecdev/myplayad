@@ -6,7 +6,7 @@ Este repositorio contiene el código fuente completo del sistema MyPlayAd, una p
 
 El proyecto está dividido en tres componentes principales:
 
-1. **`portal/` (Next.js):** El panel de administración web y la API pública. Maneja la programación de campañas, gestión de pantallas, catálogo arcade con reproductor interactivo por teclado/QR (`/games`), y simulador en vivo de kiosco dual con rotación de videos (`/demo`).
+1. **`portal/` (Next.js):** El panel de administración web y la API pública. Maneja la programación de campañas, gestión de pantallas, catálogo arcade con reproductor interactivo por teclado/QR (`/games`), y el **Kiosco Virtual** en vivo para PC/Smart TV (`/demo`) con rotación de videos comerciales por plan y orientación vertical/horizontal.
 2. **`screen/` (Node.js + HTML/JS):** El servidor local y frontend que corre físicamente en cada pantalla (ej. Raspberry Pi). Sincroniza y almacena en caché los videos localmente para evitar cortes de internet, y reproduce el bucle publicitario.
 3. **`games/` (Static HTML/JS):** Los juegos retro interactivos. Tienen dos vistas: la del juego (que carga la pantalla) y el control (que carga el usuario en su móvil escaneando un código QR).
 
@@ -22,15 +22,16 @@ Toda la documentación oficial del sistema y sus guías interactivas se encuentr
 
 ---
 
-## 📦 3 Opciones de Producto MyPlayAd & Conectividad 4G Plug & Play
+## 📦 4 Opciones de Producto MyPlayAd & Conectividad Plug & Play
 
-MyPlayAd se adapta a cualquier infraestructura mediante **3 opciones de producto** bien diferenciadas:
+MyPlayAd se adapta a cualquier infraestructura mediante **4 opciones de producto** bien diferenciadas:
 
 | Opción de Producto | Entorno Objetivo | Formato & Dimensiones | Requisitos & Conectividad | Características Destacadas |
 | :--- | :--- | :--- | :--- | :--- |
 | **🕹️ 1. Consola MyPlayAd (Standalone)** | Negocios o empresas de publicidad que **ya tienen pantallas o televisores**. | Dispositivo compacto Plug & Play (Raspberry Pi 5) con salida HDMI y software arcade/publicidad. | Cable HDMI al televisor + corriente + Wi-Fi o red local. | Aprovecha tu inversión previa en pantallas sin comprar nuevo hardware de visualización. Gestión remota Cloud. |
 | **🎪 2. Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable. | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Ligera, compacta y transportable. Montaje en menos de 5 minutos en mostradores, recepciones o stands. |
 | **🏢 3. Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K). | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Estructura fija de alta presencia, visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual. |
+| **🖥️ 4. Kiosco Virtual (Web PC / Smart TV)** | **Oficinas, Franquicias y Negocios sin hardware RPi** | Navegador web en ordenadores (Windows/Mac/Linux) o Smart TVs (`/demo`). | Conexión a Internet + Navegador moderno (Chrome/Edge/Safari/Firefox). | Cero hardware adicional. Segmentación estricta por plan (`currentUser.plan.games`), playlist de pantalla y modo pantalla completa `F11`. |
 
 ### 📶 Conectividad 4G LTE Incluida (Opciones 2 y 3)
 * **100% Autónoma:** Cada pantalla física (Mediana Portable y Grande Fija) incorpora su propio módem celular 4G LTE preconfigurado con tarjeta SIM multi-operador.
