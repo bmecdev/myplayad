@@ -18,7 +18,7 @@ Toda la documentación oficial del sistema y sus guías interactivas se encuentr
 
 * 📖 **[Manual del Portal MyPlayAd (Markdown)](docs/MANUAL_PORTAL_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PORTAL_MYPLAYAD.docx)**: Guía detallada con 13 capturas de pantalla oficiales de autenticación, control de energía HDMI-CEC, biblioteca de videos con cuotas, planes de suscripción, gestión de clientes, catálogo arcade interactivo y simulador de kiosco Raspberry Pi.
 * 📖 **[Manual de Producto & Arquitectura (Markdown)](docs/MANUAL_PRODUCTO_MYPLAYAD.md)** / 📄 **[Descargar en Word (.docx)](docs/MANUAL_PRODUCTO_MYPLAYAD.docx)**: Documento integral sobre la arquitectura física, cloud, protocolos WebRTC, publicidad pre-juego con fallback inteligente, hardening táctil móvil y ensamblaje de quioscos.
-* 🎬 **[Serie de 8 Videotutoriales Interactivos (`docs/videos/`)](docs/videos/)**: Cápsulas audiovisuales HD (1440x900) con cursor interactivo, banners explicativos paso a paso y flujos de negocio completos (alta de planes, tótems, clientes, pauta de videos, programación arcade y bajas).
+* 🎬 **[Serie de 9 Videotutoriales Interactivos (`docs/videos/`)](docs/videos/)**: Cápsulas audiovisuales HD (1440x900) con cursor interactivo, banners explicativos paso a paso y flujos de negocio completos (alta de planes, tótems, clientes, pauta de videos, programación arcade, control remoto OTA, Kiosco Virtual y bajas).
 
 ---
 
