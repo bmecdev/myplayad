@@ -15,6 +15,7 @@ const VIDEOS = [
   { id: 6, file: 'record-06-control-remoto.mjs', name: '06-control-remoto-hdmi-ota.webm', desc: 'Control Remoto HDMI-CEC y Actualizaciones OTA' },
   { id: 7, file: 'record-07-roles.mjs', name: '07-roles-admin-vs-cliente.webm', desc: 'Diferencia de Roles: Super Admin vs Cliente' },
   { id: 8, file: 'record-08-mantenimiento.mjs', name: '08-mantenimiento-y-bajas.webm', desc: 'Desasignación y Eliminación de Recursos' },
+  { id: 9, file: 'record-09-kiosco-virtual.mjs', name: '09-kiosco-virtual-pc-smart-tv.webm', desc: 'Kiosco Virtual: Consola en Navegador para PC y Smart TV' },
 ];
 
 const OUT_DIR = path.resolve(__dirname, '../../docs/videos');
