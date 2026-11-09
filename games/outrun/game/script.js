@@ -986,58 +986,95 @@ function buildTrack() {
     buildStageTrack(GameState.currentTier || 0, GameState.currentRouteIndex || 0);
 }
 
-// Generación Inteligente de Tráfico Rival (Equilibrado, Progresivo y sin Muros Infranqueables)
+// Generación Inteligente de Tráfico Rival (Espaciado amplio, ritmo relajado y sin muros)
 function spawnTraffic(tier = 0) {
     GameState.cars = [];
     const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
     
-    // Conteo progresivo por etapa: la primera etapa es abierta y disfrutable
-    const counts = [16, 20, 24, 28, 32];
+    // Conteo progresivo reducido: pocas unidades simultáneas para dar máxima libertad y visibilidad
+    const counts = [6, 7, 8, 9, 10];
     const count = counts[Math.min(tier, counts.length - 1)];
 
-    // Zona de salida libre: NO generar coches en los primeros 4,500 px
-    // Esto da tiempo al jugador para acelerar, acomodarse y alcanzar velocidad antes del primer vehículo
-    const startSafeZ = 4500;
-    const availableTrack = GameState.trackLength - startSafeZ - 2000;
-    const waveSpacing = availableTrack / count;
+    // Zona de salida amplia y libre: NINGÚN vehículo en los primeros 7,000 px
+    // Permite al jugador acelerar a fondo y acomodarse tranquilamente antes del primer encuentro
+    const startSafeZ = 7000;
+    const availableTrack = GameState.trackLength - startSafeZ - 5000;
+    const waveSpacing = availableTrack / count; // Más de 7,000 - 10,000 px entre cada coche
 
     const lanes = [-0.6, 0, 0.6];
     let lastLane = 1;
 
     for (let i = 0; i < count; i++) {
-        const zPos = startSafeZ + (i * waveSpacing) + (Math.random() * 400 - 200);
+        const zPos = startSafeZ + (i * waveSpacing) + (Math.random() * 600 - 300);
 
-        // Algoritmo Anti-Pared: Asegura que NUNCA dos coches contiguos tapen el camino completo
+        // Alternar carriles para que nunca se amontonen en el mismo carril
         let laneIndex;
         do {
             laneIndex = Math.floor(Math.random() * lanes.length);
-        } while (laneIndex === lastLane && Math.random() < 0.7);
+        } while (laneIndex === lastLane && Math.random() < 0.8);
         lastLane = laneIndex;
         const laneOffset = lanes[laneIndex];
 
         const type = carTypes[i % carTypes.length];
         
-        // Velocidades escalonadas y balanceadas
-        // Jugador a 12,000 px/s (240 km/h) tiene 2 a 3 segundos de margen para elegir carril
-        let baseSpeed = 7500;
-        if (type === 'white_truck') baseSpeed = 6200;      // Camión pesado
-        else if (type === 'yellow_cab') baseSpeed = 7200;   // Taxi
-        else if (type === 'blue_coupe') baseSpeed = 8200;   // Cupé
-        else if (type === 'purple_muscle') baseSpeed = 8800;// Muscle car
-        else if (type === 'green_gt') baseSpeed = 9200;     // Superdeportivo
+        // Velocidades relajadas, lentas y balanceadas (1/4 a 1/3 de la velocidad máxima del jugador)
+        // Jugador a 12,000 px/s (240 km/h) tiene 3 a 5 segundos de anticipación para cada auto
+        let baseSpeed = 3000;
+        if (type === 'white_truck') baseSpeed = 2400;      // Camión pesado (el más lento)
+        else if (type === 'yellow_cab') baseSpeed = 2800;   // Taxi / Escarabajo
+        else if (type === 'blue_coupe') baseSpeed = 3200;   // Cupé clásico
+        else if (type === 'purple_muscle') baseSpeed = 3600;// Muscle car
+        else if (type === 'green_gt') baseSpeed = 4000;     // GT deportivo
 
         GameState.cars.push({
             type: type,
             z: zPos % GameState.trackLength,
             offset: laneOffset,
             targetOffset: laneOffset,
-            laneChangeTimer: 4 + Math.random() * 6,
-            speed: baseSpeed + (Math.random() * 400 - 200),
+            laneChangeTimer: 14 + Math.random() * 10, // Muy estables en su carril
+            speed: baseSpeed + (Math.random() * 200 - 100),
             passed: false
         });
     }
 
     GameState.cars.sort((a, b) => a.z - b.z);
+}
+
+// Reubica un vehículo siempre MUCHO MÁS ADELANTE en el horizonte (nunca aparece ni sale desde atrás)
+function recycleCarAhead(car) {
+    const lanes = [-0.6, 0, 0.6];
+    
+    // Distancia al horizonte por delante del jugador (entre 15,000 y 24,000 px por delante)
+    // El límite visual es DRAW_DISTANCE * SEGMENT_LENGTH = 16,000 px, así nace más allá del horizonte
+    let aheadDist = 15000 + Math.random() * 8000;
+    let targetZ = (GameState.playerZ + aheadDist) % GameState.trackLength;
+    
+    // Comprobar que mantenga una separación de al menos 4,500 px respecto a cualquier otro vehículo
+    let attempts = 0;
+    while (attempts < 12) {
+        let tooClose = false;
+        for (let other of GameState.cars) {
+            if (other === car) continue;
+            let diff = Math.abs(targetZ - other.z);
+            if (diff > GameState.trackLength / 2) diff = GameState.trackLength - diff;
+            if (diff < 4500) {
+                tooClose = true;
+                break;
+            }
+        }
+        if (!tooClose) break;
+        targetZ = (targetZ + 5000) % GameState.trackLength;
+        attempts++;
+    }
+
+    car.z = targetZ;
+    car.passed = false;
+
+    // Asignar carril despejado
+    const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
+    car.offset = randomLane;
+    car.targetOffset = randomLane;
+    car.laneChangeTimer = 14 + Math.random() * 10;
 }
 
 // Sistema de Partículas de Humo de Neumáticos, Derrapes y Chispas
@@ -1765,17 +1802,30 @@ function update(dt) {
         car.z += car.speed * dt;
         if (car.z >= GameState.trackLength) car.z -= GameState.trackLength;
 
-        // Distancia relativa con respecto al jugador
+        // Distancia relativa con respecto al jugador (-trackLength/2 a +trackLength/2)
         let relZ = car.z - GameState.playerZ;
         if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
         if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
 
-        // IA: cambio de carril suave (solo si el jugador no está pegado a él)
+        // 1. REGLA ESTRICTA: Los vehículos NUNCA salen desde atrás ni adelantan al jugador por la espalda.
+        // En cuanto el jugador rebasa el vehículo y este queda atrás (relZ < -150), se reubica adelante en el horizonte:
+        if (relZ < -150) {
+            recycleCarAhead(car);
+            return;
+        }
+
+        // Si por alguna razón puntual el auto estuviera ligeramente detrás (-150 <= relZ < 0):
+        // Limitar su velocidad para que NUNCA adelante al jugador ni lo impacte por detrás
+        if (relZ < 0 && car.speed >= GameState.speed) {
+            car.speed = Math.max(0, GameState.speed * 0.6);
+        }
+
+        // IA: cambio de carril muy suave y raro (solo si el jugador está a más de 800 px)
         car.laneChangeTimer -= dt;
         if (car.laneChangeTimer <= 0) {
-            car.laneChangeTimer = 4 + Math.random() * 6;
-            // No cambia de carril si el jugador está adelantando justo al lado
-            if (Math.abs(relZ) > 300 && Math.random() < 0.3) {
+            car.laneChangeTimer = 14 + Math.random() * 10;
+            // No cambia de carril si el jugador está acercándose a rebasar
+            if (relZ > 800 && Math.random() < 0.25) {
                 const availableLanes = lanes.filter(l => Math.abs(l - car.offset) > 0.1);
                 if (availableLanes.length > 0) {
                     car.targetOffset = availableLanes[Math.floor(Math.random() * availableLanes.length)];
@@ -1783,38 +1833,36 @@ function update(dt) {
             }
         }
         if (car.targetOffset !== undefined) {
-            car.offset += (car.targetOffset - car.offset) * 1.3 * dt;
+            car.offset += (car.targetOffset - car.offset) * 0.8 * dt;
         }
 
         // Detección de rebase (Pass bonus de +500 PTS)
-        if (relZ < -30 && relZ > -250 && !car.passed) {
+        if (relZ < -30 && relZ > -150 && !car.passed) {
             car.passed = true;
             GameState.score += 500;
             audio.playPassBonus();
             showBanner('OVERTAKE!', '+500 PTS', '#3dff8a', 0.9);
-        } else if (relZ > 250 || relZ < -450) {
-            car.passed = false;
         }
 
         // Colisión frontal/lateral: con tolerancia precisa y tiempo de recuperación
-        if (GameState.invulnerableTimer <= 0 && Math.abs(relZ) < 52) {
+        if (GameState.invulnerableTimer <= 0 && relZ > -30 && relZ < 50) {
             const distX = Math.abs(car.offset - GameState.playerX);
-            // Tolerancia ajustada a 0.22 (permite pasar entre huecos sin choques injustos)
-            if (distX < 0.22) {
-                GameState.invulnerableTimer = 1.8; // 1.8s de gracia para reponerse
-                GameState.speed = Math.max(3800, GameState.speed * 0.45); // Desaceleración moderada (~75 km/h)
-                GameState.shakeAmount = 6.5;
+            // Tolerancia ajustada a 0.20 (permite pasar entre huecos sin choques injustos)
+            if (distX < 0.20) {
+                GameState.invulnerableTimer = 2.0; // 2s de gracia para reponerse
+                GameState.speed = Math.max(3500, GameState.speed * 0.40); // Desaceleración suave
+                GameState.shakeAmount = 6.0;
                 audio.playCrash();
                 showBanner('CRASH!', 'RECOVERING...', '#ff4d6d', 1.5);
 
-                // Separar suavemente para no quedar bloqueados en el mismo punto
-                car.z += 400;
+                // Empujar el coche impactado hacia adelante para despejar el paso
+                car.z += 800;
                 if (GameState.playerX > car.offset) {
-                    GameState.playerX = Math.min(1.8, GameState.playerX + 0.2);
-                    car.offset = Math.max(-0.9, car.offset - 0.2);
+                    GameState.playerX = Math.min(1.8, GameState.playerX + 0.25);
+                    car.offset = Math.max(-0.9, car.offset - 0.25);
                 } else {
-                    GameState.playerX = Math.max(-1.8, GameState.playerX - 0.2);
-                    car.offset = Math.min(0.9, car.offset + 0.2);
+                    GameState.playerX = Math.max(-1.8, GameState.playerX - 0.25);
+                    car.offset = Math.min(0.9, car.offset + 0.25);
                 }
 
                 // Chispas y humo de choque
@@ -2033,7 +2081,7 @@ function draw() {
         if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
         if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
 
-        if (relZ > 20 && relZ < (DRAW_DISTANCE - 2) * SEGMENT_LENGTH) {
+        if (relZ > 0 && relZ < (DRAW_DISTANCE - 2) * SEGMENT_LENGTH) {
             const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH) % GameState.segments.length;
             const carSeg = GameState.segments[carSegIndex];
             if (!carSeg || !carSeg.p1.screen || !carSeg.p2.screen || !carSeg.p1.screen.scale) return;
