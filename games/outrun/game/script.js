@@ -905,6 +905,11 @@ const GameState = {
         timer: 0
     },
 
+    // Efectos Visuales y Jugabilidad
+    invulnerableTimer: 0, // Tiempo de gracia / invulnerabilidad tras choque
+    smokeParticles: [],   // Partículas de humo, derrape y chispas
+    turboFlameTimer: 0,   // Efecto visual de llamas de nitro en escapes
+
     // Pista y Tráfico
     segments: [],
     trackLength: 0,
@@ -974,41 +979,96 @@ function buildStageTrack(tier = 0, routeIndex = 0) {
     }
 
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
-    spawnTraffic();
+    spawnTraffic(tier);
 }
 
 function buildTrack() {
     buildStageTrack(GameState.currentTier || 0, GameState.currentRouteIndex || 0);
 }
 
-// Generación de Tráfico Rival (50 coches competidores activos)
-function spawnTraffic() {
+// Generación Inteligente de Tráfico Rival (Equilibrado, Progresivo y sin Muros Infranqueables)
+function spawnTraffic(tier = 0) {
     GameState.cars = [];
     const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
-    const count = 50;
+    
+    // Conteo progresivo por etapa: la primera etapa es abierta y disfrutable
+    const counts = [16, 20, 24, 28, 32];
+    const count = counts[Math.min(tier, counts.length - 1)];
+
+    // Zona de salida libre: NO generar coches en los primeros 4,500 px
+    // Esto da tiempo al jugador para acelerar, acomodarse y alcanzar velocidad antes del primer vehículo
+    const startSafeZ = 4500;
+    const availableTrack = GameState.trackLength - startSafeZ - 2000;
+    const waveSpacing = availableTrack / count;
+
+    const lanes = [-0.6, 0, 0.6];
+    let lastLane = 1;
 
     for (let i = 0; i < count; i++) {
-        // Distribuir a lo largo de toda la pista
-        const zPos = 1500 + (i * (GameState.trackLength / count)) + (Math.random() * 800);
-        const laneOffset = [-0.6, 0, 0.6][i % 3];
+        const zPos = startSafeZ + (i * waveSpacing) + (Math.random() * 400 - 200);
+
+        // Algoritmo Anti-Pared: Asegura que NUNCA dos coches contiguos tapen el camino completo
+        let laneIndex;
+        do {
+            laneIndex = Math.floor(Math.random() * lanes.length);
+        } while (laneIndex === lastLane && Math.random() < 0.7);
+        lastLane = laneIndex;
+        const laneOffset = lanes[laneIndex];
+
         const type = carTypes[i % carTypes.length];
         
-        let baseSpeed = 6500;
-        if (type === 'white_truck') baseSpeed = 4800;
-        else if (type === 'yellow_cab') baseSpeed = 6200;
-        else if (type === 'blue_coupe') baseSpeed = 7400;
-        else if (type === 'green_gt') baseSpeed = 8500;
-        else if (type === 'purple_muscle') baseSpeed = 8000;
+        // Velocidades escalonadas y balanceadas
+        // Jugador a 12,000 px/s (240 km/h) tiene 2 a 3 segundos de margen para elegir carril
+        let baseSpeed = 7500;
+        if (type === 'white_truck') baseSpeed = 6200;      // Camión pesado
+        else if (type === 'yellow_cab') baseSpeed = 7200;   // Taxi
+        else if (type === 'blue_coupe') baseSpeed = 8200;   // Cupé
+        else if (type === 'purple_muscle') baseSpeed = 8800;// Muscle car
+        else if (type === 'green_gt') baseSpeed = 9200;     // Superdeportivo
 
         GameState.cars.push({
             type: type,
             z: zPos % GameState.trackLength,
             offset: laneOffset,
             targetOffset: laneOffset,
-            laneChangeTimer: 2 + Math.random() * 4,
-            speed: baseSpeed + (Math.random() * 600 - 300),
+            laneChangeTimer: 4 + Math.random() * 6,
+            speed: baseSpeed + (Math.random() * 400 - 200),
             passed: false
         });
+    }
+
+    GameState.cars.sort((a, b) => a.z - b.z);
+}
+
+// Sistema de Partículas de Humo de Neumáticos, Derrapes y Chispas
+function createTireSmoke(x, y, count = 1, isCrash = false, customColor = null) {
+    if (GameState.smokeParticles.length > 40) return;
+    for (let i = 0; i < count; i++) {
+        GameState.smokeParticles.push({
+            x: x + (Math.random() - 0.5) * 4,
+            y: y + (Math.random() - 0.5) * 2,
+            vx: (Math.random() - 0.5) * (isCrash ? 2.5 : 1.2),
+            vy: -Math.random() * 1.5 - 0.4,
+            size: isCrash ? Math.random() * 3 + 2 : Math.random() * 2 + 1.2,
+            alpha: isCrash ? 0.9 : 0.6,
+            color: customColor || (isCrash ? (Math.random() < 0.5 ? '#ff4d6d' : '#ffa502') : '#ffffff'),
+            life: isCrash ? 24 : 16,
+            maxLife: isCrash ? 24 : 16
+        });
+    }
+}
+
+function updateParticles(dt) {
+    for (let i = GameState.smokeParticles.length - 1; i >= 0; i--) {
+        const p = GameState.smokeParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.size += 0.08;
+        p.life--;
+        p.alpha = Math.max(0, p.life / p.maxLife);
+        if (p.life <= 0) {
+            GameState.smokeParticles.splice(i, 1);
+        }
     }
 }
 
@@ -1481,6 +1541,9 @@ function startGame() {
     GameState.gameOver = false;
     GameState.running = true;
     GameState.lastWarningSecond = -1;
+    GameState.invulnerableTimer = 0;
+    GameState.smokeParticles = [];
+    GameState.turboFlameTimer = 0;
 
     buildStageTrack(0, 0);
     updateHUD();
@@ -1564,6 +1627,11 @@ function update(dt) {
         GameState.banner.timer -= dt;
     }
 
+    // Temporizador de invulnerabilidad / recuperación de choque
+    if (GameState.invulnerableTimer > 0) {
+        GameState.invulnerableTimer -= dt;
+    }
+
     // Aceleración y Frenado
     const topSpeed = GameState.input.turbo ? GameState.turboSpeed : GameState.maxSpeed;
     const isOffRoad = Math.abs(GameState.playerX) > 1.05;
@@ -1594,6 +1662,26 @@ function update(dt) {
 
     // Audio del motor
     audio.updateEngine(GameState.speed, GameState.turboSpeed);
+
+    // Emisión de partículas de derrape, frenada y pasto
+    if (GameState.running) {
+        const carScreenX = CANVAS_WIDTH / 2;
+        const carScreenY = CANVAS_HEIGHT - 8;
+
+        if (GameState.input.brake && GameState.speed > 2500) {
+            createTireSmoke(carScreenX - 14, carScreenY, 1);
+            createTireSmoke(carScreenX + 14, carScreenY, 1);
+        }
+        if (Math.abs(GameState.input.steer) > 0.4 && GameState.speed > 6800) {
+            const driftSide = GameState.input.steer > 0 ? -14 : 14;
+            createTireSmoke(carScreenX + driftSide, carScreenY, 1);
+        }
+        if (isOffRoad && GameState.speed > 2200) {
+            createTireSmoke(carScreenX - 14, carScreenY, 1, false, '#8e5b32');
+            createTireSmoke(carScreenX + 14, carScreenY, 1, false, '#8e5b32');
+        }
+    }
+    updateParticles(dt);
 
     // Movimiento Z
     if (GameState.gameWon) {
@@ -1672,57 +1760,65 @@ function update(dt) {
     }
 
     // Actualización de Tráfico Rival y Competidores
+    const lanes = [-0.6, 0, 0.6];
     GameState.cars.forEach(car => {
         car.z += car.speed * dt;
         if (car.z >= GameState.trackLength) car.z -= GameState.trackLength;
-
-        // IA: cambio de carril ocasional
-        car.laneChangeTimer -= dt;
-        if (car.laneChangeTimer <= 0) {
-            car.laneChangeTimer = 3 + Math.random() * 5;
-            if (Math.random() < 0.35) {
-                const lanes = [-0.6, 0, 0.6];
-                car.targetOffset = lanes[Math.floor(Math.random() * lanes.length)];
-            }
-        }
-        if (car.targetOffset !== undefined) {
-            car.offset += (car.targetOffset - car.offset) * 1.6 * dt;
-        }
 
         // Distancia relativa con respecto al jugador
         let relZ = car.z - GameState.playerZ;
         if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
         if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
 
+        // IA: cambio de carril suave (solo si el jugador no está pegado a él)
+        car.laneChangeTimer -= dt;
+        if (car.laneChangeTimer <= 0) {
+            car.laneChangeTimer = 4 + Math.random() * 6;
+            // No cambia de carril si el jugador está adelantando justo al lado
+            if (Math.abs(relZ) > 300 && Math.random() < 0.3) {
+                const availableLanes = lanes.filter(l => Math.abs(l - car.offset) > 0.1);
+                if (availableLanes.length > 0) {
+                    car.targetOffset = availableLanes[Math.floor(Math.random() * availableLanes.length)];
+                }
+            }
+        }
+        if (car.targetOffset !== undefined) {
+            car.offset += (car.targetOffset - car.offset) * 1.3 * dt;
+        }
+
         // Detección de rebase (Pass bonus de +500 PTS)
-        if (relZ < -30 && relZ > -300 && !car.passed) {
+        if (relZ < -30 && relZ > -250 && !car.passed) {
             car.passed = true;
             GameState.score += 500;
             audio.playPassBonus();
-            showBanner('OVERTAKE!', '+500 PTS', '#ffb703', 1.0);
-        } else if (relZ > 200 || relZ < -450) {
+            showBanner('OVERTAKE!', '+500 PTS', '#3dff8a', 0.9);
+        } else if (relZ > 250 || relZ < -450) {
             car.passed = false;
         }
 
-        // Colisión frontal/lateral: SOLO si está en el MISMO carril (distX < 0.32)
-        if (Math.abs(relZ) < 65) {
+        // Colisión frontal/lateral: con tolerancia precisa y tiempo de recuperación
+        if (GameState.invulnerableTimer <= 0 && Math.abs(relZ) < 52) {
             const distX = Math.abs(car.offset - GameState.playerX);
-            if (distX < 0.32) {
-                // Choque real
-                GameState.speed = Math.min(GameState.speed, 2500); // 50 KM/H
-                GameState.shakeAmount = 6;
+            // Tolerancia ajustada a 0.22 (permite pasar entre huecos sin choques injustos)
+            if (distX < 0.22) {
+                GameState.invulnerableTimer = 1.8; // 1.8s de gracia para reponerse
+                GameState.speed = Math.max(3800, GameState.speed * 0.45); // Desaceleración moderada (~75 km/h)
+                GameState.shakeAmount = 6.5;
                 audio.playCrash();
-                showBanner('CRASH!', 'WATCH OUT!', '#ff4d6d', 1.4);
-                
-                // Efecto de empuje mutuo
-                car.speed = Math.max(2000, car.speed - 1500);
+                showBanner('CRASH!', 'RECOVERING...', '#ff4d6d', 1.5);
+
+                // Separar suavemente para no quedar bloqueados en el mismo punto
+                car.z += 400;
                 if (GameState.playerX > car.offset) {
-                    GameState.playerX += 0.15;
-                    car.offset -= 0.15;
+                    GameState.playerX = Math.min(1.8, GameState.playerX + 0.2);
+                    car.offset = Math.max(-0.9, car.offset - 0.2);
                 } else {
-                    GameState.playerX -= 0.15;
-                    car.offset += 0.15;
+                    GameState.playerX = Math.max(-1.8, GameState.playerX - 0.2);
+                    car.offset = Math.min(0.9, car.offset + 0.2);
                 }
+
+                // Chispas y humo de choque
+                createTireSmoke(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 12, 8, true);
             }
         }
     });
@@ -1743,21 +1839,84 @@ function draw() {
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT / 2);
 
-    // Sol / Luna retro
-    ctx.fillStyle = stage.sunColor;
+    // Sol Retro Synthwave con persianas láser
+    const sunX = Math.round(CANVAS_WIDTH * 0.72);
+    const sunY = 28;
+    const sunR = 17;
+
+    // Resplandor radial exterior
+    const sunAura = ctx.createRadialGradient(sunX, sunY, 3, sunX, sunY, sunR + 8);
+    sunAura.addColorStop(0, 'rgba(255, 234, 167, 0.5)');
+    sunAura.addColorStop(1, 'rgba(255, 77, 109, 0)');
+    ctx.fillStyle = sunAura;
     ctx.beginPath();
-    ctx.arc(CANVAS_WIDTH * 0.72, 28, 16, 0, Math.PI * 2);
+    ctx.arc(sunX, sunY, sunR + 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Montañas lejanas en silueta
-    ctx.fillStyle = stage.mountains;
+    // Degradado vertical del sol
+    const sunGrad = ctx.createLinearGradient(sunX, sunY - sunR, sunX, sunY + sunR);
+    sunGrad.addColorStop(0, '#ffffff');
+    sunGrad.addColorStop(0.35, stage.sunColor || '#ffeaa7');
+    sunGrad.addColorStop(1, '#ff4d6d');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Persianas láser horizontales retro (Synthwave laser blinds)
+    ctx.fillStyle = stage.skyBottom;
+    const blindLines = [
+        { y: sunY + 3, h: 1.0 },
+        { y: sunY + 6.5, h: 1.5 },
+        { y: sunY + 10.5, h: 2.0 },
+        { y: sunY + 14.5, h: 2.5 }
+    ];
+    blindLines.forEach(b => {
+        ctx.fillRect(sunX - sunR - 1, b.y, (sunR + 1) * 2, b.h);
+    });
+
+    // Franja de Océano y Destellos de Agua para etapas costeras
+    if (stage.seaColor) {
+        const seaTop = CANVAS_HEIGHT / 2 - 12;
+        const seaH = 12;
+        ctx.fillStyle = stage.seaColor;
+        ctx.fillRect(0, seaTop, CANVAS_WIDTH, seaH);
+
+        // Destellos dorados del sol en el agua
+        if (stage.id === 'coconut_beach' || stage.id === 'seaside_blvd') {
+            ctx.fillStyle = 'rgba(255, 234, 167, 0.55)';
+            const t = Date.now() / 150;
+            for (let row = 0; row < 4; row++) {
+                const waveY = seaTop + 2 + row * 2.5;
+                const waveW = 8 + row * 6;
+                const waveX = sunX - waveW / 2 + Math.sin(t + row) * 3;
+                ctx.fillRect(waveX, waveY, waveW, 1.2);
+            }
+        }
+    }
+
+    // Montañas lejanas (Capa 1: Fondo tenue)
+    ctx.fillStyle = 'rgba(20, 20, 32, 0.55)';
     ctx.beginPath();
     const mountainBaseY = CANVAS_HEIGHT / 2;
     ctx.moveTo(0, mountainBaseY);
-    for (let x = 0; x <= CANVAS_WIDTH; x += 20) {
-        const offset = (x + GameState.skyOffset * 100) % CANVAS_WIDTH;
+    for (let x = 0; x <= CANVAS_WIDTH; x += 16) {
+        const offset = (x + GameState.skyOffset * 50) % CANVAS_WIDTH;
+        const h = Math.sin(offset * 0.05) * 16 + Math.cos(offset * 0.02) * 10;
+        ctx.lineTo(x, mountainBaseY - 18 - h);
+    }
+    ctx.lineTo(CANVAS_WIDTH, mountainBaseY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Montañas cercanas (Capa 2: Silueta principal)
+    ctx.fillStyle = stage.mountains;
+    ctx.beginPath();
+    ctx.moveTo(0, mountainBaseY);
+    for (let x = 0; x <= CANVAS_WIDTH; x += 12) {
+        const offset = (x + GameState.skyOffset * 110) % CANVAS_WIDTH;
         const h = Math.sin(offset * 0.08) * 12 + Math.cos(offset * 0.04) * 8;
-        ctx.lineTo(x, mountainBaseY - 14 - h);
+        ctx.lineTo(x, mountainBaseY - 12 - h);
     }
     ctx.lineTo(CANVAS_WIDTH, mountainBaseY);
     ctx.closePath();
@@ -1914,6 +2073,18 @@ function draw() {
         }
     });
 
+    // Renderizado de partículas de humo, derrapes y chispas
+    if (GameState.smokeParticles && GameState.smokeParticles.length > 0) {
+        GameState.smokeParticles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, Math.max(0.6, p.size), 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.globalAlpha = 1.0;
+    }
+
     // 4. Coche del Jugador (Iconic Red Convertible en primer plano)
     drawPlayerCar();
 
@@ -2069,17 +2240,37 @@ function drawWorldSprite(spriteObj, x, y, scale) {
     ctx.translate(x, y);
 
     if (type === 'palm') {
-        // Tronco con textura
-        ctx.fillStyle = '#8e5b32';
+        // Tronco de palmera con textura de anillos fibrosos
+        ctx.fillStyle = '#6d4c41';
         ctx.fillRect(-size * 0.05, -size, size * 0.1, size);
-        // Corona de palmera
-        ctx.fillStyle = '#10ac84';
+        ctx.fillStyle = '#4e342e';
+        for (let py = -size; py < 0; py += size * 0.1) {
+            ctx.fillRect(-size * 0.06, py, size * 0.12, size * 0.03);
+        }
+
+        // Cocos en la base de la corona
+        ctx.fillStyle = '#3e2723';
         ctx.beginPath();
-        ctx.arc(0, -size, size * 0.35, 0, Math.PI * 2);
+        ctx.arc(-size * 0.06, -size + size * 0.04, size * 0.05, 0, Math.PI * 2);
+        ctx.arc(size * 0.06, -size + size * 0.04, size * 0.05, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#1dd1a1';
+
+        // Capa de frondas tropicales en abanico
+        ctx.fillStyle = '#059669';
         ctx.beginPath();
-        ctx.arc(0, -size * 1.05, size * 0.22, 0, Math.PI * 2);
+        ctx.ellipse(0, -size, size * 0.42, size * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hojas superiores verde esmeralda neón
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.ellipse(0, -size * 1.02, size * 0.32, size * 0.20, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Brillo cenital en la copa
+        ctx.fillStyle = '#34d399';
+        ctx.beginPath();
+        ctx.arc(0, -size * 1.06, size * 0.16, 0, Math.PI * 2);
         ctx.fill();
     } else if (type === 'cactus') {
         ctx.fillStyle = '#218c74';
@@ -2263,111 +2454,311 @@ function drawWorldSprite(spriteObj, x, y, scale) {
     ctx.restore();
 }
 
-// Coche Rival Renderizado Pixel-Art con Sombras y Detalles Claros
+// Coche Rival Renderizado Pixel-Art con Sombras y Modelos Distintos
 function drawRivalCar(type, x, y, w, h) {
     if (w < 3) return;
 
     ctx.save();
     ctx.translate(x - w / 2, y - h);
 
-    // Sombra del coche en el asfalto
+    // Sombra del coche sobre el asfalto
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    ctx.fillRect(-w * 0.05, h * 0.85, w * 1.1, h * 0.2);
+    ctx.fillRect(-w * 0.06, h * 0.85, w * 1.12, h * 0.22);
 
-    let bodyColor = '#0984e3'; // blue coupe
-    if (type === 'yellow_cab') bodyColor = '#f1c40f';
-    else if (type === 'white_truck') bodyColor = '#f5f6fa';
-    else if (type === 'green_gt') bodyColor = '#2ecc71';
-    else if (type === 'purple_muscle') bodyColor = '#9b59b6';
+    if (type === 'white_truck') {
+        // Camión de Carga 18-Wheeler OutRun
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-w * 0.02, h * 0.65, w * 0.22, h * 0.35);
+        ctx.fillRect(w * 0.80, h * 0.65, w * 0.22, h * 0.35);
 
-    // Neumáticos
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, h * 0.6, w * 0.2, h * 0.4);
-    ctx.fillRect(w * 0.8, h * 0.6, w * 0.2, h * 0.4);
+        // Carrocería del remolque alto
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(0, 0, w, h * 0.82);
+        // Puertas traseras
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(w * 0.05, h * 0.05, w * 0.42, h * 0.72);
+        ctx.fillRect(w * 0.53, h * 0.05, w * 0.42, h * 0.72);
+        // Franja reflectante roja/blanca en la base
+        for (let fx = 0; fx < w; fx += 4) {
+            ctx.fillStyle = (Math.floor(fx / 4) % 2 === 0) ? '#ff3838' : '#ffffff';
+            ctx.fillRect(fx, h * 0.78, 3, h * 0.08);
+        }
+        // Luces de gálibo superiores
+        ctx.fillStyle = '#ffb703';
+        ctx.fillRect(w * 0.1, 2, 3, 2);
+        ctx.fillRect(w * 0.5 - 1.5, 2, 3, 2);
+        ctx.fillRect(w * 0.9 - 3, 2, 3, 2);
+        // Focos traseros inferiores
+        ctx.fillStyle = '#ff3838';
+        ctx.fillRect(w * 0.06, h * 0.86, w * 0.18, h * 0.1);
+        ctx.fillRect(w * 0.76, h * 0.86, w * 0.18, h * 0.1);
+    } else if (type === 'yellow_cab') {
+        // Clásico Escarabajo / Beetle Amarillo
+        ctx.fillStyle = '#111';
+        ctx.fillRect(w * 0.02, h * 0.6, w * 0.2, h * 0.4);
+        ctx.fillRect(w * 0.78, h * 0.6, w * 0.2, h * 0.4);
 
-    // Carrocería principal
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(w * 0.06, h * 0.24, w * 0.88, h * 0.56);
+        // Techo abombado redondeado
+        ctx.fillStyle = '#eab308';
+        ctx.beginPath();
+        ctx.arc(w / 2, h * 0.48, w * 0.44, Math.PI, 0);
+        ctx.fill();
 
-    // Cabina / Ventanas
-    ctx.fillStyle = '#1e272e';
-    ctx.fillRect(w * 0.18, 0, w * 0.64, h * 0.35);
+        // Luneta trasera redondeada
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(w / 2, h * 0.45, w * 0.28, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = '#93c5fd';
+        ctx.fillRect(w * 0.35, h * 0.24, w * 0.3, h * 0.1);
 
-    // Brillo en el parabrisas
-    ctx.fillStyle = '#74b9ff';
-    ctx.fillRect(w * 0.22, h * 0.06, w * 0.56, h * 0.14);
+        // Carrocería inferior con aletas anchas
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(0, h * 0.44, w, h * 0.42);
 
-    // Luces traseras rojas
-    ctx.fillStyle = '#ff3838';
-    ctx.fillRect(w * 0.1, h * 0.44, w * 0.18, h * 0.2);
-    ctx.fillRect(w * 0.72, h * 0.44, w * 0.18, h * 0.2);
+        // Parachoques cromado
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(w * 0.08, h * 0.78, w * 0.84, h * 0.12);
 
-    // Parachoques / Matrícula
-    ctx.fillStyle = '#2f3542';
-    ctx.fillRect(w * 0.35, h * 0.55, w * 0.3, h * 0.15);
+        // Focos traseros redondos
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(w * 0.08, h * 0.55, w * 0.15, h * 0.18);
+        ctx.fillRect(w * 0.77, h * 0.55, w * 0.15, h * 0.18);
+    } else if (type === 'blue_coupe') {
+        // Porsche 911 Turbo Azul (Alerón Cola de Ballena)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, h * 0.62, w * 0.22, h * 0.38);
+        ctx.fillRect(w * 0.78, h * 0.62, w * 0.22, h * 0.38);
+
+        // Carrocería baja con hombros ensanchados
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(w * 0.04, h * 0.30, w * 0.92, h * 0.55);
+
+        // Cabina aerodinámica
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(w * 0.18, h * 0.06, w * 0.64, h * 0.32);
+        ctx.fillStyle = '#7dd3fc';
+        ctx.fillRect(w * 0.24, h * 0.10, w * 0.52, h * 0.12);
+
+        // Alerón trasero prominente
+        ctx.fillStyle = '#0369a1';
+        ctx.fillRect(w * 0.10, h * 0.32, w * 0.80, h * 0.12);
+
+        // Banda reflectante continua roja
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(w * 0.08, h * 0.52, w * 0.84, h * 0.16);
+        ctx.fillStyle = '#f87171';
+        ctx.fillRect(w * 0.12, h * 0.54, w * 0.2, h * 0.1);
+        ctx.fillRect(w * 0.68, h * 0.54, w * 0.2, h * 0.1);
+    } else if (type === 'purple_muscle') {
+        // Muscle Car 70s con Rayas Blancas de Carrera
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, h * 0.58, w * 0.22, h * 0.42);
+        ctx.fillRect(w * 0.78, h * 0.58, w * 0.22, h * 0.42);
+
+        // Carrocería ancha rectangular
+        ctx.fillStyle = '#7e22ce';
+        ctx.fillRect(w * 0.04, h * 0.26, w * 0.92, h * 0.58);
+
+        // Rayas gemelas blancas de carreras
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(w * 0.32, h * 0.12, w * 0.12, h * 0.68);
+        ctx.fillRect(w * 0.56, h * 0.12, w * 0.12, h * 0.68);
+
+        // Cabina fastback
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(w * 0.18, h * 0.04, w * 0.64, h * 0.32);
+        ctx.fillStyle = '#93c5fd';
+        ctx.fillRect(w * 0.22, h * 0.08, w * 0.56, h * 0.12);
+
+        // Parachoques cromado ancho
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(w * 0.06, h * 0.72, w * 0.88, h * 0.14);
+
+        // Pilotos traseros rectangulares dobles
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(w * 0.08, h * 0.48, w * 0.18, h * 0.18);
+        ctx.fillRect(w * 0.74, h * 0.48, w * 0.18, h * 0.18);
+    } else {
+        // Superdeportivo Verde GT
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, h * 0.60, w * 0.22, h * 0.40);
+        ctx.fillRect(w * 0.78, h * 0.60, w * 0.22, h * 0.40);
+
+        // Chasis de cuña ultra bajo
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(w * 0.02, h * 0.32, w * 0.96, h * 0.52);
+
+        // Persianas negras sobre motor central
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(w * 0.20, h * 0.08, w * 0.60, h * 0.34);
+        ctx.fillStyle = '#334155';
+        for (let ly = h * 0.16; ly <= h * 0.36; ly += h * 0.08) {
+            ctx.fillRect(w * 0.24, ly, w * 0.52, 1);
+        }
+
+        // Difusor trasero y focos redondos deportivos
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(w * 0.15, h * 0.74, w * 0.70, h * 0.14);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(w * 0.18, h * 0.54, w * 0.08, 0, Math.PI * 2);
+        ctx.arc(w * 0.30, h * 0.54, w * 0.08, 0, Math.PI * 2);
+        ctx.arc(w * 0.70, h * 0.54, w * 0.08, 0, Math.PI * 2);
+        ctx.arc(w * 0.82, h * 0.54, w * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+    }
 
     ctx.restore();
 }
 
-// Coche del Jugador (Iconic Red Convertible)
+// Coche del Jugador (Iconic 1986 Red Ferrari Testarossa Spider)
 function drawPlayerCar() {
-    const carW = 42;
-    const carH = 22;
+    // Si está en período de recuperación tras choque, parpadea sutilmente para indicar inmunidad
+    if (GameState.invulnerableTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
+        return;
+    }
+
+    const carW = 44;
+    const carH = 24;
     const carX = Math.round(CANVAS_WIDTH / 2 - carW / 2);
-    const carY = CANVAS_HEIGHT - carH - 6;
+    const carY = CANVAS_HEIGHT - carH - 5;
 
     const steer = GameState.input.steer;
     const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
     const currentSeg = GameState.segments[baseSegmentIndex % GameState.segments.length];
     const curveTilt = currentSeg ? (currentSeg.curve * 0.35) : 0;
-    const tilt = Math.max(-4, Math.min(4, Math.round((steer + curveTilt) * 2.5))); // Inclinación de carrocería en curvas
+    const tilt = Math.max(-5, Math.min(5, Math.round((steer + curveTilt) * 2.8))); // Inclinación dinámica de carrocería
 
     ctx.save();
     ctx.translate(carX, carY);
 
-    // Sombra del coche del jugador
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(-2 + tilt, carH - 3, carW + 4, 5);
+    // 1. Sombra suave del coche sobre el asfalto
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(-3 + tilt, carH - 2, carW + 6, 4);
 
-    // Neumáticos anchos
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-2 + tilt, carH - 8, 8, 8);
-    ctx.fillRect(carW - 6 + tilt, carH - 8, 8, 8);
+    // 2. Neumáticos anchos deportivos (con dibujo de rodadura y rines plateados)
+    const tireW = 8;
+    const tireH = 10;
+    // Neumático Izquierdo
+    ctx.fillStyle = '#0f0f0f';
+    ctx.fillRect(-2 + tilt, carH - tireH, tireW, tireH);
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(-1 + tilt, carH - tireH + 2, tireW - 2, tireH - 4);
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(1 + tilt, carH - tireH + 3, 2, 4);
 
-    // Carrocería principal (Rojo Ferrari OutRun)
+    // Neumático Derecho
+    ctx.fillStyle = '#0f0f0f';
+    ctx.fillRect(carW - 6 + tilt, carH - tireH, tireW, tireH);
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(carW - 5 + tilt, carH - tireH + 2, tireW - 2, tireH - 4);
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(carW - 3 + tilt, carH - tireH + 3, 2, 4);
+
+    // 3. Carrocería principal (Rojo Ferrari con volumen 3D)
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(2 + tilt, carH - 6, carW - 4, 3);
+
     ctx.fillStyle = '#d63031';
     ctx.beginPath();
-    ctx.roundRect(0 + tilt, 6, carW, carH - 8, 3);
+    ctx.roundRect(0 + tilt, 6, carW, carH - 10, 3);
     ctx.fill();
 
-    // Alerón trasero y detalles
-    ctx.fillStyle = '#b71540';
-    ctx.fillRect(2 + tilt, 4, carW - 4, 3);
+    // Resalte superior brillante
+    ctx.fillStyle = '#ff4d6d';
+    ctx.fillRect(2 + tilt, 6, carW - 4, 2);
 
-    // Parabrisas
-    ctx.fillStyle = '#74b9ff';
-    ctx.fillRect(6 + tilt, 1, carW - 12, 5);
+    // 4. Paragolpes y Rejilla Trasera Testarossa (Persianas Negras Horizontales)
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(3 + tilt, 10, carW - 6, 9);
 
-    // Piloto (gorra azul)
-    ctx.fillStyle = '#0984e3';
-    ctx.fillRect(11 + tilt, 0, 5, 4);
-    // Copiloto rubia (pelo amarillo ondeando)
-    ctx.fillStyle = '#ffeaa7';
-    ctx.fillRect(25 + tilt + (Math.sin(Date.now() / 60) * 1.5), -1, 7, 5);
-
-    // Luces traseras (brillan intensamente al frenar)
-    const isBraking = GameState.input.brake;
-    ctx.fillStyle = isBraking ? '#ff3838' : '#e17055';
-    ctx.fillRect(3 + tilt, 9, 7, 4);
-    ctx.fillRect(carW - 10 + tilt, 9, 7, 4);
-
-    // Matrícula
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(carW / 2 - 7 + tilt, 11, 14, 4);
+    // Ranuras horizontales características de la Testarossa
     ctx.fillStyle = '#000000';
+    for (let sy = 11; sy <= 18; sy += 2) {
+        ctx.fillRect(3 + tilt, sy, carW - 6, 1);
+    }
+
+    // 5. Luces traseras icónicas empotradas tras las ranuras
+    const isBraking = GameState.input.brake;
+    ctx.fillStyle = isBraking ? '#ff0033' : '#b91c1c';
+    ctx.fillRect(4 + tilt, 11, 7, 5);
+    ctx.fillRect(carW - 11 + tilt, 11, 7, 5);
+
+    // Destello de frenado intenso
+    if (isBraking) {
+        ctx.fillStyle = 'rgba(255, 0, 50, 0.45)';
+        ctx.fillRect(2 + tilt, 9, 11, 9);
+        ctx.fillRect(carW - 13 + tilt, 9, 11, 9);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(6 + tilt, 12, 3, 3);
+        ctx.fillRect(carW - 9 + tilt, 12, 3, 3);
+    }
+
+    // 6. Matrícula OutRun Vintage
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(carW / 2 - 7 + tilt, 13, 14, 4);
+    ctx.fillStyle = '#1e3a8a';
     ctx.font = '3px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('OUTRUN', carW / 2 + tilt, 14);
+    ctx.fillText('OUTRUN', carW / 2 + tilt, 16);
+
+    // 7. Tubos de escape dobles cromados
+    ctx.fillStyle = '#d1d5db';
+    ctx.fillRect(7 + tilt, carH - 4, 3, 2);
+    ctx.fillRect(carW - 10 + tilt, carH - 4, 3, 2);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(7.5 + tilt, carH - 3.5, 2, 1.2);
+    ctx.fillRect(carW - 9.5 + tilt, carH - 3.5, 2, 1.2);
+
+    // 8. Llamas de Nitro Turbo cuando se activa el Turbo
+    if (GameState.input.turbo && GameState.speed > 5000) {
+        const flameLen = Math.random() * 4 + 4;
+        ctx.fillStyle = '#00f5d4';
+        ctx.fillRect(7.5 + tilt, carH - 2, 2, flameLen * 0.5);
+        ctx.fillStyle = '#ff0055';
+        ctx.fillRect(7.5 + tilt, carH - 2 + flameLen * 0.5, 2, flameLen * 0.5);
+        ctx.fillStyle = '#00f5d4';
+        ctx.fillRect(carW - 9.5 + tilt, carH - 2, 2, flameLen * 0.5);
+        ctx.fillStyle = '#ff0055';
+        ctx.fillRect(carW - 9.5 + tilt, carH - 2 + flameLen * 0.5, 2, flameLen * 0.5);
+    }
+
+    // 9. Habitáculo Descapotable, Parabrisas y Pasajeros
+    ctx.fillStyle = '#74b9ff';
+    ctx.fillRect(6 + tilt, 2, carW - 12, 5);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.fillRect(9 + tilt, 2, 2, 4);
+
+    // Piloto (camisa azul marino, gafas oscuras y manos en el volante)
+    ctx.fillStyle = '#1e3a8a';
+    ctx.fillRect(10 + tilt, 0, 6, 6);
+    ctx.fillStyle = '#d97706';
+    ctx.fillRect(12 + tilt, -1, 3, 3);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(12 + tilt, 0, 3, 1.2);
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(10 + tilt, 4, 3, 2);
+
+    // Copiloto rubia (pelo amarillo ondeando al viento en tiempo real)
+    const hairFlutter = Math.sin(Date.now() / 50) * 2.2;
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(24 + tilt + hairFlutter, -2, 8, 6);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(25 + tilt + hairFlutter * 1.2, -1, 6, 4);
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(24 + tilt + hairFlutter * 0.8, 1, 7, 4);
+
+    // Cara y gafas de sol de la copiloto
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(27 + tilt, 0, 3, 3);
+    ctx.fillStyle = '#ff0055';
+    ctx.fillRect(27 + tilt, 1, 3, 1.2);
+
+    // Blusa blanca de la copiloto
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(26 + tilt, 3, 6, 4);
 
     ctx.restore();
 }
