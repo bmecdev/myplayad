@@ -570,8 +570,8 @@ const ROUTE_TREE = [
             roadLight: '#444444',
             roadDark: '#3b3b3b',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 140 ? 3.0 : (s > 190 && s < 290 ? -3.4 : 0)),
-            hills: (s) => Math.sin(s / 28) * 550
+            curves: (s) => (s > 40 && s < 120 ? 2.2 : (s > 140 && s < 220 ? -2.4 : 0)),
+            hills: (s) => Math.sin(s / 32) * 140
         }
     ],
     // Tier 1 (Etapa 2 - 2 rutas)
@@ -592,8 +592,8 @@ const ROUTE_TREE = [
             roadLight: '#48443e',
             roadDark: '#3d3a35',
             spriteTheme: 'cactus',
-            curves: (s) => (s > 40 && s < 150 ? -3.8 : (s > 200 && s < 310 ? 3.6 : 0)),
-            hills: (s) => Math.sin(s / 20) * 850 + Math.cos(s / 38) * 350
+            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.6 : 0)),
+            hills: (s) => Math.sin(s / 36) * 160 + Math.cos(s / 50) * 60
         },
         {
             id: 'alpine_valley',
@@ -611,8 +611,8 @@ const ROUTE_TREE = [
             roadLight: '#474747',
             roadDark: '#383838',
             spriteTheme: 'pine',
-            curves: (s) => (s > 50 && s < 150 ? 3.5 : (s > 210 && s < 320 ? -3.6 : 0)),
-            hills: (s) => Math.sin(s / 22) * 950 + Math.cos(s / 40) * 400
+            curves: (s) => (s > 40 && s < 130 ? 2.6 : (s > 150 && s < 230 ? -2.5 : 0)),
+            hills: (s) => Math.sin(s / 34) * 170
         }
     ],
     // Tier 2 (Etapa 3 - 3 rutas)
@@ -633,8 +633,8 @@ const ROUTE_TREE = [
             roadLight: '#534e4a',
             roadDark: '#44403c',
             spriteTheme: 'column',
-            curves: (s) => (s > 40 && s < 140 ? -4.0 : (s > 200 && s < 310 ? 3.8 : 0)),
-            hills: (s) => Math.sin(s / 26) * 650
+            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0)),
+            hills: (s) => Math.sin(s / 38) * 150
         },
         {
             id: 'devils_canyon',
@@ -652,8 +652,8 @@ const ROUTE_TREE = [
             roadLight: '#423735',
             roadDark: '#352c2a',
             spriteTheme: 'rock',
-            curves: (s) => (s > 40 && s < 140 ? 4.2 : (s > 200 && s < 310 ? -4.0 : 0)),
-            hills: (s) => Math.sin(s / 18) * 1100
+            curves: (s) => (s > 40 && s < 120 ? 2.8 : (s > 140 && s < 220 ? -2.6 : 0)),
+            hills: (s) => Math.sin(s / 32) * 170
         },
         {
             id: 'winding_vineyards',
@@ -671,8 +671,8 @@ const ROUTE_TREE = [
             roadLight: '#3d444a',
             roadDark: '#32373c',
             spriteTheme: 'pine',
-            curves: (s) => (s > 50 && s < 150 ? -3.5 : (s > 210 && s < 320 ? 3.7 : 0)),
-            hills: (s) => Math.sin(s / 30) * 750
+            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.4 : 0)),
+            hills: (s) => Math.sin(s / 35) * 150
         }
     ],
     // Tier 3 (Etapa 4 - 4 rutas)
@@ -693,8 +693,8 @@ const ROUTE_TREE = [
             roadLight: '#333333',
             roadDark: '#262626',
             spriteTheme: 'city',
-            curves: (s) => (s > 50 && s < 150 ? 3.4 : (s > 220 && s < 320 ? -3.2 : 0)),
-            hills: (s) => Math.sin(s / 35) * 550
+            curves: (s) => (s > 40 && s < 120 ? 2.3 : (s > 140 && s < 220 ? -2.2 : 0)),
+            hills: (s) => Math.sin(s / 40) * 130
         },
         {
             id: 'seaside_blvd',
@@ -712,8 +712,8 @@ const ROUTE_TREE = [
             roadLight: '#444444',
             roadDark: '#383838',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 140 ? -4.2 : (s > 200 && s < 310 ? 4.0 : 0)),
-            hills: (s) => Math.sin(s / 25) * 750
+            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0)),
+            hills: (s) => Math.sin(s / 32) * 160
         },
         {
             id: 'windmill_valley',
@@ -731,8 +731,8 @@ const ROUTE_TREE = [
             roadLight: '#4a4d45',
             roadDark: '#3d4039',
             spriteTheme: 'windmill',
-            curves: (s) => (s > 50 && s < 150 ? 3.8 : (s > 220 && s < 330 ? -3.9 : 0)),
-            hills: (s) => Math.sin(s / 28) * 850
+            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.6 : 0)),
+            hills: (s) => Math.sin(s / 36) * 160
         },
         {
             id: 'neon_metropolis',
@@ -750,8 +750,8 @@ const ROUTE_TREE = [
             roadLight: '#262933',
             roadDark: '#1e2029',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 150 ? -4.6 : (s > 200 && s < 320 ? 4.5 : 0)),
-            hills: (s) => Math.sin(s / 22) * 900
+            curves: (s) => (s > 40 && s < 120 ? -2.8 : (s > 140 && s < 220 ? 2.7 : 0)),
+            hills: (s) => Math.sin(s / 34) * 165
         }
     ],
     // Tier 4 (Etapa 5 - LAS 5 METAS: A, B, C, D, E)
@@ -772,8 +772,8 @@ const ROUTE_TREE = [
             roadLight: '#535c68',
             roadDark: '#303952',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 150 ? 3.2 : 0),
-            hills: (s) => Math.sin(s / 32) * 500
+            curves: (s) => (s > 40 && s < 140 ? 2.3 : 0),
+            hills: (s) => Math.sin(s / 38) * 140
         },
         {
             id: 'goal_b',
@@ -791,8 +791,8 @@ const ROUTE_TREE = [
             roadLight: '#576574',
             roadDark: '#222f3e',
             spriteTheme: 'column',
-            curves: (s) => (s > 40 && s < 150 ? -3.6 : 0),
-            hills: (s) => Math.sin(s / 28) * 650
+            curves: (s) => (s > 40 && s < 140 ? -2.4 : 0),
+            hills: (s) => Math.sin(s / 36) * 150
         },
         {
             id: 'goal_c',
@@ -810,8 +810,8 @@ const ROUTE_TREE = [
             roadLight: '#474747',
             roadDark: '#383838',
             spriteTheme: 'pine',
-            curves: (s) => (s > 50 && s < 160 ? 3.8 : -3.5),
-            hills: (s) => Math.sin(s / 24) * 800
+            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.3 : 0)),
+            hills: (s) => Math.sin(s / 35) * 160
         },
         {
             id: 'goal_d',
@@ -829,8 +829,8 @@ const ROUTE_TREE = [
             roadLight: '#2d3436',
             roadDark: '#1e272e',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 140 ? -4.4 : 4.2),
-            hills: (s) => Math.sin(s / 20) * 950
+            curves: (s) => (s > 40 && s < 130 ? -2.7 : (s > 150 && s < 230 ? 2.5 : 0)),
+            hills: (s) => Math.sin(s / 32) * 170
         },
         {
             id: 'goal_e',
@@ -848,8 +848,8 @@ const ROUTE_TREE = [
             roadLight: '#3d3d3d',
             roadDark: '#2d2d2d',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 150 ? 4.8 : -4.6),
-            hills: (s) => Math.sin(s / 22) * 900
+            curves: (s) => (s > 40 && s < 130 ? 2.8 : (s > 150 && s < 230 ? -2.6 : 0)),
+            hills: (s) => Math.sin(s / 34) * 160
         }
     ]
 ];
@@ -947,16 +947,16 @@ function lerpColor(c1, c2, t) {
 // ==============================================================
 // 🛣️ Construcción Continua de Etapas y Bifurcaciones sin Cortes
 // ==============================================================
-function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, transitionChoice = null) {
+function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, transitionChoice = null, startWorldY = 0) {
     const stage = ROUTE_TREE[tier][routeIndex];
     const leftNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex] : null;
     const rightNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex + 1] : null;
 
     const segments = [];
-    const stageTotalLen = (tier < 4) ? 360 : 330;
+    const stageTotalLen = (tier < 4) ? 420 : 360;
     const transitionLen = (prevStage && transitionChoice !== null) ? 60 : 0;
-    const forkStartRel = stageTotalLen - 100; // a los 260 segmentos relativos
-    const checkpointRel = stageTotalLen - 30; // a los 330 segmentos relativos
+    const forkStartRel = 260; // a los 260 segmentos relativos
+    const checkpointRel = 320; // a los 320 segmentos relativos
 
     for (let s = 0; s < stageTotalLen; s++) {
         const i = startSegIndex + s;
@@ -965,6 +965,22 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
         let curve = stage.curves ? stage.curves(s) : 0;
         let hill = stage.hills ? stage.hills(s) : 0;
         let nextHill = stage.hills ? stage.hills(s + 1) : 0;
+
+        // 1. La bifurcación y la transición son completamente rectas para evitar cruces o deformaciones visuales
+        if (tier < 4 && s >= 235) {
+            curve = 0;
+        }
+
+        // 2. Aplanar colinas suavemente al entrar a la bifurcación (suelo horizontal, sin huecos ni saltos)
+        if (tier < 4 && s >= 240 && s <= 335) {
+            const fade = Math.max(0, 1 - (s - 240) / 15);
+            hill *= fade;
+            nextHill *= fade;
+        }
+
+        // 3. Continuidad de elevación con la etapa anterior (sin saltos verticales)
+        const segWorldY1 = startWorldY + hill;
+        const segWorldY2 = startWorldY + nextHill;
 
         let isTransition = false;
         let chosenRoadCenter = 0;
@@ -1131,8 +1147,8 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
             otherRoadCenter: otherRoadCenter,
             forkProgress: forkProgress,
             env: envColors,
-            p1: { world: { x: 0, y: hill, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
-            p2: { world: { x: 0, y: nextHill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
+            p1: { world: { x: 0, y: segWorldY1, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
+            p2: { world: { x: 0, y: segWorldY2, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
             curve: curve,
             color: {
                 grass: grassCol,
@@ -1156,7 +1172,7 @@ function buildInitialTrack() {
     GameState.forkWarned = false;
 
     // Generar Stage 1 continuo inicial
-    GameState.segments = createStageSegments(0, 0, 0, null, null);
+    GameState.segments = createStageSegments(0, 0, 0, null, null, 0);
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
     spawnTraffic(0);
 }
@@ -1170,12 +1186,19 @@ function appendNextStage(nextTier, nextRouteIndex, choice, checkpointIndex) {
     GameState.stageCleared = false;
     GameState.forkWarned = false;
 
-    // Generar la nueva etapa a partir del checkpoint (sin corte de Z, la salida elegida se centra suavemente)
-    const newSegments = createStageSegments(nextTier, nextRouteIndex, checkpointIndex, prevStage, choice);
+    const prevSeg = GameState.segments[checkpointIndex - 1];
+    const lastY = prevSeg ? prevSeg.p2.world.y : 0;
+
+    // Generar la nueva etapa a partir del checkpoint (sin corte de Z, la salida elegida se centra suavemente y con elevación continua)
+    const newSegments = createStageSegments(nextTier, nextRouteIndex, checkpointIndex, prevStage, choice, lastY);
     
     // Reemplazar a partir del checkpoint para conectar de forma continua
     GameState.segments.splice(checkpointIndex, GameState.segments.length - checkpointIndex, ...newSegments);
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
+
+    // Respawnear tráfico rival bien adelante en la nueva etapa (sin estorbar la zona de transición)
+    spawnTrafficForStage(nextTier, checkpointIndex * SEGMENT_LENGTH);
+}
 
     // Respawnear tráfico rival bien adelante en la nueva etapa (sin estorbar la zona de transición)
     spawnTrafficForStage(nextTier, checkpointIndex * SEGMENT_LENGTH);
@@ -2277,48 +2300,58 @@ function draw() {
     }
 
     // 2. Renderizado de Carretera Pseudo-3D
+    const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+    const baseSegment = GameState.segments[baseSegmentIndex];
+    if (!baseSegment) return;
     const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
     const cameraX = GameState.playerX * ROAD_WIDTH;
     const cameraZ = GameState.playerZ;
     let cameraY = CAMERA_HEIGHT;
 
-    if (baseSegment) cameraY += baseSegment.p1.world.y;
+    const nextBaseSeg = (baseSegmentIndex + 1 < GameState.segments.length) ? GameState.segments[baseSegmentIndex + 1] : baseSegment;
+    cameraY += baseSegment.p1.world.y + (nextBaseSeg.p1.world.y - baseSegment.p1.world.y) * basePercent;
 
     let maxY = CANVAS_HEIGHT;
     let dx = -(baseSegment ? (baseSegment.curve * basePercent) : 0);
     let x = 0;
 
     for (let n = 0; n < DRAW_DISTANCE; n++) {
-        const seg = GameState.segments[(baseSegmentIndex + n) % GameState.segments.length];
-        const loopWrap = ((baseSegmentIndex + n) >= GameState.segments.length) ? GameState.trackLength : 0;
+        const segIndex = baseSegmentIndex + n;
+        if (segIndex >= GameState.segments.length) break;
+        const seg = GameState.segments[segIndex];
 
-        project3D(seg.p1, cameraX - x, cameraY, cameraZ - loopWrap, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
-        project3D(seg.p2, cameraX - x - dx, cameraY, cameraZ - loopWrap, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+        project3D(seg.p1, cameraX - x, cameraY, cameraZ, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+        project3D(seg.p2, cameraX - x - dx, cameraY, cameraZ, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
 
         x = x + dx;
         dx = dx + (seg.curve || 0);
 
         seg.clip = maxY;
 
-        if (seg.p1.camera.z <= CAMERA_DEPTH || seg.p2.screen.y >= maxY) continue;
+        if (seg.p1.camera.z <= CAMERA_DEPTH) continue;
+        if (seg.p2.screen.y >= maxY && seg.p1.screen.y >= maxY) continue;
 
         // Pasto lateral
-        ctx.fillStyle = seg.color.grass;
-        ctx.fillRect(0, seg.p2.screen.y, CANVAS_WIDTH, seg.p1.screen.y - seg.p2.screen.y);
+        const grassY1 = Math.min(CANVAS_HEIGHT, Math.max(0, seg.p1.screen.y));
+        const grassY2 = Math.min(CANVAS_HEIGHT, Math.max(0, seg.p2.screen.y));
+        if (grassY1 > grassY2) {
+            ctx.fillStyle = seg.color.grass;
+            ctx.fillRect(0, grassY2, CANVAS_WIDTH, grassY1 - grassY2);
+        }
 
         // Bermas, asfalto y bifurcaciones (Salida Izquierda y Salida Derecha)
         const fork1 = seg.forkProgress || 0;
-        const nextSeg = GameState.segments[(baseSegmentIndex + n + 1) % GameState.segments.length];
+        const nextSeg = (segIndex + 1 < GameState.segments.length) ? GameState.segments[segIndex + 1] : seg;
         const fork2 = nextSeg ? (nextSeg.forkProgress || 0) : fork1;
 
-        if (seg.isTransition || (nextSeg && nextSeg.isTransition)) {
+        if (seg.isTransition) {
             // ==============================================================
             // TRANSICIÓN CONTINUA ENTRE ETAPAS (SIN CORTE: SALIDA FLUIDA)
             // ==============================================================
             const cCenter1 = seg.chosenRoadCenter || 0;
-            const cCenter2 = (nextSeg && nextSeg.chosenRoadCenter !== undefined) ? nextSeg.chosenRoadCenter : cCenter1;
+            const cCenter2 = (nextSeg && nextSeg.isTransition && nextSeg.chosenRoadCenter !== undefined) ? nextSeg.chosenRoadCenter : cCenter1;
             const cW1 = seg.p1.screen.w * (seg.chosenRoadWidth || 1.0);
-            const cW2 = (nextSeg && nextSeg.chosenRoadWidth !== undefined) ? nextSeg.p2.screen.w * nextSeg.chosenRoadWidth : seg.p2.screen.w;
+            const cW2 = seg.p2.screen.w * ((nextSeg && nextSeg.isTransition && nextSeg.chosenRoadWidth !== undefined) ? nextSeg.chosenRoadWidth : (seg.chosenRoadWidth || 1.0));
             const curbW1 = cW1 * 0.16;
             const curbW2 = cW2 * 0.16;
 
@@ -2368,8 +2401,8 @@ function draw() {
 
             // Calzada rechazada que se aleja y sale suavemente de la pantalla
             const oCenter1 = seg.otherRoadCenter;
-            const oCenter2 = nextSeg ? nextSeg.otherRoadCenter : oCenter1;
-            if (oCenter1 !== undefined && Math.abs(oCenter1) < 4.5) {
+            const oCenter2 = (nextSeg && nextSeg.isTransition) ? nextSeg.otherRoadCenter : oCenter1;
+            if (oCenter1 !== undefined && Math.abs(oCenter1) < 4.0) {
                 const oW1 = seg.p1.screen.w * 0.85;
                 const oW2 = seg.p2.screen.w * 0.85;
                 const oCurb1 = oW1 * 0.15;
@@ -2563,7 +2596,7 @@ function draw() {
             }
         }
 
-        maxY = seg.p2.screen.y;
+        maxY = Math.min(maxY, seg.p2.screen.y);
     }
 
     // 3. Renderizado de Objetos (Árboles, Señales y Tráfico Rival) ordenados por profundidad Z
@@ -2571,7 +2604,9 @@ function draw() {
 
     // Sprites y Señales de Carretera (Soporta múltiples sprites por segmento y anclaje en pasto exterior)
     for (let n = 0; n < DRAW_DISTANCE; n++) {
-        const seg = GameState.segments[(baseSegmentIndex + n) % GameState.segments.length];
+        const segIndex = baseSegmentIndex + n;
+        if (segIndex >= GameState.segments.length) break;
+        const seg = GameState.segments[segIndex];
         if (!seg || seg.p1.screen.scale <= 0 || seg.p1.camera.z <= CAMERA_DEPTH) continue;
 
         const sprites = seg.sprites || (seg.sprite ? [seg.sprite] : []);
@@ -2625,11 +2660,9 @@ function draw() {
     // Tráfico rival ordenado y adaptado a salidas izquierda/derecha
     GameState.cars.forEach(car => {
         let relZ = car.z - GameState.playerZ;
-        if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
-        if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
-
         if (relZ > 0 && relZ < (DRAW_DISTANCE - 2) * SEGMENT_LENGTH) {
-            const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH) % GameState.segments.length;
+            const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH);
+            if (carSegIndex >= GameState.segments.length) return;
             const carSeg = GameState.segments[carSegIndex];
             if (!carSeg || !carSeg.p1.screen || !carSeg.p2.screen || !carSeg.p1.screen.scale) return;
 
@@ -2705,8 +2738,10 @@ function draw() {
     // 4. Coche del Jugador (Ferrari Testarossa Fluida y Detallada)
     drawPlayerCar();
 
-    // 5. Minimapa de Rutas
-    drawCourseMap();
+    // 5. Minimapa de Rutas (Solo visible en Game Over o Victoria, NUNCA estorbando la vista durante la carrera)
+    if (GameState.gameOver || GameState.gameWon) {
+        drawCourseMap();
+    }
 
     // 6. Banner de Checkpoint / Alertas
     if (GameState.banner.timer > 0) {
@@ -2739,8 +2774,8 @@ function drawTrapezoid(x1, y1, x2, y2, x3, y3, x4, y4, color) {
 function drawCourseMap() {
     const mapW = 108;
     const mapH = 54;
-    const mapX = 8;
-    const mapY = 8;
+    const mapX = Math.round((CANVAS_WIDTH - mapW) / 2);
+    const mapY = 105;
 
     ctx.save();
     // Marco estilizado translúcido con esquinas redondeadas
@@ -3767,6 +3802,11 @@ function updateHUD() {
     if (speedCountElement) {
         const kmh = Math.round((GameState.speed / GameState.maxSpeed) * 240);
         speedCountElement.textContent = kmh.toString().padStart(3, '0');
+    }
+    if (playerNickElement) {
+        const stg = GameState.currentStage ? GameState.currentStage.name : 'COCONUT BEACH';
+        const nick = GameState.currentNickname || 'PILOT';
+        playerNickElement.textContent = `${nick} • STG ${GameState.currentTier + 1}`;
     }
 }
 
