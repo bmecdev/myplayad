@@ -872,6 +872,7 @@ const GameState = {
     paused: false,
     lastTime: 0,
     lastWarningSecond: -1,
+    forkWarned: false,
     currentNickname: 'DRIVER',
     roomId: Math.random().toString(36).substring(2, 6).toUpperCase(),
 
@@ -924,39 +925,109 @@ function buildStageTrack(tier = 0, routeIndex = 0) {
     GameState.currentRouteIndex = routeIndex;
     GameState.segments = [];
     GameState.stageCleared = false;
+    GameState.forkWarned = false;
 
     const leftNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex] : null;
     const rightNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex + 1] : null;
 
     for (let i = 0; i < STAGE_SEGMENTS; i++) {
-        const isCheckpoint = (i === STAGE_SEGMENTS - 10);
+        const isCheckpoint = (i === STAGE_SEGMENTS - 10); // Segmento 390
         const alt = Math.floor(i / 3) % 2 === 0;
 
         const curve = stage.curves(i);
         const hill = stage.hills(i);
         const nextHill = stage.hills(i + 1);
 
-        let sprite = null;
+        // Progresión de Bifurcación: desde el segmento 310 hasta el 385 la carretera se abre
+        // en dos calzadas independientes: una salida hacia la izquierda y otra hacia la derecha
+        let forkProgress = 0;
+        if (tier < 4 && i >= 310) {
+            const t = Math.max(0, Math.min(1, (i - 310) / 72));
+            forkProgress = t * t * (3 - 2 * t); // Transición continua y suave (smoothstep)
+        }
+
+        const sprites = [];
+
         if (isCheckpoint) {
             if (tier === 4) {
-                sprite = { type: 'finish_arch', offset: 0, goalLetter: stage.goalLetter };
+                // Meta final de los Tiers con letra (A, B, C, D, E)
+                sprites.push({ type: 'finish_arch', offset: 0, goalLetter: stage.goalLetter });
             } else {
-                sprite = { type: 'checkpoint_arch', offset: 0 };
+                // Arcos de Checkpoint independientes sobre cada una de las dos salidas
+                sprites.push({ type: 'checkpoint_arch', offset: 0, label: leftNext.name, forkBranch: 'left' });
+                sprites.push({ type: 'checkpoint_arch', offset: 0, label: rightNext.name, forkBranch: 'right' });
             }
-        } else if (tier < 4 && i >= 315 && i < 385) {
-            if (i === 325 || i === 345 || i === 365) {
-                sprite = { type: 'fork_sign_left', offset: -1.7, label: `◄ ${leftNext.name}` };
-            } else if (i === 326 || i === 346 || i === 366) {
-                sprite = { type: 'fork_sign_right', offset: 1.7, label: `${rightNext.name} ►` };
-            } else if (i === 335 || i === 355) {
-                sprite = { type: 'median_sign', offset: 0 };
+        } else if (tier < 4 && i >= 290) {
+            // ==============================================================
+            // ZONA DE BIFURCACIÓN: SEÑALIZACIÓN VIAL ESTRICTAMENTE EN EL PASTO
+            // ==============================================================
+            if (i === 295 || i === 315) {
+                // Carteles verdes de autopista a 1000m y 500m (en el pasto exterior, fuera de la vía)
+                sprites.push({
+                    type: 'fork_sign_left',
+                    offset: -2.4,
+                    label: leftNext.name,
+                    sublabel: '◄ SALIDA IZQ'
+                });
+                sprites.push({
+                    type: 'fork_sign_right',
+                    offset: 2.4,
+                    label: rightNext.name,
+                    sublabel: 'SALIDA DER ►'
+                });
+            } else if (i === 328) {
+                // Atenuador de impacto / chevron de divergencia reflectante en la mediana de pasto
+                sprites.push({
+                    type: 'median_gore',
+                    offset: 0,
+                    forkBranch: 'median'
+                });
+            } else if (i === 345 || i === 368) {
+                // Carteles de confirmación en el pasto exterior de cada bifurcación
+                sprites.push({
+                    type: 'fork_sign_left',
+                    offset: -2.3,
+                    label: leftNext.name,
+                    sublabel: '◄ SALIDA IZQ',
+                    forkBranch: 'left'
+                });
+                sprites.push({
+                    type: 'fork_sign_right',
+                    offset: 2.3,
+                    label: rightNext.name,
+                    sublabel: 'SALIDA DER ►',
+                    forkBranch: 'right'
+                });
             }
-        } else if (i % 6 === 0 && i < 310) {
-            const side = (Math.floor(i / 6) % 2 === 0) ? -1.7 : 1.7;
-            sprite = {
-                type: stage.spriteTheme,
-                offset: side + (Math.random() * 0.3 - 0.15)
-            };
+        } else {
+            // ==============================================================
+            // SEÑALIZACIÓN Y ENTORNO REGULAR (SIEMPRE FUERA DE LA VÍA)
+            // ==============================================================
+            // 1. Señales de curva peligrosa (Chevrons reflectantes ◄◄ o ►► en el pasto)
+            if (Math.abs(curve) >= 2.8 && (i % 8 === 0)) {
+                const chevronSide = curve > 0 ? -2.3 : 2.3;
+                sprites.push({
+                    type: curve > 0 ? 'curve_sign_right' : 'curve_sign_left',
+                    offset: chevronSide
+                });
+            }
+
+            // 2. Señales de límite de velocidad circular "MAX 240 KM/H" en el pasto
+            if (i === 20 || i === 140 || i === 240) {
+                sprites.push({
+                    type: 'speed_sign',
+                    offset: 2.3
+                });
+            }
+
+            // 3. Vegetación y elementos temáticos (en el pasto exterior, offset >= 2.3)
+            if (i % 6 === 0) {
+                const side = (Math.floor(i / 6) % 2 === 0) ? -2.4 : 2.4;
+                sprites.push({
+                    type: stage.spriteTheme,
+                    offset: side + (Math.random() * 0.25 - 0.12)
+                });
+            }
         }
 
         GameState.segments.push({
@@ -965,6 +1036,7 @@ function buildStageTrack(tier = 0, routeIndex = 0) {
             tier: tier,
             routeIndex: routeIndex,
             isCheckpoint: isCheckpoint,
+            forkProgress: forkProgress,
             p1: { world: { x: 0, y: hill, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
             p2: { world: { x: 0, y: nextHill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
             curve: curve,
@@ -972,9 +1044,10 @@ function buildStageTrack(tier = 0, routeIndex = 0) {
                 grass: alt ? stage.grassLight : stage.grassDark,
                 curb: alt ? stage.curbLight : stage.curbDark,
                 road: alt ? stage.roadLight : stage.roadDark,
-                lane: (i >= 320 && i <= 385 && tier < 4) ? '#ffeaa7' : (alt ? '#ffffff' : 'transparent')
+                lane: (i >= 310 && i <= 385 && tier < 4) ? '#ffeaa7' : (alt ? '#ffffff' : 'transparent')
             },
-            sprite: sprite
+            sprites: sprites,
+            sprite: sprites[0] || null
         });
     }
 
@@ -1669,9 +1742,28 @@ function update(dt) {
         GameState.invulnerableTimer -= dt;
     }
 
+    // Posición del segmento actual
+    const currentSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH) % GameState.segments.length;
+    const currentSegment = GameState.segments[currentSegmentIndex];
+    if (!currentSegment) return;
+    GameState.currentStage = currentSegment.stage || GameState.currentStage;
+
     // Aceleración y Frenado
     const topSpeed = GameState.input.turbo ? GameState.turboSpeed : GameState.maxSpeed;
-    const isOffRoad = Math.abs(GameState.playerX) > 1.05;
+
+    // Detección de fuera de pista (Off-road) adaptativa a bifurcaciones
+    let isOffRoad = false;
+    const currentForkProg = currentSegment.forkProgress || 0;
+    if (currentForkProg > 0.3) {
+        // En zona de bifurcación: hay dos calzadas independientes (salida izquierda y salida derecha)
+        const sepRatio = 1.35 * currentForkProg;
+        const branchHalfW = 0.85 + 0.15 * (1 - currentForkProg);
+        const onLeftRoad = Math.abs(GameState.playerX - (-sepRatio)) <= branchHalfW * 1.08;
+        const onRightRoad = Math.abs(GameState.playerX - (+sepRatio)) <= branchHalfW * 1.08;
+        isOffRoad = !onLeftRoad && !onRightRoad;
+    } else {
+        isOffRoad = Math.abs(GameState.playerX) > 1.05;
+    }
 
     if (GameState.input.gas) {
         GameState.speed += GameState.accel * dt;
@@ -1699,6 +1791,12 @@ function update(dt) {
 
     // Audio del motor
     audio.updateEngine(GameState.speed, GameState.turboSpeed);
+
+    // Aviso de bifurcación al acercarse a la salida
+    if (currentSegmentIndex >= 295 && currentSegmentIndex <= 305 && GameState.currentTier < 4 && !GameState.forkWarned) {
+        GameState.forkWarned = true;
+        showBanner('¡BIFURCACIÓN DE PISTA!', 'SALIDA ◄ IZQ  O  DER ►', '#ffb703', 2.8);
+    }
 
     // Emisión de partículas de derrape, frenada y pasto
     if (GameState.running) {
@@ -1729,12 +1827,6 @@ function update(dt) {
         GameState.playerZ -= GameState.trackLength;
     }
 
-    // Posición del segmento actual
-    const currentSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH) % GameState.segments.length;
-    const currentSegment = GameState.segments[currentSegmentIndex];
-    if (!currentSegment) return;
-    GameState.currentStage = currentSegment.stage || GameState.currentStage;
-
     // Checkpoint Crossing & Bifurcación en 5 Metas
     if (currentSegment.isCheckpoint && !currentSegment.cleared && !GameState.stageCleared) {
         currentSegment.cleared = true;
@@ -1756,12 +1848,14 @@ function update(dt) {
             audio.playCheckpoint();
 
             const nextStage = ROUTE_TREE[nextTier][nextRouteIndex];
-            const sideText = (choice === 0) ? '◄ LEFT FORK' : 'RIGHT FORK ►';
-            showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +30s EXTENDED!`, '#3dff8a', 3.0);
+            const sideText = (choice === 0) ? '◄ SALIDA IZQUIERDA' : 'SALIDA DERECHA ►';
+            showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +30s EXTENDIDO!`, '#3dff8a', 3.0);
 
-            // Reconstruir pista de la nueva etapa seleccionada y reiniciar posición Z
+            // Reconstruir pista de la nueva etapa seleccionada y posicionar suavemente
             buildStageTrack(nextTier, nextRouteIndex);
             GameState.playerZ = 0;
+            GameState.playerX = (choice === 0) ? -0.25 : 0.25;
+            GameState.forkWarned = false;
         } else {
             // TIER 4: ¡META ALCANZADA! (GOALS A, B, C, D, E)
             GameState.gameWon = true;
@@ -1846,9 +1940,21 @@ function update(dt) {
 
         // Colisión frontal/lateral: con tolerancia precisa y tiempo de recuperación
         if (GameState.invulnerableTimer <= 0 && relZ > -30 && relZ < 50) {
+            const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH) % GameState.segments.length;
+            const carSeg = GameState.segments[carSegIndex];
+            const forkProg = carSeg ? (carSeg.forkProgress || 0) : 0;
+
+            // Si están en bifurcación avanzada, solo pueden chocar si van por la misma salida
+            let canCollide = true;
+            if (forkProg > 0.25) {
+                const carSide = car.forkSide || ((car.offset < 0) ? -1 : 1);
+                const playerSide = (GameState.playerX < 0) ? -1 : 1;
+                if (carSide !== playerSide) canCollide = false;
+            }
+
             const distX = Math.abs(car.offset - GameState.playerX);
             // Tolerancia ajustada a 0.20 (permite pasar entre huecos sin choques injustos)
-            if (distX < 0.20) {
+            if (canCollide && distX < 0.20) {
                 GameState.invulnerableTimer = 2.0; // 2s de gracia para reponerse
                 GameState.speed = Math.max(3500, GameState.speed * 0.40); // Desaceleración suave
                 GameState.shakeAmount = 6.0;
@@ -2011,46 +2117,169 @@ function draw() {
         ctx.fillStyle = seg.color.grass;
         ctx.fillRect(0, seg.p2.screen.y, CANVAS_WIDTH, seg.p1.screen.y - seg.p2.screen.y);
 
-        // Bermas / Bordillos (Curb) con bisel 3D
-        const curbW1 = seg.p1.screen.w * 0.16;
-        const curbW2 = seg.p2.screen.w * 0.16;
-        drawTrapezoid(
-            seg.p1.screen.x - seg.p1.screen.w - curbW1, seg.p1.screen.y,
-            seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.y,
-            seg.p2.screen.x - seg.p2.screen.w, seg.p2.screen.y,
-            seg.p2.screen.x - seg.p2.screen.w - curbW2, seg.p2.screen.y,
-            seg.color.curb
-        );
-        drawTrapezoid(
-            seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
-            seg.p1.screen.x + seg.p1.screen.w + curbW1, seg.p1.screen.y,
-            seg.p2.screen.x + seg.p2.screen.w + curbW2, seg.p2.screen.y,
-            seg.p2.screen.x + seg.p2.screen.w, seg.p2.screen.y,
-            seg.color.curb
-        );
+        // Bermas, asfalto y bifurcaciones (Salida Izquierda y Salida Derecha)
+        const fork1 = seg.forkProgress || 0;
+        const nextSeg = GameState.segments[(baseSegmentIndex + n + 1) % GameState.segments.length];
+        const fork2 = nextSeg ? (nextSeg.forkProgress || 0) : fork1;
 
-        // Asfalto suave
-        drawTrapezoid(
-            seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.y,
-            seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
-            seg.p2.screen.x + seg.p2.screen.w, seg.p2.screen.y,
-            seg.p2.screen.x - seg.p2.screen.w, seg.p2.screen.y,
-            seg.color.road
-        );
+        if (fork1 < 0.02 && fork2 < 0.02) {
+            // ==========================================
+            // CARRETERA ESTÁNDAR DE UNA SOLA VÍA
+            // ==========================================
+            const curbW1 = seg.p1.screen.w * 0.16;
+            const curbW2 = seg.p2.screen.w * 0.16;
 
-        // Líneas divisoras de carril
-        if (seg.color.lane !== 'transparent') {
-            const laneW1 = seg.p1.screen.w * 0.025;
-            const laneW2 = seg.p2.screen.w * 0.025;
-            for (let l = 1; l < LANES; l++) {
-                const laneX1 = seg.p1.screen.x - seg.p1.screen.w + (seg.p1.screen.w * 2 / LANES) * l;
-                const laneX2 = seg.p2.screen.x - seg.p2.screen.w + (seg.p2.screen.w * 2 / LANES) * l;
+            // Berma izquierda
+            drawTrapezoid(
+                seg.p1.screen.x - seg.p1.screen.w - curbW1, seg.p1.screen.y,
+                seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.y,
+                seg.p2.screen.x - seg.p2.screen.w, seg.p2.screen.y,
+                seg.p2.screen.x - seg.p2.screen.w - curbW2, seg.p2.screen.y,
+                seg.color.curb
+            );
+            // Berma derecha
+            drawTrapezoid(
+                seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
+                seg.p1.screen.x + seg.p1.screen.w + curbW1, seg.p1.screen.y,
+                seg.p2.screen.x + seg.p2.screen.w + curbW2, seg.p2.screen.y,
+                seg.p2.screen.x + seg.p2.screen.w, seg.p2.screen.y,
+                seg.color.curb
+            );
+
+            // Asfalto principal
+            drawTrapezoid(
+                seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.y,
+                seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
+                seg.p2.screen.x + seg.p2.screen.w, seg.p2.screen.y,
+                seg.p2.screen.x - seg.p2.screen.w, seg.p2.screen.y,
+                seg.color.road
+            );
+
+            // Líneas divisorias de carril
+            if (seg.color.lane !== 'transparent') {
+                const laneW1 = seg.p1.screen.w * 0.025;
+                const laneW2 = seg.p2.screen.w * 0.025;
+                for (let l = 1; l < LANES; l++) {
+                    const laneX1 = seg.p1.screen.x - seg.p1.screen.w + (seg.p1.screen.w * 2 / LANES) * l;
+                    const laneX2 = seg.p2.screen.x - seg.p2.screen.w + (seg.p2.screen.w * 2 / LANES) * l;
+                    drawTrapezoid(
+                        laneX1 - laneW1, seg.p1.screen.y,
+                        laneX1 + laneW1, seg.p1.screen.y,
+                        laneX2 + laneW2, seg.p2.screen.y,
+                        laneX2 - laneW2, seg.p2.screen.y,
+                        seg.color.lane
+                    );
+                }
+            }
+        } else {
+            // ==============================================================
+            // BIFURCACIÓN DE PISTA: SALIDA IZQUIERDA Y SALIDA DERECHA
+            // ==============================================================
+            const sep1 = seg.p1.screen.w * 1.35 * fork1;
+            const sep2 = seg.p2.screen.w * 1.35 * fork2;
+            const bW1 = seg.p1.screen.w * (0.85 + 0.15 * (1 - fork1));
+            const bW2 = seg.p2.screen.w * (0.85 + 0.15 * (1 - fork2));
+            const cW1 = bW1 * 0.15;
+            const cW2 = bW2 * 0.15;
+
+            const leftX1 = seg.p1.screen.x - sep1;
+            const leftX2 = seg.p2.screen.x - sep2;
+            const rightX1 = seg.p1.screen.x + sep1;
+            const rightX2 = seg.p2.screen.x + sep2;
+
+            const hasMedian1 = (leftX1 + bW1 + cW1 < rightX1 - bW1 - cW1);
+            const hasMedian2 = (leftX2 + bW2 + cW2 < rightX2 - bW2 - cW2);
+
+            // 1. SALIDA IZQUIERDA
+            // Berma exterior izquierda
+            drawTrapezoid(
+                leftX1 - bW1 - cW1, seg.p1.screen.y,
+                leftX1 - bW1, seg.p1.screen.y,
+                leftX2 - bW2, seg.p2.screen.y,
+                leftX2 - bW2 - cW2, seg.p2.screen.y,
+                seg.color.curb
+            );
+            // Asfalto de la salida izquierda
+            drawTrapezoid(
+                leftX1 - bW1, seg.p1.screen.y,
+                leftX1 + bW1, seg.p1.screen.y,
+                leftX2 + bW2, seg.p2.screen.y,
+                leftX2 - bW2, seg.p2.screen.y,
+                seg.color.road
+            );
+            // Berma interior izquierda (junto a la mediana de pasto central)
+            if (hasMedian1 || hasMedian2) {
                 drawTrapezoid(
-                    laneX1 - laneW1, seg.p1.screen.y,
-                    laneX1 + laneW1, seg.p1.screen.y,
-                    laneX2 + laneW2, seg.p2.screen.y,
-                    laneX2 - laneW2, seg.p2.screen.y,
+                    leftX1 + bW1, seg.p1.screen.y,
+                    leftX1 + bW1 + cW1, seg.p1.screen.y,
+                    leftX2 + bW2 + cW2, seg.p2.screen.y,
+                    leftX2 + bW2, seg.p2.screen.y,
+                    seg.color.curb
+                );
+            }
+            // Línea blanca central de la salida izquierda
+            if (seg.color.lane !== 'transparent') {
+                const laneW1 = bW1 * 0.035;
+                const laneW2 = bW2 * 0.035;
+                drawTrapezoid(
+                    leftX1 - laneW1, seg.p1.screen.y,
+                    leftX1 + laneW1, seg.p1.screen.y,
+                    leftX2 + laneW2, seg.p2.screen.y,
+                    leftX2 - laneW2, seg.p2.screen.y,
                     seg.color.lane
+                );
+            }
+
+            // 2. SALIDA DERECHA
+            // Berma interior derecha (junto a la mediana de pasto central)
+            if (hasMedian1 || hasMedian2) {
+                drawTrapezoid(
+                    rightX1 - bW1 - cW1, seg.p1.screen.y,
+                    rightX1 - bW1, seg.p1.screen.y,
+                    rightX2 - bW2, seg.p2.screen.y,
+                    rightX2 - bW2 - cW2, seg.p2.screen.y,
+                    seg.color.curb
+                );
+            }
+            // Asfalto de la salida derecha
+            drawTrapezoid(
+                rightX1 - bW1, seg.p1.screen.y,
+                rightX1 + bW1, seg.p1.screen.y,
+                rightX2 + bW2, seg.p2.screen.y,
+                rightX2 - bW2, seg.p2.screen.y,
+                seg.color.road
+            );
+            // Berma exterior derecha
+            drawTrapezoid(
+                rightX1 + bW1, seg.p1.screen.y,
+                rightX1 + bW1 + cW1, seg.p1.screen.y,
+                rightX2 + bW2 + cW2, seg.p2.screen.y,
+                rightX2 + bW2, seg.p2.screen.y,
+                seg.color.curb
+            );
+            // Línea blanca central de la salida derecha
+            if (seg.color.lane !== 'transparent') {
+                const laneW1 = bW1 * 0.035;
+                const laneW2 = bW2 * 0.035;
+                drawTrapezoid(
+                    rightX1 - laneW1, seg.p1.screen.y,
+                    rightX1 + laneW1, seg.p1.screen.y,
+                    rightX2 + laneW2, seg.p2.screen.y,
+                    rightX2 - laneW2, seg.p2.screen.y,
+                    seg.color.lane
+                );
+            }
+
+            // 3. Rayado amarillo en la zona de divergencia previa a la separación
+            if (!hasMedian1 && fork1 > 0.08 && seg.index % 2 === 0) {
+                const midW1 = (rightX1 - leftX1) * 0.28;
+                const midW2 = (rightX2 - leftX2) * 0.28;
+                drawTrapezoid(
+                    seg.p1.screen.x - midW1, seg.p1.screen.y,
+                    seg.p1.screen.x + midW1, seg.p1.screen.y,
+                    seg.p2.screen.x + midW2, seg.p2.screen.y,
+                    seg.p2.screen.x - midW2, seg.p2.screen.y,
+                    'rgba(255, 234, 167, 0.7)'
                 );
             }
         }
@@ -2058,25 +2287,58 @@ function draw() {
         maxY = seg.p2.screen.y;
     }
 
-    // 3. Renderizado de Objetos (Árboles y Tráfico Rival) ordenados por profundidad Z
+    // 3. Renderizado de Objetos (Árboles, Señales y Tráfico Rival) ordenados por profundidad Z
     const drawables = [];
 
-    // Sprites de carretera
+    // Sprites y Señales de Carretera (Soporta múltiples sprites por segmento y anclaje en pasto exterior)
     for (let n = 0; n < DRAW_DISTANCE; n++) {
         const seg = GameState.segments[(baseSegmentIndex + n) % GameState.segments.length];
-        if (seg.sprite && seg.p1.screen.scale > 0 && seg.p1.camera.z > CAMERA_DEPTH) {
+        if (!seg || seg.p1.screen.scale <= 0 || seg.p1.camera.z <= CAMERA_DEPTH) continue;
+
+        const sprites = seg.sprites || (seg.sprite ? [seg.sprite] : []);
+        if (sprites.length === 0) continue;
+
+        const forkProg = seg.forkProgress || 0;
+        const forkSep = seg.p1.screen.w * 1.35 * forkProg;
+        const bW = seg.p1.screen.w * (0.85 + 0.15 * (1 - forkProg));
+
+        for (let sp of sprites) {
+            let sprX;
+            if (forkProg > 0.05) {
+                if (sp.forkBranch === 'left') {
+                    // Posición relativa al centro de la salida izquierda
+                    sprX = (seg.p1.screen.x - forkSep) + (sp.offset * bW);
+                } else if (sp.forkBranch === 'right') {
+                    // Posición relativa al centro de la salida derecha
+                    sprX = (seg.p1.screen.x + forkSep) + (sp.offset * bW);
+                } else if (sp.forkBranch === 'median') {
+                    // En la mediana de pasto central
+                    sprX = seg.p1.screen.x;
+                } else {
+                    if (sp.offset < 0) {
+                        sprX = (seg.p1.screen.x - forkSep) + (sp.offset * bW);
+                    } else if (sp.offset > 0) {
+                        sprX = (seg.p1.screen.x + forkSep) + (sp.offset * bW);
+                    } else {
+                        sprX = seg.p1.screen.x;
+                    }
+                }
+            } else {
+                sprX = seg.p1.screen.x + (sp.offset * seg.p1.screen.w);
+            }
+
             drawables.push({
                 kind: 'sprite',
                 relZ: (n + 1) * SEGMENT_LENGTH,
-                sprite: seg.sprite,
-                screenX: Math.round(seg.p1.screen.x + (seg.sprite.offset * seg.p1.screen.w)),
+                sprite: sp,
+                screenX: Math.round(sprX),
                 screenY: seg.p1.screen.y,
                 scale: seg.p1.screen.scale
             });
         }
     }
 
-    // Tráfico rival ordenado
+    // Tráfico rival ordenado y adaptado a salidas izquierda/derecha
     GameState.cars.forEach(car => {
         let relZ = car.z - GameState.playerZ;
         if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
@@ -2093,9 +2355,23 @@ function draw() {
 
             const roadCenterX = carSeg.p1.screen.x + (carSeg.p2.screen.x - carSeg.p1.screen.x) * carPercent;
             const roadW = carSeg.p1.screen.w + (carSeg.p2.screen.w - carSeg.p1.screen.w) * carPercent;
-            const screenX = Math.round(roadCenterX + (car.offset * roadW));
-            const screenY = Math.round(carSeg.p1.screen.y + (carSeg.p2.screen.y - carSeg.p1.screen.y) * carPercent);
 
+            let screenX;
+            const forkProg = carSeg.forkProgress || 0;
+            if (forkProg > 0.05) {
+                if (car.forkSide === undefined) {
+                    car.forkSide = (car.offset < 0) ? -1 : 1;
+                }
+                const forkSep = roadW * 1.35 * forkProg;
+                const bW = roadW * (0.85 + 0.15 * (1 - forkProg));
+                const branchX = roadCenterX + (car.forkSide * forkSep);
+                screenX = Math.round(branchX + (car.offset * 0.45 * bW));
+            } else {
+                car.forkSide = undefined;
+                screenX = Math.round(roadCenterX + (car.offset * roadW));
+            }
+
+            const screenY = Math.round(carSeg.p1.screen.y + (carSeg.p2.screen.y - carSeg.p1.screen.y) * carPercent);
             const carW = Math.max(10, Math.round(carScale * 150000));
             const carH = Math.round(carW * 0.54);
 
@@ -2480,49 +2756,138 @@ function drawWorldSprite(spriteObj, x, y, scale) {
         ctx.fillStyle = '#ff00ea';
         ctx.fillRect(-size * 0.15, -size * 0.9, size * 0.3, size * 0.1);
     } else if (type === 'fork_sign_left') {
-        const signW = Math.max(48, size * 1.2);
-        const signH = Math.max(20, size * 0.5);
-        ctx.fillStyle = '#718093';
-        ctx.fillRect(-4, -signH, 8, signH);
-        ctx.fillStyle = '#10ac84';
+        const signW = Math.max(68, size * 1.35);
+        const signH = Math.max(28, size * 0.58);
+        const postH = signH * 1.25;
+
+        // Doble soporte de acero galvanizado anclado en el pasto lateral
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-signW * 0.35 - 3, -postH, 6, postH);
+        ctx.fillRect(signW * 0.35 - 3, -postH, 6, postH);
+
+        // Zapatas de anclaje de concreto en la base sobre el pasto
+        ctx.fillStyle = '#94a3b8';
         ctx.beginPath();
-        ctx.roundRect(-signW / 2, -signH - signH * 0.9, signW, signH * 0.9, 4);
+        ctx.roundRect(-signW * 0.35 - 6, -5, 12, 5, 2);
+        ctx.roundRect(signW * 0.35 - 6, -5, 12, 5, 2);
+        ctx.fill();
+
+        // Cartel verde oficial reflectante de autopista
+        const boardY = -postH - signH;
+        ctx.fillStyle = '#065f46';
+        ctx.beginPath();
+        ctx.roundRect(-signW / 2, boardY, signW, signH, 4);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2.0;
         ctx.stroke();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.09))}px "Press Start 2P"`;
+
+        // Borde interior blanco reflectante
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.roundRect(-signW / 2 + 3, boardY + 3, signW - 6, signH - 6, 2);
+        ctx.stroke();
+
+        // Indicador de salida superior en amarillo
+        ctx.fillStyle = '#facc15';
+        ctx.font = `${Math.max(5, Math.floor(size * 0.08))}px "Press Start 2P"`;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const label = (spriteObj.label || '◄ ROUTE').substring(0, 15);
-        ctx.fillText(label, 0, -signH - signH * 0.45);
+        ctx.textBaseline = 'top';
+        ctx.fillText(spriteObj.sublabel || '◄ SALIDA IZQ', 0, boardY + 5);
+
+        // Nombre de la ruta en blanco nítido
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.max(6, Math.floor(size * 0.10))}px "Press Start 2P"`;
+        ctx.textBaseline = 'bottom';
+        const label = (spriteObj.label || 'RUTA').substring(0, 16);
+        ctx.fillText(label, 0, boardY + signH - 4);
     } else if (type === 'fork_sign_right') {
-        const signW = Math.max(48, size * 1.2);
-        const signH = Math.max(20, size * 0.5);
-        ctx.fillStyle = '#718093';
-        ctx.fillRect(-4, -signH, 8, signH);
-        ctx.fillStyle = '#10ac84';
+        const signW = Math.max(68, size * 1.35);
+        const signH = Math.max(28, size * 0.58);
+        const postH = signH * 1.25;
+
+        // Doble soporte de acero galvanizado anclado en el pasto lateral
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-signW * 0.35 - 3, -postH, 6, postH);
+        ctx.fillRect(signW * 0.35 - 3, -postH, 6, postH);
+
+        // Zapatas de anclaje de concreto en la base sobre el pasto
+        ctx.fillStyle = '#94a3b8';
         ctx.beginPath();
-        ctx.roundRect(-signW / 2, -signH - signH * 0.9, signW, signH * 0.9, 4);
+        ctx.roundRect(-signW * 0.35 - 6, -5, 12, 5, 2);
+        ctx.roundRect(signW * 0.35 - 6, -5, 12, 5, 2);
+        ctx.fill();
+
+        // Cartel verde oficial reflectante de autopista
+        const boardY = -postH - signH;
+        ctx.fillStyle = '#065f46';
+        ctx.beginPath();
+        ctx.roundRect(-signW / 2, boardY, signW, signH, 4);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.0;
+        ctx.stroke();
+
+        // Borde interior blanco reflectante
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.roundRect(-signW / 2 + 3, boardY + 3, signW - 6, signH - 6, 2);
+        ctx.stroke();
+
+        // Indicador de salida superior en amarillo
+        ctx.fillStyle = '#facc15';
+        ctx.font = `${Math.max(5, Math.floor(size * 0.08))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(spriteObj.sublabel || 'SALIDA DER ►', 0, boardY + 5);
+
+        // Nombre de la ruta en blanco nítido
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.max(6, Math.floor(size * 0.10))}px "Press Start 2P"`;
+        ctx.textBaseline = 'bottom';
+        const label = (spriteObj.label || 'RUTA').substring(0, 16);
+        ctx.fillText(label, 0, boardY + signH - 4);
+    } else if (type === 'median_gore' || type === 'median_sign') {
+        const goreW = Math.max(26, size * 0.52);
+        const goreH = Math.max(32, size * 0.72);
+        const cushionH = goreH * 0.52;
+
+        // Atenuador de impacto / barril de choque con franjas amarillo-negro reflectantes
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.roundRect(-goreW / 2, -cushionH, goreW, cushionH, [4, 4, 1, 1]);
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
         ctx.lineWidth = 1.5;
         ctx.stroke();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.09))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const label = (spriteObj.label || 'ROUTE ►').substring(0, 15);
-        ctx.fillText(label, 0, -signH - signH * 0.45);
-    } else if (type === 'median_sign') {
-        const signS = Math.max(16, size * 0.4);
-        ctx.fillStyle = '#2f3640';
-        ctx.fillRect(-3, -signS * 1.6, 6, signS * 1.6);
+
+        // Rayado diagonal negro de advertencia
         ctx.save();
-        ctx.translate(0, -signS * 1.6);
+        ctx.clip();
+        ctx.fillStyle = '#0f172a';
+        for (let bx = -goreW * 1.5; bx < goreW * 1.5; bx += 9) {
+            ctx.beginPath();
+            ctx.moveTo(bx, 0);
+            ctx.lineTo(bx + 5, 0);
+            ctx.lineTo(bx + 5 + cushionH, -cushionH);
+            ctx.lineTo(bx + cushionH, -cushionH);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // Poste central y señal de divergencia ◄ | ►
+        const signS = Math.max(16, size * 0.35);
+        const signCenterY = -cushionH - signS * 0.7;
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(-2.5, -cushionH - signS * 1.2, 5, signS * 1.2);
+
+        ctx.save();
+        ctx.translate(0, signCenterY);
         ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = '#f1c40f';
+        ctx.fillStyle = '#facc15';
         ctx.beginPath();
         ctx.roundRect(-signS / 2, -signS / 2, signS, signS, 3);
         ctx.fill();
@@ -2530,36 +2895,94 @@ function drawWorldSprite(spriteObj, x, y, scale) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.restore();
+
+        ctx.fillStyle = '#000000';
+        ctx.font = `${Math.max(5, Math.floor(size * 0.08))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('◄│►', 0, signCenterY);
+    } else if (type === 'curve_sign_left' || type === 'curve_sign_right') {
+        const signW = Math.max(22, size * 0.44);
+        const signH = Math.max(18, size * 0.36);
+        const postH = signH * 1.2;
+
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(-2, -postH, 4, postH);
+
+        const boardY = -postH - signH;
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.roundRect(-signW / 2, boardY, signW, signH, 3);
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
         ctx.fillStyle = '#000000';
         ctx.font = `${Math.max(5, Math.floor(size * 0.1))}px "Press Start 2P"`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('◄►', 0, -signS * 1.6);
+        ctx.fillText(type === 'curve_sign_left' ? '◄◄' : '►►', 0, boardY + signH / 2);
+    } else if (type === 'speed_sign') {
+        const r = Math.max(12, size * 0.25);
+        const postH = r * 2.2;
+
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(-2, -postH, 4, postH);
+
+        const centerY = -postH - r;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, centerY, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = Math.max(2.5, r * 0.22);
+        ctx.stroke();
+
+        ctx.fillStyle = '#0f172a';
+        ctx.font = `${Math.max(6, Math.floor(r * 0.65))}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('240', 0, centerY);
     } else if (type === 'checkpoint_arch') {
-        const archW = Math.max(48, size * 1.8);
-        const archH = Math.max(34, size * 1.2);
-        
-        const postGrad = ctx.createLinearGradient(0, 0, 8, 0);
+        const archW = Math.max(52, size * 1.55);
+        const archH = Math.max(36, size * 1.15);
+
+        // Postes dobles de aluminio texturizado
+        const postGrad = ctx.createLinearGradient(0, 0, 7, 0);
         postGrad.addColorStop(0, '#cbd5e1');
         postGrad.addColorStop(0.5, '#ffffff');
         postGrad.addColorStop(1, '#64748b');
         ctx.fillStyle = postGrad;
-        ctx.fillRect(-archW / 2, -archH, 8, archH);
-        ctx.fillRect(archW / 2 - 8, -archH, 8, archH);
+        ctx.fillRect(-archW / 2, -archH, 7, archH);
+        ctx.fillRect(archW / 2 - 7, -archH, 7, archH);
 
-        ctx.fillStyle = '#ffb703';
+        // Barra superior con gradiente
+        const barGrad = ctx.createLinearGradient(0, -archH, 0, -archH + 16);
+        barGrad.addColorStop(0, '#f59e0b');
+        barGrad.addColorStop(1, '#d97706');
+        ctx.fillStyle = barGrad;
         ctx.beginPath();
-        ctx.roundRect(-archW / 2, -archH, archW, 16, 4);
+        ctx.roundRect(-archW / 2, -archH, archW, 16, 3);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        ctx.fillStyle = '#ff4d6d';
-        ctx.font = `${Math.max(6, Math.floor(size * 0.13))}px "Press Start 2P"`;
+        // Luces LED estroboscópicas de checkpoint en el pórtico
+        const t = Math.floor(Date.now() / 150) % 2;
+        ctx.fillStyle = t === 0 ? '#38bdf8' : '#f43f5e';
+        ctx.beginPath();
+        ctx.arc(-archW / 2 + 5, -archH + 8, 3, 0, Math.PI * 2);
+        ctx.arc(archW / 2 - 5, -archH + 8, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.max(5, Math.floor(size * 0.09))}px "Press Start 2P"`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('CHECKPOINT', 0, -archH + 8);
+        const label = (spriteObj.label || 'CHECKPOINT').substring(0, 14);
+        ctx.fillText(label, 0, -archH + 8);
     } else if (type === 'finish_arch') {
         const archW = Math.max(60, size * 2.1);
         const archH = Math.max(40, size * 1.35);
