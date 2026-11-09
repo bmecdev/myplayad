@@ -917,73 +917,163 @@ const GameState = {
     cars: []
 };
 
-// Construcción de la Pista de la Etapa Seleccionada
-function buildStageTrack(tier = 0, routeIndex = 0) {
-    const stage = ROUTE_TREE[tier][routeIndex];
-    GameState.currentStage = stage;
-    GameState.currentTier = tier;
-    GameState.currentRouteIndex = routeIndex;
-    GameState.segments = [];
-    GameState.stageCleared = false;
-    GameState.forkWarned = false;
+// ==============================================================
+// 🎨 Utilidades de Color e Interpolación para Transiciones Suaves
+// ==============================================================
+function parseColor(str) {
+    if (!str) return { r: 100, g: 100, b: 100 };
+    if (str.startsWith('#')) {
+        let hex = str.slice(1);
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const num = parseInt(hex, 16);
+        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+    }
+    const match = str.match(/\d+/g);
+    if (match && match.length >= 3) {
+        return { r: parseInt(match[0]), g: parseInt(match[1]), b: parseInt(match[2]) };
+    }
+    return { r: 100, g: 100, b: 100 };
+}
 
+function lerpColor(c1, c2, t) {
+    const p1 = parseColor(c1);
+    const p2 = parseColor(c2);
+    const r = Math.round(p1.r + (p2.r - p1.r) * t);
+    const g = Math.round(p1.g + (p2.g - p1.g) * t);
+    const b = Math.round(p1.b + (p2.b - p1.b) * t);
+    return `rgb(${r},${g},${b})`;
+}
+
+// ==============================================================
+// 🛣️ Construcción Continua de Etapas y Bifurcaciones sin Cortes
+// ==============================================================
+function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, transitionChoice = null) {
+    const stage = ROUTE_TREE[tier][routeIndex];
     const leftNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex] : null;
     const rightNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex + 1] : null;
 
-    for (let i = 0; i < STAGE_SEGMENTS; i++) {
-        const isCheckpoint = (i === STAGE_SEGMENTS - 10); // Segmento 390
+    const segments = [];
+    const stageTotalLen = (tier < 4) ? 360 : 330;
+    const transitionLen = (prevStage && transitionChoice !== null) ? 60 : 0;
+    const forkStartRel = stageTotalLen - 100; // a los 260 segmentos relativos
+    const checkpointRel = stageTotalLen - 30; // a los 330 segmentos relativos
+
+    for (let s = 0; s < stageTotalLen; s++) {
+        const i = startSegIndex + s;
         const alt = Math.floor(i / 3) % 2 === 0;
 
-        const curve = stage.curves(i);
-        const hill = stage.hills(i);
-        const nextHill = stage.hills(i + 1);
+        let curve = stage.curves ? stage.curves(s) : 0;
+        let hill = stage.hills ? stage.hills(s) : 0;
+        let nextHill = stage.hills ? stage.hills(s + 1) : 0;
 
-        // Progresión de Bifurcación: desde el segmento 310 hasta el 385 la carretera se abre
-        // en dos calzadas independientes: una salida hacia la izquierda y otra hacia la derecha
+        let isTransition = false;
+        let chosenRoadCenter = 0;
+        let chosenRoadWidth = 1.0;
+        let otherRoadCenter = 999;
         let forkProgress = 0;
-        if (tier < 4 && i >= 310) {
-            const t = Math.max(0, Math.min(1, (i - 310) / 72));
-            forkProgress = t * t * (3 - 2 * t); // Transición continua y suave (smoothstep)
-        }
+        let isCheckpoint = (s === checkpointRel);
+
+        let grassCol = alt ? stage.grassLight : stage.grassDark;
+        let curbCol = alt ? stage.curbLight : stage.curbDark;
+        let roadCol = alt ? stage.roadLight : stage.roadDark;
+        let laneCol = alt ? '#ffffff' : 'transparent';
+
+        let envColors = {
+            skyTop: stage.skyTop,
+            skyBottom: stage.skyBottom,
+            sunColor: stage.sunColor,
+            seaColor: stage.seaColor,
+            mountains: stage.mountains
+        };
 
         const sprites = [];
 
-        if (isCheckpoint) {
+        // 1. ZONA DE TRANSICIÓN POST-CHECKPOINT (Sin corte: la salida elegida se centra y la otra se desvanece)
+        if (s < transitionLen && prevStage && transitionChoice !== null) {
+            isTransition = true;
+            const t = s / transitionLen;
+            const blend = t * t * (3 - 2 * t); // Smoothstep
+
+            if (transitionChoice === 0) {
+                // Se eligió la salida izquierda: la calzada izquierda se centra de -1.35 a 0.0
+                chosenRoadCenter = -1.35 * (1 - blend);
+                chosenRoadWidth = 0.85 + 0.15 * blend;
+                otherRoadCenter = 1.35 + blend * 2.8; // la salida derecha se curva y sale de pantalla
+            } else {
+                // Se eligió la salida derecha: la calzada derecha se centra de +1.35 a 0.0
+                chosenRoadCenter = 1.35 * (1 - blend);
+                chosenRoadWidth = 0.85 + 0.15 * blend;
+                otherRoadCenter = -1.35 - blend * 2.8; // la salida izquierda se curva y sale de pantalla
+            }
+
+            // Interpolación continua y suave de colores de bioma y cielo
+            grassCol = lerpColor(alt ? prevStage.grassLight : prevStage.grassDark, alt ? stage.grassLight : stage.grassDark, blend);
+            curbCol = lerpColor(alt ? prevStage.curbLight : prevStage.curbDark, alt ? stage.curbLight : stage.curbDark, blend);
+            roadCol = lerpColor(alt ? prevStage.roadLight : prevStage.roadDark, alt ? stage.roadLight : stage.roadDark, blend);
+
+            envColors.skyTop = lerpColor(prevStage.skyTop, stage.skyTop, blend);
+            envColors.skyBottom = lerpColor(prevStage.skyBottom, stage.skyBottom, blend);
+            envColors.mountains = lerpColor(prevStage.mountains, stage.mountains, blend);
+            if (prevStage.seaColor && stage.seaColor) {
+                envColors.seaColor = lerpColor(prevStage.seaColor, stage.seaColor, blend);
+            }
+
+            // Vegetación transicional en el pasto exterior
+            if (s % 6 === 0) {
+                const theme = blend < 0.5 ? prevStage.spriteTheme : stage.spriteTheme;
+                const side = (transitionChoice === 0) ? -2.4 : 2.4;
+                sprites.push({
+                    type: theme,
+                    offset: side + (Math.random() * 0.2 - 0.1)
+                });
+            }
+
+            // Cartel de confirmación de ruta en el pasto lateral exterior
+            if (s === 25) {
+                const signSide = (transitionChoice === 0) ? -2.3 : 2.3;
+                sprites.push({
+                    type: transitionChoice === 0 ? 'fork_sign_left' : 'fork_sign_right',
+                    offset: signSide,
+                    label: stage.name,
+                    sublabel: 'ZONA ALCANZADA'
+                });
+            }
+        } else if (isCheckpoint) {
+            // 2. ARCOS DE CHECKPOINT (O META FINAL)
             if (tier === 4) {
-                // Meta final de los Tiers con letra (A, B, C, D, E)
                 sprites.push({ type: 'finish_arch', offset: 0, goalLetter: stage.goalLetter });
             } else {
-                // Arcos de Checkpoint independientes sobre cada una de las dos salidas
                 sprites.push({ type: 'checkpoint_arch', offset: 0, label: leftNext.name, forkBranch: 'left' });
                 sprites.push({ type: 'checkpoint_arch', offset: 0, label: rightNext.name, forkBranch: 'right' });
             }
-        } else if (tier < 4 && i >= 290) {
-            // ==============================================================
-            // ZONA DE BIFURCACIÓN: SEÑALIZACIÓN VIAL ESTRICTAMENTE EN EL PASTO
-            // ==============================================================
-            if (i === 295 || i === 315) {
-                // Carteles verdes de autopista a 1000m y 500m (en el pasto exterior, fuera de la vía)
+        } else if (tier < 4 && s >= forkStartRel && s < checkpointRel) {
+            // 3. ZONA DE BIFURCACIÓN CONTINUA (Apertura progresiva en dos salidas)
+            const t = (s - forkStartRel) / (checkpointRel - forkStartRel);
+            forkProgress = t * t * (3 - 2 * t);
+            laneCol = '#ffeaa7';
+
+            // Carteles de autopista en el pasto exterior
+            if (s === forkStartRel + 10 || s === forkStartRel + 30) {
                 sprites.push({
                     type: 'fork_sign_left',
-                    offset: -2.4,
+                    offset: -2.3,
                     label: leftNext.name,
                     sublabel: '◄ SALIDA IZQ'
                 });
                 sprites.push({
                     type: 'fork_sign_right',
-                    offset: 2.4,
+                    offset: 2.3,
                     label: rightNext.name,
                     sublabel: 'SALIDA DER ►'
                 });
-            } else if (i === 328) {
-                // Atenuador de impacto / chevron de divergencia reflectante en la mediana de pasto
+            } else if (s === forkStartRel + 25) {
+                // Atenuador de choque reflectante en la mediana de pasto central
                 sprites.push({
                     type: 'median_gore',
                     offset: 0,
                     forkBranch: 'median'
                 });
-            } else if (i === 345 || i === 368) {
-                // Carteles de confirmación en el pasto exterior de cada bifurcación
+            } else if (s === forkStartRel + 50) {
                 sprites.push({
                     type: 'fork_sign_left',
                     offset: -2.3,
@@ -999,30 +1089,28 @@ function buildStageTrack(tier = 0, routeIndex = 0) {
                     forkBranch: 'right'
                 });
             }
+        } else if (tier < 4 && s >= checkpointRel) {
+            // Salidas continuas post-checkpoint (pre-elección)
+            forkProgress = 1.0;
         } else {
-            // ==============================================================
-            // SEÑALIZACIÓN Y ENTORNO REGULAR (SIEMPRE FUERA DE LA VÍA)
-            // ==============================================================
-            // 1. Señales de curva peligrosa (Chevrons reflectantes ◄◄ o ►► en el pasto)
-            if (Math.abs(curve) >= 2.8 && (i % 8 === 0)) {
-                const chevronSide = curve > 0 ? -2.3 : 2.3;
+            // 4. CARRETERA REGULAR
+            // Chevrons de curva reflectantes en el pasto exterior
+            if (Math.abs(curve) >= 2.8 && (s % 8 === 0)) {
                 sprites.push({
                     type: curve > 0 ? 'curve_sign_right' : 'curve_sign_left',
-                    offset: chevronSide
+                    offset: curve > 0 ? -2.3 : 2.3
                 });
             }
-
-            // 2. Señales de límite de velocidad circular "MAX 240 KM/H" en el pasto
-            if (i === 20 || i === 140 || i === 240) {
+            // Señales de límite de velocidad en el pasto exterior
+            if (s === 20 || s === 120 || s === 200) {
                 sprites.push({
                     type: 'speed_sign',
                     offset: 2.3
                 });
             }
-
-            // 3. Vegetación y elementos temáticos (en el pasto exterior, offset >= 2.3)
-            if (i % 6 === 0) {
-                const side = (Math.floor(i / 6) % 2 === 0) ? -2.4 : 2.4;
+            // Vegetación y elementos temáticos en el pasto
+            if (s % 6 === 0) {
+                const side = (Math.floor(s / 6) % 2 === 0) ? -2.4 : 2.4;
                 sprites.push({
                     type: stage.spriteTheme,
                     offset: side + (Math.random() * 0.25 - 0.12)
@@ -1030,33 +1118,120 @@ function buildStageTrack(tier = 0, routeIndex = 0) {
             }
         }
 
-        GameState.segments.push({
+        segments.push({
             index: i,
+            stageIndex: s,
             stage: stage,
             tier: tier,
             routeIndex: routeIndex,
             isCheckpoint: isCheckpoint,
+            isTransition: isTransition,
+            chosenRoadCenter: chosenRoadCenter,
+            chosenRoadWidth: chosenRoadWidth,
+            otherRoadCenter: otherRoadCenter,
             forkProgress: forkProgress,
+            env: envColors,
             p1: { world: { x: 0, y: hill, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
             p2: { world: { x: 0, y: nextHill, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
             curve: curve,
             color: {
-                grass: alt ? stage.grassLight : stage.grassDark,
-                curb: alt ? stage.curbLight : stage.curbDark,
-                road: alt ? stage.roadLight : stage.roadDark,
-                lane: (i >= 310 && i <= 385 && tier < 4) ? '#ffeaa7' : (alt ? '#ffffff' : 'transparent')
+                grass: grassCol,
+                curb: curbCol,
+                road: roadCol,
+                lane: laneCol
             },
             sprites: sprites,
             sprite: sprites[0] || null
         });
     }
 
+    return segments;
+}
+
+function buildInitialTrack() {
+    GameState.currentTier = 0;
+    GameState.currentRouteIndex = 0;
+    GameState.currentStage = ROUTE_TREE[0][0];
+    GameState.stageCleared = false;
+    GameState.forkWarned = false;
+
+    // Generar Stage 1 continuo inicial
+    GameState.segments = createStageSegments(0, 0, 0, null, null);
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
-    spawnTraffic(tier);
+    spawnTraffic(0);
+}
+
+function appendNextStage(nextTier, nextRouteIndex, choice, checkpointIndex) {
+    const prevStage = GameState.currentStage;
+    const nextStage = ROUTE_TREE[nextTier][nextRouteIndex];
+    GameState.currentStage = nextStage;
+    GameState.currentTier = nextTier;
+    GameState.currentRouteIndex = nextRouteIndex;
+    GameState.stageCleared = false;
+    GameState.forkWarned = false;
+
+    // Generar la nueva etapa a partir del checkpoint (sin corte de Z, la salida elegida se centra suavemente)
+    const newSegments = createStageSegments(nextTier, nextRouteIndex, checkpointIndex, prevStage, choice);
+    
+    // Reemplazar a partir del checkpoint para conectar de forma continua
+    GameState.segments.splice(checkpointIndex, GameState.segments.length - checkpointIndex, ...newSegments);
+    GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
+
+    // Respawnear tráfico rival bien adelante en la nueva etapa (sin estorbar la zona de transición)
+    spawnTrafficForStage(nextTier, checkpointIndex * SEGMENT_LENGTH);
+}
+
+function spawnTrafficForStage(tier, startZ) {
+    GameState.cars = [];
+    const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
+    const counts = [6, 7, 8, 9, 10];
+    const count = counts[Math.min(tier, counts.length - 1)];
+
+    // Espaciar vehículos más allá de la zona de transición (+12,000 px por delante del checkpoint)
+    const safeZ = startZ + 12000;
+    const availableTrack = GameState.trackLength - safeZ - 5000;
+    const waveSpacing = Math.max(6000, availableTrack / count);
+
+    const lanes = [-0.6, 0, 0.6];
+    let lastLane = 1;
+
+    for (let i = 0; i < count; i++) {
+        const zPos = safeZ + (i * waveSpacing) + (Math.random() * 600 - 300);
+        let laneIndex;
+        do {
+            laneIndex = Math.floor(Math.random() * lanes.length);
+        } while (laneIndex === lastLane && Math.random() < 0.8);
+        lastLane = laneIndex;
+        const laneOffset = lanes[laneIndex];
+
+        const type = carTypes[i % carTypes.length];
+        let baseSpeed = 3000;
+        if (type === 'white_truck') baseSpeed = 2400;
+        else if (type === 'yellow_cab') baseSpeed = 2800;
+        else if (type === 'blue_coupe') baseSpeed = 3200;
+        else if (type === 'purple_muscle') baseSpeed = 3600;
+        else if (type === 'green_gt') baseSpeed = 4000;
+
+        GameState.cars.push({
+            type: type,
+            z: zPos % GameState.trackLength,
+            offset: laneOffset,
+            targetOffset: laneOffset,
+            laneChangeTimer: 14 + Math.random() * 10,
+            speed: baseSpeed + (Math.random() * 200 - 100),
+            passed: false
+        });
+    }
+
+    GameState.cars.sort((a, b) => a.z - b.z);
+}
+
+function buildStageTrack(tier = 0, routeIndex = 0) {
+    buildInitialTrack();
 }
 
 function buildTrack() {
-    buildStageTrack(GameState.currentTier || 0, GameState.currentRouteIndex || 0);
+    buildInitialTrack();
 }
 
 // Generación Inteligente de Tráfico Rival (Espaciado amplio, ritmo relajado y sin muros)
@@ -1654,6 +1829,7 @@ function startGame() {
     GameState.invulnerableTimer = 0;
     GameState.smokeParticles = [];
     GameState.turboFlameTimer = 0;
+    GameState.lastRoadCenter = null;
 
     buildStageTrack(0, 0);
     updateHUD();
@@ -1743,7 +1919,7 @@ function update(dt) {
     }
 
     // Posición del segmento actual
-    const currentSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH) % GameState.segments.length;
+    const currentSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
     const currentSegment = GameState.segments[currentSegmentIndex];
     if (!currentSegment) return;
     GameState.currentStage = currentSegment.stage || GameState.currentStage;
@@ -1751,18 +1927,34 @@ function update(dt) {
     // Aceleración y Frenado
     const topSpeed = GameState.input.turbo ? GameState.turboSpeed : GameState.maxSpeed;
 
-    // Detección de fuera de pista (Off-road) adaptativa a bifurcaciones
+    // Detección de fuera de pista (Off-road) adaptativa a transiciones continuas y bifurcaciones
     let isOffRoad = false;
-    const currentForkProg = currentSegment.forkProgress || 0;
-    if (currentForkProg > 0.3) {
-        // En zona de bifurcación: hay dos calzadas independientes (salida izquierda y salida derecha)
-        const sepRatio = 1.35 * currentForkProg;
-        const branchHalfW = 0.85 + 0.15 * (1 - currentForkProg);
-        const onLeftRoad = Math.abs(GameState.playerX - (-sepRatio)) <= branchHalfW * 1.08;
-        const onRightRoad = Math.abs(GameState.playerX - (+sepRatio)) <= branchHalfW * 1.08;
-        isOffRoad = !onLeftRoad && !onRightRoad;
+    const currentForkProg = currentSegment ? (currentSegment.forkProgress || 0) : 0;
+    
+    if (currentSegment && currentSegment.isTransition) {
+        // En zona de transición post-checkpoint (la salida elegida se centra a 0 sin corte)
+        const roadCenter = currentSegment.chosenRoadCenter || 0;
+        const roadW = currentSegment.chosenRoadWidth || 1.0;
+        isOffRoad = Math.abs(GameState.playerX - roadCenter) > roadW * 1.08;
+
+        // Centrado suave y continuo del vehículo acompañando la calzada elegida
+        if (GameState.lastRoadCenter !== undefined && GameState.lastRoadCenter !== null) {
+            const shift = roadCenter - GameState.lastRoadCenter;
+            GameState.playerX += shift;
+        }
+        GameState.lastRoadCenter = roadCenter;
     } else {
-        isOffRoad = Math.abs(GameState.playerX) > 1.05;
+        GameState.lastRoadCenter = null;
+        if (currentForkProg > 0.1) {
+            // En zona de bifurcación: hay dos calzadas independientes (salida izquierda y salida derecha)
+            const sepRatio = 1.35 * currentForkProg;
+            const branchHalfW = 0.85 + 0.15 * (1 - currentForkProg);
+            const onLeftRoad = Math.abs(GameState.playerX - (-sepRatio)) <= branchHalfW * 1.08;
+            const onRightRoad = Math.abs(GameState.playerX - (+sepRatio)) <= branchHalfW * 1.08;
+            isOffRoad = !onLeftRoad && !onRightRoad;
+        } else {
+            isOffRoad = Math.abs(GameState.playerX) > 1.05;
+        }
     }
 
     if (GameState.input.gas) {
@@ -1793,7 +1985,7 @@ function update(dt) {
     audio.updateEngine(GameState.speed, GameState.turboSpeed);
 
     // Aviso de bifurcación al acercarse a la salida
-    if (currentSegmentIndex >= 295 && currentSegmentIndex <= 305 && GameState.currentTier < 4 && !GameState.forkWarned) {
+    if (currentSegment.stageIndex >= 250 && currentSegment.stageIndex <= 265 && GameState.currentTier < 4 && !GameState.forkWarned) {
         GameState.forkWarned = true;
         showBanner('¡BIFURCACIÓN DE PISTA!', 'SALIDA ◄ IZQ  O  DER ►', '#ffb703', 2.8);
     }
@@ -1818,16 +2010,16 @@ function update(dt) {
     }
     updateParticles(dt);
 
-    // Movimiento Z
+    // Movimiento Z continuo (sin reseteos a 0 entre etapas)
     if (GameState.gameWon) {
         GameState.speed = Math.max(1200, GameState.speed - 3200 * dt);
     }
     GameState.playerZ += GameState.speed * dt;
     if (GameState.playerZ >= GameState.trackLength) {
-        GameState.playerZ -= GameState.trackLength;
+        GameState.playerZ = GameState.trackLength - 100;
     }
 
-    // Checkpoint Crossing & Bifurcación en 5 Metas
+    // Checkpoint Crossing & Bifurcación Continua en 5 Metas (SIN CORTE)
     if (currentSegment.isCheckpoint && !currentSegment.cleared && !GameState.stageCleared) {
         currentSegment.cleared = true;
         GameState.stageCleared = true;
@@ -1839,8 +2031,6 @@ function update(dt) {
             const nextRouteIndex = GameState.currentRouteIndex + choice;
             const nextTier = GameState.currentTier + 1;
 
-            GameState.currentTier = nextTier;
-            GameState.currentRouteIndex = nextRouteIndex;
             GameState.routePath.push({ tier: nextTier, index: nextRouteIndex });
 
             GameState.timeLeft += 30; // +30 segundos
@@ -1851,11 +2041,8 @@ function update(dt) {
             const sideText = (choice === 0) ? '◄ SALIDA IZQUIERDA' : 'SALIDA DERECHA ►';
             showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +30s EXTENDIDO!`, '#3dff8a', 3.0);
 
-            // Reconstruir pista de la nueva etapa seleccionada y posicionar suavemente
-            buildStageTrack(nextTier, nextRouteIndex);
-            GameState.playerZ = 0;
-            GameState.playerX = (choice === 0) ? -0.25 : 0.25;
-            GameState.forkWarned = false;
+            // Transición continua sin corte: construir la siguiente etapa directamente adelante
+            appendNextStage(nextTier, nextRouteIndex, choice, currentSegmentIndex);
         } else {
             // TIER 4: ¡META ALCANZADA! (GOALS A, B, C, D, E)
             GameState.gameWon = true;
@@ -1984,12 +2171,15 @@ function update(dt) {
 function draw() {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+    const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+    const baseSegment = GameState.segments[baseSegmentIndex % GameState.segments.length];
     const stage = GameState.currentStage || ROUTE_TREE[0][0];
+    const env = (baseSegment && baseSegment.env) ? baseSegment.env : stage;
 
     // 1. Cielo Gradiente Suave y Natural (Atmósfera Realista con Multi-stop)
     const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT / 2);
-    skyGrad.addColorStop(0, stage.skyTop);
-    skyGrad.addColorStop(0.65, stage.skyBottom);
+    skyGrad.addColorStop(0, env.skyTop || stage.skyTop);
+    skyGrad.addColorStop(0.65, env.skyBottom || stage.skyBottom);
     skyGrad.addColorStop(1, '#ffc58a');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT / 2);
@@ -2013,7 +2203,7 @@ function draw() {
     // Disco solar con degradado cálido y borde difuminado
     const sunGrad = ctx.createRadialGradient(sunX, sunY - 4, 2, sunX, sunY, sunR);
     sunGrad.addColorStop(0, '#ffffff');
-    sunGrad.addColorStop(0.5, stage.sunColor || '#fff0aa');
+    sunGrad.addColorStop(0.5, env.sunColor || stage.sunColor || '#fff0aa');
     sunGrad.addColorStop(0.9, '#ffa94d');
     sunGrad.addColorStop(1, '#ff6b6b');
     ctx.fillStyle = sunGrad;
@@ -2022,11 +2212,12 @@ function draw() {
     ctx.fill();
 
     // Franja de Océano Costero con Ondas Suaves y Destellos de Sol en Movimiento
-    if (stage.seaColor) {
+    const seaColor = env.seaColor || stage.seaColor;
+    if (seaColor) {
         const seaTop = CANVAS_HEIGHT / 2 - 24;
         const seaH = 24;
         const seaGrad = ctx.createLinearGradient(0, seaTop, 0, seaTop + seaH);
-        seaGrad.addColorStop(0, stage.seaColor);
+        seaGrad.addColorStop(0, seaColor);
         seaGrad.addColorStop(1, '#0e4368');
         ctx.fillStyle = seaGrad;
         ctx.fillRect(0, seaTop, CANVAS_WIDTH, seaH);
@@ -2063,7 +2254,7 @@ function draw() {
 
     // Capa 2: Relieve montañoso principal cercano
     const mtnGrad = ctx.createLinearGradient(0, mountainBaseY - 50, 0, mountainBaseY);
-    mtnGrad.addColorStop(0, stage.mountains);
+    mtnGrad.addColorStop(0, env.mountains || stage.mountains);
     mtnGrad.addColorStop(1, 'rgba(15, 23, 20, 0.95)');
     ctx.fillStyle = mtnGrad;
     ctx.beginPath();
@@ -2086,8 +2277,6 @@ function draw() {
     }
 
     // 2. Renderizado de Carretera Pseudo-3D
-    const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
-    const baseSegment = GameState.segments[baseSegmentIndex % GameState.segments.length];
     const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
     const cameraX = GameState.playerX * ROAD_WIDTH;
     const cameraZ = GameState.playerZ;
@@ -2122,7 +2311,97 @@ function draw() {
         const nextSeg = GameState.segments[(baseSegmentIndex + n + 1) % GameState.segments.length];
         const fork2 = nextSeg ? (nextSeg.forkProgress || 0) : fork1;
 
-        if (fork1 < 0.02 && fork2 < 0.02) {
+        if (seg.isTransition || (nextSeg && nextSeg.isTransition)) {
+            // ==============================================================
+            // TRANSICIÓN CONTINUA ENTRE ETAPAS (SIN CORTE: SALIDA FLUIDA)
+            // ==============================================================
+            const cCenter1 = seg.chosenRoadCenter || 0;
+            const cCenter2 = (nextSeg && nextSeg.chosenRoadCenter !== undefined) ? nextSeg.chosenRoadCenter : cCenter1;
+            const cW1 = seg.p1.screen.w * (seg.chosenRoadWidth || 1.0);
+            const cW2 = (nextSeg && nextSeg.chosenRoadWidth !== undefined) ? nextSeg.p2.screen.w * nextSeg.chosenRoadWidth : seg.p2.screen.w;
+            const curbW1 = cW1 * 0.16;
+            const curbW2 = cW2 * 0.16;
+
+            const roadX1 = seg.p1.screen.x + cCenter1 * seg.p1.screen.w;
+            const roadX2 = seg.p2.screen.x + cCenter2 * seg.p2.screen.w;
+
+            // Berma izquierda de la calzada elegida
+            drawTrapezoid(
+                roadX1 - cW1 - curbW1, seg.p1.screen.y,
+                roadX1 - cW1, seg.p1.screen.y,
+                roadX2 - cW2, seg.p2.screen.y,
+                roadX2 - cW2 - curbW2, seg.p2.screen.y,
+                seg.color.curb
+            );
+            // Berma derecha de la calzada elegida
+            drawTrapezoid(
+                roadX1 + cW1, seg.p1.screen.y,
+                roadX1 + cW1 + curbW1, seg.p1.screen.y,
+                roadX2 + cW2 + curbW2, seg.p2.screen.y,
+                roadX2 + cW2, seg.p2.screen.y,
+                seg.color.curb
+            );
+            // Asfalto principal
+            drawTrapezoid(
+                roadX1 - cW1, seg.p1.screen.y,
+                roadX1 + cW1, seg.p1.screen.y,
+                roadX2 + cW2, seg.p2.screen.y,
+                roadX2 - cW2, seg.p2.screen.y,
+                seg.color.road
+            );
+            // Líneas divisorias de carril
+            if (seg.color.lane !== 'transparent') {
+                const laneW1 = cW1 * 0.025;
+                const laneW2 = cW2 * 0.025;
+                for (let l = 1; l < LANES; l++) {
+                    const laneX1 = roadX1 - cW1 + (cW1 * 2 / LANES) * l;
+                    const laneX2 = roadX2 - cW2 + (cW2 * 2 / LANES) * l;
+                    drawTrapezoid(
+                        laneX1 - laneW1, seg.p1.screen.y,
+                        laneX1 + laneW1, seg.p1.screen.y,
+                        laneX2 + laneW2, seg.p2.screen.y,
+                        laneX2 - laneW2, seg.p2.screen.y,
+                        seg.color.lane
+                    );
+                }
+            }
+
+            // Calzada rechazada que se aleja y sale suavemente de la pantalla
+            const oCenter1 = seg.otherRoadCenter;
+            const oCenter2 = nextSeg ? nextSeg.otherRoadCenter : oCenter1;
+            if (oCenter1 !== undefined && Math.abs(oCenter1) < 4.5) {
+                const oW1 = seg.p1.screen.w * 0.85;
+                const oW2 = seg.p2.screen.w * 0.85;
+                const oCurb1 = oW1 * 0.15;
+                const oCurb2 = oW2 * 0.15;
+                const otherX1 = seg.p1.screen.x + oCenter1 * seg.p1.screen.w;
+                const otherX2 = seg.p2.screen.x + oCenter2 * seg.p2.screen.w;
+
+                if (otherX1 + oW1 + oCurb1 > 0 && otherX1 - oW1 - oCurb1 < CANVAS_WIDTH) {
+                    drawTrapezoid(
+                        otherX1 - oW1 - oCurb1, seg.p1.screen.y,
+                        otherX1 - oW1, seg.p1.screen.y,
+                        otherX2 - oW2, seg.p2.screen.y,
+                        otherX2 - oW2 - oCurb2, seg.p2.screen.y,
+                        seg.color.curb
+                    );
+                    drawTrapezoid(
+                        otherX1 + oW1, seg.p1.screen.y,
+                        otherX1 + oW1 + oCurb1, seg.p1.screen.y,
+                        otherX2 + oW2 + oCurb2, seg.p2.screen.y,
+                        otherX2 + oW2, seg.p2.screen.y,
+                        seg.color.curb
+                    );
+                    drawTrapezoid(
+                        otherX1 - oW1, seg.p1.screen.y,
+                        otherX1 + oW1, seg.p1.screen.y,
+                        otherX2 + oW2, seg.p2.screen.y,
+                        otherX2 - oW2, seg.p2.screen.y,
+                        seg.color.road
+                    );
+                }
+            }
+        } else if (fork1 < 0.02 && fork2 < 0.02) {
             // ==========================================
             // CARRETERA ESTÁNDAR DE UNA SOLA VÍA
             // ==========================================
@@ -2304,7 +2583,12 @@ function draw() {
 
         for (let sp of sprites) {
             let sprX;
-            if (forkProg > 0.05) {
+            if (seg.isTransition) {
+                // Durante la transición post-checkpoint, los sprites están anclados al centro de la calzada elegida
+                const chosenX = seg.p1.screen.x + (seg.chosenRoadCenter || 0) * seg.p1.screen.w;
+                const roadW = seg.p1.screen.w * (seg.chosenRoadWidth || 1.0);
+                sprX = chosenX + (sp.offset * roadW);
+            } else if (forkProg > 0.05) {
                 if (sp.forkBranch === 'left') {
                     // Posición relativa al centro de la salida izquierda
                     sprX = (seg.p1.screen.x - forkSep) + (sp.offset * bW);
@@ -2358,7 +2642,11 @@ function draw() {
 
             let screenX;
             const forkProg = carSeg.forkProgress || 0;
-            if (forkProg > 0.05) {
+            if (carSeg.isTransition) {
+                const roadCenter = carSeg.chosenRoadCenter || 0;
+                const roadW2 = roadW * (carSeg.chosenRoadWidth || 1.0);
+                screenX = Math.round(roadCenterX + (roadCenter * roadW) + (car.offset * roadW2));
+            } else if (forkProg > 0.05) {
                 if (car.forkSide === undefined) {
                     car.forkSide = (car.offset < 0) ? -1 : 1;
                 }
@@ -2755,180 +3043,165 @@ function drawWorldSprite(spriteObj, x, y, scale) {
         ctx.fillRect(-size * 0.03, -size * 0.9, size * 0.06, size * 0.9);
         ctx.fillStyle = '#ff00ea';
         ctx.fillRect(-size * 0.15, -size * 0.9, size * 0.3, size * 0.1);
-    } else if (type === 'fork_sign_left') {
-        const signW = Math.max(68, size * 1.35);
-        const signH = Math.max(28, size * 0.58);
-        const postH = signH * 1.25;
+    } else if (type === 'fork_sign_left' || type === 'fork_sign_right') {
+        // Señales de bifurcación de autopista: escalado puramente proporcional en perspectiva 3D (igual que los árboles)
+        const signW = Math.round(size * 0.95);
+        const signH = Math.round(size * 0.42);
+        if (signW < 6) return;
+        const postH = Math.round(signH * 1.15);
+        const postW = Math.max(1, Math.round(signW * 0.04));
 
-        // Doble soporte de acero galvanizado anclado en el pasto lateral
+        // Doble soporte de acero galvanizado anclado en el pasto lateral exterior
         ctx.fillStyle = '#64748b';
-        ctx.fillRect(-signW * 0.35 - 3, -postH, 6, postH);
-        ctx.fillRect(signW * 0.35 - 3, -postH, 6, postH);
+        ctx.fillRect(-signW * 0.35 - postW / 2, -postH, postW, postH);
+        ctx.fillRect(signW * 0.35 - postW / 2, -postH, postW, postH);
 
-        // Zapatas de anclaje de concreto en la base sobre el pasto
-        ctx.fillStyle = '#94a3b8';
-        ctx.beginPath();
-        ctx.roundRect(-signW * 0.35 - 6, -5, 12, 5, 2);
-        ctx.roundRect(signW * 0.35 - 6, -5, 12, 5, 2);
-        ctx.fill();
+        // Zapatas de anclaje de concreto sobre el pasto
+        if (postW > 1) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(-signW * 0.35 - postW, -Math.max(2, postW), postW * 2, Math.max(2, postW));
+            ctx.fillRect(signW * 0.35 - postW, -Math.max(2, postW), postW * 2, Math.max(2, postW));
+        }
 
         // Cartel verde oficial reflectante de autopista
         const boardY = -postH - signH;
         ctx.fillStyle = '#065f46';
         ctx.beginPath();
-        ctx.roundRect(-signW / 2, boardY, signW, signH, 4);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0;
-        ctx.stroke();
-
-        // Borde interior blanco reflectante
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.lineWidth = 1.0;
-        ctx.beginPath();
-        ctx.roundRect(-signW / 2 + 3, boardY + 3, signW - 6, signH - 6, 2);
-        ctx.stroke();
-
-        // Indicador de salida superior en amarillo
-        ctx.fillStyle = '#facc15';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.08))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(spriteObj.sublabel || '◄ SALIDA IZQ', 0, boardY + 5);
-
-        // Nombre de la ruta en blanco nítido
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${Math.max(6, Math.floor(size * 0.10))}px "Press Start 2P"`;
-        ctx.textBaseline = 'bottom';
-        const label = (spriteObj.label || 'RUTA').substring(0, 16);
-        ctx.fillText(label, 0, boardY + signH - 4);
-    } else if (type === 'fork_sign_right') {
-        const signW = Math.max(68, size * 1.35);
-        const signH = Math.max(28, size * 0.58);
-        const postH = signH * 1.25;
-
-        // Doble soporte de acero galvanizado anclado en el pasto lateral
-        ctx.fillStyle = '#64748b';
-        ctx.fillRect(-signW * 0.35 - 3, -postH, 6, postH);
-        ctx.fillRect(signW * 0.35 - 3, -postH, 6, postH);
-
-        // Zapatas de anclaje de concreto en la base sobre el pasto
-        ctx.fillStyle = '#94a3b8';
-        ctx.beginPath();
-        ctx.roundRect(-signW * 0.35 - 6, -5, 12, 5, 2);
-        ctx.roundRect(signW * 0.35 - 6, -5, 12, 5, 2);
+        if (signW >= 20) {
+            ctx.roundRect(-signW / 2, boardY, signW, signH, Math.min(4, Math.floor(signW * 0.06)));
+        } else {
+            ctx.rect(-signW / 2, boardY, signW, signH);
+        }
         ctx.fill();
 
-        // Cartel verde oficial reflectante de autopista
-        const boardY = -postH - signH;
-        ctx.fillStyle = '#065f46';
-        ctx.beginPath();
-        ctx.roundRect(-signW / 2, boardY, signW, signH, 4);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0;
-        ctx.stroke();
+        if (signW >= 14) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(1, signW * 0.025);
+            ctx.stroke();
+        }
 
-        // Borde interior blanco reflectante
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.lineWidth = 1.0;
-        ctx.beginPath();
-        ctx.roundRect(-signW / 2 + 3, boardY + 3, signW - 6, signH - 6, 2);
-        ctx.stroke();
+        // Renderizado adaptativo de texto / flechas (LOD nítido en el horizonte sin bloques borrosos)
+        if (signW >= 36) {
+            // Indicador superior amarillo
+            ctx.fillStyle = '#facc15';
+            ctx.font = `${Math.max(5, Math.floor(size * 0.075))}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            const arrowText = (type === 'fork_sign_left') ? '◄ SALIDA' : 'SALIDA ►';
+            ctx.fillText(arrowText, 0, boardY + Math.max(2, signH * 0.12));
 
-        // Indicador de salida superior en amarillo
-        ctx.fillStyle = '#facc15';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.08))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(spriteObj.sublabel || 'SALIDA DER ►', 0, boardY + 5);
-
-        // Nombre de la ruta en blanco nítido
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${Math.max(6, Math.floor(size * 0.10))}px "Press Start 2P"`;
-        ctx.textBaseline = 'bottom';
-        const label = (spriteObj.label || 'RUTA').substring(0, 16);
-        ctx.fillText(label, 0, boardY + signH - 4);
+            // Nombre de la ruta en blanco nítido
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.max(5, Math.floor(size * 0.085))}px "Press Start 2P"`;
+            ctx.textBaseline = 'bottom';
+            const label = (spriteObj.label || 'RUTA').substring(0, 14);
+            ctx.fillText(label, 0, boardY + signH - Math.max(2, signH * 0.10));
+        } else if (signW >= 12) {
+            // A la distancia: franja reflectante estilizada en perspectiva
+            ctx.fillStyle = '#facc15';
+            const barH = Math.max(1, Math.floor(signH * 0.22));
+            ctx.fillRect(-signW * 0.35, boardY + Math.floor(signH * 0.25), signW * 0.7, barH);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-signW * 0.30, boardY + Math.floor(signH * 0.60), signW * 0.6, barH);
+        }
     } else if (type === 'median_gore' || type === 'median_sign') {
-        const goreW = Math.max(26, size * 0.52);
-        const goreH = Math.max(32, size * 0.72);
-        const cushionH = goreH * 0.52;
+        const goreW = Math.round(size * 0.38);
+        const goreH = Math.round(size * 0.52);
+        if (goreW < 4) return;
+        const cushionH = Math.round(goreH * 0.52);
 
         // Atenuador de impacto / barril de choque con franjas amarillo-negro reflectantes
         ctx.fillStyle = '#f59e0b';
         ctx.beginPath();
-        ctx.roundRect(-goreW / 2, -cushionH, goreW, cushionH, [4, 4, 1, 1]);
+        ctx.roundRect(-goreW / 2, -cushionH, goreW, cushionH, [Math.min(3, goreW * 0.1), Math.min(3, goreW * 0.1), 0, 0]);
         ctx.fill();
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
 
-        // Rayado diagonal negro de advertencia
-        ctx.save();
-        ctx.clip();
-        ctx.fillStyle = '#0f172a';
-        for (let bx = -goreW * 1.5; bx < goreW * 1.5; bx += 9) {
-            ctx.beginPath();
-            ctx.moveTo(bx, 0);
-            ctx.lineTo(bx + 5, 0);
-            ctx.lineTo(bx + 5 + cushionH, -cushionH);
-            ctx.lineTo(bx + cushionH, -cushionH);
-            ctx.closePath();
-            ctx.fill();
+        if (goreW >= 12) {
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = Math.max(1, goreW * 0.04);
+            ctx.stroke();
+
+            // Rayado diagonal negro de advertencia
+            ctx.save();
+            ctx.clip();
+            ctx.fillStyle = '#0f172a';
+            const stripeW = Math.max(2, Math.floor(goreW * 0.16));
+            for (let bx = -goreW * 1.5; bx < goreW * 1.5; bx += stripeW * 2) {
+                ctx.beginPath();
+                ctx.moveTo(bx, 0);
+                ctx.lineTo(bx + stripeW, 0);
+                ctx.lineTo(bx + stripeW + cushionH, -cushionH);
+                ctx.lineTo(bx + cushionH, -cushionH);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
         }
-        ctx.restore();
 
         // Poste central y señal de divergencia ◄ | ►
-        const signS = Math.max(16, size * 0.35);
+        const signS = Math.round(size * 0.24);
         const signCenterY = -cushionH - signS * 0.7;
+        const postW = Math.max(1, Math.round(signS * 0.1));
         ctx.fillStyle = '#334155';
-        ctx.fillRect(-2.5, -cushionH - signS * 1.2, 5, signS * 1.2);
+        ctx.fillRect(-postW / 2, -cushionH - signS * 1.2, postW, signS * 1.2);
 
         ctx.save();
         ctx.translate(0, signCenterY);
         ctx.rotate(Math.PI / 4);
         ctx.fillStyle = '#facc15';
         ctx.beginPath();
-        ctx.roundRect(-signS / 2, -signS / 2, signS, signS, 3);
+        ctx.roundRect(-signS / 2, -signS / 2, signS, signS, Math.min(2, signS * 0.15));
         ctx.fill();
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        if (signS >= 10) {
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = Math.max(1, signS * 0.06);
+            ctx.stroke();
+        }
         ctx.restore();
 
-        ctx.fillStyle = '#000000';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.08))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('◄│►', 0, signCenterY);
+        if (signS >= 14) {
+            ctx.fillStyle = '#000000';
+            ctx.font = `${Math.max(5, Math.floor(signS * 0.38))}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('◄│►', 0, signCenterY);
+        }
     } else if (type === 'curve_sign_left' || type === 'curve_sign_right') {
-        const signW = Math.max(22, size * 0.44);
-        const signH = Math.max(18, size * 0.36);
-        const postH = signH * 1.2;
+        const signW = Math.round(size * 0.38);
+        const signH = Math.round(size * 0.30);
+        if (signW < 4) return;
+        const postH = Math.round(signH * 1.15);
+        const postW = Math.max(1, Math.round(signW * 0.08));
 
         ctx.fillStyle = '#475569';
-        ctx.fillRect(-2, -postH, 4, postH);
+        ctx.fillRect(-postW / 2, -postH, postW, postH);
 
         const boardY = -postH - signH;
         ctx.fillStyle = '#facc15';
         ctx.beginPath();
-        ctx.roundRect(-signW / 2, boardY, signW, signH, 3);
+        ctx.roundRect(-signW / 2, boardY, signW, signH, Math.min(3, signW * 0.1));
         ctx.fill();
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        if (signW >= 10) {
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = Math.max(1, signW * 0.05);
+            ctx.stroke();
+        }
 
-        ctx.fillStyle = '#000000';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.1))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(type === 'curve_sign_left' ? '◄◄' : '►►', 0, boardY + signH / 2);
+        if (signW >= 14) {
+            ctx.fillStyle = '#000000';
+            ctx.font = `${Math.max(5, Math.floor(signH * 0.45))}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(type === 'curve_sign_left' ? '◄◄' : '►►', 0, boardY + signH / 2);
+        }
     } else if (type === 'speed_sign') {
-        const r = Math.max(12, size * 0.25);
-        const postH = r * 2.2;
+        const r = Math.round(size * 0.18);
+        if (r < 3) return;
+        const postH = Math.round(r * 2.2);
+        const postW = Math.max(1, Math.round(r * 0.14));
 
         ctx.fillStyle = '#475569';
-        ctx.fillRect(-2, -postH, 4, postH);
+        ctx.fillRect(-postW / 2, -postH, postW, postH);
 
         const centerY = -postH - r;
         ctx.fillStyle = '#ffffff';
@@ -2936,78 +3209,91 @@ function drawWorldSprite(spriteObj, x, y, scale) {
         ctx.arc(0, centerY, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = Math.max(2.5, r * 0.22);
+        ctx.lineWidth = Math.max(1.5, r * 0.22);
         ctx.stroke();
 
-        ctx.fillStyle = '#0f172a';
-        ctx.font = `${Math.max(6, Math.floor(r * 0.65))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('240', 0, centerY);
-    } else if (type === 'checkpoint_arch') {
-        const archW = Math.max(52, size * 1.55);
-        const archH = Math.max(36, size * 1.15);
-
-        // Postes dobles de aluminio texturizado
-        const postGrad = ctx.createLinearGradient(0, 0, 7, 0);
-        postGrad.addColorStop(0, '#cbd5e1');
-        postGrad.addColorStop(0.5, '#ffffff');
-        postGrad.addColorStop(1, '#64748b');
-        ctx.fillStyle = postGrad;
-        ctx.fillRect(-archW / 2, -archH, 7, archH);
-        ctx.fillRect(archW / 2 - 7, -archH, 7, archH);
-
-        // Barra superior con gradiente
-        const barGrad = ctx.createLinearGradient(0, -archH, 0, -archH + 16);
-        barGrad.addColorStop(0, '#f59e0b');
-        barGrad.addColorStop(1, '#d97706');
-        ctx.fillStyle = barGrad;
-        ctx.beginPath();
-        ctx.roundRect(-archW / 2, -archH, archW, 16, 3);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        // Luces LED estroboscópicas de checkpoint en el pórtico
-        const t = Math.floor(Date.now() / 150) % 2;
-        ctx.fillStyle = t === 0 ? '#38bdf8' : '#f43f5e';
-        ctx.beginPath();
-        ctx.arc(-archW / 2 + 5, -archH + 8, 3, 0, Math.PI * 2);
-        ctx.arc(archW / 2 - 5, -archH + 8, 3, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${Math.max(5, Math.floor(size * 0.09))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const label = (spriteObj.label || 'CHECKPOINT').substring(0, 14);
-        ctx.fillText(label, 0, -archH + 8);
-    } else if (type === 'finish_arch') {
-        const archW = Math.max(60, size * 2.1);
-        const archH = Math.max(40, size * 1.35);
-        
-        const colW = 9;
-        for (let yPos = 0; yPos < archH; yPos += 8) {
-            const isWhite = (Math.floor(yPos / 8) % 2 === 0);
-            ctx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
-            ctx.fillRect(-archW / 2, -archH + yPos, colW, 8);
-            ctx.fillRect(archW / 2 - colW, -archH + yPos, colW, 8);
+        if (r >= 7) {
+            ctx.fillStyle = '#0f172a';
+            ctx.font = `${Math.max(5, Math.floor(r * 0.62))}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('240', 0, centerY);
         }
+    } else if (type === 'checkpoint_arch') {
+        const archW = Math.round(size * 1.35);
+        const archH = Math.round(size * 0.85);
+        if (archW < 8) return;
+        const postW = Math.max(2, Math.round(archW * 0.05));
+        const barH = Math.max(3, Math.round(archH * 0.22));
+
+        // Postes dobles de aluminio reflectante
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(-archW / 2, -archH, postW, archH);
+        ctx.fillRect(archW / 2 - postW, -archH, postW, archH);
+
+        // Barra superior
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(3, archW * 0.04));
+        ctx.fill();
+        if (archW >= 20) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(1, archW * 0.02);
+            ctx.stroke();
+
+            // Luces LED estroboscópicas de checkpoint
+            const t = Math.floor(Date.now() / 150) % 2;
+            ctx.fillStyle = t === 0 ? '#38bdf8' : '#f43f5e';
+            const ledR = Math.max(1, Math.floor(barH * 0.25));
+            ctx.beginPath();
+            ctx.arc(-archW / 2 + postW + ledR + 1, -archH + barH / 2, ledR, 0, Math.PI * 2);
+            ctx.arc(archW / 2 - postW - ledR - 1, -archH + barH / 2, ledR, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        if (archW >= 36) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.max(5, Math.floor(barH * 0.55))}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const label = (spriteObj.label || 'CHECKPOINT').substring(0, 14);
+            ctx.fillText(label, 0, -archH + barH / 2);
+        }
+    } else if (type === 'finish_arch') {
+        const archW = Math.round(size * 1.65);
+        const archH = Math.round(size * 1.05);
+        if (archW < 10) return;
+        const postW = Math.max(2, Math.round(archW * 0.06));
+        const barH = Math.max(4, Math.round(archH * 0.24));
+
+        // Postes a cuadros blanco y negro
+        const sqH = Math.max(2, Math.floor(archH / 6));
+        for (let yPos = 0; yPos < archH; yPos += sqH) {
+            const isWhite = (Math.floor(yPos / sqH) % 2 === 0);
+            ctx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+            ctx.fillRect(-archW / 2, -archH + yPos, postW, sqH);
+            ctx.fillRect(archW / 2 - postW, -archH + yPos, postW, sqH);
+        }
+
+        // Barra superior dorada
         ctx.fillStyle = '#ffb703';
         ctx.beginPath();
-        ctx.roundRect(-archW / 2, -archH, archW, 18, 5);
+        ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(4, archW * 0.04));
         ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        if (archW >= 24) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(1, archW * 0.02);
+            ctx.stroke();
+        }
 
-        const letter = spriteObj.goalLetter || 'GOAL';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${Math.max(6, Math.floor(size * 0.12))}px "Press Start 2P"`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`★ GOAL ${letter} ★`, 0, -archH + 9);
+        if (archW >= 40) {
+            const letter = spriteObj.goalLetter || 'GOAL';
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.max(5, Math.floor(barH * 0.52))}px "Press Start 2P"`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`★ GOAL ${letter} ★`, 0, -archH + barH / 2);
+        }
     } else {
         ctx.fillStyle = '#22c55e';
         ctx.beginPath();
