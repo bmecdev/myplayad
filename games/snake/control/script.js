@@ -124,6 +124,19 @@ class MobileSnakeAudio {
                     osc.start(t + i * 0.08);
                     osc.stop(t + i * 0.08 + 0.13);
                 });
+            } else if (sound === 'bonus') {
+                [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(f, t + i * 0.05);
+                    gain.gain.setValueAtTime(0.22, t + i * 0.05);
+                    gain.gain.linearRampToValueAtTime(0.0001, t + i * 0.05 + 0.1);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(t + i * 0.05);
+                    osc.stop(t + i * 0.05 + 0.11);
+                });
             } else if (sound === 'gameover') {
                 [392, 329.63, 261.63, 196].forEach((f, i) => {
                     const osc = this.ctx.createOscillator();

@@ -99,6 +99,28 @@ class SnakeAudio {
         broadcastSFX('eat');
     }
 
+    playBonus() {
+        if (!this.ctx) return;
+        this.resume();
+        try {
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            const t = this.ctx.currentTime;
+            notes.forEach((freq, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, t + idx * 0.05);
+                gain.gain.setValueAtTime(0.24, t + idx * 0.05);
+                gain.gain.linearRampToValueAtTime(0.0001, t + idx * 0.05 + 0.1);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(t + idx * 0.05);
+                osc.stop(t + idx * 0.05 + 0.11);
+            });
+        } catch (e) {}
+        broadcastSFX('bonus');
+    }
+
     playTurn() {
         if (!this.ctx) return;
         this.resume();
@@ -221,6 +243,12 @@ const MATRIX_GREEN = '#3dff8a';
 const GameState = {
     snake: [],
     food: { x: 0, y: 0 },
+    bonusFood: null,
+    bonusTimer: 0,
+    foodsEaten: 0,
+    particles: [],
+    floatingTexts: [],
+    screenShake: 0,
     dx: 1,
     dy: 0,
     nextDx: 1,
@@ -852,10 +880,168 @@ function handleJoystickInput(input) {
     }
 }
 
+// Helper for universal rounded rectangles on canvas
+function drawRoundRect(ctx, x, y, w, h, r) {
+    if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        return;
+    }
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+// Particle & Micro-Animation Systems
+function createEatBurst(gridX, gridY, customColor = null) {
+    const px = gridX * GRID_SIZE + GRID_SIZE / 2;
+    const py = gridY * GRID_SIZE + GRID_SIZE / 2;
+    const count = customColor ? 18 : 12;
+    const palette = customColor ? [customColor, '#ffffff', '#fffa65'] : ['#ff2a6d', '#ff4d6d', '#3dff8a', '#ffffff'];
+    
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.4;
+        const speed = Math.random() * 2.2 + 0.8;
+        GameState.particles.push({
+            x: px,
+            y: py,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 2 + 1.2,
+            color: palette[Math.floor(Math.random() * palette.length)],
+            alpha: 1.0,
+            life: Math.floor(Math.random() * 15 + 15),
+            maxLife: 30,
+            drag: 0.94
+        });
+    }
+}
+
+function createBonusBurst(gridX, gridY) {
+    const px = gridX * GRID_SIZE + GRID_SIZE / 2;
+    const py = gridY * GRID_SIZE + GRID_SIZE / 2;
+    const palette = ['#ffe600', '#ffb703', '#ffffff', '#00f5d4', '#ff7b00'];
+    
+    for (let i = 0; i < 20; i++) {
+        const angle = (Math.PI * 2 * i) / 20 + (Math.random() - 0.5) * 0.3;
+        const speed = Math.random() * 2.8 + 1.0;
+        GameState.particles.push({
+            x: px,
+            y: py,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 2.2 + 1.2,
+            color: palette[Math.floor(Math.random() * palette.length)],
+            alpha: 1.0,
+            life: Math.floor(Math.random() * 20 + 20),
+            maxLife: 40,
+            drag: 0.94
+        });
+    }
+}
+
+function createDeathExplosion(snakeSegments) {
+    GameState.screenShake = 10;
+    const colors = ['#3dff8a', '#ff4d6d', '#ffb703', '#ffffff', '#00f5d4'];
+    
+    snakeSegments.forEach((segment, idx) => {
+        const px = segment.x * GRID_SIZE + GRID_SIZE / 2;
+        const py = segment.y * GRID_SIZE + GRID_SIZE / 2;
+        const count = idx === 0 ? 8 : 4;
+        
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 3 + 1;
+            GameState.particles.push({
+                x: px,
+                y: py,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: Math.random() * 2.5 + 1.5,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                alpha: 1.0,
+                life: Math.floor(Math.random() * 25 + 20),
+                maxLife: 45,
+                drag: 0.95
+            });
+        }
+    });
+}
+
+function createFloatingText(px, py, text, color = '#3dff8a') {
+    GameState.floatingTexts.push({
+        x: px,
+        y: py,
+        text: text,
+        color: color,
+        alpha: 1.0,
+        life: 35,
+        maxLife: 35
+    });
+}
+
+function createTailDust(px, py) {
+    if (GameState.particles.length > 50) return;
+    GameState.particles.push({
+        x: px + (Math.random() - 0.5) * 3,
+        y: py + (Math.random() - 0.5) * 3,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 1.5 + 0.8,
+        color: '#10b981',
+        alpha: 0.6,
+        life: 16,
+        maxLife: 16,
+        drag: 0.92
+    });
+}
+
+function updateEffects() {
+    if (GameState.screenShake > 0) {
+        GameState.screenShake *= 0.85;
+        if (GameState.screenShake < 0.2) GameState.screenShake = 0;
+    }
+
+    for (let i = GameState.particles.length - 1; i >= 0; i--) {
+        const p = GameState.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= (p.drag || 0.96);
+        p.vy *= (p.drag || 0.96);
+        p.life--;
+        p.alpha = Math.max(0, p.life / p.maxLife);
+        if (p.life <= 0) {
+            GameState.particles.splice(i, 1);
+        }
+    }
+
+    for (let i = GameState.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = GameState.floatingTexts[i];
+        ft.y -= 0.45;
+        ft.life--;
+        ft.alpha = Math.max(0, ft.life / ft.maxLife);
+        if (ft.life <= 0) {
+            GameState.floatingTexts.splice(i, 1);
+        }
+    }
+}
+
 function init() {
     resetSnakePosition(false); 
     GameState.score = 0;
     GameState.gameSpeed = 100; 
+    GameState.foodsEaten = 0;
+    GameState.bonusFood = null;
+    GameState.bonusTimer = 0;
+    GameState.particles = [];
+    GameState.floatingTexts = [];
+    GameState.screenShake = 0;
     updateScore();
     placeFood();
     gameOverOverlay.classList.add('hidden');
@@ -902,11 +1088,33 @@ function placeFood() {
             x: Math.floor(Math.random() * (COLS - 2)) + 1,
             y: Math.floor(Math.random() * (ROWS - 2)) + 1
         };
-        if (!GameState.snake.some(segment => segment.x === newFood.x && segment.y === newFood.y)) {
+        const onSnake = GameState.snake.some(segment => segment.x === newFood.x && segment.y === newFood.y);
+        const onBonus = GameState.bonusFood && GameState.bonusFood.x === newFood.x && GameState.bonusFood.y === newFood.y;
+        if (!onSnake && !onBonus) {
             break;
         }
     }
     GameState.food = newFood;
+}
+
+function placeBonusFood() {
+    let newBonus;
+    let attempts = 0;
+    while (attempts < 50) {
+        attempts++;
+        newBonus = {
+            x: Math.floor(Math.random() * (COLS - 2)) + 1,
+            y: Math.floor(Math.random() * (ROWS - 2)) + 1
+        };
+        const onSnake = GameState.snake.some(segment => segment.x === newBonus.x && segment.y === newBonus.y);
+        const onFood = GameState.food && GameState.food.x === newBonus.x && GameState.food.y === newBonus.y;
+        if (!onSnake && !onFood) {
+            GameState.bonusFood = newBonus;
+            GameState.bonusTimer = 90; // ~9 segundos
+            createEatBurst(newBonus.x, newBonus.y, '#ffe600');
+            break;
+        }
+    }
 }
 
 function moveSnake() {
@@ -932,36 +1140,79 @@ function moveSnake() {
 
     GameState.snake.unshift(head);
 
+    let ateFood = false;
+
+    // Comer Manzana Normal
     if (head.x === GameState.food.x && head.y === GameState.food.y) {
+        ateFood = true;
         audio.playEat();
         GameState.score += 10;
+        GameState.foodsEaten++;
         updateScore();
+        createEatBurst(head.x, head.y);
+        createFloatingText(head.x * GRID_SIZE + 5, head.y * GRID_SIZE - 2, '+10', '#3dff8a');
         placeFood();
         if (GameState.gameSpeed > 50) GameState.gameSpeed -= 1;
-    } else {
+
+        // Generar estrella dorada cada 4 manzanas
+        if (GameState.foodsEaten % 4 === 0 && !GameState.bonusFood) {
+            placeBonusFood();
+        }
+    }
+
+    // Comer Estrella / Fruta Dorada Bonus
+    if (GameState.bonusFood && head.x === GameState.bonusFood.x && head.y === GameState.bonusFood.y) {
+        ateFood = true;
+        if (audio.playBonus) audio.playBonus(); else audio.playEat();
+        GameState.score += 50;
+        updateScore();
+        createBonusBurst(head.x, head.y);
+        createFloatingText(head.x * GRID_SIZE + 5, head.y * GRID_SIZE - 4, '+50 BONUS!', '#ffe600');
+        GameState.bonusFood = null;
+        GameState.bonusTimer = 0;
+    }
+
+    // Cuenta regresiva del bonus
+    if (GameState.bonusFood) {
+        GameState.bonusTimer--;
+        if (GameState.bonusTimer <= 0) {
+            createEatBurst(GameState.bonusFood.x, GameState.bonusFood.y, '#ffb703');
+            GameState.bonusFood = null;
+        }
+    }
+
+    if (!ateFood) {
         GameState.snake.pop();
     }
 }
 
 function update(time) {
-    if (!GameState.gameRunning) return;
+    if (!GameState.gameRunning && !GameState.isRespawning && GameState.particles.length === 0 && GameState.floatingTexts.length === 0) {
+        draw(time);
+        return;
+    }
 
-    if (time - GameState.lastTime > GameState.gameSpeed) {
+    if (GameState.gameRunning && time - GameState.lastTime > GameState.gameSpeed) {
         moveSnake();
         GameState.lastTime = time;
     }
     
-    draw();
+    updateEffects();
+    draw(time);
     requestAnimationFrame(update);
 }
 
 function loseLife() {
     audio.playDie();
+    createDeathExplosion(GameState.snake);
     GameState.lives--;
     updateLivesDisplay();
     GameState.gameRunning = false; 
     GameState.isRespawning = true; 
     
+    // Continuar dibujando los efectos de explosión
+    requestAnimationFrame(update);
+
     if (GameState.lives > 0) {
         setTimeout(() => {
             resetSnakePosition(true); 
@@ -988,33 +1239,428 @@ function updateLivesDisplay() {
     }
 }
 
-function draw() {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-    ctx.strokeStyle = MATRIX_GREEN;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(GRID_SIZE/2, GRID_SIZE/2, CANVAS_WIDTH - GRID_SIZE, CANVAS_HEIGHT - GRID_SIZE);
-
-    if (GameState.isInvulnerable && Math.floor(Date.now() / 150) % 2 === 0) {
-        return; 
+function draw(time = performance.now()) {
+    ctx.save();
+    
+    // Sacudida de pantalla (Screen Shake)
+    if (GameState.screenShake > 0) {
+        const shakeX = (Math.random() - 0.5) * GameState.screenShake;
+        const shakeY = (Math.random() - 0.5) * GameState.screenShake;
+        ctx.translate(shakeX, shakeY);
     }
 
-    GameState.snake.forEach((segment, index) => {
-        ctx.fillStyle = MATRIX_GREEN;
-        ctx.fillRect(segment.x * GRID_SIZE + 1, segment.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
-        
-        if (index === 0) {
-            ctx.fillStyle = '#91aa12';
-            const eyeSize = 2;
-            if (GameState.dx === 1) ctx.fillRect(segment.x * GRID_SIZE + 6, segment.y * GRID_SIZE + 2, eyeSize, eyeSize);
-            if (GameState.dx === -1) ctx.fillRect(segment.x * GRID_SIZE + 2, segment.y * GRID_SIZE + 2, eyeSize, eyeSize);
-            if (GameState.dy === 1) ctx.fillRect(segment.x * GRID_SIZE + 2, segment.y * GRID_SIZE + 6, eyeSize, eyeSize);
-            if (GameState.dy === -1) ctx.fillRect(segment.x * GRID_SIZE + 2, segment.y * GRID_SIZE + 2, eyeSize, eyeSize);
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Fondo cibernético oscuro
+    ctx.fillStyle = '#060b08';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Rejilla cibernética sutil dentro de la arena jugable
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.04)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let c = 1; c < COLS - 1; c++) {
+        ctx.moveTo(c * GRID_SIZE, GRID_SIZE);
+        ctx.lineTo(c * GRID_SIZE, CANVAS_HEIGHT - GRID_SIZE);
+    }
+    for (let r = 1; r < ROWS - 1; r++) {
+        ctx.moveTo(GRID_SIZE, r * GRID_SIZE);
+        ctx.lineTo(CANVAS_WIDTH - GRID_SIZE, r * GRID_SIZE);
+    }
+    ctx.stroke();
+
+    // Micro-puntos de intersección
+    ctx.fillStyle = 'rgba(61, 255, 138, 0.12)';
+    for (let c = 1; c < COLS - 1; c += 2) {
+        for (let r = 1; r < ROWS - 1; r += 2) {
+            ctx.fillRect(c * GRID_SIZE - 0.5, r * GRID_SIZE - 0.5, 1, 1);
         }
+    }
+
+    // Retículo táctico central en el fondo
+    const cx = CANVAS_WIDTH / 2;
+    const cy = CANVAS_HEIGHT / 2;
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.035)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+    ctx.moveTo(cx - 32, cy); ctx.lineTo(cx - 20, cy);
+    ctx.moveTo(cx + 20, cy); ctx.lineTo(cx + 32, cy);
+    ctx.moveTo(cx, cy - 32); ctx.lineTo(cx, cy - 20);
+    ctx.moveTo(cx, cy + 20); ctx.lineTo(cx, cy + 32);
+    ctx.stroke();
+
+    // Detección de peligro por proximidad a los muros
+    const head = GameState.snake[0];
+    const nearWall = head && (head.x <= 1 || head.x >= COLS - 2 || head.y <= 1 || head.y >= ROWS - 2);
+    const wallAlarm = nearWall && Math.floor(time / 120) % 2 === 0;
+
+    // Pared perimetral de peligro
+    ctx.fillStyle = '#0a1610';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, GRID_SIZE);
+    ctx.fillRect(0, CANVAS_HEIGHT - GRID_SIZE, CANVAS_WIDTH, GRID_SIZE);
+    ctx.fillRect(0, 0, GRID_SIZE, CANVAS_HEIGHT);
+    ctx.fillRect(CANVAS_WIDTH - GRID_SIZE, 0, GRID_SIZE, CANVAS_HEIGHT);
+
+    // Rayas diagonales de peligro en el borde
+    ctx.fillStyle = wallAlarm ? 'rgba(255, 77, 109, 0.25)' : 'rgba(61, 255, 138, 0.08)';
+    for (let i = 0; i < CANVAS_WIDTH; i += 12) {
+        ctx.fillRect(i + 2, 2, 4, GRID_SIZE - 4);
+        ctx.fillRect(i + 2, CANVAS_HEIGHT - GRID_SIZE + 2, 4, GRID_SIZE - 4);
+    }
+    for (let i = 0; i < CANVAS_HEIGHT; i += 12) {
+        ctx.fillRect(2, i + 2, GRID_SIZE - 4, 4);
+        ctx.fillRect(CANVAS_WIDTH - GRID_SIZE + 2, i + 2, GRID_SIZE - 4, 4);
+    }
+
+    // Línea láser perimetral neón
+    ctx.strokeStyle = wallAlarm ? '#ff4d6d' : (nearWall ? '#ffb703' : '#3dff8a');
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(GRID_SIZE - 0.5, GRID_SIZE - 0.5, CANVAS_WIDTH - 2 * GRID_SIZE + 1, CANVAS_HEIGHT - 2 * GRID_SIZE + 1);
+
+    // Nodos tecnológicos en las 4 esquinas con LEDs brillantes
+    const corners = [
+        [GRID_SIZE - 2, GRID_SIZE - 2],
+        [CANVAS_WIDTH - GRID_SIZE - 3, GRID_SIZE - 2],
+        [GRID_SIZE - 2, CANVAS_HEIGHT - GRID_SIZE - 3],
+        [CANVAS_WIDTH - GRID_SIZE - 3, CANVAS_HEIGHT - GRID_SIZE - 3]
+    ];
+    corners.forEach(([kx, ky]) => {
+        ctx.fillStyle = wallAlarm ? '#ff4d6d' : '#ffb703';
+        ctx.fillRect(kx, ky, 5, 5);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(kx + 1.5, ky + 1.5, 2, 2);
     });
 
-    ctx.fillStyle = MATRIX_GREEN;
-    ctx.fillRect(GameState.food.x * GRID_SIZE + 2, GameState.food.y * GRID_SIZE + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+    // ----------------------------------------------------
+    // Comida Principal: Manzana Neón 3D con Brillos y Hoja
+    // ----------------------------------------------------
+    if (GameState.food) {
+        const fx = GameState.food.x * GRID_SIZE;
+        const fy = GameState.food.y * GRID_SIZE;
+        const bob = Math.sin(time / 160) * 0.8;
+        const appleY = fy + bob;
+
+        // Halo de brillo radial
+        const glow = ctx.createRadialGradient(fx + 5, appleY + 5.5, 1, fx + 5, appleY + 5.5, 9);
+        glow.addColorStop(0, 'rgba(255, 42, 109, 0.4)');
+        glow.addColorStop(1, 'rgba(255, 42, 109, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(fx + 5, appleY + 5.5, 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cuerpo de la manzana (3D degradado)
+        const appleGrad = ctx.createLinearGradient(fx + 2, appleY + 2, fx + 8, appleY + 8);
+        appleGrad.addColorStop(0, '#ff4d6d');
+        appleGrad.addColorStop(0.6, '#ff0055');
+        appleGrad.addColorStop(1, '#9b002c');
+        ctx.fillStyle = appleGrad;
+        drawRoundRect(ctx, fx + 2, appleY + 3, 6, 5.5, 2.5);
+        ctx.fill();
+
+        // Brillo especular
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.beginPath();
+        ctx.arc(fx + 3.8, appleY + 4.2, 1, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tallo
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(fx + 5, appleY + 3);
+        ctx.lineTo(fx + 5.2, appleY + 1.2);
+        ctx.stroke();
+
+        // Hoja verde esmeralda neón
+        ctx.fillStyle = '#3dff8a';
+        ctx.beginPath();
+        ctx.ellipse(fx + 6.8, appleY + 1.6, 1.8, 1, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ----------------------------------------------------
+    // Comida Bonus: Estrella Dorada Centelleante
+    // ----------------------------------------------------
+    if (GameState.bonusFood) {
+        const bx = GameState.bonusFood.x * GRID_SIZE;
+        const by = GameState.bonusFood.y * GRID_SIZE;
+        const bBob = Math.sin(time / 110) * 1.2;
+        const starX = bx + 5;
+        const starY = by + 5 + bBob;
+
+        // Halo dorado
+        const bGlow = ctx.createRadialGradient(starX, starY, 1, starX, starY, 11);
+        bGlow.addColorStop(0, 'rgba(255, 183, 3, 0.55)');
+        bGlow.addColorStop(1, 'rgba(255, 183, 3, 0)');
+        ctx.fillStyle = bGlow;
+        ctx.beginPath();
+        ctx.arc(starX, starY, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Estrella de 4 puntas
+        const starGrad = ctx.createLinearGradient(starX - 4, starY - 4, starX + 4, starY + 4);
+        starGrad.addColorStop(0, '#fff3b0');
+        starGrad.addColorStop(0.4, '#ffb703');
+        starGrad.addColorStop(1, '#fb8500');
+        ctx.fillStyle = starGrad;
+        ctx.beginPath();
+        ctx.moveTo(starX, starY - 4.5);
+        ctx.lineTo(starX + 1.8, starY - 1.8);
+        ctx.lineTo(starX + 4.5, starY);
+        ctx.lineTo(starX + 1.8, starY + 1.8);
+        ctx.lineTo(starX, starY + 4.5);
+        ctx.lineTo(starX - 1.8, starY + 1.8);
+        ctx.lineTo(starX - 4.5, starY);
+        ctx.lineTo(starX - 1.8, starY - 1.8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Destello central blanco
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(starX - 1, starY - 1, 2, 2);
+
+        // Partículas orbitales
+        const orbitAngle = time / 100;
+        const ox1 = starX + Math.cos(orbitAngle) * 6;
+        const oy1 = starY + Math.sin(orbitAngle) * 6;
+        const ox2 = starX + Math.cos(orbitAngle + Math.PI) * 6;
+        const oy2 = starY + Math.sin(orbitAngle + Math.PI) * 6;
+        ctx.fillStyle = '#fffa65';
+        ctx.fillRect(ox1 - 0.8, oy1 - 0.8, 1.6, 1.6);
+        ctx.fillStyle = '#00f5d4';
+        ctx.fillRect(ox2 - 0.8, oy2 - 0.8, 1.6, 1.6);
+
+        // Anillo temporizador del bonus
+        const timerFraction = GameState.bonusTimer / 90;
+        ctx.strokeStyle = 'rgba(255, 183, 3, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(starX, starY, 7.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timerFraction);
+        ctx.stroke();
+    }
+
+    // ----------------------------------------------------
+    // La Cyber-Víbora (Cuerpo Orgánico, Segmentos Unidos y Cabeza)
+    // ----------------------------------------------------
+    if (GameState.snake && GameState.snake.length > 0) {
+        ctx.save();
+        
+        // Transparencia e Inmunidad
+        if (GameState.isInvulnerable) {
+            ctx.globalAlpha = 0.65 + 0.35 * Math.sin(time / 60);
+        }
+
+        const totalSegments = GameState.snake.length;
+        const pulseSegment = Math.floor((time / 65) % (totalSegments + 4));
+
+        // Dibujar segmentos de cola a cabeza
+        for (let i = totalSegments - 1; i >= 0; i--) {
+            const seg = GameState.snake[i];
+            const sx = seg.x * GRID_SIZE;
+            const sy = seg.y * GRID_SIZE;
+            const t = i / Math.max(1, totalSegments - 1);
+
+            // Gradiente: Cabeza (#3dff8a) -> Cuerpo Esmeralda (#10b981) -> Cola Teal (#059669)
+            const r = Math.round(61 * (1 - t) + 5 * t);
+            const g = Math.round(255 * (1 - t) + 150 * t);
+            const b = Math.round(138 * (1 - t) + 105 * t);
+            let segColor = `rgb(${r}, ${g}, ${b})`;
+
+            // Pulso energético dorsal viajando por la columna
+            if (i === pulseSegment) {
+                segColor = '#00f5d4';
+            }
+
+            // Puentes entre segmentos adyacentes para formar un cuerpo serpiente continuo
+            if (i > 0) {
+                const prev = GameState.snake[i - 1];
+                const pdx = prev.x - seg.x;
+                const pdy = prev.y - seg.y;
+                if (Math.abs(pdx) <= 1 && Math.abs(pdy) <= 1) {
+                    ctx.fillStyle = segColor;
+                    if (pdx === 1) ctx.fillRect(sx + 5, sy + 1.5, 6, 7);
+                    else if (pdx === -1) ctx.fillRect(sx - 1, sy + 1.5, 6, 7);
+                    else if (pdy === 1) ctx.fillRect(sx + 1.5, sy + 5, 7, 6);
+                    else if (pdy === -1) ctx.fillRect(sx + 1.5, sy - 1, 7, 6);
+                }
+            }
+
+            // Segmento individual
+            if (i === 0) {
+                // Cabeza: dibujada al final para estar encima
+            } else if (i === totalSegments - 1) {
+                // Punta de la cola afinada
+                ctx.fillStyle = segColor;
+                drawRoundRect(ctx, sx + 2, sy + 2, 6, 6, 2.5);
+                ctx.fill();
+
+                if (Math.random() < 0.25 && GameState.gameRunning) {
+                    createTailDust(sx + 5, sy + 5);
+                }
+            } else {
+                // Segmento de cuerpo
+                ctx.fillStyle = segColor;
+                drawRoundRect(ctx, sx + 1.5, sy + 1.5, 7, 7, 2.5);
+                ctx.fill();
+
+                // Brillo de escama dorsal
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                ctx.fillRect(sx + 2.5, sy + 2, 5, 1.2);
+
+                // Núcleo espinal cibernético
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+                ctx.fillRect(sx + 4, sy + 4, 2, 2);
+            }
+        }
+
+        // ----------------------------------------------------
+        // Cabeza Esculpida y Ojos Expresivos (Índice 0)
+        // ----------------------------------------------------
+        const hSeg = GameState.snake[0];
+        const hx = hSeg.x * GRID_SIZE;
+        const hy = hSeg.y * GRID_SIZE;
+        const dx = GameState.dx;
+        const dy = GameState.dy;
+
+        // Degradado de cabeza
+        const headGrad = ctx.createLinearGradient(hx + 1, hy + 1, hx + 9, hy + 9);
+        headGrad.addColorStop(0, '#52ff9a');
+        headGrad.addColorStop(1, '#059669');
+        ctx.fillStyle = headGrad;
+        drawRoundRect(ctx, hx + 1, hy + 1, 8, 8, 3);
+        ctx.fill();
+
+        // Resalte superior de la cabeza
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillRect(hx + 2.5, hy + 2, 5, 1.5);
+
+        // Ojos de depredador (orientados hacia la dirección de movimiento)
+        let eye1 = { x: hx + 2.5, y: hy + 2.5 };
+        let eye2 = { x: hx + 6.5, y: hy + 6.5 };
+        if (dx === 1) { // Derecha
+            eye1 = { x: hx + 6, y: hy + 2.2 };
+            eye2 = { x: hx + 6, y: hy + 6.8 };
+        } else if (dx === -1) { // Izquierda
+            eye1 = { x: hx + 3, y: hy + 2.2 };
+            eye2 = { x: hx + 3, y: hy + 6.8 };
+        } else if (dy === 1) { // Abajo
+            eye1 = { x: hx + 2.2, y: hy + 6 };
+            eye2 = { x: hx + 6.8, y: hy + 6 };
+        } else if (dy === -1) { // Arriba
+            eye1 = { x: hx + 2.2, y: hy + 3 };
+            eye2 = { x: hx + 6.8, y: hy + 3 };
+        }
+
+        [eye1, eye2].forEach(e => {
+            // Córnea ámbar brillante
+            ctx.fillStyle = '#ffea00';
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, 1.4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pupila negra orientada al frente
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(e.x + dx * 0.5, e.y + dy * 0.5, 0.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Destello de mirada
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(e.x - 0.4, e.y - 0.7, 0.8, 0.8);
+        });
+
+        // Lengua bífida neón parpadeante
+        const tongueCycle = Math.sin(time / 75);
+        if (tongueCycle > 0.35 && GameState.gameRunning) {
+            const tx = hx + 5 + dx * 4.5;
+            const ty = hy + 5 + dy * 4.5;
+            const tipX = tx + dx * 3.5;
+            const tipY = ty + dy * 3.5;
+
+            ctx.strokeStyle = '#ff0055';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tipX, tipY);
+
+            // Puntas de la lengua bífida
+            const perpX = -dy;
+            const perpY = dx;
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(tipX + dx * 1.5 + perpX * 1.5, tipY + dy * 1.5 + perpY * 1.5);
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(tipX + dx * 1.5 - perpX * 1.5, tipY + dy * 1.5 - perpY * 1.5);
+            ctx.stroke();
+        }
+
+        // Campo de fuerza protector (cuando es invulnerable)
+        if (GameState.isInvulnerable) {
+            const shieldRadius = 9 + Math.sin(time / 80) * 1;
+            ctx.strokeStyle = '#00f5d4';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.arc(hx + 5, hy + 5, shieldRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            const shieldAngle = time / 90;
+            ctx.strokeStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(hx + 5, hy + 5, shieldRadius, shieldAngle, shieldAngle + Math.PI * 0.6);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // Efectos de Partículas Activas
+    // ----------------------------------------------------
+    GameState.particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(0.5, p.size), 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+
+    // ----------------------------------------------------
+    // Textos Flotantes (+10, +50 BONUS!)
+    // ----------------------------------------------------
+    GameState.floatingTexts.forEach(ft => {
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = ft.alpha;
+        
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, ft.x, ft.y);
+    });
+    ctx.globalAlpha = 1.0;
+    ctx.textAlign = 'left';
+
+    // ----------------------------------------------------
+    // HUD Cibernético en Pantalla
+    // ----------------------------------------------------
+    if (GameState.gameRunning) {
+        ctx.font = '6px "Press Start 2P", monospace';
+        ctx.fillStyle = 'rgba(61, 255, 138, 0.65)';
+        ctx.fillText(`LEN:${GameState.snake.length}`, 13, CANVAS_HEIGHT - 3);
+
+        if (GameState.bonusFood && GameState.bonusTimer > 0) {
+            ctx.fillStyle = '#ffb703';
+            ctx.textAlign = 'right';
+            ctx.fillText(`STAR:${Math.ceil(GameState.bonusTimer / 10)}s`, CANVAS_WIDTH - 13, CANVAS_HEIGHT - 3);
+            ctx.textAlign = 'left';
+        }
+    }
+
+    ctx.restore();
 }
 
 function updateScore() {
@@ -1115,6 +1761,15 @@ updateQrCode();
 autoScale();
 draw();
 connectSignaling();
+
+// Bucle de animación idle cuando la pantalla espera interacción
+function idleLoop(time) {
+    if (!GameState.gameRunning && !GameState.isRespawning) {
+        draw(time);
+    }
+    requestAnimationFrame(idleLoop);
+}
+requestAnimationFrame(idleLoop);
 
 // Auto-scale to fit browser window with high responsiveness
 function autoScale() {
