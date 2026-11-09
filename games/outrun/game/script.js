@@ -1200,10 +1200,6 @@ function appendNextStage(nextTier, nextRouteIndex, choice, checkpointIndex) {
     spawnTrafficForStage(nextTier, checkpointIndex * SEGMENT_LENGTH);
 }
 
-    // Respawnear tráfico rival bien adelante en la nueva etapa (sin estorbar la zona de transición)
-    spawnTrafficForStage(nextTier, checkpointIndex * SEGMENT_LENGTH);
-}
-
 function spawnTrafficForStage(tier, startZ) {
     GameState.cars = [];
     const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
@@ -2300,9 +2296,6 @@ function draw() {
     }
 
     // 2. Renderizado de Carretera Pseudo-3D
-    const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
-    const baseSegment = GameState.segments[baseSegmentIndex];
-    if (!baseSegment) return;
     const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
     const cameraX = GameState.playerX * ROAD_WIDTH;
     const cameraZ = GameState.playerZ;
