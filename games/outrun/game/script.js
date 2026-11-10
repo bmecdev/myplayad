@@ -32,7 +32,7 @@ const CANVAS_HEIGHT = 320;
 // Constantes de carretera y perspectiva pseudo-3D
 const ROAD_WIDTH = 1800;
 const SEGMENT_LENGTH = 200;
-const CAMERA_HEIGHT = 850;
+const CAMERA_HEIGHT = 900;
 const CAMERA_DEPTH = 0.84;
 const DRAW_DISTANCE = 80;
 const LANES = 3;
@@ -570,8 +570,7 @@ const ROUTE_TREE = [
             roadLight: '#444444',
             roadDark: '#3b3b3b',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 120 ? 2.2 : (s > 140 && s < 220 ? -2.4 : 0)),
-            hills: (s) => Math.sin(s / 32) * 140
+            curves: (s) => (s > 40 && s < 120 ? 2.2 : (s > 140 && s < 220 ? -2.4 : 0))
         }
     ],
     // Tier 1 (Etapa 2 - 2 rutas)
@@ -592,8 +591,7 @@ const ROUTE_TREE = [
             roadLight: '#48443e',
             roadDark: '#3d3a35',
             spriteTheme: 'cactus',
-            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.6 : 0)),
-            hills: (s) => Math.sin(s / 36) * 160 + Math.cos(s / 50) * 60
+            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.6 : 0))
         },
         {
             id: 'alpine_valley',
@@ -611,8 +609,7 @@ const ROUTE_TREE = [
             roadLight: '#474747',
             roadDark: '#383838',
             spriteTheme: 'pine',
-            curves: (s) => (s > 40 && s < 130 ? 2.6 : (s > 150 && s < 230 ? -2.5 : 0)),
-            hills: (s) => Math.sin(s / 34) * 170
+            curves: (s) => (s > 40 && s < 130 ? 2.6 : (s > 150 && s < 230 ? -2.5 : 0))
         }
     ],
     // Tier 2 (Etapa 3 - 3 rutas)
@@ -633,8 +630,7 @@ const ROUTE_TREE = [
             roadLight: '#534e4a',
             roadDark: '#44403c',
             spriteTheme: 'column',
-            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0)),
-            hills: (s) => Math.sin(s / 38) * 150
+            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0))
         },
         {
             id: 'devils_canyon',
@@ -652,8 +648,7 @@ const ROUTE_TREE = [
             roadLight: '#423735',
             roadDark: '#352c2a',
             spriteTheme: 'rock',
-            curves: (s) => (s > 40 && s < 120 ? 2.8 : (s > 140 && s < 220 ? -2.6 : 0)),
-            hills: (s) => Math.sin(s / 32) * 170
+            curves: (s) => (s > 40 && s < 120 ? 2.8 : (s > 140 && s < 220 ? -2.6 : 0))
         },
         {
             id: 'winding_vineyards',
@@ -671,8 +666,7 @@ const ROUTE_TREE = [
             roadLight: '#3d444a',
             roadDark: '#32373c',
             spriteTheme: 'pine',
-            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.4 : 0)),
-            hills: (s) => Math.sin(s / 35) * 150
+            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.4 : 0))
         }
     ],
     // Tier 3 (Etapa 4 - 4 rutas)
@@ -693,8 +687,7 @@ const ROUTE_TREE = [
             roadLight: '#333333',
             roadDark: '#262626',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 120 ? 2.3 : (s > 140 && s < 220 ? -2.2 : 0)),
-            hills: (s) => Math.sin(s / 40) * 130
+            curves: (s) => (s > 40 && s < 120 ? 2.3 : (s > 140 && s < 220 ? -2.2 : 0))
         },
         {
             id: 'seaside_blvd',
@@ -712,8 +705,7 @@ const ROUTE_TREE = [
             roadLight: '#444444',
             roadDark: '#383838',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0)),
-            hills: (s) => Math.sin(s / 32) * 160
+            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0))
         },
         {
             id: 'windmill_valley',
@@ -731,8 +723,7 @@ const ROUTE_TREE = [
             roadLight: '#4a4d45',
             roadDark: '#3d4039',
             spriteTheme: 'windmill',
-            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.6 : 0)),
-            hills: (s) => Math.sin(s / 36) * 160
+            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.6 : 0))
         },
         {
             id: 'neon_metropolis',
@@ -750,8 +741,7 @@ const ROUTE_TREE = [
             roadLight: '#262933',
             roadDark: '#1e2029',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 120 ? -2.8 : (s > 140 && s < 220 ? 2.7 : 0)),
-            hills: (s) => Math.sin(s / 34) * 165
+            curves: (s) => (s > 40 && s < 120 ? -2.8 : (s > 140 && s < 220 ? 2.7 : 0))
         }
     ],
     // Tier 4 (Etapa 5 - LAS 5 METAS: A, B, C, D, E)
@@ -772,8 +762,7 @@ const ROUTE_TREE = [
             roadLight: '#535c68',
             roadDark: '#303952',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 140 ? 2.3 : 0),
-            hills: (s) => Math.sin(s / 38) * 140
+            curves: (s) => (s > 40 && s < 140 ? 2.3 : 0)
         },
         {
             id: 'goal_b',
@@ -791,8 +780,7 @@ const ROUTE_TREE = [
             roadLight: '#576574',
             roadDark: '#222f3e',
             spriteTheme: 'column',
-            curves: (s) => (s > 40 && s < 140 ? -2.4 : 0),
-            hills: (s) => Math.sin(s / 36) * 150
+            curves: (s) => (s > 40 && s < 140 ? -2.4 : 0)
         },
         {
             id: 'goal_c',
@@ -810,8 +798,7 @@ const ROUTE_TREE = [
             roadLight: '#474747',
             roadDark: '#383838',
             spriteTheme: 'pine',
-            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.3 : 0)),
-            hills: (s) => Math.sin(s / 35) * 160
+            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.3 : 0))
         },
         {
             id: 'goal_d',
@@ -829,8 +816,7 @@ const ROUTE_TREE = [
             roadLight: '#2d3436',
             roadDark: '#1e272e',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 130 ? -2.7 : (s > 150 && s < 230 ? 2.5 : 0)),
-            hills: (s) => Math.sin(s / 32) * 170
+            curves: (s) => (s > 40 && s < 130 ? -2.7 : (s > 150 && s < 230 ? 2.5 : 0))
         },
         {
             id: 'goal_e',
@@ -848,8 +834,7 @@ const ROUTE_TREE = [
             roadLight: '#3d3d3d',
             roadDark: '#2d2d2d',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 130 ? 2.8 : (s > 150 && s < 230 ? -2.6 : 0)),
-            hills: (s) => Math.sin(s / 34) * 160
+            curves: (s) => (s > 40 && s < 130 ? 2.8 : (s > 150 && s < 230 ? -2.6 : 0))
         }
     ]
 ];
@@ -963,24 +948,15 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
         const alt = Math.floor(i / 3) % 2 === 0;
 
         let curve = stage.curves ? stage.curves(s) : 0;
-        let hill = stage.hills ? stage.hills(s) : 0;
-        let nextHill = stage.hills ? stage.hills(s + 1) : 0;
 
         // 1. La bifurcación y la transición son completamente rectas para evitar cruces o deformaciones visuales
         if (tier < 4 && s >= 235) {
             curve = 0;
         }
 
-        // 2. Aplanar colinas suavemente al entrar a la bifurcación (suelo horizontal, sin huecos ni saltos)
-        if (tier < 4 && s >= 240 && s <= 335) {
-            const fade = Math.max(0, 1 - (s - 240) / 15);
-            hill *= fade;
-            nextHill *= fade;
-        }
-
-        // 3. Continuidad de elevación con la etapa anterior (sin saltos verticales)
-        const segWorldY1 = startWorldY + hill;
-        const segWorldY2 = startWorldY + nextHill;
+        // 2. Carretera nivelada en elevación constante (evita cambios de cámara bruscos, distorsiones y efecto de vista interior)
+        const segWorldY1 = 0;
+        const segWorldY2 = 0;
 
         let isTransition = false;
         let chosenRoadCenter = 0;
@@ -2299,10 +2275,7 @@ function draw() {
     const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
     const cameraX = GameState.playerX * ROAD_WIDTH;
     const cameraZ = GameState.playerZ;
-    let cameraY = CAMERA_HEIGHT;
-
-    const nextBaseSeg = (baseSegmentIndex + 1 < GameState.segments.length) ? GameState.segments[baseSegmentIndex + 1] : baseSegment;
-    cameraY += baseSegment.p1.world.y + (nextBaseSeg.p1.world.y - baseSegment.p1.world.y) * basePercent;
+    const cameraY = CAMERA_HEIGHT;
 
     let maxY = CANVAS_HEIGHT;
     let dx = -(baseSegment ? (baseSegment.curve * basePercent) : 0);
@@ -3552,9 +3525,10 @@ function drawRivalCar(type, x, y, w, h) {
 
 // Coche del Jugador: 1986 Ferrari Testarossa Spider con Curvas Orgánicas y Acabado Realista
 function drawPlayerCar() {
-    // Si está en período de recuperación tras choque, parpadea suavemente para indicar gracia
-    if (GameState.invulnerableTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
-        return;
+    ctx.save();
+    // Si está en período de recuperación tras choque, permanece translúcido sin desaparecer jamás de la vista
+    if (GameState.invulnerableTimer > 0) {
+        ctx.globalAlpha = (Math.floor(Date.now() / 90) % 2 === 0) ? 0.75 : 0.40;
     }
 
     const carW = 84;
@@ -3568,7 +3542,6 @@ function drawPlayerCar() {
     const curveTilt = currentSeg ? (currentSeg.curve * 0.35) : 0;
     const tilt = Math.max(-8, Math.min(8, Math.round((steer + curveTilt) * 4.2))); // Inclinación suave y reactiva
 
-    ctx.save();
     ctx.translate(carX, carY);
 
     // 1. Sombra suave elíptica de contacto sobre el asfalto (Sin bloques)
