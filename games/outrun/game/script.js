@@ -1162,14 +1162,15 @@ function appendNextStage(nextTier, nextRouteIndex, choice, checkpointIndex) {
     GameState.stageCleared = false;
     GameState.forkWarned = false;
 
-    const prevSeg = GameState.segments[checkpointIndex - 1];
-    const lastY = prevSeg ? prevSeg.p2.world.y : 0;
+    const prevSeg = (checkpointIndex > 0) ? GameState.segments[checkpointIndex - 1] : null;
+    const lastY = (prevSeg && prevSeg.p2 && prevSeg.p2.world) ? prevSeg.p2.world.y : 0;
 
     // Generar la nueva etapa a partir del checkpoint (sin corte de Z, la salida elegida se centra suavemente y con elevación continua)
     const newSegments = createStageSegments(nextTier, nextRouteIndex, checkpointIndex, prevStage, choice, lastY);
     
     // Reemplazar a partir del checkpoint para conectar de forma continua
-    GameState.segments.splice(checkpointIndex, GameState.segments.length - checkpointIndex, ...newSegments);
+    const deleteCount = Math.max(0, GameState.segments.length - checkpointIndex);
+    GameState.segments.splice(checkpointIndex, deleteCount, ...newSegments);
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
 
     // Respawnear tráfico rival bien adelante en la nueva etapa (sin estorbar la zona de transición)
@@ -1354,6 +1355,9 @@ function updateParticles(dt) {
 
 // Proyección de Coordenadas 3D de Mundo a Pantalla 2D
 function project3D(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
+    if (!p || !p.world) return;
+    p.camera = p.camera || {};
+    p.screen = p.screen || {};
     p.camera.x = (p.world.x || 0) - cameraX;
     p.camera.y = (p.world.y || 0) - cameraY;
     p.camera.z = (p.world.z || 0) - cameraZ;
@@ -2009,14 +2013,30 @@ function update(dt) {
     if (GameState.gameWon) {
         GameState.speed = Math.max(1200, GameState.speed - 3200 * dt);
     }
+    const prevPlayerZ = GameState.playerZ;
     GameState.playerZ += GameState.speed * dt;
     if (GameState.playerZ >= GameState.trackLength) {
         GameState.playerZ = GameState.trackLength - 100;
     }
 
+    // Detección robusta y continua de cruce de checkpoint en el intervalo [prevPlayerZ, playerZ]
+    const startIdx = Math.floor(prevPlayerZ / SEGMENT_LENGTH);
+    const endIdx = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+    let crossedCheckpointSeg = null;
+    let crossedCheckpointIdx = -1;
+
+    for (let idx = startIdx; idx <= endIdx && idx < GameState.segments.length; idx++) {
+        const seg = GameState.segments[idx];
+        if (seg && seg.isCheckpoint && !seg.cleared) {
+            crossedCheckpointSeg = seg;
+            crossedCheckpointIdx = idx;
+            break;
+        }
+    }
+
     // Checkpoint Crossing & Bifurcación Continua en 5 Metas (SIN CORTE)
-    if (currentSegment.isCheckpoint && !currentSegment.cleared && !GameState.stageCleared) {
-        currentSegment.cleared = true;
+    if (crossedCheckpointSeg && !GameState.stageCleared) {
+        crossedCheckpointSeg.cleared = true;
         GameState.stageCleared = true;
         GameState.checkpointsCleared++;
 
@@ -2037,7 +2057,7 @@ function update(dt) {
             showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +30s EXTENDIDO!`, '#3dff8a', 3.0);
 
             // Transición continua sin corte: construir la siguiente etapa directamente adelante
-            appendNextStage(nextTier, nextRouteIndex, choice, currentSegmentIndex);
+            appendNextStage(nextTier, nextRouteIndex, choice, crossedCheckpointIdx);
         } else {
             // TIER 4: ¡META ALCANZADA! (GOALS A, B, C, D, E)
             GameState.gameWon = true;
@@ -2265,29 +2285,31 @@ function draw() {
 
     // Efecto temblor de pantalla (Camera shake)
     ctx.save();
-    if (GameState.running && GameState.shakeAmount > 0) {
-        const shakeX = (Math.random() - 0.5) * GameState.shakeAmount * 1.4;
-        const shakeY = (Math.random() - 0.5) * GameState.shakeAmount * 1.4;
-        ctx.translate(shakeX, shakeY);
-    }
+    try {
+        if (GameState.running && GameState.shakeAmount > 0) {
+            const shakeX = (Math.random() - 0.5) * GameState.shakeAmount * 1.4;
+            const shakeY = (Math.random() - 0.5) * GameState.shakeAmount * 1.4;
+            ctx.translate(shakeX, shakeY);
+        }
 
-    // 2. Renderizado de Carretera Pseudo-3D
-    const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
-    const cameraX = GameState.playerX * ROAD_WIDTH;
-    const cameraZ = GameState.playerZ;
-    const cameraY = CAMERA_HEIGHT;
+        // 2. Renderizado de Carretera Pseudo-3D
+        const basePercent = (GameState.playerZ % SEGMENT_LENGTH) / SEGMENT_LENGTH;
+        const cameraX = GameState.playerX * ROAD_WIDTH;
+        const cameraZ = GameState.playerZ;
+        const cameraY = CAMERA_HEIGHT;
 
-    let maxY = CANVAS_HEIGHT;
-    let dx = -(baseSegment ? (baseSegment.curve * basePercent) : 0);
-    let x = 0;
+        let maxY = CANVAS_HEIGHT;
+        let dx = -(baseSegment ? (baseSegment.curve * basePercent) : 0);
+        let x = 0;
 
-    for (let n = 0; n < DRAW_DISTANCE; n++) {
-        const segIndex = baseSegmentIndex + n;
-        if (segIndex >= GameState.segments.length) break;
-        const seg = GameState.segments[segIndex];
+        for (let n = 0; n < DRAW_DISTANCE; n++) {
+            const segIndex = baseSegmentIndex + n;
+            if (segIndex >= GameState.segments.length) break;
+            const seg = GameState.segments[segIndex];
+            if (!seg || !seg.p1 || !seg.p2) continue;
 
-        project3D(seg.p1, cameraX - x, cameraY, cameraZ, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
-        project3D(seg.p2, cameraX - x - dx, cameraY, cameraZ, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+            project3D(seg.p1, cameraX - x, cameraY, cameraZ, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
+            project3D(seg.p2, cameraX - x - dx, cameraY, cameraZ, CAMERA_DEPTH, CANVAS_WIDTH, CANVAS_HEIGHT, ROAD_WIDTH);
 
         x = x + dx;
         dx = dx + (seg.curve || 0);
@@ -2573,7 +2595,7 @@ function draw() {
         const segIndex = baseSegmentIndex + n;
         if (segIndex >= GameState.segments.length) break;
         const seg = GameState.segments[segIndex];
-        if (!seg || seg.p1.screen.scale <= 0 || seg.p1.camera.z <= CAMERA_DEPTH) continue;
+        if (!seg || !seg.p1 || !seg.p1.screen || !seg.p1.camera || seg.p1.screen.scale <= 0 || seg.p1.camera.z <= CAMERA_DEPTH) continue;
 
         const sprites = seg.sprites || (seg.sprite ? [seg.sprite] : []);
         if (sprites.length === 0) continue;
@@ -2630,7 +2652,7 @@ function draw() {
             const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH);
             if (carSegIndex >= GameState.segments.length) return;
             const carSeg = GameState.segments[carSegIndex];
-            if (!carSeg || !carSeg.p1.screen || !carSeg.p2.screen || !carSeg.p1.screen.scale) return;
+            if (!carSeg || !carSeg.p1 || !carSeg.p2 || !carSeg.p1.screen || !carSeg.p2.screen || !carSeg.p1.screen.scale) return;
 
             const carPercent = (car.z % SEGMENT_LENGTH) / SEGMENT_LENGTH;
             const carScale = carSeg.p1.screen.scale + (carSeg.p2.screen.scale - carSeg.p1.screen.scale) * carPercent;
@@ -2721,8 +2743,9 @@ function draw() {
             ctx.fillText(GameState.banner.subtext, CANVAS_WIDTH / 2, 95);
         }
     }
-
-    ctx.restore();
+    } finally {
+        ctx.restore();
+    }
 }
 
 function drawTrapezoid(x1, y1, x2, y2, x3, y3, x4, y4, color) {
@@ -2744,7 +2767,8 @@ function drawCourseMap() {
     const mapY = 105;
 
     ctx.save();
-    // Marco estilizado translúcido con esquinas redondeadas
+    try {
+        // Marco estilizado translúcido con esquinas redondeadas
     ctx.fillStyle = 'rgba(10, 15, 13, 0.82)';
     ctx.beginPath();
     ctx.roundRect(mapX, mapY, mapW, mapH, 6);
@@ -2846,8 +2870,9 @@ function drawCourseMap() {
             }
         }
     }
-
-    ctx.restore();
+    } finally {
+        ctx.restore();
+    }
 }
 
 // Sprites de Escenarios Naturales (Palmeras orgánicas, pinos, molinos, carteles de ruta y arcos)
@@ -2857,9 +2882,10 @@ function drawWorldSprite(spriteObj, x, y, scale) {
     if (size < 4) return;
 
     ctx.save();
-    ctx.translate(x, y);
+    try {
+        ctx.translate(x, y);
 
-    if (type === 'palm') {
+        if (type === 'palm') {
         // Sombra de la palmera sobre el pasto
         ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
         ctx.beginPath();
@@ -3301,8 +3327,9 @@ function drawWorldSprite(spriteObj, x, y, scale) {
         ctx.arc(0, -size * 0.5, size * 0.3, 0, Math.PI * 2);
         ctx.fill();
     }
-
-    ctx.restore();
+    } finally {
+        ctx.restore();
+    }
 }
 
 // Coche Rival Renderizado con Formas Curvas, Gradientes y Luces Realistas
@@ -3310,7 +3337,8 @@ function drawRivalCar(type, x, y, w, h) {
     if (w < 4) return;
 
     ctx.save();
-    ctx.translate(x - w / 2, y - h);
+    try {
+        ctx.translate(x - w / 2, y - h);
 
     // Sombra suave elíptica sobre el asfalto (Realismo de contacto)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
@@ -3519,17 +3547,19 @@ function drawRivalCar(type, x, y, w, h) {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(w * 0.44, h * 0.59, w * 0.12, h * 0.06);
     }
-
-    ctx.restore();
+    } finally {
+        ctx.restore();
+    }
 }
 
 // Coche del Jugador: 1986 Ferrari Testarossa Spider con Curvas Orgánicas y Acabado Realista
 function drawPlayerCar() {
     ctx.save();
-    // Si está en período de recuperación tras choque, permanece translúcido sin desaparecer jamás de la vista
-    if (GameState.invulnerableTimer > 0) {
-        ctx.globalAlpha = (Math.floor(Date.now() / 90) % 2 === 0) ? 0.75 : 0.40;
-    }
+    try {
+        // Si está en período de recuperación tras choque, permanece translúcido sin desaparecer jamás de la vista
+        if (GameState.invulnerableTimer > 0) {
+            ctx.globalAlpha = (Math.floor(Date.now() / 90) % 2 === 0) ? 0.75 : 0.40;
+        }
 
     const carW = 84;
     const carH = 46;
@@ -3749,8 +3779,9 @@ function drawPlayerCar() {
     ctx.beginPath();
     ctx.roundRect(carW - 32 + tilt, 8, 11, 6, 3);
     ctx.fill();
-
-    ctx.restore();
+    } finally {
+        ctx.restore();
+    }
 }
 
 // Actualización del HUD de la Consola
@@ -3876,14 +3907,18 @@ function submitScore(nickname, score) {
 
 // Bucle Principal
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
     const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.1);
     GameState.lastTime = timestamp;
 
-    update(dt);
-    draw();
-
-    requestAnimationFrame(gameLoop);
+    try {
+        update(dt);
+        draw();
+    } catch (err) {
+        console.error('Frame loop error:', err);
+    }
 }
 
 // Auto-Scale Reactivo para Kiosco / TV
