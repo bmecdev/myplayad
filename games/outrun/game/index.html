@@ -6,7 +6,7 @@
     <title>OutRun Clon - Retro Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
     <div class="container">
@@ -17,11 +17,14 @@
                 
                 <div class="game-header">
                     <div class="header-left">
-                        <span id="player-nick">DRIVER: ----</span>
+                        <div class="pilot-row">
+                            <span id="player-nick">DRIVER: ----</span>
+                            <span id="diff-badge" class="diff-badge">NORMAL</span>
+                        </div>
                         <span id="score">SCORE: 00000</span>
                     </div>
                     <div class="header-center">
-                        <div id="time-container"><span id="time-label">TIME</span> <span id="time-count">60</span></div>
+                        <div id="time-container"><span id="time-label">TIME</span> <span id="time-count">65</span></div>
                         <div id="speed-container"><span id="speed-count">0</span> <span id="speed-unit">KM/H</span></div>
                     </div>
                     <div class="header-right">
@@ -75,6 +78,15 @@
                         <div class="qr-wrapper">
                             <div id="qrcode"></div>
                         </div>
+                        <div class="difficulty-box">
+                            <span class="diff-title">DIFICULTAD:</span>
+                            <div class="diff-buttons">
+                                <button id="diff-easy" class="diff-btn" data-diff="easy" title="Tecla 1">FÁCIL</button>
+                                <button id="diff-normal" class="diff-btn active" data-diff="normal" title="Tecla 2">NORMAL</button>
+                                <button id="diff-hard" class="diff-btn" data-diff="hard" title="Tecla 3">DIFÍCIL</button>
+                            </div>
+                            <span class="diff-hint">[TECLAS 1, 2, 3 O 'D']</span>
+                        </div>
                         <p class="status-text">ESPERANDO PILOTO...</p>
                         <div class="arcade-features">
                             <span>TURBO SPEED</span> • <span>TIME ATTACK</span>
@@ -93,7 +105,7 @@
 
     <!-- Scripts -->
     <script src="qrcode.min.js"></script>
-    <script src="config.js?v=13"></script>
-    <script src="script.js?v=13"></script>
+    <script src="config.js?v=14"></script>
+    <script src="script.js?v=14"></script>
 </body>
 </html>

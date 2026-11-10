@@ -548,8 +548,53 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ==============================================================
+// 🏁 Configuración de Dificultad Dinámica (Easy / Normal / Hard)
+// ==============================================================
+const DIFFICULTY_CONFIG = {
+    easy: {
+        id: 'easy',
+        label: 'FÁCIL',
+        color: '#3dff8a',
+        initialTime: 85,
+        checkpointBonus: 42,
+        trafficCountMult: 0.65,
+        trafficSpeedMult: 0.85,
+        centrifugal: 0.16,
+        offRoadDecel: 2600,
+        scoreMultiplier: 1.0,
+        laneChangeFreq: 0.5
+    },
+    normal: {
+        id: 'normal',
+        label: 'NORMAL',
+        color: '#ffb703',
+        initialTime: 65,
+        checkpointBonus: 30,
+        trafficCountMult: 1.0,
+        trafficSpeedMult: 1.0,
+        centrifugal: 0.22,
+        offRoadDecel: 4200,
+        scoreMultiplier: 1.25,
+        laneChangeFreq: 1.0
+    },
+    hard: {
+        id: 'hard',
+        label: 'DIFÍCIL',
+        color: '#ff4d6d',
+        initialTime: 50,
+        checkpointBonus: 20,
+        trafficCountMult: 1.35,
+        trafficSpeedMult: 1.2,
+        centrifugal: 0.28,
+        offRoadDecel: 6200,
+        scoreMultiplier: 1.75,
+        laneChangeFreq: 1.8
+    }
+};
+
 // Estructura Piramidal de Rutas de OutRun (1986): 5 Etapas y 5 Metas (A, B, C, D, E)
-const STAGE_SEGMENTS = 400;
+const STAGE_SEGMENTS = 1200;
 
 const ROUTE_TREE = [
     // Tier 0 (Etapa 1 - Inicio)
@@ -570,7 +615,7 @@ const ROUTE_TREE = [
             roadLight: '#444444',
             roadDark: '#3b3b3b',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 120 ? 2.2 : (s > 140 && s < 220 ? -2.4 : 0))
+            curves: (s) => (s > 120 && s < 300 ? 1.8 : (s > 360 && s < 540 ? -2.0 : (s > 620 && s < 780 ? 2.1 : (s > 840 && s < 980 ? -1.7 : 0))))
         }
     ],
     // Tier 1 (Etapa 2 - 2 rutas)
@@ -591,7 +636,7 @@ const ROUTE_TREE = [
             roadLight: '#48443e',
             roadDark: '#3d3a35',
             spriteTheme: 'cactus',
-            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.6 : 0))
+            curves: (s) => (s > 120 && s < 280 ? -2.2 : (s > 340 && s < 520 ? 2.4 : (s > 600 && s < 760 ? -2.3 : (s > 820 && s < 980 ? 2.1 : 0))))
         },
         {
             id: 'alpine_valley',
@@ -609,7 +654,7 @@ const ROUTE_TREE = [
             roadLight: '#474747',
             roadDark: '#383838',
             spriteTheme: 'pine',
-            curves: (s) => (s > 40 && s < 130 ? 2.6 : (s > 150 && s < 230 ? -2.5 : 0))
+            curves: (s) => (s > 120 && s < 300 ? 2.3 : (s > 360 && s < 540 ? -2.5 : (s > 620 && s < 800 ? 2.4 : (s > 860 && s < 980 ? -2.2 : 0))))
         }
     ],
     // Tier 2 (Etapa 3 - 3 rutas)
@@ -630,7 +675,7 @@ const ROUTE_TREE = [
             roadLight: '#534e4a',
             roadDark: '#44403c',
             spriteTheme: 'column',
-            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0))
+            curves: (s) => (s > 120 && s < 290 ? -2.4 : (s > 350 && s < 530 ? 2.3 : (s > 610 && s < 780 ? -2.5 : (s > 840 && s < 980 ? 2.2 : 0))))
         },
         {
             id: 'devils_canyon',
@@ -648,7 +693,7 @@ const ROUTE_TREE = [
             roadLight: '#423735',
             roadDark: '#352c2a',
             spriteTheme: 'rock',
-            curves: (s) => (s > 40 && s < 120 ? 2.8 : (s > 140 && s < 220 ? -2.6 : 0))
+            curves: (s) => (s > 120 && s < 280 ? 2.6 : (s > 340 && s < 500 ? -2.7 : (s > 580 && s < 750 ? 2.5 : (s > 820 && s < 980 ? -2.4 : 0))))
         },
         {
             id: 'winding_vineyards',
@@ -666,7 +711,7 @@ const ROUTE_TREE = [
             roadLight: '#3d444a',
             roadDark: '#32373c',
             spriteTheme: 'pine',
-            curves: (s) => (s > 40 && s < 130 ? -2.5 : (s > 150 && s < 230 ? 2.4 : 0))
+            curves: (s) => (s > 120 && s < 290 ? -2.3 : (s > 360 && s < 540 ? 2.4 : (s > 620 && s < 790 ? -2.2 : (s > 850 && s < 980 ? 2.3 : 0))))
         }
     ],
     // Tier 3 (Etapa 4 - 4 rutas)
@@ -687,7 +732,7 @@ const ROUTE_TREE = [
             roadLight: '#333333',
             roadDark: '#262626',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 120 ? 2.3 : (s > 140 && s < 220 ? -2.2 : 0))
+            curves: (s) => (s > 140 && s < 320 ? 1.9 : (s > 400 && s < 580 ? -2.0 : (s > 660 && s < 820 ? 1.8 : (s > 880 && s < 980 ? -1.7 : 0))))
         },
         {
             id: 'seaside_blvd',
@@ -705,7 +750,7 @@ const ROUTE_TREE = [
             roadLight: '#444444',
             roadDark: '#383838',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 120 ? -2.7 : (s > 140 && s < 220 ? 2.5 : 0))
+            curves: (s) => (s > 120 && s < 300 ? -2.5 : (s > 370 && s < 550 ? 2.4 : (s > 630 && s < 800 ? -2.3 : (s > 860 && s < 980 ? 2.2 : 0))))
         },
         {
             id: 'windmill_valley',
@@ -723,7 +768,7 @@ const ROUTE_TREE = [
             roadLight: '#4a4d45',
             roadDark: '#3d4039',
             spriteTheme: 'windmill',
-            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.6 : 0))
+            curves: (s) => (s > 120 && s < 290 ? 2.3 : (s > 360 && s < 530 ? -2.4 : (s > 610 && s < 780 ? 2.2 : (s > 850 && s < 980 ? -2.3 : 0))))
         },
         {
             id: 'neon_metropolis',
@@ -741,7 +786,7 @@ const ROUTE_TREE = [
             roadLight: '#262933',
             roadDark: '#1e2029',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 120 ? -2.8 : (s > 140 && s < 220 ? 2.7 : 0))
+            curves: (s) => (s > 120 && s < 280 ? -2.6 : (s > 350 && s < 520 ? 2.7 : (s > 600 && s < 770 ? -2.5 : (s > 840 && s < 980 ? 2.6 : 0))))
         }
     ],
     // Tier 4 (Etapa 5 - LAS 5 METAS: A, B, C, D, E)
@@ -762,7 +807,7 @@ const ROUTE_TREE = [
             roadLight: '#535c68',
             roadDark: '#303952',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 140 ? 2.3 : 0)
+            curves: (s) => (s > 120 && s < 350 ? 2.1 : (s > 450 && s < 700 ? -2.0 : (s > 800 && s < 1050 ? 1.9 : 0)))
         },
         {
             id: 'goal_b',
@@ -780,7 +825,7 @@ const ROUTE_TREE = [
             roadLight: '#576574',
             roadDark: '#222f3e',
             spriteTheme: 'column',
-            curves: (s) => (s > 40 && s < 140 ? -2.4 : 0)
+            curves: (s) => (s > 120 && s < 350 ? -2.2 : (s > 450 && s < 700 ? 2.1 : (s > 800 && s < 1050 ? -1.9 : 0)))
         },
         {
             id: 'goal_c',
@@ -798,7 +843,7 @@ const ROUTE_TREE = [
             roadLight: '#474747',
             roadDark: '#383838',
             spriteTheme: 'pine',
-            curves: (s) => (s > 40 && s < 130 ? 2.5 : (s > 150 && s < 230 ? -2.3 : 0))
+            curves: (s) => (s > 120 && s < 350 ? 2.3 : (s > 450 && s < 700 ? -2.2 : (s > 800 && s < 1050 ? 2.1 : 0)))
         },
         {
             id: 'goal_d',
@@ -814,9 +859,9 @@ const ROUTE_TREE = [
             curbLight: '#00d2d3',
             curbDark: '#ff9f43',
             roadLight: '#2d3436',
-            roadDark: '#1e272e',
+            roadDark: '#1e2e2e',
             spriteTheme: 'city',
-            curves: (s) => (s > 40 && s < 130 ? -2.7 : (s > 150 && s < 230 ? 2.5 : 0))
+            curves: (s) => (s > 120 && s < 350 ? -2.5 : (s > 450 && s < 700 ? 2.4 : (s > 800 && s < 1050 ? -2.3 : 0)))
         },
         {
             id: 'goal_e',
@@ -834,16 +879,17 @@ const ROUTE_TREE = [
             roadLight: '#3d3d3d',
             roadDark: '#2d2d2d',
             spriteTheme: 'palm',
-            curves: (s) => (s > 40 && s < 130 ? 2.8 : (s > 150 && s < 230 ? -2.6 : 0))
+            curves: (s) => (s > 120 && s < 350 ? 2.6 : (s > 450 && s < 700 ? -2.5 : (s > 800 && s < 1050 ? 2.4 : 0)))
         }
     ]
 ];
 
 // Estado General del Juego
 const GameState = {
+    difficulty: 'normal',      // 'easy' | 'normal' | 'hard'
     score: 0,
     highScore: 0,
-    timeLeft: 60,
+    timeLeft: 65,
     checkpointsCleared: 0,
     currentTier: 0,            // 0 = Coconut Beach, 1 = Tier 2, ..., 4 = Tier 5 (Goals A-E)
     currentRouteIndex: 0,       // Índice en el tier actual
@@ -930,6 +976,46 @@ function lerpColor(c1, c2, t) {
 }
 
 // ==============================================================
+// 🎛️ Selector y Gestión de Dificultad
+// ==============================================================
+function setDifficulty(level, broadcast = false) {
+    if (!DIFFICULTY_CONFIG[level]) level = 'normal';
+    GameState.difficulty = level;
+    const cfg = DIFFICULTY_CONFIG[level];
+    GameState.centrifugal = cfg.centrifugal;
+    GameState.offRoadDecel = cfg.offRoadDecel;
+
+    // Actualizar indicador en HUD
+    const diffBadge = document.getElementById('diff-badge');
+    if (diffBadge) {
+        diffBadge.textContent = cfg.label;
+        diffBadge.style.color = cfg.color;
+        diffBadge.style.borderColor = cfg.color;
+    }
+
+    // Actualizar botones en el overlay de espera
+    ['easy', 'normal', 'hard'].forEach(k => {
+        const btn = document.getElementById(`diff-${k}`);
+        if (btn) {
+            if (k === level) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    });
+
+    // Actualizar contador de tiempo inicial en HUD si el juego no está corriendo
+    if (!GameState.running) {
+        GameState.timeLeft = cfg.initialTime;
+        if (timeCountElement) {
+            timeCountElement.textContent = cfg.initialTime.toString().padStart(2, '0');
+        }
+    }
+
+    if (broadcast) {
+        broadcastToControllers({ type: 'difficulty_changed', difficulty: level });
+    }
+}
+
+// ==============================================================
 // 🛣️ Construcción Continua de Etapas y Bifurcaciones sin Cortes
 // ==============================================================
 function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, transitionChoice = null, startWorldY = 0) {
@@ -938,10 +1024,10 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
     const rightNext = (tier < 4) ? ROUTE_TREE[tier + 1][routeIndex + 1] : null;
 
     const segments = [];
-    const stageTotalLen = (tier < 4) ? 420 : 360;
-    const transitionLen = (prevStage && transitionChoice !== null) ? 60 : 0;
-    const forkStartRel = 260; // a los 260 segmentos relativos
-    const checkpointRel = 320; // a los 320 segmentos relativos
+    const stageTotalLen = (tier < 4) ? 1360 : 1240;
+    const transitionLen = (prevStage && transitionChoice !== null) ? 100 : 0;
+    const forkStartRel = 1040; // a los 1040 segmentos relativos (~208,000 px)
+    const checkpointRel = 1200; // a los 1200 segmentos relativos (~240,000 px)
 
     for (let s = 0; s < stageTotalLen; s++) {
         const i = startSegIndex + s;
@@ -950,7 +1036,7 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
         let curve = stage.curves ? stage.curves(s) : 0;
 
         // 1. La bifurcación y la transición son completamente rectas para evitar cruces o deformaciones visuales
-        if (tier < 4 && s >= 235) {
+        if (tier < 4 && s >= forkStartRel - 25) {
             curve = 0;
         }
 
@@ -1021,7 +1107,7 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
             }
 
             // Cartel de confirmación de ruta en el pasto lateral exterior
-            if (s === 25) {
+            if (s === 35) {
                 const signSide = (transitionChoice === 0) ? -2.3 : 2.3;
                 sprites.push({
                     type: transitionChoice === 0 ? 'fork_sign_left' : 'fork_sign_right',
@@ -1045,7 +1131,7 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
             laneCol = '#ffeaa7';
 
             // Carteles de autopista en el pasto exterior
-            if (s === forkStartRel + 10 || s === forkStartRel + 30) {
+            if (s === forkStartRel + 20 || s === forkStartRel + 60) {
                 sprites.push({
                     type: 'fork_sign_left',
                     offset: -2.3,
@@ -1058,14 +1144,14 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
                     label: rightNext.name,
                     sublabel: 'SALIDA DER ►'
                 });
-            } else if (s === forkStartRel + 25) {
+            } else if (s === forkStartRel + 40) {
                 // Atenuador de choque reflectante en la mediana de pasto central
                 sprites.push({
                     type: 'median_gore',
                     offset: 0,
                     forkBranch: 'median'
                 });
-            } else if (s === forkStartRel + 50) {
+            } else if (s === forkStartRel + 100) {
                 sprites.push({
                     type: 'fork_sign_left',
                     offset: -2.3,
@@ -1087,14 +1173,14 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
         } else {
             // 4. CARRETERA REGULAR
             // Chevrons de curva reflectantes en el pasto exterior
-            if (Math.abs(curve) >= 2.8 && (s % 8 === 0)) {
+            if (Math.abs(curve) >= 2.0 && (s % 8 === 0)) {
                 sprites.push({
                     type: curve > 0 ? 'curve_sign_right' : 'curve_sign_left',
                     offset: curve > 0 ? -2.3 : 2.3
                 });
             }
             // Señales de límite de velocidad en el pasto exterior
-            if (s === 20 || s === 120 || s === 200) {
+            if (s % 250 === 40) {
                 sprites.push({
                     type: 'speed_sign',
                     offset: 2.3
@@ -1179,20 +1265,21 @@ function appendNextStage(nextTier, nextRouteIndex, choice, checkpointIndex) {
 
 function spawnTrafficForStage(tier, startZ) {
     GameState.cars = [];
+    const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
     const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
-    const counts = [6, 7, 8, 9, 10];
-    const count = counts[Math.min(tier, counts.length - 1)];
+    const baseCounts = [8, 10, 12, 14, 16];
+    const count = Math.max(4, Math.round(baseCounts[Math.min(tier, baseCounts.length - 1)] * diffCfg.trafficCountMult));
 
-    // Espaciar vehículos más allá de la zona de transición (+12,000 px por delante del checkpoint)
-    const safeZ = startZ + 12000;
-    const availableTrack = GameState.trackLength - safeZ - 5000;
-    const waveSpacing = Math.max(6000, availableTrack / count);
+    // Espaciar vehículos más allá de la zona de transición (+16,000 px por delante del checkpoint)
+    const safeZ = startZ + 16000;
+    const availableTrack = GameState.trackLength - safeZ - 8000;
+    const waveSpacing = Math.max(7000, availableTrack / count);
 
     const lanes = [-0.6, 0, 0.6];
     let lastLane = 1;
 
     for (let i = 0; i < count; i++) {
-        const zPos = safeZ + (i * waveSpacing) + (Math.random() * 600 - 300);
+        const zPos = safeZ + (i * waveSpacing) + (Math.random() * 800 - 400);
         let laneIndex;
         do {
             laneIndex = Math.floor(Math.random() * lanes.length);
@@ -1208,13 +1295,15 @@ function spawnTrafficForStage(tier, startZ) {
         else if (type === 'purple_muscle') baseSpeed = 3600;
         else if (type === 'green_gt') baseSpeed = 4000;
 
+        const adjustedSpeed = (baseSpeed * diffCfg.trafficSpeedMult) + (Math.random() * 200 - 100);
+
         GameState.cars.push({
             type: type,
             z: zPos % GameState.trackLength,
             offset: laneOffset,
             targetOffset: laneOffset,
-            laneChangeTimer: 14 + Math.random() * 10,
-            speed: baseSpeed + (Math.random() * 200 - 100),
+            laneChangeTimer: (14 + Math.random() * 10) / diffCfg.laneChangeFreq,
+            speed: adjustedSpeed,
             passed: false
         });
     }
@@ -1230,26 +1319,26 @@ function buildTrack() {
     buildInitialTrack();
 }
 
-// Generación Inteligente de Tráfico Rival (Espaciado amplio, ritmo relajado y sin muros)
+// Generación Inteligente de Tráfico Rival con Escalado de Dificultad
 function spawnTraffic(tier = 0) {
     GameState.cars = [];
+    const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
     const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
     
-    // Conteo progresivo reducido: pocas unidades simultáneas para dar máxima libertad y visibilidad
-    const counts = [6, 7, 8, 9, 10];
-    const count = counts[Math.min(tier, counts.length - 1)];
+    // Conteo escalado según la dificultad seleccionada
+    const baseCounts = [8, 10, 12, 14, 16];
+    const count = Math.max(4, Math.round(baseCounts[Math.min(tier, baseCounts.length - 1)] * diffCfg.trafficCountMult));
 
-    // Zona de salida amplia y libre: NINGÚN vehículo en los primeros 7,000 px
-    // Permite al jugador acelerar a fondo y acomodarse tranquilamente antes del primer encuentro
-    const startSafeZ = 7000;
-    const availableTrack = GameState.trackLength - startSafeZ - 5000;
-    const waveSpacing = availableTrack / count; // Más de 7,000 - 10,000 px entre cada coche
+    // Zona de salida amplia y libre: NINGÚN vehículo en los primeros 9,000 px
+    const startSafeZ = 9000;
+    const availableTrack = GameState.trackLength - startSafeZ - 8000;
+    const waveSpacing = availableTrack / count;
 
     const lanes = [-0.6, 0, 0.6];
     let lastLane = 1;
 
     for (let i = 0; i < count; i++) {
-        const zPos = startSafeZ + (i * waveSpacing) + (Math.random() * 600 - 300);
+        const zPos = startSafeZ + (i * waveSpacing) + (Math.random() * 800 - 400);
 
         // Alternar carriles para que nunca se amontonen en el mismo carril
         let laneIndex;
@@ -1261,8 +1350,6 @@ function spawnTraffic(tier = 0) {
 
         const type = carTypes[i % carTypes.length];
         
-        // Velocidades relajadas, lentas y balanceadas (1/4 a 1/3 de la velocidad máxima del jugador)
-        // Jugador a 12,000 px/s (240 km/h) tiene 3 a 5 segundos de anticipación para cada auto
         let baseSpeed = 3000;
         if (type === 'white_truck') baseSpeed = 2400;      // Camión pesado (el más lento)
         else if (type === 'yellow_cab') baseSpeed = 2800;   // Taxi / Escarabajo
@@ -1270,13 +1357,15 @@ function spawnTraffic(tier = 0) {
         else if (type === 'purple_muscle') baseSpeed = 3600;// Muscle car
         else if (type === 'green_gt') baseSpeed = 4000;     // GT deportivo
 
+        const adjustedSpeed = (baseSpeed * diffCfg.trafficSpeedMult) + (Math.random() * 200 - 100);
+
         GameState.cars.push({
             type: type,
             z: zPos % GameState.trackLength,
             offset: laneOffset,
             targetOffset: laneOffset,
-            laneChangeTimer: 14 + Math.random() * 10, // Muy estables en su carril
-            speed: baseSpeed + (Math.random() * 200 - 100),
+            laneChangeTimer: (14 + Math.random() * 10) / diffCfg.laneChangeFreq,
+            speed: adjustedSpeed,
             passed: false
         });
     }
@@ -1371,6 +1460,32 @@ function project3D(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roa
 // Soporte para Controles de Teclado (Pruebas directas en navegador)
 window.addEventListener('keydown', (e) => {
     audio.init();
+
+    // En la pantalla de espera, permitir cambiar dificultad con teclas numéricas 1, 2, 3 o con tecla D
+    if (!GameState.running && !GameState.gameOver) {
+        if (e.code === 'Digit1' || e.code === 'Numpad1') {
+            setDifficulty('easy');
+            audio.playBeep();
+            return;
+        }
+        if (e.code === 'Digit2' || e.code === 'Numpad2') {
+            setDifficulty('normal');
+            audio.playBeep();
+            return;
+        }
+        if (e.code === 'Digit3' || e.code === 'Numpad3') {
+            setDifficulty('hard');
+            audio.playBeep();
+            return;
+        }
+        if (e.code === 'KeyD') {
+            const next = GameState.difficulty === 'easy' ? 'normal' : (GameState.difficulty === 'normal' ? 'hard' : 'easy');
+            setDifficulty(next);
+            audio.playBeep();
+            return;
+        }
+    }
+
     if (e.code === 'ArrowUp' || e.code === 'KeyW') GameState.input.gas = true;
     if (e.code === 'ArrowDown' || e.code === 'KeyS') GameState.input.brake = true;
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') GameState.input.steer = -1.0;
@@ -1746,9 +1861,17 @@ async function handleOffer(data) {
             try {
                 const input = JSON.parse(e.data);
                 if (input.type === 'nickname' || input.type === 'join') {
+                    if (input.difficulty && DIFFICULTY_CONFIG[input.difficulty]) {
+                        setDifficulty(input.difficulty);
+                    }
                     GameState.currentNickname = (input.value || input.nickname || 'DRIVER').toUpperCase().substring(0, 10);
                     if (playerNickElement) playerNickElement.textContent = `DRIVER: ${GameState.currentNickname}`;
                     playPreGameAdThenStart(GameState.currentNickname, () => startGame());
+                } else if (input.type === 'set_difficulty') {
+                    if (input.difficulty && DIFFICULTY_CONFIG[input.difficulty]) {
+                        setDifficulty(input.difficulty);
+                        audio.playBeep();
+                    }
                 } else {
                     handleMobileInput(input);
                 }
@@ -1811,8 +1934,11 @@ function startGame() {
     audio.init();
     audio.playStartTune();
     audio.startMusic();
+    const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
     GameState.score = 0;
-    GameState.timeLeft = 60;
+    GameState.timeLeft = diffCfg.initialTime;
+    GameState.centrifugal = diffCfg.centrifugal;
+    GameState.offRoadDecel = diffCfg.offRoadDecel;
     GameState.checkpointsCleared = 0;
     GameState.currentTier = 0;
     GameState.currentRouteIndex = 0;
@@ -1984,9 +2110,9 @@ function update(dt) {
     audio.updateEngine(GameState.speed, GameState.turboSpeed);
 
     // Aviso de bifurcación al acercarse a la salida
-    if (currentSegment.stageIndex >= 250 && currentSegment.stageIndex <= 265 && GameState.currentTier < 4 && !GameState.forkWarned) {
+    if (currentSegment.stageIndex >= 1000 && currentSegment.stageIndex <= 1025 && GameState.currentTier < 4 && !GameState.forkWarned) {
         GameState.forkWarned = true;
-        showBanner('¡BIFURCACIÓN DE PISTA!', 'SALIDA ◄ IZQ  O  DER ►', '#ffb703', 2.8);
+        showBanner('¡BIFURCACIÓN DE PISTA!', 'SALIDA ◄ IZQ  O  DER ►', '#ffb703', 3.0);
     }
 
     // Emisión de partículas de derrape, frenada y pasto
@@ -2048,24 +2174,26 @@ function update(dt) {
 
             GameState.routePath.push({ tier: nextTier, index: nextRouteIndex });
 
-            GameState.timeLeft += 30; // +30 segundos
-            GameState.score += 5000;
+            const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
+            GameState.timeLeft += diffCfg.checkpointBonus;
+            GameState.score += Math.round(5000 * diffCfg.scoreMultiplier);
             audio.playCheckpoint();
 
             const nextStage = ROUTE_TREE[nextTier][nextRouteIndex];
             const sideText = (choice === 0) ? '◄ SALIDA IZQUIERDA' : 'SALIDA DERECHA ►';
-            showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +30s EXTENDIDO!`, '#3dff8a', 3.0);
+            showBanner(`STAGE ${nextTier + 1}: ${nextStage.name}`, `${sideText} • +${diffCfg.checkpointBonus}s EXTENDIDO!`, '#3dff8a', 3.0);
 
             // Transición continua sin corte: construir la siguiente etapa directamente adelante
             appendNextStage(nextTier, nextRouteIndex, choice, crossedCheckpointIdx);
         } else {
             // TIER 4: ¡META ALCANZADA! (GOALS A, B, C, D, E)
             GameState.gameWon = true;
+            const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
             const goalLetter = GameState.currentStage?.goalLetter || ['A', 'B', 'C', 'D', 'E'][GameState.currentRouteIndex] || 'A';
             
             // Bonificación por tiempo y meta alcanzada
             const timeBonus = Math.floor(GameState.timeLeft) * 1000;
-            const goalBonus = 25000;
+            const goalBonus = Math.round(25000 * diffCfg.scoreMultiplier);
             GameState.score += (timeBonus + goalBonus);
             
             audio.playVictory();
@@ -2086,8 +2214,9 @@ function update(dt) {
     // Parallax del cielo
     GameState.skyOffset += currentSegment.curve * speedRatio * 0.4 * dt;
 
-    // Puntuación continua basada en velocidad
-    GameState.score += (GameState.speed / 1000) * dt * 25;
+    // Puntuación continua basada en velocidad y multiplicador de dificultad
+    const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
+    GameState.score += (GameState.speed / 1000) * dt * 25 * diffCfg.scoreMultiplier;
     if (GameState.score > GameState.highScore) {
         GameState.highScore = GameState.score;
     }
@@ -3805,6 +3934,13 @@ function updateHUD() {
         const nick = GameState.currentNickname || 'PILOT';
         playerNickElement.textContent = `${nick} • STG ${GameState.currentTier + 1}`;
     }
+    const diffBadge = document.getElementById('diff-badge');
+    if (diffBadge) {
+        const cfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
+        diffBadge.textContent = cfg.label;
+        diffBadge.style.color = cfg.color;
+        diffBadge.style.borderColor = cfg.color;
+    }
 }
 
 // Actualización del Código QR
@@ -3953,6 +4089,19 @@ window.addEventListener('DOMContentLoaded', () => {
             else audio.resume();
         });
     }
+
+    // Botones de Selección de Dificultad en Pantalla de Espera
+    ['easy', 'normal', 'hard'].forEach(diff => {
+        const btn = document.getElementById(`diff-${diff}`);
+        if (btn) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setDifficulty(diff);
+                audio.playBeep();
+            });
+        }
+    });
+    setDifficulty(GameState.difficulty);
 });
 
 window.addEventListener('resize', autoScale);

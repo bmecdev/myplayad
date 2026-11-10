@@ -6,7 +6,7 @@
     <title>OutRun Clon Controller</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20">
+    <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
     <div id="status">Conectando...</div>
@@ -22,6 +22,16 @@
             <p class="welcome-text">¡Bienvenido Piloto! Ingresa tu Nickname para acelerar en la autopista.</p>
             <input type="text" id="nickname-input" placeholder="TU NOMBRE" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters">
             <input type="text" id="room-input" style="display: none;">
+            
+            <div class="mobile-diff-group">
+                <span class="mobile-diff-label">DIFICULTAD:</span>
+                <div class="mobile-diff-buttons">
+                    <button type="button" id="m-diff-easy" class="m-diff-btn" data-diff="easy">FÁCIL</button>
+                    <button type="button" id="m-diff-normal" class="m-diff-btn active" data-diff="normal">NORMAL</button>
+                    <button type="button" id="m-diff-hard" class="m-diff-btn" data-diff="hard">DIFÍCIL</button>
+                </div>
+            </div>
+
             <button id="connect-btn">ARRANCAR MOTOR</button>
         </div>
         
@@ -98,8 +108,8 @@
         </div>
     </div>
 
-    <script src="config.js?v=2"></script>
-    <script src="script.js?v=20"></script>
+    <script src="config.js?v=21"></script>
+    <script src="script.js?v=21"></script>
 </body>
 </html>
 
