@@ -1025,7 +1025,7 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
 
     const segments = [];
     const stageTotalLen = (tier < 4) ? 1360 : 1240;
-    const transitionLen = (prevStage && transitionChoice !== null) ? 100 : 0;
+    const transitionLen = (prevStage && transitionChoice !== null) ? 120 : 0;
     const forkStartRel = 1040; // a los 1040 segmentos relativos (~208,000 px)
     const checkpointRel = 1200; // a los 1200 segmentos relativos (~240,000 px)
 
@@ -1035,8 +1035,8 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
 
         let curve = stage.curves ? stage.curves(s) : 0;
 
-        // 1. La bifurcación y la transición son completamente rectas para evitar cruces o deformaciones visuales
-        if (tier < 4 && s >= forkStartRel - 25) {
+        // 1. La bifurcación y la zona de transición son completamente rectas para evitar cruces o deformaciones visuales
+        if ((tier < 4 && s >= forkStartRel - 25) || s < transitionLen) {
             curve = 0;
         }
 
@@ -1066,58 +1066,82 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
 
         const sprites = [];
 
-        // 1. ZONA DE TRANSICIÓN POST-CHECKPOINT (Sin corte: la salida elegida se centra y la otra se desvanece)
+        // 1. ZONA DE TRANSICIÓN POST-CHECKPOINT (Sin corte: la salida elegida se centra y la otra se desvanece suavemente)
         if (s < transitionLen && prevStage && transitionChoice !== null) {
             isTransition = true;
+            forkProgress = 1.0; // Conecta geométricamente al 100% con la salida de bifurcación
             const t = s / transitionLen;
             const blend = t * t * (3 - 2 * t); // Smoothstep
 
             if (transitionChoice === 0) {
-                // Se eligió la salida izquierda: la calzada izquierda se centra de -1.35 a 0.0
+                // Se eligió la salida izquierda: la calzada izquierda se centra suavemente de -1.35 a 0.0
                 chosenRoadCenter = -1.35 * (1 - blend);
                 chosenRoadWidth = 0.85 + 0.15 * blend;
-                otherRoadCenter = 1.35 + blend * 2.8; // la salida derecha se curva y sale de pantalla
+                otherRoadCenter = 1.35 + (blend * 2.85); // la salida derecha se curva y sale de pantalla
             } else {
-                // Se eligió la salida derecha: la calzada derecha se centra de +1.35 a 0.0
+                // Se eligió la salida derecha: la calzada derecha se centra suavemente de +1.35 a 0.0
                 chosenRoadCenter = 1.35 * (1 - blend);
                 chosenRoadWidth = 0.85 + 0.15 * blend;
-                otherRoadCenter = -1.35 - blend * 2.8; // la salida izquierda se curva y sale de pantalla
+                otherRoadCenter = -1.35 - (blend * 2.85); // la salida izquierda se curva y sale de pantalla
             }
 
             // Interpolación continua y suave de colores de bioma y cielo
             grassCol = lerpColor(alt ? prevStage.grassLight : prevStage.grassDark, alt ? stage.grassLight : stage.grassDark, blend);
             curbCol = lerpColor(alt ? prevStage.curbLight : prevStage.curbDark, alt ? stage.curbLight : stage.curbDark, blend);
             roadCol = lerpColor(alt ? prevStage.roadLight : prevStage.roadDark, alt ? stage.roadLight : stage.roadDark, blend);
+            laneCol = alt ? (blend < 0.45 ? '#ffeaa7' : '#ffffff') : 'transparent';
 
             envColors.skyTop = lerpColor(prevStage.skyTop, stage.skyTop, blend);
             envColors.skyBottom = lerpColor(prevStage.skyBottom, stage.skyBottom, blend);
+            envColors.sunColor = lerpColor(prevStage.sunColor || '#ffffff', stage.sunColor || '#ffffff', blend);
             envColors.mountains = lerpColor(prevStage.mountains, stage.mountains, blend);
             if (prevStage.seaColor && stage.seaColor) {
                 envColors.seaColor = lerpColor(prevStage.seaColor, stage.seaColor, blend);
             }
 
-            // Vegetación transicional en el pasto exterior
+            // Vegetación transicional en ambos pastos exteriores sin invadir las calzadas
+            const chosenSide = (transitionChoice === 0) ? -1 : 1;
             if (s % 6 === 0) {
                 const theme = blend < 0.5 ? prevStage.spriteTheme : stage.spriteTheme;
-                const side = (transitionChoice === 0) ? -2.4 : 2.4;
-                sprites.push({
-                    type: theme,
-                    offset: side + (Math.random() * 0.2 - 0.1)
-                });
+                if (blend < 0.6) {
+                    sprites.push({
+                        type: theme,
+                        offset: chosenSide * (2.4 + (Math.random() * 0.2 - 0.1)),
+                        forkBranch: 'chosen'
+                    });
+                    sprites.push({
+                        type: theme,
+                        offset: -chosenSide * (2.4 + (Math.random() * 0.2 - 0.1)),
+                        forkBranch: 'other'
+                    });
+                } else {
+                    sprites.push({
+                        type: theme,
+                        offset: -2.4 + (Math.random() * 0.2 - 0.1),
+                        forkBranch: 'chosen'
+                    });
+                    sprites.push({
+                        type: theme,
+                        offset: 2.4 + (Math.random() * 0.2 - 0.1),
+                        forkBranch: 'chosen'
+                    });
+                }
             }
 
-            // Cartel de confirmación de ruta en el pasto lateral exterior
-            if (s === 35) {
-                const signSide = (transitionChoice === 0) ? -2.3 : 2.3;
+            // Cartel de bienvenida y confirmación de nueva zona
+            if (s === 40) {
                 sprites.push({
                     type: transitionChoice === 0 ? 'fork_sign_left' : 'fork_sign_right',
-                    offset: signSide,
+                    offset: chosenSide * 2.3,
+                    forkBranch: 'chosen',
                     label: stage.name,
                     sublabel: 'ZONA ALCANZADA'
                 });
             }
         } else if (isCheckpoint) {
-            // 2. ARCOS DE CHECKPOINT (O META FINAL)
+            // 2. ARCOS DE CHECKPOINT (O META FINAL) - Mantienen separación perfecta sobre cada vía
+            forkProgress = (tier < 4) ? 1.0 : 0;
+            laneCol = (tier < 4) ? '#ffeaa7' : (alt ? '#ffffff' : 'transparent');
             if (tier === 4) {
                 sprites.push({ type: 'finish_arch', offset: 0, goalLetter: stage.goalLetter });
             } else {
@@ -1168,8 +1192,21 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
                 });
             }
         } else if (tier < 4 && s >= checkpointRel) {
-            // Salidas continuas post-checkpoint (pre-elección)
+            // Salidas continuas post-checkpoint (pre-elección) con vegetación coherente en bordes exteriores
             forkProgress = 1.0;
+            laneCol = '#ffeaa7';
+            if (s > checkpointRel && s % 6 === 0) {
+                sprites.push({
+                    type: stage.spriteTheme,
+                    offset: -2.4 + (Math.random() * 0.2 - 0.1),
+                    forkBranch: 'left'
+                });
+                sprites.push({
+                    type: stage.spriteTheme,
+                    offset: 2.4 + (Math.random() * 0.2 - 0.1),
+                    forkBranch: 'right'
+                });
+            }
         } else {
             // 4. CARRETERA REGULAR
             // Chevrons de curva reflectantes en el pasto exterior
@@ -1248,37 +1285,50 @@ function appendNextStage(nextTier, nextRouteIndex, choice, checkpointIndex) {
     GameState.stageCleared = false;
     GameState.forkWarned = false;
 
-    const prevSeg = (checkpointIndex > 0) ? GameState.segments[checkpointIndex - 1] : null;
+    // Preservar intacto el segmento del checkpoint (checkpointIndex) con sus arcos para que el jugador pase por debajo sin cortes,
+    // y comenzar la transición fluida y el empalme a partir de checkpointIndex + 1
+    const startNewIdx = checkpointIndex + 1;
+    const prevSeg = GameState.segments[checkpointIndex] || GameState.segments[checkpointIndex - 1];
     const lastY = (prevSeg && prevSeg.p2 && prevSeg.p2.world) ? prevSeg.p2.world.y : 0;
 
-    // Generar la nueva etapa a partir del checkpoint (sin corte de Z, la salida elegida se centra suavemente y con elevación continua)
-    const newSegments = createStageSegments(nextTier, nextRouteIndex, checkpointIndex, prevStage, choice, lastY);
+    // Generar la nueva etapa a partir de startNewIdx conectando suavemente sin corte
+    const newSegments = createStageSegments(nextTier, nextRouteIndex, startNewIdx, prevStage, choice, lastY);
     
-    // Reemplazar a partir del checkpoint para conectar de forma continua
-    const deleteCount = Math.max(0, GameState.segments.length - checkpointIndex);
-    GameState.segments.splice(checkpointIndex, deleteCount, ...newSegments);
+    // Reemplazar los segmentos posteriores al checkpoint
+    const deleteCount = Math.max(0, GameState.segments.length - startNewIdx);
+    GameState.segments.splice(startNewIdx, deleteCount, ...newSegments);
     GameState.trackLength = GameState.segments.length * SEGMENT_LENGTH;
 
-    // Respawnear tráfico rival bien adelante en la nueva etapa (sin estorbar la zona de transición)
-    spawnTrafficForStage(nextTier, checkpointIndex * SEGMENT_LENGTH);
+    // Mantener los autos en pantalla sin eliminarlos de golpe para máxima continuidad
+    spawnTrafficForStage(nextTier, startNewIdx * SEGMENT_LENGTH);
 }
 
 function spawnTrafficForStage(tier, startZ) {
-    GameState.cars = [];
     const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
     const carTypes = ['blue_coupe', 'yellow_cab', 'white_truck', 'green_gt', 'purple_muscle'];
     const baseCounts = [8, 10, 12, 14, 16];
-    const count = Math.max(4, Math.round(baseCounts[Math.min(tier, baseCounts.length - 1)] * diffCfg.trafficCountMult));
+    const targetCount = Math.max(4, Math.round(baseCounts[Math.min(tier, baseCounts.length - 1)] * diffCfg.trafficCountMult));
 
-    // Espaciar vehículos más allá de la zona de transición (+16,000 px por delante del checkpoint)
-    const safeZ = startZ + 16000;
+    // Mantener los vehículos que están adelante para evitar desapariciones bruscas
+    const existingAheadCars = GameState.cars.filter(car => {
+        let relZ = car.z - GameState.playerZ;
+        if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
+        if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
+        return relZ > 400 && relZ < (DRAW_DISTANCE * SEGMENT_LENGTH);
+    });
+
+    GameState.cars = existingAheadCars;
+
+    // Espaciar vehículos adicionales más allá de la zona de transición (+18,000 px por delante del checkpoint)
+    const safeZ = startZ + 18000;
     const availableTrack = GameState.trackLength - safeZ - 8000;
-    const waveSpacing = Math.max(7000, availableTrack / count);
+    const needed = Math.max(0, targetCount - GameState.cars.length);
+    const waveSpacing = needed > 0 ? Math.max(6000, availableTrack / needed) : 7000;
 
     const lanes = [-0.6, 0, 0.6];
     let lastLane = 1;
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < needed; i++) {
         const zPos = safeZ + (i * waveSpacing) + (Math.random() * 800 - 400);
         let laneIndex;
         do {
@@ -2459,7 +2509,7 @@ function draw() {
         // Bermas, asfalto y bifurcaciones (Salida Izquierda y Salida Derecha)
         const fork1 = seg.forkProgress || 0;
         const nextSeg = (segIndex + 1 < GameState.segments.length) ? GameState.segments[segIndex + 1] : seg;
-        const fork2 = nextSeg ? (nextSeg.forkProgress || 0) : fork1;
+        const fork2 = (nextSeg && nextSeg.isTransition) ? 1.0 : (nextSeg ? (nextSeg.forkProgress || 0) : fork1);
 
         if (seg.isTransition) {
             // ==============================================================
@@ -2518,7 +2568,7 @@ function draw() {
 
             // Calzada rechazada que se aleja y sale suavemente de la pantalla
             const oCenter1 = seg.otherRoadCenter;
-            const oCenter2 = (nextSeg && nextSeg.isTransition) ? nextSeg.otherRoadCenter : oCenter1;
+            const oCenter2 = (nextSeg && nextSeg.isTransition && nextSeg.otherRoadCenter !== undefined) ? nextSeg.otherRoadCenter : oCenter1;
             if (oCenter1 !== undefined && Math.abs(oCenter1) < 4.0) {
                 const oW1 = seg.p1.screen.w * 0.85;
                 const oW2 = seg.p2.screen.w * 0.85;
@@ -2549,6 +2599,17 @@ function draw() {
                         otherX2 - oW2, seg.p2.screen.y,
                         seg.color.road
                     );
+                    if (seg.color.lane !== 'transparent') {
+                        const laneW1 = oW1 * 0.035;
+                        const laneW2 = oW2 * 0.035;
+                        drawTrapezoid(
+                            otherX1 - laneW1, seg.p1.screen.y,
+                            otherX1 + laneW1, seg.p1.screen.y,
+                            otherX2 + laneW2, seg.p2.screen.y,
+                            otherX2 - laneW2, seg.p2.screen.y,
+                            seg.color.lane
+                        );
+                    }
                 }
             }
         } else if (fork1 < 0.02 && fork2 < 0.02) {
@@ -2736,10 +2797,15 @@ function draw() {
         for (let sp of sprites) {
             let sprX;
             if (seg.isTransition) {
-                // Durante la transición post-checkpoint, los sprites están anclados al centro de la calzada elegida
-                const chosenX = seg.p1.screen.x + (seg.chosenRoadCenter || 0) * seg.p1.screen.w;
+                // Durante la transición post-checkpoint, los sprites están anclados a los laterales exteriores de la calzada
                 const roadW = seg.p1.screen.w * (seg.chosenRoadWidth || 1.0);
-                sprX = chosenX + (sp.offset * roadW);
+                const chosenX = seg.p1.screen.x + (seg.chosenRoadCenter || 0) * seg.p1.screen.w;
+                if (sp.forkBranch === 'other' && seg.otherRoadCenter !== undefined && Math.abs(seg.otherRoadCenter) < 3.2) {
+                    const otherX = seg.p1.screen.x + seg.otherRoadCenter * seg.p1.screen.w;
+                    sprX = otherX + (sp.offset * roadW);
+                } else {
+                    sprX = chosenX + (sp.offset * roadW);
+                }
             } else if (forkProg > 0.05) {
                 if (sp.forkBranch === 'left') {
                     // Posición relativa al centro de la salida izquierda
