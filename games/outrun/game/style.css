@@ -73,14 +73,8 @@ body {
     content: "";
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(
-        to bottom,
-        rgba(0,0,0,0) 0px,
-        rgba(0,0,0,0) 2px,
-        rgba(0,0,0,.18) 3px
-    );
+    background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.12) 100%);
     pointer-events: none;
-    animation: flicker 6s infinite;
 }
 
 @keyframes flicker {
@@ -90,15 +84,7 @@ body {
 
 /* Scanlines */
 .scanlines {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%);
-    background-size: 100% 2px;
-    z-index: 5;
-    pointer-events: none;
+    display: none;
 }
 
 .game-header {
@@ -119,6 +105,22 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+
+.pilot-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.diff-badge {
+    font-size: 7px;
+    padding: 1px 4px;
+    border: 1px solid var(--amber);
+    border-radius: 3px;
+    color: var(--amber);
+    background: rgba(0, 0, 0, 0.45);
+    letter-spacing: 0.5px;
 }
 
 .header-center {
@@ -198,8 +200,7 @@ body {
 #gameCanvas {
     background-color: transparent;
     display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    image-rendering: auto;
     width: 400px;
     height: 320px;
 }
@@ -286,6 +287,73 @@ body {
     display: block;
     width: 160px !important;
     height: 160px !important;
+}
+
+.difficulty-box {
+    margin: 6px 0 2px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.diff-title {
+    font-size: 8px;
+    font-family: 'Press Start 2P', monospace;
+    color: var(--amber);
+    letter-spacing: 1px;
+}
+
+.diff-buttons {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.diff-btn {
+    background: rgba(16, 26, 21, 0.85);
+    color: var(--text-dim);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.diff-btn:hover {
+    color: var(--white);
+    border-color: var(--phosphor);
+}
+
+.diff-btn.active {
+    background: var(--phosphor);
+    color: #060b08;
+    border-color: var(--phosphor);
+    font-weight: bold;
+    box-shadow: 0 0 8px rgba(61, 255, 138, 0.5);
+}
+
+.diff-btn[data-diff="hard"].active {
+    background: var(--danger);
+    color: #ffffff;
+    border-color: var(--danger);
+    box-shadow: 0 0 8px rgba(255, 77, 109, 0.6);
+}
+
+.diff-btn[data-diff="normal"].active {
+    background: var(--amber);
+    color: #060b08;
+    border-color: var(--amber);
+    box-shadow: 0 0 8px rgba(255, 183, 3, 0.6);
+}
+
+.diff-hint {
+    font-size: 8px;
+    font-family: 'VT323', monospace;
+    color: var(--text-dim);
+    letter-spacing: 1px;
 }
 
 .status-text {

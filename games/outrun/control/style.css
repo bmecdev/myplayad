@@ -101,6 +101,64 @@ body {
     border-color: var(--primary);
 }
 
+.mobile-diff-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    margin: 4px 0;
+}
+
+.mobile-diff-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: var(--amber, #ffb703);
+    letter-spacing: 1px;
+}
+
+.mobile-diff-buttons {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+}
+
+.m-diff-btn {
+    flex: 1;
+    background: #080d0a;
+    border: 2px solid #283e31;
+    border-radius: 8px;
+    padding: 10px 4px;
+    color: #6d8a79;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.15s ease;
+}
+
+.m-diff-btn.active {
+    background: #3dff8a;
+    color: #060b08;
+    border-color: #3dff8a;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(61, 255, 138, 0.4);
+}
+
+.m-diff-btn[data-diff="normal"].active {
+    background: #ffb703;
+    color: #060b08;
+    border-color: #ffb703;
+    box-shadow: 0 0 10px rgba(255, 183, 3, 0.4);
+}
+
+.m-diff-btn[data-diff="hard"].active {
+    background: #ff4d6d;
+    color: #ffffff;
+    border-color: #ff4d6d;
+    box-shadow: 0 0 10px rgba(255, 77, 109, 0.4);
+}
+
 #connect-btn {
     background: linear-gradient(180deg, #3dff8a, #1f7d49);
     color: #060b08;

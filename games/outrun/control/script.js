@@ -25,7 +25,32 @@ let dataChannel;
 let socket;
 let currentRoomId = null;
 let nickname = 'DRIVER';
+let selectedDifficulty = 'normal';
 let pendingCandidates = [];
+
+// Botones de Selector de Dificultad Móvil
+const mDiffEasy = document.getElementById('m-diff-easy');
+const mDiffNormal = document.getElementById('m-diff-normal');
+const mDiffHard = document.getElementById('m-diff-hard');
+
+function setMobileDifficulty(diff) {
+    selectedDifficulty = diff;
+    [mDiffEasy, mDiffNormal, mDiffHard].forEach(btn => {
+        if (!btn) return;
+        if (btn.getAttribute('data-diff') === diff) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    vibrate(20);
+    if (dataChannel && dataChannel.readyState === 'open') {
+        try {
+            dataChannel.send(JSON.stringify({ type: 'set_difficulty', difficulty: selectedDifficulty }));
+        } catch (_) {}
+    }
+}
+
+if (mDiffEasy) mDiffEasy.addEventListener('click', () => setMobileDifficulty('easy'));
+if (mDiffNormal) mDiffNormal.addEventListener('click', () => setMobileDifficulty('normal'));
+if (mDiffHard) mDiffHard.addEventListener('click', () => setMobileDifficulty('hard'));
 
 const currentInput = {
     steer: 0,
@@ -341,7 +366,12 @@ async function startWebRTC() {
         status.textContent = 'EN PISTA';
         status.style.color = '#3dff8a';
         if (controllerContainer) controllerContainer.style.display = 'flex';
-        dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+        dataChannel.send(JSON.stringify({ 
+            type: 'join', 
+            nickname: nickname, 
+            value: nickname, 
+            difficulty: selectedDifficulty 
+        }));
     };
 
     dataChannel.onmessage = (event) => {
@@ -367,6 +397,15 @@ async function startWebRTC() {
                 vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
                 showThanks(data.score, data.checkpoints, data.won, data.goal);
+            } else if (data.type === 'difficulty_changed') {
+                if (data.difficulty) {
+                    selectedDifficulty = data.difficulty;
+                    [mDiffEasy, mDiffNormal, mDiffHard].forEach(btn => {
+                        if (!btn) return;
+                        if (btn.getAttribute('data-diff') === data.difficulty) btn.classList.add('active');
+                        else btn.classList.remove('active');
+                    });
+                }
             } else if (data.type === 'sfx') {
                 mobileAudio.play(data.sound, data.param);
             }
