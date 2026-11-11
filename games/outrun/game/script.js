@@ -2602,6 +2602,24 @@ function drawRoadStripWithDetails(x1L, x1R, y1, x2L, x2R, y2, w1, w2, seg, showC
     // Asfalto principal
     drawTrapezoid(x1L, y1, x1R, y1, x2R, y2, x2L, y2, seg.color.road);
 
+    // Franja ajedrezada de lado a lado sobre el asfalto en cada Checkpoint / Meta
+    if (seg && seg.isCheckpoint) {
+        const cols = 12;
+        for (let c = 0; c < cols; c++) {
+            const t0 = c / cols;
+            const t1 = (c + 1) / cols;
+            const cx1L = x1L + (x1R - x1L) * t0;
+            const cx1R = x1L + (x1R - x1L) * t1;
+            const cx2L = x2L + (x2R - x2L) * t0;
+            const cx2R = x2L + (x2R - x2L) * t1;
+            drawTrapezoid(
+                cx1L, y1, cx1R, y1, cx2R, y2, cx2L, y2,
+                (c % 2 === 0) ? '#ffffff' : '#0f172a'
+            );
+        }
+        return;
+    }
+
     // Huellas sutiles de rodadura y sombreado de profundidad en carril
     if (w1 > 10) {
         const trackOff1 = w1 * 0.42;
@@ -2962,31 +2980,36 @@ function draw() {
 
         for (let sp of sprites) {
             let sprX;
+            let roadHalfW = seg.p1.screen.w;
             if (seg.isTransition) {
                 // Durante la transición post-checkpoint, los sprites están anclados a los laterales exteriores de la calzada
-                const roadW = seg.p1.screen.w * (seg.chosenRoadWidth || 1.0);
+                roadHalfW = seg.p1.screen.w * (seg.chosenRoadWidth || 1.0);
                 const chosenX = seg.p1.screen.x + (seg.chosenRoadCenter || 0) * seg.p1.screen.w;
                 if (sp.forkBranch === 'other' && seg.otherRoadCenter !== undefined && Math.abs(seg.otherRoadCenter) < 3.2) {
                     const otherX = seg.p1.screen.x + seg.otherRoadCenter * seg.p1.screen.w;
-                    sprX = otherX + (sp.offset * roadW);
+                    sprX = otherX + (sp.offset * roadHalfW);
                 } else {
-                    sprX = chosenX + (sp.offset * roadW);
+                    sprX = chosenX + (sp.offset * roadHalfW);
                 }
             } else if (forkProg > 0.05) {
                 if (sp.forkBranch === 'left') {
                     // Posición relativa al centro de la salida izquierda
                     sprX = (seg.p1.screen.x - forkSep) + (sp.offset * bW);
+                    roadHalfW = bW;
                 } else if (sp.forkBranch === 'right') {
                     // Posición relativa al centro de la salida derecha
                     sprX = (seg.p1.screen.x + forkSep) + (sp.offset * bW);
+                    roadHalfW = bW;
                 } else if (sp.forkBranch === 'median') {
                     // En la mediana de pasto central
                     sprX = seg.p1.screen.x;
                 } else {
                     if (sp.offset < 0) {
                         sprX = (seg.p1.screen.x - forkSep) + (sp.offset * bW);
+                        roadHalfW = bW;
                     } else if (sp.offset > 0) {
                         sprX = (seg.p1.screen.x + forkSep) + (sp.offset * bW);
+                        roadHalfW = bW;
                     } else {
                         sprX = seg.p1.screen.x;
                     }
@@ -3001,7 +3024,8 @@ function draw() {
                 sprite: sp,
                 screenX: Math.round(sprX),
                 screenY: seg.p1.screen.y,
-                scale: seg.p1.screen.scale
+                scale: seg.p1.screen.scale,
+                roadHalfW: roadHalfW
             });
         }
     }
@@ -3062,7 +3086,7 @@ function draw() {
 
     drawables.forEach(item => {
         if (item.kind === 'sprite') {
-            drawWorldSprite(item.sprite, item.screenX, item.screenY, item.scale);
+            drawWorldSprite(item.sprite, item.screenX, item.screenY, item.scale, item.roadHalfW);
         } else if (item.kind === 'car') {
             const lean = (item.car.targetOffset !== undefined) ? (item.car.targetOffset - item.car.offset) : 0;
             drawRivalCar(item.car.type, item.screenX, item.screenY, item.w, item.h, lean);
@@ -3260,7 +3284,7 @@ function drawCourseMap() {
 }
 
 // Sprites de Escenarios Naturales y Detallados (Palmeras frondosas, cactus acanalados, pinos nevados, mesetas, columnas con hiedra, molinos, farolas y carteles HD)
-function drawWorldSprite(spriteObj, x, y, scale) {
+function drawWorldSprite(spriteObj, x, y, scale, roadHalfW = 0) {
     const type = (typeof spriteObj === 'string') ? spriteObj : spriteObj.type;
     const size = Math.round(scale * 190000);
     if (size < 4) return;
@@ -3911,43 +3935,82 @@ function drawWorldSprite(spriteObj, x, y, scale) {
                 ctx.fillText('240', 0, centerY);
             }
         } else if (type === 'checkpoint_arch') {
-            const archW = Math.round(size * 1.35);
-            const archH = Math.round(size * 0.85);
-            if (archW < 8) return;
-            const postW = Math.max(2, Math.round(archW * 0.05));
-            const barH = Math.max(3, Math.round(archH * 0.22));
+            // Pórtico ancho de borde exterior a borde exterior (cubre toda la pista y ambas bermas de lado a lado)
+            const refHalfW = roadHalfW > 0 ? roadHalfW : Math.round(scale * ROAD_WIDTH * CANVAS_WIDTH / 2);
+            const archW = Math.round(Math.max(size * 1.45, refHalfW * 2.40));
+            const archH = Math.round(Math.max(size * 1.20, archW * 0.36));
+            if (archW < 10) return;
+            const postW = Math.max(2, Math.round(archW * 0.038));
+            const barH = Math.max(4, Math.round(archH * 0.28));
 
-            // Sombra proyectada sobre el asfalto
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-            ctx.fillRect(-archW * 0.52, -Math.max(2, size * 0.03), archW * 1.04, Math.max(2, size * 0.04));
+            // Sombra proyectada de lado a lado sobre el asfalto
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.30)';
+            ctx.fillRect(-archW * 0.52, -Math.max(2, archH * 0.03), archW * 1.04, Math.max(2, archH * 0.05));
 
-            // Postes dobles de acero con detalle metálico
-            ctx.fillStyle = '#cbd5e1';
+            // Bases metálicas y torres laterales apoyadas sobre ambas bermas (izquierda y derecha)
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-archW / 2 - postW * 0.25, -postW * 0.9, postW * 1.5, postW * 0.9);
+            ctx.fillRect(archW / 2 - postW * 1.25, -postW * 0.9, postW * 1.5, postW * 0.9);
+
+            const postGrad = ctx.createLinearGradient(-postW / 2, 0, postW / 2, 0);
+            postGrad.addColorStop(0, '#94a3b8');
+            postGrad.addColorStop(0.5, '#f8fafc');
+            postGrad.addColorStop(1, '#64748b');
+            ctx.fillStyle = postGrad;
             ctx.fillRect(-archW / 2, -archH, postW, archH);
             ctx.fillRect(archW / 2 - postW, -archH, postW, archH);
 
+            // Celosía diagonal interior en ambos pilares cuando está cerca
+            if (postW >= 4) {
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = Math.max(1, postW * 0.14);
+                const step = Math.max(6, Math.floor(archH / 6));
+                ctx.beginPath();
+                for (let py = -archH + barH; py < -step * 0.5; py += step) {
+                    const yBtm = Math.min(0, py + step);
+                    ctx.moveTo(-archW / 2 + 1, py);
+                    ctx.lineTo(-archW / 2 + postW - 1, yBtm);
+                    ctx.moveTo(archW / 2 - postW + 1, py);
+                    ctx.lineTo(archW / 2 - 1, yBtm);
+                }
+                ctx.stroke();
+            }
+
+            // Viga superior panorámica de lado a lado
             const archGrad = ctx.createLinearGradient(0, -archH, 0, -archH + barH);
-            archGrad.addColorStop(0, '#fbbf24');
-            archGrad.addColorStop(1, '#d97706');
+            archGrad.addColorStop(0, '#fde047');
+            archGrad.addColorStop(0.45, '#f59e0b');
+            archGrad.addColorStop(1, '#b45309');
             ctx.fillStyle = archGrad;
             ctx.beginPath();
-            ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(3, archW * 0.04));
+            ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(4, archW * 0.02));
             ctx.fill();
 
-            if (archW >= 20) {
+            // Franja ajedrezada inferior decorativa en el cartel
+            if (archW >= 24) {
+                const stripH = Math.max(2, Math.round(barH * 0.18));
+                const checkCount = Math.min(28, Math.max(8, Math.floor(archW / Math.max(4, stripH * 1.4))));
+                const cellW = archW / checkCount;
+                for (let ci = 0; ci < checkCount; ci++) {
+                    ctx.fillStyle = (ci % 2 === 0) ? '#0f172a' : '#ffffff';
+                    ctx.fillRect(-archW / 2 + ci * cellW, -archH + barH - stripH, cellW + 0.5, stripH);
+                }
+
                 ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = Math.max(1, archW * 0.02);
+                ctx.lineWidth = Math.max(1, barH * 0.06);
+                ctx.beginPath();
+                ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(4, archW * 0.02));
                 ctx.stroke();
 
-                // Luces LED estroboscópicas de checkpoint con aura
+                // Luces LED estroboscópicas en ambos extremos del pórtico
                 const t = Math.floor(Date.now() / 140) % 2;
                 const ledCol = t === 0 ? '#38bdf8' : '#f43f5e';
-                const ledR = Math.max(1, Math.floor(barH * 0.24));
-                const lx1 = -archW / 2 + postW + ledR + 1;
-                const lx2 = archW / 2 - postW - ledR - 1;
-                const ly = -archH + barH / 2;
+                const ledR = Math.max(1.5, Math.floor(barH * 0.20));
+                const lx1 = -archW / 2 + postW + ledR * 1.6;
+                const lx2 = archW / 2 - postW - ledR * 1.6;
+                const ly = -archH + (barH - stripH) / 2;
 
-                ctx.fillStyle = t === 0 ? 'rgba(56, 189, 248, 0.4)' : 'rgba(244, 63, 94, 0.4)';
+                ctx.fillStyle = t === 0 ? 'rgba(56, 189, 248, 0.42)' : 'rgba(244, 63, 94, 0.42)';
                 ctx.beginPath();
                 ctx.arc(lx1, ly, ledR * 2.2, 0, Math.PI * 2);
                 ctx.arc(lx2, ly, ledR * 2.2, 0, Math.PI * 2);
@@ -3961,24 +4024,40 @@ function drawWorldSprite(spriteObj, x, y, scale) {
             }
 
             if (archW >= 36) {
-                ctx.fillStyle = '#ffffff';
-                ctx.font = `${Math.max(5, Math.floor(barH * 0.55))}px "Press Start 2P"`;
+                const stripH = Math.max(2, Math.round(barH * 0.18));
+                const textZoneH = barH - stripH;
+                const label = (spriteObj.label || 'CHECKPOINT').substring(0, 18);
+                const prefix = spriteObj.forkBranch === 'left' ? '◄ ' : (spriteObj.forkBranch === 'right' ? '' : '');
+                const suffix = spriteObj.forkBranch === 'right' ? ' ►' : '';
+                const fullText = `${prefix}${label}${suffix}`;
+                const fontSize = Math.max(5, Math.min(Math.floor(textZoneH * 0.48), Math.floor((archW * 0.72) / Math.max(8, fullText.length))));
+
+                ctx.font = `${fontSize}px "Press Start 2P"`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const label = (spriteObj.label || 'CHECKPOINT').substring(0, 14);
-                ctx.fillText(label, 0, -archH + barH / 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillText(fullText, 0.9, -archH + textZoneH / 2 + 0.9);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(fullText, 0, -archH + textZoneH / 2);
             }
         } else if (type === 'finish_arch') {
-            const archW = Math.round(size * 1.65);
-            const archH = Math.round(size * 1.05);
+            // Gran Meta Final spanning 100% desde el lado izquierdo hasta el lado derecho (incluyendo bermas)
+            const refHalfW = roadHalfW > 0 ? roadHalfW : Math.round(scale * ROAD_WIDTH * CANVAS_WIDTH / 2);
+            const archW = Math.round(Math.max(size * 1.75, refHalfW * 2.44));
+            const archH = Math.round(Math.max(size * 1.32, archW * 0.38));
             if (archW < 10) return;
-            const postW = Math.max(2, Math.round(archW * 0.06));
-            const barH = Math.max(4, Math.round(archH * 0.24));
+            const postW = Math.max(2, Math.round(archW * 0.042));
+            const barH = Math.max(5, Math.round(archH * 0.30));
 
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.30)';
-            ctx.fillRect(-archW * 0.52, -Math.max(2, size * 0.03), archW * 1.04, Math.max(2, size * 0.045));
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
+            ctx.fillRect(-archW * 0.52, -Math.max(2, archH * 0.03), archW * 1.04, Math.max(2, archH * 0.055));
 
-            const sqH = Math.max(2, Math.floor(archH / 6));
+            // Bases y columnas ajedrezadas de lado a lado sobre las bermas
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-archW / 2 - postW * 0.25, -postW * 0.9, postW * 1.5, postW * 0.9);
+            ctx.fillRect(archW / 2 - postW * 1.25, -postW * 0.9, postW * 1.5, postW * 0.9);
+
+            const sqH = Math.max(2, Math.floor(archH / 7));
             for (let yPos = 0; yPos < archH; yPos += sqH) {
                 const isWhite = (Math.floor(yPos / sqH) % 2 === 0);
                 ctx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
@@ -3987,46 +4066,62 @@ function drawWorldSprite(spriteObj, x, y, scale) {
             }
 
             const goalGrad = ctx.createLinearGradient(0, -archH, 0, -archH + barH);
-            goalGrad.addColorStop(0, '#fde047');
-            goalGrad.addColorStop(0.5, '#f59e0b');
-            goalGrad.addColorStop(1, '#b45309');
+            goalGrad.addColorStop(0, '#fef08a');
+            goalGrad.addColorStop(0.45, '#f59e0b');
+            goalGrad.addColorStop(1, '#92400e');
             ctx.fillStyle = goalGrad;
             ctx.beginPath();
-            ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(4, archW * 0.04));
+            ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(5, archW * 0.02));
             ctx.fill();
 
             if (archW >= 24) {
+                // Franjas ajedrezadas superior e inferior en la gran viga de meta
+                const trimH = Math.max(2, Math.round(barH * 0.16));
+                const checkCount = Math.min(32, Math.max(10, Math.floor(archW / Math.max(4, trimH * 1.4))));
+                const cellW = archW / checkCount;
+                for (let ci = 0; ci < checkCount; ci++) {
+                    ctx.fillStyle = (ci % 2 === 0) ? '#0f172a' : '#ffffff';
+                    ctx.fillRect(-archW / 2 + ci * cellW, -archH, cellW + 0.5, trimH);
+                    ctx.fillStyle = (ci % 2 === 1) ? '#0f172a' : '#ffffff';
+                    ctx.fillRect(-archW / 2 + ci * cellW, -archH + barH - trimH, cellW + 0.5, trimH);
+                }
+
                 ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = Math.max(1, archW * 0.02);
+                ctx.lineWidth = Math.max(1, barH * 0.06);
+                ctx.beginPath();
+                ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(5, archW * 0.02));
                 ctx.stroke();
 
                 // Banderines de victoria ondeantes en lo alto
-                const wave = Math.sin(Date.now() / 120) * (barH * 0.18);
+                const wave = Math.sin(Date.now() / 120) * (barH * 0.16);
                 ctx.fillStyle = '#f43f5e';
                 ctx.beginPath();
-                ctx.moveTo(-archW * 0.42, -archH);
-                ctx.lineTo(-archW * 0.42 + postW * 1.8, -archH - barH * 0.55 + wave);
-                ctx.lineTo(-archW * 0.42, -archH - barH * 0.85);
+                ctx.moveTo(-archW * 0.44, -archH);
+                ctx.lineTo(-archW * 0.44 + postW * 1.8, -archH - barH * 0.45 + wave);
+                ctx.lineTo(-archW * 0.44, -archH - barH * 0.72);
                 ctx.closePath();
                 ctx.fill();
 
                 ctx.beginPath();
-                ctx.moveTo(archW * 0.42, -archH);
-                ctx.lineTo(archW * 0.42 - postW * 1.8, -archH - barH * 0.55 - wave);
-                ctx.lineTo(archW * 0.42, -archH - barH * 0.85);
+                ctx.moveTo(archW * 0.44, -archH);
+                ctx.lineTo(archW * 0.44 - postW * 1.8, -archH - barH * 0.45 - wave);
+                ctx.lineTo(archW * 0.44, -archH - barH * 0.72);
                 ctx.closePath();
                 ctx.fill();
             }
 
             if (archW >= 40) {
+                const trimH = Math.max(2, Math.round(barH * 0.16));
                 const letter = spriteObj.goalLetter || 'GOAL';
-                ctx.fillStyle = '#0f172a';
-                ctx.font = `${Math.max(5, Math.floor(barH * 0.52))}px "Press Start 2P"`;
+                const goalText = `★ GOAL ${letter} ★`;
+                const fontSize = Math.max(6, Math.min(Math.floor((barH - trimH * 2) * 0.55), Math.floor((archW * 0.75) / goalText.length)));
+                ctx.font = `${fontSize}px "Press Start 2P"`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(`★ GOAL ${letter} ★`, 0.8, -archH + barH / 2 + 0.8);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillText(goalText, 1.0, -archH + barH / 2 + 1.0);
                 ctx.fillStyle = '#ffffff';
-                ctx.fillText(`★ GOAL ${letter} ★`, 0, -archH + barH / 2);
+                ctx.fillText(goalText, 0, -archH + barH / 2);
             }
         } else {
             ctx.fillStyle = '#22c55e';
