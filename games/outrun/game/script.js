@@ -1472,12 +1472,33 @@ function recycleCarAhead(car) {
 
     car.z = targetZ;
     car.passed = false;
+    car.crashCooldown = 0;
 
     // Asignar carril despejado
     const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
     car.offset = randomLane;
     car.targetOffset = randomLane;
     car.laneChangeTimer = 14 + Math.random() * 10;
+}
+
+// Calcula la posición lateral efectiva de un rival (idéntica en física de colisión y renderizado 2D)
+function getCarEffectiveRoadX(car, carSeg) {
+    if (!carSeg) return car.offset;
+    const forkProg = carSeg.forkProgress || 0;
+    if (carSeg.isTransition) {
+        const roadCenter = carSeg.chosenRoadCenter || 0;
+        const roadWScale = carSeg.chosenRoadWidth || 1.0;
+        return roadCenter + (car.offset * roadWScale);
+    } else if (forkProg > 0.05) {
+        if (car.forkSide === undefined) {
+            car.forkSide = (car.offset < 0) ? -1 : 1;
+        }
+        const branchSep = 1.35 * forkProg;
+        const bWScale = 0.85 + 0.15 * (1 - forkProg);
+        return (car.forkSide * branchSep) + (car.offset * 0.45 * bWScale);
+    }
+    car.forkSide = undefined;
+    return car.offset;
 }
 
 // Sistema de Partículas de Humo de Neumáticos, Derrapes y Chispas
@@ -2291,36 +2312,42 @@ function update(dt) {
         GameState.highScore = GameState.score;
     }
 
-    // Actualización de Tráfico Rival y Competidores
+    // Actualización de Tráfico Rival y Colisiones Exactas por Barrido Continuo
     const lanes = [-0.6, 0, 0.6];
+    const normalizeRelZ = (dz) => {
+        if (dz < -GameState.trackLength / 2) dz += GameState.trackLength;
+        if (dz > GameState.trackLength / 2) dz -= GameState.trackLength;
+        return dz;
+    };
+
     GameState.cars.forEach(car => {
+        const prevCarZ = car.z;
+        car.crashCooldown = Math.max(0, (car.crashCooldown || 0) - dt);
+
         car.z += car.speed * dt;
         if (car.z >= GameState.trackLength) car.z -= GameState.trackLength;
 
-        // Distancia relativa con respecto al jugador (-trackLength/2 a +trackLength/2)
-        let relZ = car.z - GameState.playerZ;
-        if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
-        if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
+        const prevRelZ = normalizeRelZ(prevCarZ - prevPlayerZ);
+        const relZ = normalizeRelZ(car.z - GameState.playerZ);
 
         // 1. REGLA ESTRICTA: Los vehículos NUNCA salen desde atrás ni adelantan al jugador por la espalda.
-        // En cuanto el jugador rebasa el vehículo y este queda atrás (relZ < -150), se reubica adelante en el horizonte:
+        // En cuanto el vehículo queda muy atrás detrás de la cámara (relZ < -150), se reubica adelante en el horizonte:
         if (relZ < -150) {
             recycleCarAhead(car);
             return;
         }
 
-        // Si por alguna razón puntual el auto estuviera ligeramente detrás (-150 <= relZ < 0):
-        // Limitar su velocidad para que NUNCA adelante al jugador ni lo impacte por detrás
-        if (relZ < 0 && car.speed >= GameState.speed) {
+        // Si el auto ya quedó al costado o detrás del Ferrari del jugador (relZ < 750), evitar que alcance desde atrás
+        if (relZ < 750 && car.speed >= GameState.speed) {
             car.speed = Math.max(0, GameState.speed * 0.6);
         }
 
-        // IA: cambio de carril muy suave y raro (solo si el jugador está a más de 800 px)
+        // IA: cambio de carril muy suave y raro (solo si el jugador está a más de 1600 px)
         car.laneChangeTimer -= dt;
         if (car.laneChangeTimer <= 0) {
             car.laneChangeTimer = 14 + Math.random() * 10;
             // No cambia de carril si el jugador está acercándose a rebasar
-            if (relZ > 800 && Math.random() < 0.25) {
+            if (relZ > 1600 && Math.random() < 0.25) {
                 const availableLanes = lanes.filter(l => Math.abs(l - car.offset) > 0.1);
                 if (availableLanes.length > 0) {
                     car.targetOffset = availableLanes[Math.floor(Math.random() * availableLanes.length)];
@@ -2331,46 +2358,47 @@ function update(dt) {
             car.offset += (car.targetOffset - car.offset) * 0.8 * dt;
         }
 
-        // Detección de rebase (Pass bonus de +500 PTS)
-        if (relZ < -30 && relZ > -150 && !car.passed) {
+        // Detección de rebase limpio (Pass bonus de +500 PTS al dejar atrás el auto sin chocar)
+        if (relZ < 750 && relZ > -150 && !car.passed && car.crashCooldown <= 0) {
             car.passed = true;
             GameState.score += 500;
             audio.playPassBonus();
             showBanner('OVERTAKE!', '+500 PTS', '#3dff8a', 0.9);
         }
 
-        // Colisión frontal/lateral: con tolerancia precisa y tiempo de recuperación
-        if (GameState.invulnerableTimer <= 0 && relZ > -30 && relZ < 50) {
-            const carSegIndex = Math.floor(car.z / SEGMENT_LENGTH) % GameState.segments.length;
+        // Colisión continua exacta en pantalla:
+        // El Ferrari visualmente ocupa relZ en [760, 1030] (y=277 a y=319).
+        // Se usa barrido [minRelZ, maxRelZ] para no traspasar ningún auto a alta velocidad ni en caídas de FPS,
+        // y enfriamiento individual por coche (car.crashCooldown) para nunca volverse fantasma ante otros autos.
+        const segMinZ = Math.min(prevRelZ, relZ);
+        const segMaxZ = Math.max(prevRelZ, relZ);
+        if (car.crashCooldown <= 0 && segMaxZ >= 760 && segMinZ <= 1030) {
+            const totalSegs = GameState.segments.length;
+            const carSegIndex = ((Math.floor(car.z / SEGMENT_LENGTH) % totalSegs) + totalSegs) % totalSegs;
             const carSeg = GameState.segments[carSegIndex];
-            const forkProg = carSeg ? (carSeg.forkProgress || 0) : 0;
+            const carWorldX = getCarEffectiveRoadX(car, carSeg);
 
-            // Si están en bifurcación avanzada, solo pueden chocar si van por la misma salida
-            let canCollide = true;
-            if (forkProg > 0.25) {
-                const carSide = car.forkSide || ((car.offset < 0) ? -1 : 1);
-                const playerSide = (GameState.playerX < 0) ? -1 : 1;
-                if (carSide !== playerSide) canCollide = false;
-            }
-
-            const distX = Math.abs(car.offset - GameState.playerX);
-            // Tolerancia ajustada a 0.20 (permite pasar entre huecos sin choques injustos)
-            if (canCollide && distX < 0.20) {
-                GameState.invulnerableTimer = 2.0; // 2s de gracia para reponerse
-                GameState.speed = Math.max(3500, GameState.speed * 0.40); // Desaceleración suave
-                GameState.shakeAmount = 6.0;
+            const distX = Math.abs(carWorldX - GameState.playerX);
+            // Ancho visual combinado: semiancho rival (0.208) + semiancho Ferrari (~0.125) = ~0.33 -> 0.32 garantiza choque al tocar cualquier borde
+            if (distX < 0.32) {
+                car.crashCooldown = 0.9;
+                car.passed = true;
+                GameState.invulnerableTimer = 0.45; // Parpadeo breve de impacto (NO desactiva choques con otros autos)
+                GameState.speed = Math.max(3500, GameState.speed * 0.40);
+                GameState.shakeAmount = 6.5;
                 audio.playCrash();
                 showBanner('CRASH!', 'RECOVERING...', '#ff4d6d', 1.5);
 
-                // Empujar el coche impactado hacia adelante para despejar el paso
-                car.z += 800;
-                if (GameState.playerX > car.offset) {
-                    GameState.playerX = Math.min(1.8, GameState.playerX + 0.25);
-                    car.offset = Math.max(-0.9, car.offset - 0.25);
+                // Empujar el coche impactado hacia adelante del Ferrari y separar lateralmente
+                car.z = (car.z + 750) % GameState.trackLength;
+                if (GameState.playerX >= carWorldX) {
+                    GameState.playerX = Math.min(2.0, GameState.playerX + 0.18);
+                    car.offset = Math.max(-0.85, car.offset - 0.18);
                 } else {
-                    GameState.playerX = Math.max(-1.8, GameState.playerX - 0.25);
-                    car.offset = Math.min(0.9, car.offset + 0.25);
+                    GameState.playerX = Math.max(-2.0, GameState.playerX - 0.18);
+                    car.offset = Math.min(0.85, car.offset + 0.18);
                 }
+                car.targetOffset = car.offset;
 
                 // Chispas y humo de choque
                 createTireSmoke(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 24, 12, true);
@@ -3045,25 +3073,7 @@ function draw() {
 
             const roadCenterX = carSeg.p1.screen.x + (carSeg.p2.screen.x - carSeg.p1.screen.x) * carPercent;
             const roadW = carSeg.p1.screen.w + (carSeg.p2.screen.w - carSeg.p1.screen.w) * carPercent;
-
-            let screenX;
-            const forkProg = carSeg.forkProgress || 0;
-            if (carSeg.isTransition) {
-                const roadCenter = carSeg.chosenRoadCenter || 0;
-                const roadW2 = roadW * (carSeg.chosenRoadWidth || 1.0);
-                screenX = Math.round(roadCenterX + (roadCenter * roadW) + (car.offset * roadW2));
-            } else if (forkProg > 0.05) {
-                if (car.forkSide === undefined) {
-                    car.forkSide = (car.offset < 0) ? -1 : 1;
-                }
-                const forkSep = roadW * 1.35 * forkProg;
-                const bW = roadW * (0.85 + 0.15 * (1 - forkProg));
-                const branchX = roadCenterX + (car.forkSide * forkSep);
-                screenX = Math.round(branchX + (car.offset * 0.45 * bW));
-            } else {
-                car.forkSide = undefined;
-                screenX = Math.round(roadCenterX + (car.offset * roadW));
-            }
+            const screenX = Math.round(roadCenterX + (getCarEffectiveRoadX(car, carSeg) * roadW));
 
             const screenY = Math.round(carSeg.p1.screen.y + (carSeg.p2.screen.y - carSeg.p1.screen.y) * carPercent);
             const carW = Math.max(10, Math.round(carScale * 150000));
