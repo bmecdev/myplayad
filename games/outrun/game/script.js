@@ -25,9 +25,14 @@ const adPilotName = document.getElementById('ad-pilot-name');
 let cachedAdVideoUrl = null;
 let adVideoPromise = null;
 
-// Dimensiones de renderizado fluido y nítido de alta definición
+// Dimensiones de renderizado fluido y nítido de alta definición (2x HiDPI sobre 400x320 lógico)
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
+const RENDER_SCALE = 2;
+if (canvas) {
+    canvas.width = CANVAS_WIDTH * RENDER_SCALE;
+    canvas.height = CANVAS_HEIGHT * RENDER_SCALE;
+}
 
 // Constantes de carretera y perspectiva pseudo-3D
 const ROAD_WIDTH = 1800;
@@ -1223,12 +1228,27 @@ function createStageSegments(tier, routeIndex, startSegIndex, prevStage = null, 
                     offset: 2.3
                 });
             }
-            // Vegetación y elementos temáticos en el pasto
+            // Vegetación y elementos temáticos principales en ambos márgenes
             if (s % 6 === 0) {
                 const side = (Math.floor(s / 6) % 2 === 0) ? -2.4 : 2.4;
                 sprites.push({
                     type: stage.spriteTheme,
                     offset: side + (Math.random() * 0.25 - 0.12)
+                });
+            }
+            // Detalles secundarios variados para enriquecer el paisaje lateral
+            if (s % 18 === 9) {
+                const altSide = (Math.floor(s / 18) % 2 === 0) ? 2.75 : -2.75;
+                let secType = 'bush';
+                if (stage.spriteTheme === 'palm') secType = (s % 36 === 9) ? 'beach_umbrella' : 'bush';
+                else if (stage.spriteTheme === 'cactus') secType = (s % 36 === 9) ? 'rock' : 'bush';
+                else if (stage.spriteTheme === 'pine') secType = 'flower_bush';
+                else if (stage.spriteTheme === 'rock') secType = 'cactus';
+                else if (stage.spriteTheme === 'windmill' || stage.spriteTheme === 'column') secType = 'flower_bush';
+                else if (stage.spriteTheme === 'city') secType = (s % 36 === 9) ? 'city_billboard' : 'bush';
+                sprites.push({
+                    type: secType,
+                    offset: altSide + (Math.random() * 0.2 - 0.1)
                 });
             }
         }
@@ -2361,8 +2381,285 @@ function update(dt) {
     updateHUD();
 }
 
-// Renderizado Gráfico en Canvas 400x320 con Estética Natural, Fluida y Orgánica
+// Renderizado Gráfico HD (800x640 interno sobre 400x320 lógico) con Atmósfera Multi-capa y Detalles Arcade
+function drawAtmosphere(env, stage) {
+    const horizonY = CANVAS_HEIGHT / 2;
+    const now = Date.now();
+    const isNight = (stage.id === 'neon_metropolis' || stage.id === 'goal_d');
+    const isUrban = (isNight || stage.id === 'autobahn_highway');
+    const isWaterStage = (
+        stage.id === 'coconut_beach' ||
+        stage.id === 'seaside_blvd' ||
+        stage.id === 'windmill_valley' ||
+        stage.id === 'goal_a' ||
+        stage.id === 'goal_b' ||
+        stage.id === 'goal_c'
+    );
+    const isAlpine = (stage.id === 'alpine_valley' || stage.id === 'winding_vineyards' || stage.id === 'goal_c');
+
+    // 1. Cielo Gradiente Atmosférico Multi-stop
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+    skyGrad.addColorStop(0, env.skyTop || stage.skyTop);
+    skyGrad.addColorStop(0.68, env.skyBottom || stage.skyBottom);
+    skyGrad.addColorStop(1, isNight ? '#ff2a85' : '#ffd29d');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, horizonY);
+
+    // 2. Estrellas Nocturnas o Nubes Volumétricas en Paralaje
+    if (isNight) {
+        for (let s = 0; s < 32; s++) {
+            const sx = ((s * 67 + 19 - GameState.skyOffset * 12) % CANVAS_WIDTH + CANVAS_WIDTH) % CANVAS_WIDTH;
+            const sy = 8 + ((s * 37) % (horizonY - 52));
+            const twinkle = 0.45 + 0.55 * Math.sin(now * 0.004 + s * 1.7);
+            ctx.fillStyle = `rgba(255, 255, 255, ${twinkle.toFixed(2)})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, (s % 4 === 0) ? 1.2 : 0.75, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Posición suave del sol con leve paralaje
+    const sunX = Math.round(CANVAS_WIDTH * 0.72 - Math.sin(GameState.skyOffset * 0.22) * 38);
+    const sunY = isNight ? 60 : 54;
+    const sunR = isNight ? 32 : 28;
+
+    // 3. Aura Solar Atmosférica y Destello
+    const sunAura = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 3.1);
+    if (isNight) {
+        sunAura.addColorStop(0, 'rgba(255, 80, 170, 0.85)');
+        sunAura.addColorStop(0.45, 'rgba(255, 0, 128, 0.32)');
+        sunAura.addColorStop(1, 'rgba(80, 0, 120, 0)');
+    } else {
+        sunAura.addColorStop(0, 'rgba(255, 248, 210, 0.92)');
+        sunAura.addColorStop(0.35, 'rgba(255, 185, 85, 0.48)');
+        sunAura.addColorStop(0.7, 'rgba(255, 100, 115, 0.16)');
+        sunAura.addColorStop(1, 'rgba(255, 77, 109, 0)');
+    }
+    ctx.fillStyle = sunAura;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR * 3.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Disco Solar con Degradado Suave
+    const sunGrad = ctx.createRadialGradient(sunX, sunY - 5, 2, sunX, sunY, sunR);
+    if (isNight) {
+        sunGrad.addColorStop(0, '#ffe66d');
+        sunGrad.addColorStop(0.45, '#ff4d94');
+        sunGrad.addColorStop(1, '#7209b7');
+    } else {
+        sunGrad.addColorStop(0, '#ffffff');
+        sunGrad.addColorStop(0.48, env.sunColor || stage.sunColor || '#fff0aa');
+        sunGrad.addColorStop(0.88, '#ffa94d');
+        sunGrad.addColorStop(1, '#ff6b6b');
+    }
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Franjas sutiles Synthwave únicamente en el horizonte nocturno
+    if (isNight) {
+        ctx.fillStyle = env.skyBottom || '#511845';
+        for (let b = 0; b < 4; b++) {
+            const by = sunY + 4 + b * 6;
+            const bh = 1.2 + b * 0.6;
+            ctx.fillRect(sunX - sunR, by, sunR * 2, bh);
+        }
+    }
+
+    // Nubes suaves en paralaje para etapas diurnas/atardecer
+    if (!isNight) {
+        const cloudDrift = now * 0.0045;
+        for (let c = 0; c < 5; c++) {
+            const span = CANVAS_WIDTH + 140;
+            const cx = (((c * 105 + cloudDrift - GameState.skyOffset * (32 + (c % 2) * 24)) % span) + span) % span - 70;
+            const cy = 22 + (c % 3) * 16;
+            const cw = 32 + (c % 3) * 12;
+            const cGrad = ctx.createLinearGradient(cx, cy - 10, cx, cy + 8);
+            cGrad.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
+            cGrad.addColorStop(1, 'rgba(255, 210, 175, 0.25)');
+            ctx.fillStyle = cGrad;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, cw * 0.52, 6.5, 0, 0, Math.PI * 2);
+            ctx.ellipse(cx - cw * 0.26, cy + 1.5, cw * 0.34, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(cx + cw * 0.28, cy + 1.5, cw * 0.36, 5.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // 4. Horizonte de Océano / Lago Costero con Veleros y Reflejos
+    const seaColor = env.seaColor || stage.seaColor;
+    if (seaColor && !isUrban) {
+        const seaTop = horizonY - 24;
+        const seaH = 24;
+        const seaGrad = ctx.createLinearGradient(0, seaTop, 0, seaTop + seaH);
+        seaGrad.addColorStop(0, seaColor);
+        seaGrad.addColorStop(1, '#0c3554');
+        ctx.fillStyle = seaGrad;
+        ctx.fillRect(0, seaTop, CANVAS_WIDTH, seaH);
+
+        if (isWaterStage) {
+            // Línea de brillo horizontal en el horizonte del agua
+            ctx.fillStyle = 'rgba(255, 240, 200, 0.32)';
+            ctx.fillRect(0, seaTop, CANVAS_WIDTH, 1.2);
+
+            // Sendero de reflejos dorados solares animándose suavemente
+            const t = now / 220;
+            for (let row = 0; row < 7; row++) {
+                const waveY = seaTop + 3 + row * 3.0;
+                const waveW = 10 + row * 11;
+                const waveX = sunX + Math.sin(t + row * 0.9) * 5;
+                ctx.fillStyle = `rgba(255, 238, 170, ${(0.62 - row * 0.05).toFixed(2)})`;
+                ctx.beginPath();
+                ctx.ellipse(waveX, waveY, waveW / 2, 1.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Veleros distantes en el mar
+            for (let b = 0; b < 2; b++) {
+                const boatX = (((b * 185 + 60 - GameState.skyOffset * 48) % CANVAS_WIDTH) + CANVAS_WIDTH) % CANVAS_WIDTH;
+                const boatY = seaTop + 5 + b * 4;
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.moveTo(boatX, boatY);
+                ctx.lineTo(boatX + 4, boatY - 8);
+                ctx.lineTo(boatX + 5, boatY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(boatX - 1, boatY, 7, 1.5);
+            }
+        }
+    }
+
+    // 5. Skyline Urbano Nocturno / Autopista (Solo en etapas urbanas)
+    if (isUrban) {
+        const bCount = 26;
+        const bWidth = CANVAS_WIDTH / bCount + 4;
+        for (let b = 0; b < bCount; b++) {
+            const bx = (((b * (CANVAS_WIDTH / bCount) - GameState.skyOffset * 50) % (CANVAS_WIDTH + 30)) + (CANVAS_WIDTH + 30)) % (CANVAS_WIDTH + 30) - 15;
+            const bh = 18 + ((b * 37) % 34);
+            const by = horizonY - bh - 4;
+            ctx.fillStyle = isNight ? '#130728' : '#1e272e';
+            ctx.fillRect(bx, by, bWidth, bh + 4);
+
+            // Ventanas iluminadas de rascacielos
+            ctx.fillStyle = (b % 3 === 0) ? 'rgba(0, 243, 255, 0.55)' : (b % 3 === 1 ? 'rgba(255, 0, 234, 0.45)' : 'rgba(250, 204, 21, 0.55)');
+            for (let wy = by + 3; wy < horizonY - 8; wy += 4) {
+                if ((wy + b) % 2 === 0) {
+                    ctx.fillRect(bx + 2, wy, 2, 1.8);
+                    if (bWidth > 10) ctx.fillRect(bx + 7, wy, 2, 1.8);
+                }
+            }
+        }
+    }
+
+    // 6. Cordilleras en Paralaje Continuo (Sin cortes en bordes) con Cumbres Nevadas / Iluminación
+    const mountainBaseY = horizonY;
+    ctx.fillStyle = isNight ? 'rgba(38, 12, 68, 0.55)' : 'rgba(28, 24, 48, 0.40)';
+    ctx.beginPath();
+    ctx.moveTo(0, mountainBaseY);
+    for (let x = 0; x <= CANVAS_WIDTH; x += 4) {
+        const ox = x + GameState.skyOffset * 62;
+        const h = Math.sin(ox * 0.025) * 28 + Math.cos(ox * 0.012) * 16 + Math.sin(ox * 0.055) * 6;
+        ctx.lineTo(x, mountainBaseY - 22 - h);
+    }
+    ctx.lineTo(CANVAS_WIDTH, mountainBaseY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Capa 2: Relieve montañoso cercano con gradiente y perfil de cumbre
+    const mtnGrad = ctx.createLinearGradient(0, mountainBaseY - 48, 0, mountainBaseY);
+    mtnGrad.addColorStop(0, env.mountains || stage.mountains);
+    mtnGrad.addColorStop(1, 'rgba(12, 18, 16, 0.96)');
+    ctx.fillStyle = mtnGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, mountainBaseY);
+    const crestPts = [];
+    for (let x = 0; x <= CANVAS_WIDTH; x += 4) {
+        const ox = x + GameState.skyOffset * 115;
+        const h = Math.sin(ox * 0.038) * 20 + Math.cos(ox * 0.019) * 13 + Math.sin(ox * 0.075) * 7;
+        const py = mountainBaseY - 12 - h;
+        ctx.lineTo(x, py);
+        crestPts.push({ x, y: py, h });
+    }
+    ctx.lineTo(CANVAS_WIDTH, mountainBaseY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Luz cálida o nieve sobre las crestas montañosas
+    ctx.strokeStyle = isAlpine ? 'rgba(248, 250, 252, 0.72)' : (isNight ? 'rgba(0, 243, 255, 0.35)' : 'rgba(255, 220, 170, 0.28)');
+    ctx.lineWidth = isAlpine ? 2.2 : 1.0;
+    ctx.beginPath();
+    crestPts.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+}
+
+function drawRoadStripWithDetails(x1L, x1R, y1, x2L, x2R, y2, w1, w2, seg, showCenterLanes = true) {
+    // Asfalto principal
+    drawTrapezoid(x1L, y1, x1R, y1, x2R, y2, x2L, y2, seg.color.road);
+
+    // Huellas sutiles de rodadura y sombreado de profundidad en carril
+    if (w1 > 10) {
+        const trackOff1 = w1 * 0.42;
+        const trackOff2 = w2 * 0.42;
+        const trackW1 = w1 * 0.14;
+        const trackW2 = w2 * 0.14;
+        const cx1 = (x1L + x1R) * 0.5;
+        const cx2 = (x2L + x2R) * 0.5;
+        drawTrapezoid(
+            cx1 - trackOff1 - trackW1, y1, cx1 - trackOff1 + trackW1, y1,
+            cx2 - trackOff2 + trackW2, y2, cx2 - trackOff2 - trackW2, y2,
+            'rgba(0, 0, 0, 0.09)'
+        );
+        drawTrapezoid(
+            cx1 + trackOff1 - trackW1, y1, cx1 + trackOff1 + trackW1, y1,
+            cx2 + trackOff2 + trackW2, y2, cx2 + trackOff2 - trackW2, y2,
+            'rgba(0, 0, 0, 0.09)'
+        );
+    }
+
+    // Líneas continuas de arcén interior para mayor nitidez y realismo de autopista
+    if (w1 > 6) {
+        const edgeInset1 = w1 * 0.045;
+        const edgeInset2 = w2 * 0.045;
+        const edgeW1 = Math.max(0.6, w1 * 0.022);
+        const edgeW2 = Math.max(0.5, w2 * 0.022);
+        drawTrapezoid(
+            x1L + edgeInset1, y1, x1L + edgeInset1 + edgeW1, y1,
+            x2L + edgeInset2 + edgeW2, y2, x2L + edgeInset2, y2,
+            'rgba(255, 255, 255, 0.65)'
+        );
+        drawTrapezoid(
+            x1R - edgeInset1 - edgeW1, y1, x1R - edgeInset1, y1,
+            x2R - edgeInset2, y2, x2R - edgeInset2 - edgeW2, y2,
+            'rgba(255, 255, 255, 0.65)'
+        );
+    }
+
+    // Líneas divisorias de carril
+    if (showCenterLanes && seg.color.lane !== 'transparent') {
+        const laneW1 = w1 * 0.025;
+        const laneW2 = w2 * 0.025;
+        for (let l = 1; l < LANES; l++) {
+            const laneX1 = x1L + ((x1R - x1L) / LANES) * l;
+            const laneX2 = x2L + ((x2R - x2L) / LANES) * l;
+            drawTrapezoid(
+                laneX1 - laneW1, y1, laneX1 + laneW1, y1,
+                laneX2 + laneW2, y2, laneX2 - laneW2, y2,
+                seg.color.lane
+            );
+        }
+    }
+}
+
 function draw() {
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
@@ -2370,97 +2667,8 @@ function draw() {
     const stage = GameState.currentStage || ROUTE_TREE[0][0];
     const env = (baseSegment && baseSegment.env) ? baseSegment.env : stage;
 
-    // 1. Cielo Gradiente Suave y Natural (Atmósfera Realista con Multi-stop)
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT / 2);
-    skyGrad.addColorStop(0, env.skyTop || stage.skyTop);
-    skyGrad.addColorStop(0.65, env.skyBottom || stage.skyBottom);
-    skyGrad.addColorStop(1, '#ffc58a');
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT / 2);
-
-    // Sol Dorado Radiante Natural con Halo Atmosférico (Sin líneas toscas)
-    const sunX = Math.round(CANVAS_WIDTH * 0.72);
-    const sunY = 54;
-    const sunR = 28;
-
-    // Resplandor y halo atmosférico multicapa
-    const sunAura = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 2.8);
-    sunAura.addColorStop(0, 'rgba(255, 245, 200, 0.9)');
-    sunAura.addColorStop(0.35, 'rgba(255, 180, 80, 0.45)');
-    sunAura.addColorStop(0.7, 'rgba(255, 90, 110, 0.15)');
-    sunAura.addColorStop(1, 'rgba(255, 77, 109, 0)');
-    ctx.fillStyle = sunAura;
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR * 2.8, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Disco solar con degradado cálido y borde difuminado
-    const sunGrad = ctx.createRadialGradient(sunX, sunY - 4, 2, sunX, sunY, sunR);
-    sunGrad.addColorStop(0, '#ffffff');
-    sunGrad.addColorStop(0.5, env.sunColor || stage.sunColor || '#fff0aa');
-    sunGrad.addColorStop(0.9, '#ffa94d');
-    sunGrad.addColorStop(1, '#ff6b6b');
-    ctx.fillStyle = sunGrad;
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Franja de Océano Costero con Ondas Suaves y Destellos de Sol en Movimiento
-    const seaColor = env.seaColor || stage.seaColor;
-    if (seaColor) {
-        const seaTop = CANVAS_HEIGHT / 2 - 24;
-        const seaH = 24;
-        const seaGrad = ctx.createLinearGradient(0, seaTop, 0, seaTop + seaH);
-        seaGrad.addColorStop(0, seaColor);
-        seaGrad.addColorStop(1, '#0e4368');
-        ctx.fillStyle = seaGrad;
-        ctx.fillRect(0, seaTop, CANVAS_WIDTH, seaH);
-
-        // Destellos dorados y reflejos solares en el agua
-        if (stage.id === 'coconut_beach' || stage.id === 'seaside_blvd') {
-            const t = Date.now() / 200;
-            ctx.fillStyle = 'rgba(255, 235, 160, 0.55)';
-            for (let row = 0; row < 6; row++) {
-                const waveY = seaTop + 3 + row * 3.4;
-                const waveW = 14 + row * 12;
-                const waveX = sunX - waveW / 2 + Math.sin(t + row * 0.8) * 6;
-                ctx.beginPath();
-                ctx.ellipse(waveX + waveW / 2, waveY, waveW / 2, 1.4, 0, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-    }
-
-    // Montañas Suaves con Curvas Naturales y Perspectiva Atmosférica
-    // Capa 1: Cordillera lejana con bruma
-    ctx.fillStyle = 'rgba(26, 22, 42, 0.45)';
-    ctx.beginPath();
-    const mountainBaseY = CANVAS_HEIGHT / 2;
-    ctx.moveTo(0, mountainBaseY);
-    for (let x = 0; x <= CANVAS_WIDTH; x += 4) {
-        const offset = (x + GameState.skyOffset * 60) % CANVAS_WIDTH;
-        const h = Math.sin(offset * 0.025) * 32 + Math.cos(offset * 0.012) * 18 + Math.sin(offset * 0.06) * 6;
-        ctx.lineTo(x, mountainBaseY - 24 - h);
-    }
-    ctx.lineTo(CANVAS_WIDTH, mountainBaseY);
-    ctx.closePath();
-    ctx.fill();
-
-    // Capa 2: Relieve montañoso principal cercano
-    const mtnGrad = ctx.createLinearGradient(0, mountainBaseY - 50, 0, mountainBaseY);
-    mtnGrad.addColorStop(0, env.mountains || stage.mountains);
-    mtnGrad.addColorStop(1, 'rgba(15, 23, 20, 0.95)');
-    ctx.fillStyle = mtnGrad;
-    ctx.beginPath();
-    ctx.moveTo(0, mountainBaseY);
-    for (let x = 0; x <= CANVAS_WIDTH; x += 4) {
-        const offset = (x + GameState.skyOffset * 120) % CANVAS_WIDTH;
-        const h = Math.sin(offset * 0.04) * 22 + Math.cos(offset * 0.02) * 14 + Math.sin(offset * 0.08) * 8;
-        ctx.lineTo(x, mountainBaseY - 14 - h);
-    }
-    ctx.lineTo(CANVAS_WIDTH, mountainBaseY);
-    ctx.closePath();
-    ctx.fill();
+    // 1. Atmósfera, Cielo, Nubes, Sol, Océano/Skyline y Montañas en Paralaje
+    drawAtmosphere(env, stage);
 
     // Efecto temblor de pantalla (Camera shake)
     ctx.save();
@@ -2541,30 +2749,12 @@ function draw() {
                 roadX2 + cW2, seg.p2.screen.y,
                 seg.color.curb
             );
-            // Asfalto principal
-            drawTrapezoid(
-                roadX1 - cW1, seg.p1.screen.y,
-                roadX1 + cW1, seg.p1.screen.y,
-                roadX2 + cW2, seg.p2.screen.y,
-                roadX2 - cW2, seg.p2.screen.y,
-                seg.color.road
+            // Asfalto principal con detalles de desgaste, arcén interior y líneas de carril
+            drawRoadStripWithDetails(
+                roadX1 - cW1, roadX1 + cW1, seg.p1.screen.y,
+                roadX2 - cW2, roadX2 + cW2, seg.p2.screen.y,
+                cW1, cW2, seg, true
             );
-            // Líneas divisorias de carril
-            if (seg.color.lane !== 'transparent') {
-                const laneW1 = cW1 * 0.025;
-                const laneW2 = cW2 * 0.025;
-                for (let l = 1; l < LANES; l++) {
-                    const laneX1 = roadX1 - cW1 + (cW1 * 2 / LANES) * l;
-                    const laneX2 = roadX2 - cW2 + (cW2 * 2 / LANES) * l;
-                    drawTrapezoid(
-                        laneX1 - laneW1, seg.p1.screen.y,
-                        laneX1 + laneW1, seg.p1.screen.y,
-                        laneX2 + laneW2, seg.p2.screen.y,
-                        laneX2 - laneW2, seg.p2.screen.y,
-                        seg.color.lane
-                    );
-                }
-            }
 
             // Calzada rechazada que se aleja y sale suavemente de la pantalla
             const oCenter1 = seg.otherRoadCenter;
@@ -2592,12 +2782,10 @@ function draw() {
                         otherX2 + oW2, seg.p2.screen.y,
                         seg.color.curb
                     );
-                    drawTrapezoid(
-                        otherX1 - oW1, seg.p1.screen.y,
-                        otherX1 + oW1, seg.p1.screen.y,
-                        otherX2 + oW2, seg.p2.screen.y,
-                        otherX2 - oW2, seg.p2.screen.y,
-                        seg.color.road
+                    drawRoadStripWithDetails(
+                        otherX1 - oW1, otherX1 + oW1, seg.p1.screen.y,
+                        otherX2 - oW2, otherX2 + oW2, seg.p2.screen.y,
+                        oW1, oW2, seg, false
                     );
                     if (seg.color.lane !== 'transparent') {
                         const laneW1 = oW1 * 0.035;
@@ -2636,31 +2824,12 @@ function draw() {
                 seg.color.curb
             );
 
-            // Asfalto principal
-            drawTrapezoid(
-                seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.y,
-                seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
-                seg.p2.screen.x + seg.p2.screen.w, seg.p2.screen.y,
-                seg.p2.screen.x - seg.p2.screen.w, seg.p2.screen.y,
-                seg.color.road
+            // Asfalto principal con detalles de desgaste, arcén y carriles
+            drawRoadStripWithDetails(
+                seg.p1.screen.x - seg.p1.screen.w, seg.p1.screen.x + seg.p1.screen.w, seg.p1.screen.y,
+                seg.p2.screen.x - seg.p2.screen.w, seg.p2.screen.x + seg.p2.screen.w, seg.p2.screen.y,
+                seg.p1.screen.w, seg.p2.screen.w, seg, true
             );
-
-            // Líneas divisorias de carril
-            if (seg.color.lane !== 'transparent') {
-                const laneW1 = seg.p1.screen.w * 0.025;
-                const laneW2 = seg.p2.screen.w * 0.025;
-                for (let l = 1; l < LANES; l++) {
-                    const laneX1 = seg.p1.screen.x - seg.p1.screen.w + (seg.p1.screen.w * 2 / LANES) * l;
-                    const laneX2 = seg.p2.screen.x - seg.p2.screen.w + (seg.p2.screen.w * 2 / LANES) * l;
-                    drawTrapezoid(
-                        laneX1 - laneW1, seg.p1.screen.y,
-                        laneX1 + laneW1, seg.p1.screen.y,
-                        laneX2 + laneW2, seg.p2.screen.y,
-                        laneX2 - laneW2, seg.p2.screen.y,
-                        seg.color.lane
-                    );
-                }
-            }
         } else {
             // ==============================================================
             // BIFURCACIÓN DE PISTA: SALIDA IZQUIERDA Y SALIDA DERECHA
@@ -2681,7 +2850,6 @@ function draw() {
             const hasMedian2 = (leftX2 + bW2 + cW2 < rightX2 - bW2 - cW2);
 
             // 1. SALIDA IZQUIERDA
-            // Berma exterior izquierda
             drawTrapezoid(
                 leftX1 - bW1 - cW1, seg.p1.screen.y,
                 leftX1 - bW1, seg.p1.screen.y,
@@ -2689,15 +2857,11 @@ function draw() {
                 leftX2 - bW2 - cW2, seg.p2.screen.y,
                 seg.color.curb
             );
-            // Asfalto de la salida izquierda
-            drawTrapezoid(
-                leftX1 - bW1, seg.p1.screen.y,
-                leftX1 + bW1, seg.p1.screen.y,
-                leftX2 + bW2, seg.p2.screen.y,
-                leftX2 - bW2, seg.p2.screen.y,
-                seg.color.road
+            drawRoadStripWithDetails(
+                leftX1 - bW1, leftX1 + bW1, seg.p1.screen.y,
+                leftX2 - bW2, leftX2 + bW2, seg.p2.screen.y,
+                bW1, bW2, seg, false
             );
-            // Berma interior izquierda (junto a la mediana de pasto central)
             if (hasMedian1 || hasMedian2) {
                 drawTrapezoid(
                     leftX1 + bW1, seg.p1.screen.y,
@@ -2707,7 +2871,6 @@ function draw() {
                     seg.color.curb
                 );
             }
-            // Línea blanca central de la salida izquierda
             if (seg.color.lane !== 'transparent') {
                 const laneW1 = bW1 * 0.035;
                 const laneW2 = bW2 * 0.035;
@@ -2721,7 +2884,6 @@ function draw() {
             }
 
             // 2. SALIDA DERECHA
-            // Berma interior derecha (junto a la mediana de pasto central)
             if (hasMedian1 || hasMedian2) {
                 drawTrapezoid(
                     rightX1 - bW1 - cW1, seg.p1.screen.y,
@@ -2731,15 +2893,11 @@ function draw() {
                     seg.color.curb
                 );
             }
-            // Asfalto de la salida derecha
-            drawTrapezoid(
-                rightX1 - bW1, seg.p1.screen.y,
-                rightX1 + bW1, seg.p1.screen.y,
-                rightX2 + bW2, seg.p2.screen.y,
-                rightX2 - bW2, seg.p2.screen.y,
-                seg.color.road
+            drawRoadStripWithDetails(
+                rightX1 - bW1, rightX1 + bW1, seg.p1.screen.y,
+                rightX2 - bW2, rightX2 + bW2, seg.p2.screen.y,
+                bW1, bW2, seg, false
             );
-            // Berma exterior derecha
             drawTrapezoid(
                 rightX1 + bW1, seg.p1.screen.y,
                 rightX1 + bW1 + cW1, seg.p1.screen.y,
@@ -2747,7 +2905,6 @@ function draw() {
                 rightX2 + bW2, seg.p2.screen.y,
                 seg.color.curb
             );
-            // Línea blanca central de la salida derecha
             if (seg.color.lane !== 'transparent') {
                 const laneW1 = bW1 * 0.035;
                 const laneW2 = bW2 * 0.035;
@@ -2776,6 +2933,15 @@ function draw() {
 
         maxY = Math.min(maxY, seg.p2.screen.y);
     }
+
+    // Bruma atmosférica sutil en la línea del horizonte para profundidad natural
+    const horizonMistY = CANVAS_HEIGHT / 2;
+    const fogCol = parseColor(env.skyBottom || stage.skyBottom);
+    const mistGrad = ctx.createLinearGradient(0, horizonMistY - 1, 0, horizonMistY + 18);
+    mistGrad.addColorStop(0, `rgba(${fogCol.r},${fogCol.g},${fogCol.b},0.35)`);
+    mistGrad.addColorStop(1, `rgba(${fogCol.r},${fogCol.g},${fogCol.b},0)`);
+    ctx.fillStyle = mistGrad;
+    ctx.fillRect(0, horizonMistY - 1, CANVAS_WIDTH, 19);
 
     // 3. Renderizado de Objetos (Árboles, Señales y Tráfico Rival) ordenados por profundidad Z
     const drawables = [];
@@ -2898,7 +3064,8 @@ function draw() {
         if (item.kind === 'sprite') {
             drawWorldSprite(item.sprite, item.screenX, item.screenY, item.scale);
         } else if (item.kind === 'car') {
-            drawRivalCar(item.car.type, item.screenX, item.screenY, item.w, item.h);
+            const lean = (item.car.targetOffset !== undefined) ? (item.car.targetOffset - item.car.offset) : 0;
+            drawRivalCar(item.car.type, item.screenX, item.screenY, item.w, item.h, lean);
         }
     });
 
@@ -2921,19 +3088,41 @@ function draw() {
     // 4. Coche del Jugador (Ferrari Testarossa Fluida y Detallada)
     drawPlayerCar();
 
+    // Efecto sutil de líneas de velocidad periféricas en alta velocidad / Turbo
+    if (GameState.running && (GameState.speed > 9200 || (GameState.input.turbo && GameState.speed > 6500))) {
+        const intensity = GameState.input.turbo ? 0.24 : Math.min(0.16, (GameState.speed - 9200) / 20000);
+        const phase = (Date.now() / 45) % 10;
+        ctx.strokeStyle = GameState.input.turbo ? `rgba(0, 245, 212, ${intensity.toFixed(2)})` : `rgba(255, 255, 255, ${intensity.toFixed(2)})`;
+        ctx.lineWidth = 1.1;
+        for (let k = 0; k < 6; k++) {
+            const leftY = CANVAS_HEIGHT * 0.56 + ((k * 23 + phase * 4) % (CANVAS_HEIGHT * 0.40));
+            const len = 18 + (k % 3) * 10;
+            ctx.beginPath();
+            ctx.moveTo(2, leftY);
+            ctx.lineTo(2 + len, leftY - len * 0.28);
+            ctx.moveTo(CANVAS_WIDTH - 2, leftY + 5);
+            ctx.lineTo(CANVAS_WIDTH - 2 - len, leftY + 5 - len * 0.28);
+            ctx.stroke();
+        }
+    }
+
     // 5. Minimapa de Rutas (Solo visible en Game Over o Victoria, NUNCA estorbando la vista durante la carrera)
     if (GameState.gameOver || GameState.gameWon) {
         drawCourseMap();
     }
 
-    // 6. Banner de Checkpoint / Alertas
+    // 6. Banner de Checkpoint / Alertas con sombra de contraste
     if (GameState.banner.timer > 0) {
         ctx.textAlign = 'center';
         ctx.font = '12px "Press Start 2P", monospace';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+        ctx.fillText(GameState.banner.text, CANVAS_WIDTH / 2 + 1.5, 76.5);
         ctx.fillStyle = GameState.banner.color;
         ctx.fillText(GameState.banner.text, CANVAS_WIDTH / 2, 75);
         if (GameState.banner.subtext) {
             ctx.font = '9px "Press Start 2P", monospace';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+            ctx.fillText(GameState.banner.subtext, CANVAS_WIDTH / 2 + 1, 96);
             ctx.fillStyle = '#ffffff';
             ctx.fillText(GameState.banner.subtext, CANVAS_WIDTH / 2, 95);
         }
@@ -3070,7 +3259,7 @@ function drawCourseMap() {
     }
 }
 
-// Sprites de Escenarios Naturales (Palmeras orgánicas, pinos, molinos, carteles de ruta y arcos)
+// Sprites de Escenarios Naturales y Detallados (Palmeras frondosas, cactus acanalados, pinos nevados, mesetas, columnas con hiedra, molinos, farolas y carteles HD)
 function drawWorldSprite(spriteObj, x, y, scale) {
     const type = (typeof spriteObj === 'string') ? spriteObj : spriteObj.type;
     const size = Math.round(scale * 190000);
@@ -3081,899 +3270,1312 @@ function drawWorldSprite(spriteObj, x, y, scale) {
         ctx.translate(x, y);
 
         if (type === 'palm') {
-        // Sombra de la palmera sobre el pasto
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, size * 0.25, size * 0.06, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Tronco curvado orgánico con degradado de corteza
-        const trunkGrad = ctx.createLinearGradient(-size * 0.05, 0, size * 0.05, 0);
-        trunkGrad.addColorStop(0, '#4a2c11');
-        trunkGrad.addColorStop(0.5, '#7a4b22');
-        trunkGrad.addColorStop(1, '#3b220c');
-
-        ctx.fillStyle = trunkGrad;
-        ctx.beginPath();
-        ctx.moveTo(-size * 0.05, 0);
-        ctx.quadraticCurveTo(-size * 0.07, -size * 0.5, -size * 0.025, -size);
-        ctx.lineTo(size * 0.025, -size);
-        ctx.quadraticCurveTo(-size * 0.02, -size * 0.5, size * 0.05, 0);
-        ctx.closePath();
-        ctx.fill();
-
-        // Anillos de textura de corteza
-        ctx.fillStyle = 'rgba(40, 20, 8, 0.45)';
-        for (let py = -size * 0.9; py < 0; py += size * 0.08) {
+            // Sombra suave de palmera
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
             ctx.beginPath();
-            ctx.ellipse(-size * 0.04 * (1 + py / size), py, size * 0.045, size * 0.012, 0, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, size * 0.28, size * 0.06, 0, 0, Math.PI * 2);
             ctx.fill();
-        }
 
-        // Cocos en la copa con brillo esférico
-        const drawCoconut = (cx, cy) => {
-            const cGrad = ctx.createRadialGradient(cx - 1, cy - 1, 1, cx, cy, size * 0.04);
-            cGrad.addColorStop(0, '#6d4c41');
-            cGrad.addColorStop(1, '#2d1810');
+            // Tronco curvado fibroso con luz cálida lateral y textura
+            const trunkGrad = ctx.createLinearGradient(-size * 0.06, 0, size * 0.05, 0);
+            trunkGrad.addColorStop(0, '#3e2310');
+            trunkGrad.addColorStop(0.55, '#8c582b');
+            trunkGrad.addColorStop(1, '#2b1608');
+
+            ctx.fillStyle = trunkGrad;
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.052, 0);
+            ctx.quadraticCurveTo(-size * 0.075, -size * 0.5, -size * 0.024, -size);
+            ctx.lineTo(size * 0.024, -size);
+            ctx.quadraticCurveTo(-size * 0.018, -size * 0.5, size * 0.052, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Anillos de corteza
+            if (size > 16) {
+                ctx.fillStyle = 'rgba(30, 14, 5, 0.42)';
+                for (let py = -size * 0.92; py < 0; py += size * 0.075) {
+                    ctx.beginPath();
+                    ctx.ellipse(-size * 0.042 * (1 + py / size), py, size * 0.045, size * 0.011, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Frondas inferiores más oscuras (profundidad de copa)
+            const backFronds = [-165, -135, -45, -15];
+            backFronds.forEach(deg => {
+                const rad = (deg * Math.PI) / 180;
+                const frondLen = size * 0.48;
+                const tipX = Math.cos(rad) * frondLen;
+                const tipY = -size + Math.sin(rad) * frondLen + size * 0.16;
+                ctx.fillStyle = '#047857';
+                ctx.beginPath();
+                ctx.moveTo(0, -size);
+                ctx.quadraticCurveTo(tipX * 0.48, -size + Math.sin(rad) * frondLen * 0.18 - size * 0.10, tipX, tipY);
+                ctx.quadraticCurveTo(tipX * 0.52, -size + Math.sin(rad) * frondLen * 0.35 + size * 0.04, 0, -size + size * 0.03);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Cocos con brillo
+            const drawCoconut = (cx, cy) => {
+                const cGrad = ctx.createRadialGradient(cx - 1, cy - 1, 0.5, cx, cy, Math.max(1, size * 0.042));
+                cGrad.addColorStop(0, '#8d6e63');
+                cGrad.addColorStop(1, '#2d1810');
+                ctx.fillStyle = cGrad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, size * 0.042, 0, Math.PI * 2);
+                ctx.fill();
+            };
+            drawCoconut(-size * 0.04, -size + size * 0.03);
+            drawCoconut(size * 0.04, -size + size * 0.03);
+            drawCoconut(0, -size + size * 0.052);
+
+            // Frondas superiores plumosas con brillo tropical
+            const frontFronds = [-150, -120, -90, -60, -30, -105, -75];
+            frontFronds.forEach((deg, idx) => {
+                const rad = (deg * Math.PI) / 180;
+                const frondLen = size * (0.46 + (idx % 3) * 0.07);
+                const tipX = Math.cos(rad) * frondLen;
+                const tipY = -size + Math.sin(rad) * frondLen + size * 0.14;
+                const ctrlX = tipX * 0.52;
+                const ctrlY = -size + Math.sin(rad) * frondLen * 0.15 - size * 0.11;
+
+                // Hojas plumosas
+                ctx.fillStyle = idx % 2 === 0 ? '#10b981' : '#34d399';
+                ctx.beginPath();
+                ctx.moveTo(0, -size);
+                ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
+                ctx.quadraticCurveTo(tipX * 0.45, -size + Math.sin(rad) * frondLen * 0.4 + size * 0.03, 0, -size + size * 0.025);
+                ctx.closePath();
+                ctx.fill();
+
+                // Nervio iluminado superior
+                if (size > 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -size);
+                    ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
+                    ctx.strokeStyle = 'rgba(167, 243, 208, 0.55)';
+                    ctx.lineWidth = Math.max(1, size * 0.015);
+                    ctx.stroke();
+                }
+            });
+        } else if (type === 'cactus') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.22, size * 0.05, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const cGrad = ctx.createLinearGradient(-size * 0.07, 0, size * 0.07, 0);
+            cGrad.addColorStop(0, '#0f5132');
+            cGrad.addColorStop(0.35, '#2dd4bf');
+            cGrad.addColorStop(0.75, '#0d9488');
+            cGrad.addColorStop(1, '#115e59');
+
             ctx.fillStyle = cGrad;
             ctx.beginPath();
-            ctx.arc(cx, cy, size * 0.04, 0, Math.PI * 2);
+            ctx.roundRect(-size * 0.07, -size * 0.85, size * 0.14, size * 0.85, [size * 0.07, size * 0.07, 0, 0]);
             ctx.fill();
-        };
-        drawCoconut(-size * 0.04, -size + size * 0.03);
-        drawCoconut(size * 0.04, -size + size * 0.03);
-        drawCoconut(0, -size + size * 0.05);
 
-        // Frondas de palmera realistas y arqueadas (Hojas tropicales en abanico natural)
-        const frondAngles = [-150, -120, -90, -60, -30, -165, -135, -45, -15];
-        frondAngles.forEach((deg, idx) => {
-            const rad = (deg * Math.PI) / 180;
-            const frondLen = size * (0.45 + (idx % 3) * 0.08);
-            const tipX = Math.cos(rad) * frondLen;
-            const tipY = -size + Math.sin(rad) * frondLen + size * 0.12;
-
+            // Brazos curvados orgánicos
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#0d9488';
+            ctx.lineWidth = Math.max(2, size * 0.09);
             ctx.beginPath();
-            ctx.moveTo(0, -size);
-            ctx.quadraticCurveTo(tipX * 0.5, -size + Math.sin(rad) * frondLen * 0.2 - size * 0.08, tipX, tipY);
-            ctx.strokeStyle = idx % 2 === 0 ? '#10b981' : '#059669';
-            ctx.lineWidth = Math.max(2, size * 0.035);
+            ctx.moveTo(-size * 0.05, -size * 0.48);
+            ctx.quadraticCurveTo(-size * 0.21, -size * 0.46, -size * 0.21, -size * 0.72);
             ctx.stroke();
 
-            // Hojas plumosas a los lados de la fronda
-            ctx.fillStyle = idx % 2 === 0 ? '#34d399' : '#10b981';
             ctx.beginPath();
-            ctx.ellipse(tipX * 0.65, -size + (tipY + size) * 0.5, size * 0.09, size * 0.035, rad, 0, Math.PI * 2);
-            ctx.fill();
-        });
-    } else if (type === 'cactus') {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, size * 0.22, size * 0.05, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        const cGrad = ctx.createLinearGradient(-size * 0.07, 0, size * 0.07, 0);
-        cGrad.addColorStop(0, '#134e4a');
-        cGrad.addColorStop(0.3, '#2dd4bf');
-        cGrad.addColorStop(0.7, '#14b8a6');
-        cGrad.addColorStop(1, '#0f766e');
-
-        ctx.fillStyle = cGrad;
-        ctx.beginPath();
-        ctx.roundRect(-size * 0.07, -size * 0.85, size * 0.14, size * 0.85, [size * 0.07, size * 0.07, 0, 0]);
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.roundRect(-size * 0.25, -size * 0.55, size * 0.20, size * 0.10, 4);
-        ctx.roundRect(-size * 0.25, -size * 0.75, size * 0.09, size * 0.25, [size * 0.045, size * 0.045, 0, 0]);
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.roundRect(size * 0.05, -size * 0.45, size * 0.20, size * 0.10, 4);
-        ctx.roundRect(size * 0.16, -size * 0.68, size * 0.09, size * 0.28, [size * 0.045, size * 0.045, 0, 0]);
-        ctx.fill();
-    } else if (type === 'pine') {
-        ctx.fillStyle = '#451a03';
-        ctx.beginPath();
-        ctx.roundRect(-size * 0.04, -size * 0.18, size * 0.08, size * 0.18, 2);
-        ctx.fill();
-
-        const drawPineTier = (tierY, w, h, col1, col2) => {
-            const pGrad = ctx.createLinearGradient(0, tierY - h, 0, tierY);
-            pGrad.addColorStop(0, col1);
-            pGrad.addColorStop(1, col2);
-            ctx.fillStyle = pGrad;
-            ctx.beginPath();
-            ctx.moveTo(-w / 2, tierY);
-            ctx.quadraticCurveTo(0, tierY - h * 1.15, w / 2, tierY);
-            ctx.quadraticCurveTo(0, tierY + h * 0.15, -w / 2, tierY);
-            ctx.fill();
-        };
-        drawPineTier(-size * 0.12, size * 0.52, size * 0.35, '#166534', '#052e16');
-        drawPineTier(-size * 0.38, size * 0.42, size * 0.32, '#15803d', '#14532d');
-        drawPineTier(-size * 0.62, size * 0.30, size * 0.28, '#22c55e', '#166534');
-
-        // Nieve en la punta del abeto
-        ctx.fillStyle = '#f8fafc';
-        ctx.beginPath();
-        ctx.moveTo(-size * 0.08, -size * 0.82);
-        ctx.lineTo(0, -size * 0.95);
-        ctx.lineTo(size * 0.08, -size * 0.82);
-        ctx.closePath();
-        ctx.fill();
-    } else if (type === 'rock') {
-        ctx.fillStyle = '#78350f';
-        ctx.beginPath();
-        ctx.moveTo(-size * 0.3, 0);
-        ctx.lineTo(-size * 0.25, -size * 0.4);
-        ctx.lineTo(-size * 0.05, -size * 0.6);
-        ctx.lineTo(size * 0.2, -size * 0.55);
-        ctx.lineTo(size * 0.35, -size * 0.25);
-        ctx.lineTo(size * 0.3, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#451a03';
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(size * 0.2, -size * 0.55);
-        ctx.lineTo(size * 0.35, -size * 0.25);
-        ctx.lineTo(size * 0.3, 0);
-        ctx.closePath();
-        ctx.fill();
-    } else if (type === 'column') {
-        const colW = size * 0.18;
-        const colH = size * 0.85;
-        ctx.fillStyle = '#dcdde1';
-        ctx.fillRect(-colW * 0.75, -size * 0.1, colW * 1.5, size * 0.1);
-        ctx.fillStyle = '#f5f6fa';
-        ctx.fillRect(-colW / 2, -colH, colW, colH - size * 0.1);
-        ctx.fillStyle = '#ced6e0';
-        ctx.fillRect(-colW * 0.15, -colH, colW * 0.3, colH - size * 0.1);
-        ctx.fillStyle = '#f5f6fa';
-        ctx.fillRect(-colW * 0.8, -colH - size * 0.08, colW * 1.6, size * 0.08);
-    } else if (type === 'windmill') {
-        const baseW = size * 0.28;
-        const bodyH = size * 0.75;
-        ctx.fillStyle = '#f5f6fa';
-        ctx.beginPath();
-        ctx.moveTo(-baseW / 2, 0);
-        ctx.lineTo(-baseW * 0.35, -bodyH);
-        ctx.lineTo(baseW * 0.35, -bodyH);
-        ctx.lineTo(baseW / 2, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#e17055';
-        ctx.beginPath();
-        ctx.moveTo(-baseW * 0.4, -bodyH);
-        ctx.lineTo(0, -bodyH - size * 0.18);
-        ctx.lineTo(baseW * 0.4, -bodyH);
-        ctx.closePath();
-        ctx.fill();
-        const angle = (Date.now() / 300) % (Math.PI * 2);
-        ctx.save();
-        ctx.translate(0, -bodyH + size * 0.05);
-        ctx.rotate(angle);
-        ctx.fillStyle = '#dfe6e9';
-        for (let b = 0; b < 4; b++) {
-            ctx.rotate(Math.PI / 2);
-            ctx.beginPath();
-            ctx.roundRect(-size * 0.03, 0, size * 0.06, size * 0.45, 2);
-            ctx.fill();
-        }
-        ctx.restore();
-    } else if (type === 'city') {
-        ctx.fillStyle = '#00f3ff';
-        ctx.fillRect(-size * 0.03, -size * 0.9, size * 0.06, size * 0.9);
-        ctx.fillStyle = '#ff00ea';
-        ctx.fillRect(-size * 0.15, -size * 0.9, size * 0.3, size * 0.1);
-    } else if (type === 'fork_sign_left' || type === 'fork_sign_right') {
-        // Señales de bifurcación de autopista: escalado puramente proporcional en perspectiva 3D (igual que los árboles)
-        const signW = Math.round(size * 0.95);
-        const signH = Math.round(size * 0.42);
-        if (signW < 6) return;
-        const postH = Math.round(signH * 1.15);
-        const postW = Math.max(1, Math.round(signW * 0.04));
-
-        // Doble soporte de acero galvanizado anclado en el pasto lateral exterior
-        ctx.fillStyle = '#64748b';
-        ctx.fillRect(-signW * 0.35 - postW / 2, -postH, postW, postH);
-        ctx.fillRect(signW * 0.35 - postW / 2, -postH, postW, postH);
-
-        // Zapatas de anclaje de concreto sobre el pasto
-        if (postW > 1) {
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillRect(-signW * 0.35 - postW, -Math.max(2, postW), postW * 2, Math.max(2, postW));
-            ctx.fillRect(signW * 0.35 - postW, -Math.max(2, postW), postW * 2, Math.max(2, postW));
-        }
-
-        // Cartel verde oficial reflectante de autopista
-        const boardY = -postH - signH;
-        ctx.fillStyle = '#065f46';
-        ctx.beginPath();
-        if (signW >= 20) {
-            ctx.roundRect(-signW / 2, boardY, signW, signH, Math.min(4, Math.floor(signW * 0.06)));
-        } else {
-            ctx.rect(-signW / 2, boardY, signW, signH);
-        }
-        ctx.fill();
-
-        if (signW >= 14) {
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = Math.max(1, signW * 0.025);
-            ctx.stroke();
-        }
-
-        // Renderizado adaptativo de texto / flechas (LOD nítido en el horizonte sin bloques borrosos)
-        if (signW >= 36) {
-            // Indicador superior amarillo
-            ctx.fillStyle = '#facc15';
-            ctx.font = `${Math.max(5, Math.floor(size * 0.075))}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            const arrowText = (type === 'fork_sign_left') ? '◄ SALIDA' : 'SALIDA ►';
-            ctx.fillText(arrowText, 0, boardY + Math.max(2, signH * 0.12));
-
-            // Nombre de la ruta en blanco nítido
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `${Math.max(5, Math.floor(size * 0.085))}px "Press Start 2P"`;
-            ctx.textBaseline = 'bottom';
-            const label = (spriteObj.label || 'RUTA').substring(0, 14);
-            ctx.fillText(label, 0, boardY + signH - Math.max(2, signH * 0.10));
-        } else if (signW >= 12) {
-            // A la distancia: franja reflectante estilizada en perspectiva
-            ctx.fillStyle = '#facc15';
-            const barH = Math.max(1, Math.floor(signH * 0.22));
-            ctx.fillRect(-signW * 0.35, boardY + Math.floor(signH * 0.25), signW * 0.7, barH);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(-signW * 0.30, boardY + Math.floor(signH * 0.60), signW * 0.6, barH);
-        }
-    } else if (type === 'median_gore' || type === 'median_sign') {
-        const goreW = Math.round(size * 0.38);
-        const goreH = Math.round(size * 0.52);
-        if (goreW < 4) return;
-        const cushionH = Math.round(goreH * 0.52);
-
-        // Atenuador de impacto / barril de choque con franjas amarillo-negro reflectantes
-        ctx.fillStyle = '#f59e0b';
-        ctx.beginPath();
-        ctx.roundRect(-goreW / 2, -cushionH, goreW, cushionH, [Math.min(3, goreW * 0.1), Math.min(3, goreW * 0.1), 0, 0]);
-        ctx.fill();
-
-        if (goreW >= 12) {
-            ctx.strokeStyle = '#0f172a';
-            ctx.lineWidth = Math.max(1, goreW * 0.04);
+            ctx.moveTo(size * 0.05, -size * 0.38);
+            ctx.quadraticCurveTo(size * 0.21, -size * 0.36, size * 0.21, -size * 0.65);
             ctx.stroke();
 
-            // Rayado diagonal negro de advertencia
-            ctx.save();
-            ctx.clip();
-            ctx.fillStyle = '#0f172a';
-            const stripeW = Math.max(2, Math.floor(goreW * 0.16));
-            for (let bx = -goreW * 1.5; bx < goreW * 1.5; bx += stripeW * 2) {
+            // Costillas verticales y flores del desierto en puntas
+            if (size > 22) {
+                ctx.strokeStyle = 'rgba(204, 251, 241, 0.35)';
+                ctx.lineWidth = Math.max(1, size * 0.015);
                 ctx.beginPath();
-                ctx.moveTo(bx, 0);
-                ctx.lineTo(bx + stripeW, 0);
-                ctx.lineTo(bx + stripeW + cushionH, -cushionH);
-                ctx.lineTo(bx + cushionH, -cushionH);
+                ctx.moveTo(-size * 0.025, -size * 0.80);
+                ctx.lineTo(-size * 0.025, -size * 0.05);
+                ctx.moveTo(size * 0.025, -size * 0.80);
+                ctx.lineTo(size * 0.025, -size * 0.05);
+                ctx.stroke();
+
+                // Flores en la copa
+                ctx.fillStyle = '#fb7185';
+                ctx.beginPath();
+                ctx.arc(0, -size * 0.87, size * 0.032, 0, Math.PI * 2);
+                ctx.arc(-size * 0.21, -size * 0.76, size * 0.024, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else if (type === 'pine') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.26, size * 0.055, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#451a03';
+            ctx.beginPath();
+            ctx.roundRect(-size * 0.045, -size * 0.20, size * 0.09, size * 0.20, 2);
+            ctx.fill();
+
+            const drawPineTier = (tierY, w, h, col1, col2, snowDepth) => {
+                const pGrad = ctx.createLinearGradient(-w / 2, tierY - h, w / 2, tierY);
+                pGrad.addColorStop(0, col1);
+                pGrad.addColorStop(0.6, col2);
+                pGrad.addColorStop(1, '#022c22');
+                ctx.fillStyle = pGrad;
+                ctx.beginPath();
+                ctx.moveTo(-w / 2, tierY);
+                ctx.quadraticCurveTo(-w * 0.18, tierY - h * 0.55, 0, tierY - h);
+                ctx.quadraticCurveTo(w * 0.18, tierY - h * 0.55, w / 2, tierY);
+                ctx.quadraticCurveTo(w * 0.25, tierY + h * 0.10, 0, tierY + h * 0.05);
+                ctx.quadraticCurveTo(-w * 0.25, tierY + h * 0.10, -w / 2, tierY);
+                ctx.fill();
+
+                if (snowDepth && size > 18) {
+                    ctx.fillStyle = 'rgba(248, 250, 252, 0.88)';
+                    ctx.beginPath();
+                    ctx.moveTo(-w * 0.25, tierY - h * 0.45);
+                    ctx.quadraticCurveTo(0, tierY - h * 1.05, w * 0.25, tierY - h * 0.45);
+                    ctx.quadraticCurveTo(0, tierY - h * 0.58, -w * 0.25, tierY - h * 0.45);
+                    ctx.fill();
+                }
+            };
+            drawPineTier(-size * 0.14, size * 0.56, size * 0.34, '#15803d', '#064e3b', false);
+            drawPineTier(-size * 0.36, size * 0.45, size * 0.30, '#16a34a', '#14532d', true);
+            drawPineTier(-size * 0.56, size * 0.35, size * 0.27, '#22c55e', '#15803d', true);
+            drawPineTier(-size * 0.74, size * 0.22, size * 0.22, '#4ade80', '#166534', true);
+        } else if (type === 'rock') {
+            // Sombra en suelo
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.38, size * 0.06, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Meseta estratificada de arenisca roja (Grand Canyon)
+            const rGrad = ctx.createLinearGradient(-size * 0.35, -size * 0.62, size * 0.35, 0);
+            rGrad.addColorStop(0, '#d97706');
+            rGrad.addColorStop(0.5, '#9a3412');
+            rGrad.addColorStop(1, '#451a03');
+            ctx.fillStyle = rGrad;
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.36, 0);
+            ctx.lineTo(-size * 0.28, -size * 0.42);
+            ctx.lineTo(-size * 0.10, -size * 0.62);
+            ctx.lineTo(size * 0.18, -size * 0.58);
+            ctx.lineTo(size * 0.36, -size * 0.26);
+            ctx.lineTo(size * 0.34, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Estratos sedimentarios cálidos horizontales
+            if (size > 16) {
+                ctx.fillStyle = 'rgba(253, 186, 116, 0.38)';
+                ctx.fillRect(-size * 0.24, -size * 0.36, size * 0.42, size * 0.035);
+                ctx.fillStyle = 'rgba(251, 146, 60, 0.32)';
+                ctx.fillRect(-size * 0.28, -size * 0.18, size * 0.48, size * 0.035);
+            }
+
+            // Cara sombreada derecha
+            ctx.fillStyle = 'rgba(40, 12, 4, 0.45)';
+            ctx.beginPath();
+            ctx.moveTo(size * 0.04, 0);
+            ctx.lineTo(size * 0.08, -size * 0.59);
+            ctx.lineTo(size * 0.18, -size * 0.58);
+            ctx.lineTo(size * 0.36, -size * 0.26);
+            ctx.lineTo(size * 0.34, 0);
+            ctx.closePath();
+            ctx.fill();
+        } else if (type === 'column') {
+            // Sombra proyectada
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.22, size * 0.05, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const colW = size * 0.20;
+            const colH = size * 0.85;
+
+            // Pedestal escalonado
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(-colW * 0.90, -size * 0.06, colW * 1.8, size * 0.06);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(-colW * 0.72, -size * 0.11, colW * 1.44, size * 0.05);
+
+            // Fuste de mármol con gradiente cilíndrico
+            const colGrad = ctx.createLinearGradient(-colW / 2, 0, colW / 2, 0);
+            colGrad.addColorStop(0, '#94a3b8');
+            colGrad.addColorStop(0.35, '#ffffff');
+            colGrad.addColorStop(0.75, '#e2e8f0');
+            colGrad.addColorStop(1, '#64748b');
+            ctx.fillStyle = colGrad;
+            ctx.fillRect(-colW / 2, -colH, colW, colH - size * 0.11);
+
+            // Estrías verticales dóricas
+            if (size > 20) {
+                ctx.fillStyle = 'rgba(71, 85, 105, 0.30)';
+                for (let f = -1; f <= 1; f++) {
+                    ctx.fillRect(f * colW * 0.26 - Math.max(0.5, colW * 0.05), -colH + size * 0.03, Math.max(1, colW * 0.10), colH - size * 0.16);
+                }
+                // Hiedra trepadora verde
+                ctx.fillStyle = '#16a34a';
+                ctx.beginPath();
+                ctx.arc(-colW * 0.28, -colH * 0.42, size * 0.035, 0, Math.PI * 2);
+                ctx.arc(colW * 0.12, -colH * 0.52, size * 0.032, 0, Math.PI * 2);
+                ctx.arc(-colW * 0.12, -colH * 0.65, size * 0.030, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Capitel esculpido con volutas
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.roundRect(-colW * 0.82, -colH - size * 0.09, colW * 1.64, size * 0.09, 2);
+            ctx.fill();
+            if (size > 18) {
+                ctx.fillStyle = '#cbd5e1';
+                ctx.beginPath();
+                ctx.arc(-colW * 0.65, -colH - size * 0.02, colW * 0.22, 0, Math.PI * 2);
+                ctx.arc(colW * 0.65, -colH - size * 0.02, colW * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else if (type === 'windmill') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.26, size * 0.055, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const baseW = size * 0.30;
+            const bodyH = size * 0.76;
+            const towerGrad = ctx.createLinearGradient(-baseW / 2, 0, baseW / 2, 0);
+            towerGrad.addColorStop(0, '#cbd5e1');
+            towerGrad.addColorStop(0.4, '#ffffff');
+            towerGrad.addColorStop(1, '#94a3b8');
+            ctx.fillStyle = towerGrad;
+            ctx.beginPath();
+            ctx.moveTo(-baseW / 2, 0);
+            ctx.lineTo(-baseW * 0.34, -bodyH);
+            ctx.lineTo(baseW * 0.34, -bodyH);
+            ctx.lineTo(baseW / 2, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Puerta de madera y ventana cálida iluminada
+            if (size > 20) {
+                ctx.fillStyle = '#78350f';
+                ctx.beginPath();
+                ctx.roundRect(-baseW * 0.14, -bodyH * 0.24, baseW * 0.28, bodyH * 0.24, [baseW * 0.14, baseW * 0.14, 0, 0]);
+                ctx.fill();
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath();
+                ctx.roundRect(-baseW * 0.10, -bodyH * 0.62, baseW * 0.20, bodyH * 0.16, 2);
+                ctx.fill();
+            }
+
+            // Techo cónico de tejas
+            ctx.fillStyle = '#c2410c';
+            ctx.beginPath();
+            ctx.moveTo(-baseW * 0.42, -bodyH);
+            ctx.lineTo(0, -bodyH - size * 0.20);
+            ctx.lineTo(baseW * 0.42, -bodyH);
+            ctx.closePath();
+            ctx.fill();
+
+            // Aspas de madera con entramado girando fluidamente
+            const angle = (Date.now() / 360) % (Math.PI * 2);
+            ctx.save();
+            ctx.translate(0, -bodyH + size * 0.04);
+            ctx.rotate(angle);
+            for (let b = 0; b < 4; b++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(-size * 0.012, 0, size * 0.024, size * 0.46);
+                ctx.fillStyle = 'rgba(248, 250, 252, 0.92)';
+                ctx.beginPath();
+                ctx.roundRect(size * 0.012, size * 0.09, size * 0.068, size * 0.35, 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.max(1.5, size * 0.032), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        } else if (type === 'city') {
+            // Farola moderna / neón de autopista con cono luminoso
+            const postW = Math.max(1.5, size * 0.045);
+            const postH = size * 0.92;
+            const armDir = x < CANVAS_WIDTH / 2 ? 1 : -1;
+
+            // Halo luminoso suave
+            const lampX = armDir * size * 0.14;
+            const lampY = -postH;
+            const lightGrad = ctx.createRadialGradient(lampX, lampY + size * 0.04, 1, lampX, lampY + size * 0.15, size * 0.36);
+            lightGrad.addColorStop(0, 'rgba(0, 243, 255, 0.42)');
+            lightGrad.addColorStop(0.5, 'rgba(255, 0, 234, 0.16)');
+            lightGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = lightGrad;
+            ctx.beginPath();
+            ctx.arc(lampX, lampY + size * 0.12, size * 0.36, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Poste metálico y brazo en voladizo
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-postW / 2, -postH, postW, postH);
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath();
+            ctx.roundRect(-postW, -size * 0.06, postW * 2, size * 0.06, 1);
+            ctx.fill();
+            ctx.fillRect(Math.min(0, lampX), -postH, Math.abs(lampX), postW * 0.8);
+
+            // Barra luminosa LED neón
+            ctx.fillStyle = '#00f3ff';
+            ctx.beginPath();
+            ctx.roundRect(lampX - size * 0.08, -postH - size * 0.015, size * 0.16, Math.max(2, size * 0.04), 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(lampX - size * 0.05, -postH, size * 0.10, Math.max(1, size * 0.018));
+        } else if (type === 'bush' || type === 'flower_bush') {
+            const bw = size * 0.42;
+            const bh = size * 0.25;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, bw * 0.62, size * 0.045, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#15803d';
+            ctx.beginPath();
+            ctx.arc(-bw * 0.26, -bh * 0.42, bh * 0.45, 0, Math.PI * 2);
+            ctx.arc(bw * 0.26, -bh * 0.42, bh * 0.45, 0, Math.PI * 2);
+            ctx.arc(0, -bh * 0.65, bh * 0.56, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#22c55e';
+            ctx.beginPath();
+            ctx.arc(-bw * 0.16, -bh * 0.52, bh * 0.34, 0, Math.PI * 2);
+            ctx.arc(bw * 0.14, -bh * 0.50, bh * 0.32, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (type === 'flower_bush' && size > 18) {
+                const flowerCols = ['#f43f5e', '#facc15', '#fb923c', '#f472b6'];
+                for (let fl = 0; fl < 4; fl++) {
+                    ctx.fillStyle = flowerCols[fl];
+                    ctx.beginPath();
+                    ctx.arc((-0.25 + fl * 0.16) * bw, -bh * (0.45 + (fl % 2) * 0.28), Math.max(1, size * 0.022), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        } else if (type === 'beach_umbrella') {
+            const uW = size * 0.48;
+            const uH = size * 0.45;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+            ctx.beginPath();
+            ctx.ellipse(size * 0.05, 0, uW * 0.48, size * 0.045, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mástil inclinado
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = Math.max(1.2, size * 0.022);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-size * 0.04, -uH);
+            ctx.stroke();
+
+            // Toldo a rayas playero
+            ctx.save();
+            ctx.translate(-size * 0.04, -uH);
+            ctx.rotate(-0.14);
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(0, 0, uW * 0.5, Math.PI, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, uW * 0.5, Math.PI * 1.25, Math.PI * 1.75);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.arc(0, -uW * 0.5, Math.max(1, size * 0.022), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        } else if (type === 'city_billboard') {
+            const bW = Math.round(size * 0.85);
+            const bH = Math.round(size * 0.36);
+            if (bW < 6) return;
+            const postH = Math.round(size * 0.42);
+            const postW = Math.max(1.5, Math.round(bW * 0.05));
+
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-bW * 0.30, -postH, postW, postH);
+            ctx.fillRect(bW * 0.30 - postW, -postH, postW, postH);
+
+            const boardY = -postH - bH;
+            const bbGrad = ctx.createLinearGradient(-bW / 2, boardY, bW / 2, boardY + bH);
+            bbGrad.addColorStop(0, '#3b0764');
+            bbGrad.addColorStop(0.5, '#be185d');
+            bbGrad.addColorStop(1, '#0e7490');
+            ctx.fillStyle = bbGrad;
+            ctx.beginPath();
+            ctx.roundRect(-bW / 2, boardY, bW, bH, Math.min(3, bW * 0.05));
+            ctx.fill();
+
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = Math.max(1, bW * 0.02);
+            ctx.stroke();
+
+            if (bW >= 34) {
+                ctx.fillStyle = '#fef08a';
+                ctx.font = `${Math.max(5, Math.floor(bH * 0.38))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('TURBO', 0, boardY + bH / 2);
+            }
+        } else if (type === 'fork_sign_left' || type === 'fork_sign_right') {
+            // Señales de bifurcación de autopista con sombra proyectada y brillo metálico
+            const signW = Math.round(size * 0.95);
+            const signH = Math.round(size * 0.42);
+            if (signW < 6) return;
+            const postH = Math.round(signH * 1.15);
+            const postW = Math.max(1, Math.round(signW * 0.04));
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, signW * 0.42, Math.max(1.5, size * 0.03), 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Doble soporte de acero galvanizado
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(-signW * 0.35 - postW / 2, -postH, postW, postH);
+            ctx.fillRect(signW * 0.35 - postW / 2, -postH, postW, postH);
+
+            if (postW > 1) {
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(-signW * 0.35 - postW, -Math.max(2, postW), postW * 2, Math.max(2, postW));
+                ctx.fillRect(signW * 0.35 - postW, -Math.max(2, postW), postW * 2, Math.max(2, postW));
+            }
+
+            const boardY = -postH - signH;
+            const boardGrad = ctx.createLinearGradient(0, boardY, 0, boardY + signH);
+            boardGrad.addColorStop(0, '#047857');
+            boardGrad.addColorStop(1, '#064e3b');
+            ctx.fillStyle = boardGrad;
+            ctx.beginPath();
+            if (signW >= 20) {
+                ctx.roundRect(-signW / 2, boardY, signW, signH, Math.min(4, Math.floor(signW * 0.06)));
+            } else {
+                ctx.rect(-signW / 2, boardY, signW, signH);
+            }
+            ctx.fill();
+
+            if (signW >= 14) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = Math.max(1, signW * 0.025);
+                ctx.stroke();
+            }
+
+            if (signW >= 36) {
+                ctx.fillStyle = '#facc15';
+                ctx.font = `${Math.max(5, Math.floor(size * 0.075))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                const arrowText = (type === 'fork_sign_left') ? '◄ SALIDA' : 'SALIDA ►';
+                ctx.fillText(arrowText, 0, boardY + Math.max(2, signH * 0.12));
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `${Math.max(5, Math.floor(size * 0.085))}px "Press Start 2P"`;
+                ctx.textBaseline = 'bottom';
+                const label = (spriteObj.label || 'RUTA').substring(0, 14);
+                ctx.fillText(label, 0, boardY + signH - Math.max(2, signH * 0.10));
+            } else if (signW >= 12) {
+                ctx.fillStyle = '#facc15';
+                const barH = Math.max(1, Math.floor(signH * 0.22));
+                ctx.fillRect(-signW * 0.35, boardY + Math.floor(signH * 0.25), signW * 0.7, barH);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-signW * 0.30, boardY + Math.floor(signH * 0.60), signW * 0.6, barH);
+            }
+        } else if (type === 'median_gore' || type === 'median_sign') {
+            const goreW = Math.round(size * 0.38);
+            const goreH = Math.round(size * 0.52);
+            if (goreW < 4) return;
+            const cushionH = Math.round(goreH * 0.52);
+
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.roundRect(-goreW / 2, -cushionH, goreW, cushionH, [Math.min(3, goreW * 0.1), Math.min(3, goreW * 0.1), 0, 0]);
+            ctx.fill();
+
+            if (goreW >= 12) {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = Math.max(1, goreW * 0.04);
+                ctx.stroke();
+
+                ctx.save();
+                ctx.clip();
+                ctx.fillStyle = '#0f172a';
+                const stripeW = Math.max(2, Math.floor(goreW * 0.16));
+                for (let bx = -goreW * 1.5; bx < goreW * 1.5; bx += stripeW * 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(bx, 0);
+                    ctx.lineTo(bx + stripeW, 0);
+                    ctx.lineTo(bx + stripeW + cushionH, -cushionH);
+                    ctx.lineTo(bx + cushionH, -cushionH);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            const signS = Math.round(size * 0.24);
+            const signCenterY = -cushionH - signS * 0.7;
+            const postW = Math.max(1, Math.round(signS * 0.1));
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-postW / 2, -cushionH - signS * 1.2, postW, signS * 1.2);
+
+            ctx.save();
+            ctx.translate(0, signCenterY);
+            ctx.rotate(Math.PI / 4);
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.roundRect(-signS / 2, -signS / 2, signS, signS, Math.min(2, signS * 0.15));
+            ctx.fill();
+            if (signS >= 10) {
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = Math.max(1, signS * 0.06);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            if (signS >= 14) {
+                ctx.fillStyle = '#000000';
+                ctx.font = `${Math.max(5, Math.floor(signS * 0.38))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('◄│►', 0, signCenterY);
+            }
+        } else if (type === 'curve_sign_left' || type === 'curve_sign_right') {
+            const signW = Math.round(size * 0.38);
+            const signH = Math.round(size * 0.30);
+            if (signW < 4) return;
+            const postH = Math.round(signH * 1.15);
+            const postW = Math.max(1, Math.round(signW * 0.08));
+
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-postW / 2, -postH, postW, postH);
+
+            const boardY = -postH - signH;
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.roundRect(-signW / 2, boardY, signW, signH, Math.min(3, signW * 0.1));
+            ctx.fill();
+            if (signW >= 10) {
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = Math.max(1, signW * 0.05);
+                ctx.stroke();
+            }
+
+            if (signW >= 14) {
+                ctx.fillStyle = '#000000';
+                ctx.font = `${Math.max(5, Math.floor(signH * 0.45))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(type === 'curve_sign_left' ? '◄◄' : '►►', 0, boardY + signH / 2);
+            }
+        } else if (type === 'speed_sign') {
+            const r = Math.round(size * 0.18);
+            if (r < 3) return;
+            const postH = Math.round(r * 2.2);
+            const postW = Math.max(1, Math.round(r * 0.14));
+
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-postW / 2, -postH, postW, postH);
+
+            const centerY = -postH - r;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, centerY, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = Math.max(1.5, r * 0.22);
+            ctx.stroke();
+
+            if (r >= 7) {
+                ctx.fillStyle = '#0f172a';
+                ctx.font = `${Math.max(5, Math.floor(r * 0.62))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('240', 0, centerY);
+            }
+        } else if (type === 'checkpoint_arch') {
+            const archW = Math.round(size * 1.35);
+            const archH = Math.round(size * 0.85);
+            if (archW < 8) return;
+            const postW = Math.max(2, Math.round(archW * 0.05));
+            const barH = Math.max(3, Math.round(archH * 0.22));
+
+            // Sombra proyectada sobre el asfalto
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+            ctx.fillRect(-archW * 0.52, -Math.max(2, size * 0.03), archW * 1.04, Math.max(2, size * 0.04));
+
+            // Postes dobles de acero con detalle metálico
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(-archW / 2, -archH, postW, archH);
+            ctx.fillRect(archW / 2 - postW, -archH, postW, archH);
+
+            const archGrad = ctx.createLinearGradient(0, -archH, 0, -archH + barH);
+            archGrad.addColorStop(0, '#fbbf24');
+            archGrad.addColorStop(1, '#d97706');
+            ctx.fillStyle = archGrad;
+            ctx.beginPath();
+            ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(3, archW * 0.04));
+            ctx.fill();
+
+            if (archW >= 20) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = Math.max(1, archW * 0.02);
+                ctx.stroke();
+
+                // Luces LED estroboscópicas de checkpoint con aura
+                const t = Math.floor(Date.now() / 140) % 2;
+                const ledCol = t === 0 ? '#38bdf8' : '#f43f5e';
+                const ledR = Math.max(1, Math.floor(barH * 0.24));
+                const lx1 = -archW / 2 + postW + ledR + 1;
+                const lx2 = archW / 2 - postW - ledR - 1;
+                const ly = -archH + barH / 2;
+
+                ctx.fillStyle = t === 0 ? 'rgba(56, 189, 248, 0.4)' : 'rgba(244, 63, 94, 0.4)';
+                ctx.beginPath();
+                ctx.arc(lx1, ly, ledR * 2.2, 0, Math.PI * 2);
+                ctx.arc(lx2, ly, ledR * 2.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = ledCol;
+                ctx.beginPath();
+                ctx.arc(lx1, ly, ledR, 0, Math.PI * 2);
+                ctx.arc(lx2, ly, ledR, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (archW >= 36) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `${Math.max(5, Math.floor(barH * 0.55))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const label = (spriteObj.label || 'CHECKPOINT').substring(0, 14);
+                ctx.fillText(label, 0, -archH + barH / 2);
+            }
+        } else if (type === 'finish_arch') {
+            const archW = Math.round(size * 1.65);
+            const archH = Math.round(size * 1.05);
+            if (archW < 10) return;
+            const postW = Math.max(2, Math.round(archW * 0.06));
+            const barH = Math.max(4, Math.round(archH * 0.24));
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.30)';
+            ctx.fillRect(-archW * 0.52, -Math.max(2, size * 0.03), archW * 1.04, Math.max(2, size * 0.045));
+
+            const sqH = Math.max(2, Math.floor(archH / 6));
+            for (let yPos = 0; yPos < archH; yPos += sqH) {
+                const isWhite = (Math.floor(yPos / sqH) % 2 === 0);
+                ctx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
+                ctx.fillRect(-archW / 2, -archH + yPos, postW, sqH);
+                ctx.fillRect(archW / 2 - postW, -archH + yPos, postW, sqH);
+            }
+
+            const goalGrad = ctx.createLinearGradient(0, -archH, 0, -archH + barH);
+            goalGrad.addColorStop(0, '#fde047');
+            goalGrad.addColorStop(0.5, '#f59e0b');
+            goalGrad.addColorStop(1, '#b45309');
+            ctx.fillStyle = goalGrad;
+            ctx.beginPath();
+            ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(4, archW * 0.04));
+            ctx.fill();
+
+            if (archW >= 24) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = Math.max(1, archW * 0.02);
+                ctx.stroke();
+
+                // Banderines de victoria ondeantes en lo alto
+                const wave = Math.sin(Date.now() / 120) * (barH * 0.18);
+                ctx.fillStyle = '#f43f5e';
+                ctx.beginPath();
+                ctx.moveTo(-archW * 0.42, -archH);
+                ctx.lineTo(-archW * 0.42 + postW * 1.8, -archH - barH * 0.55 + wave);
+                ctx.lineTo(-archW * 0.42, -archH - barH * 0.85);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(archW * 0.42, -archH);
+                ctx.lineTo(archW * 0.42 - postW * 1.8, -archH - barH * 0.55 - wave);
+                ctx.lineTo(archW * 0.42, -archH - barH * 0.85);
                 ctx.closePath();
                 ctx.fill();
             }
-            ctx.restore();
-        }
 
-        // Poste central y señal de divergencia ◄ | ►
-        const signS = Math.round(size * 0.24);
-        const signCenterY = -cushionH - signS * 0.7;
-        const postW = Math.max(1, Math.round(signS * 0.1));
-        ctx.fillStyle = '#334155';
-        ctx.fillRect(-postW / 2, -cushionH - signS * 1.2, postW, signS * 1.2);
-
-        ctx.save();
-        ctx.translate(0, signCenterY);
-        ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = '#facc15';
-        ctx.beginPath();
-        ctx.roundRect(-signS / 2, -signS / 2, signS, signS, Math.min(2, signS * 0.15));
-        ctx.fill();
-        if (signS >= 10) {
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = Math.max(1, signS * 0.06);
-            ctx.stroke();
-        }
-        ctx.restore();
-
-        if (signS >= 14) {
-            ctx.fillStyle = '#000000';
-            ctx.font = `${Math.max(5, Math.floor(signS * 0.38))}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('◄│►', 0, signCenterY);
-        }
-    } else if (type === 'curve_sign_left' || type === 'curve_sign_right') {
-        const signW = Math.round(size * 0.38);
-        const signH = Math.round(size * 0.30);
-        if (signW < 4) return;
-        const postH = Math.round(signH * 1.15);
-        const postW = Math.max(1, Math.round(signW * 0.08));
-
-        ctx.fillStyle = '#475569';
-        ctx.fillRect(-postW / 2, -postH, postW, postH);
-
-        const boardY = -postH - signH;
-        ctx.fillStyle = '#facc15';
-        ctx.beginPath();
-        ctx.roundRect(-signW / 2, boardY, signW, signH, Math.min(3, signW * 0.1));
-        ctx.fill();
-        if (signW >= 10) {
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = Math.max(1, signW * 0.05);
-            ctx.stroke();
-        }
-
-        if (signW >= 14) {
-            ctx.fillStyle = '#000000';
-            ctx.font = `${Math.max(5, Math.floor(signH * 0.45))}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(type === 'curve_sign_left' ? '◄◄' : '►►', 0, boardY + signH / 2);
-        }
-    } else if (type === 'speed_sign') {
-        const r = Math.round(size * 0.18);
-        if (r < 3) return;
-        const postH = Math.round(r * 2.2);
-        const postW = Math.max(1, Math.round(r * 0.14));
-
-        ctx.fillStyle = '#475569';
-        ctx.fillRect(-postW / 2, -postH, postW, postH);
-
-        const centerY = -postH - r;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(0, centerY, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = Math.max(1.5, r * 0.22);
-        ctx.stroke();
-
-        if (r >= 7) {
-            ctx.fillStyle = '#0f172a';
-            ctx.font = `${Math.max(5, Math.floor(r * 0.62))}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('240', 0, centerY);
-        }
-    } else if (type === 'checkpoint_arch') {
-        const archW = Math.round(size * 1.35);
-        const archH = Math.round(size * 0.85);
-        if (archW < 8) return;
-        const postW = Math.max(2, Math.round(archW * 0.05));
-        const barH = Math.max(3, Math.round(archH * 0.22));
-
-        // Postes dobles de aluminio reflectante
-        ctx.fillStyle = '#cbd5e1';
-        ctx.fillRect(-archW / 2, -archH, postW, archH);
-        ctx.fillRect(archW / 2 - postW, -archH, postW, archH);
-
-        // Barra superior
-        ctx.fillStyle = '#f59e0b';
-        ctx.beginPath();
-        ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(3, archW * 0.04));
-        ctx.fill();
-        if (archW >= 20) {
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = Math.max(1, archW * 0.02);
-            ctx.stroke();
-
-            // Luces LED estroboscópicas de checkpoint
-            const t = Math.floor(Date.now() / 150) % 2;
-            ctx.fillStyle = t === 0 ? '#38bdf8' : '#f43f5e';
-            const ledR = Math.max(1, Math.floor(barH * 0.25));
+            if (archW >= 40) {
+                const letter = spriteObj.goalLetter || 'GOAL';
+                ctx.fillStyle = '#0f172a';
+                ctx.font = `${Math.max(5, Math.floor(barH * 0.52))}px "Press Start 2P"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`★ GOAL ${letter} ★`, 0.8, -archH + barH / 2 + 0.8);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(`★ GOAL ${letter} ★`, 0, -archH + barH / 2);
+            }
+        } else {
+            ctx.fillStyle = '#22c55e';
             ctx.beginPath();
-            ctx.arc(-archW / 2 + postW + ledR + 1, -archH + barH / 2, ledR, 0, Math.PI * 2);
-            ctx.arc(archW / 2 - postW - ledR - 1, -archH + barH / 2, ledR, 0, Math.PI * 2);
+            ctx.arc(0, -size * 0.5, size * 0.3, 0, Math.PI * 2);
             ctx.fill();
         }
-
-        if (archW >= 36) {
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `${Math.max(5, Math.floor(barH * 0.55))}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            const label = (spriteObj.label || 'CHECKPOINT').substring(0, 14);
-            ctx.fillText(label, 0, -archH + barH / 2);
-        }
-    } else if (type === 'finish_arch') {
-        const archW = Math.round(size * 1.65);
-        const archH = Math.round(size * 1.05);
-        if (archW < 10) return;
-        const postW = Math.max(2, Math.round(archW * 0.06));
-        const barH = Math.max(4, Math.round(archH * 0.24));
-
-        // Postes a cuadros blanco y negro
-        const sqH = Math.max(2, Math.floor(archH / 6));
-        for (let yPos = 0; yPos < archH; yPos += sqH) {
-            const isWhite = (Math.floor(yPos / sqH) % 2 === 0);
-            ctx.fillStyle = isWhite ? '#ffffff' : '#0f172a';
-            ctx.fillRect(-archW / 2, -archH + yPos, postW, sqH);
-            ctx.fillRect(archW / 2 - postW, -archH + yPos, postW, sqH);
-        }
-
-        // Barra superior dorada
-        ctx.fillStyle = '#ffb703';
-        ctx.beginPath();
-        ctx.roundRect(-archW / 2, -archH, archW, barH, Math.min(4, archW * 0.04));
-        ctx.fill();
-        if (archW >= 24) {
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = Math.max(1, archW * 0.02);
-            ctx.stroke();
-        }
-
-        if (archW >= 40) {
-            const letter = spriteObj.goalLetter || 'GOAL';
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `${Math.max(5, Math.floor(barH * 0.52))}px "Press Start 2P"`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`★ GOAL ${letter} ★`, 0, -archH + barH / 2);
-        }
-    } else {
-        ctx.fillStyle = '#22c55e';
-        ctx.beginPath();
-        ctx.arc(0, -size * 0.5, size * 0.3, 0, Math.PI * 2);
-        ctx.fill();
-    }
     } finally {
         ctx.restore();
     }
 }
 
-// Coche Rival Renderizado con Formas Curvas, Gradientes y Luces Realistas
-function drawRivalCar(type, x, y, w, h) {
+// Coches Rivales HD con Proporciones Dinámicas, Inclinación en Carril y Acabado Metálico
+function drawRivalCar(type, x, y, w, h, lean = 0) {
     if (w < 4) return;
 
     ctx.save();
     try {
         ctx.translate(x - w / 2, y - h);
+        const rTilt = Math.max(-w * 0.08, Math.min(w * 0.08, lean * w * 0.10));
 
-    // Sombra suave elíptica sobre el asfalto (Realismo de contacto)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
-    ctx.beginPath();
-    ctx.ellipse(w / 2, h * 0.95, w * 0.55, h * 0.14, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (type === 'white_truck') {
-        // Camión 18-Wheeler OutRun: Caja 3D con puertas de carga y parachoques
-        ctx.fillStyle = '#0f172a';
+        // Sombra suave realista bajo el chasis
+        const shGrad = ctx.createRadialGradient(w / 2 + rTilt * 0.5, h * 0.95, w * 0.15, w / 2 + rTilt * 0.5, h * 0.95, w * 0.58);
+        shGrad.addColorStop(0, 'rgba(0, 0, 0, 0.55)');
+        shGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.25)');
+        shGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = shGrad;
         ctx.beginPath();
-        ctx.roundRect(0, h * 0.62, w * 0.20, h * 0.38, 3);
-        ctx.roundRect(w * 0.80, h * 0.62, w * 0.20, h * 0.38, 3);
+        ctx.ellipse(w / 2 + rTilt * 0.5, h * 0.96, w * 0.58, h * 0.14, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Carrocería del remolque con degradado de volumen
-        const trkGrad = ctx.createLinearGradient(0, 0, w, 0);
-        trkGrad.addColorStop(0, '#f8fafc');
-        trkGrad.addColorStop(0.5, '#ffffff');
-        trkGrad.addColorStop(1, '#e2e8f0');
-        ctx.fillStyle = trkGrad;
-        ctx.beginPath();
-        ctx.roundRect(0, 0, w, h * 0.84, 4);
-        ctx.fill();
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        const drawRivalTires = (yTop, tireWRatio, tireHRatio) => {
+            ctx.fillStyle = '#09090b';
+            ctx.beginPath();
+            ctx.roundRect(0, h * yTop, w * tireWRatio, h * tireHRatio, Math.max(1, w * 0.03));
+            ctx.roundRect(w * (1 - tireWRatio), h * yTop, w * tireWRatio, h * tireHRatio, Math.max(1, w * 0.03));
+            ctx.fill();
+        };
 
-        // Puertas traseras
-        ctx.fillStyle = '#f1f5f9';
-        ctx.fillRect(w * 0.05, h * 0.06, w * 0.42, h * 0.70);
-        ctx.fillRect(w * 0.53, h * 0.06, w * 0.42, h * 0.70);
+        const drawGlassReflection = (gx, gy, gw, gh) => {
+            if (w < 20) return;
+            ctx.fillStyle = 'rgba(186, 230, 253, 0.55)';
+            ctx.beginPath();
+            ctx.moveTo(gx + gw * 0.18, gy);
+            ctx.lineTo(gx + gw * 0.42, gy);
+            ctx.lineTo(gx + gw * 0.24, gy + gh);
+            ctx.lineTo(gx + gw * 0.08, gy + gh);
+            ctx.closePath();
+            ctx.fill();
+        };
 
-        // Barras metálicas verticales cromadas
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(w * 0.25, h * 0.06, 2, h * 0.70);
-        ctx.fillRect(w * 0.73, h * 0.06, 2, h * 0.70);
+        if (type === 'white_truck') {
+            drawRivalTires(0.62, 0.20, 0.38);
 
-        // Franja de advertencia diagonal reflectante
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(w * 0.04, h * 0.78, w * 0.92, h * 0.08);
+            // Remolque con sombreado 3D lateral
+            const trkGrad = ctx.createLinearGradient(0, 0, w, 0);
+            trkGrad.addColorStop(0, '#e2e8f0');
+            trkGrad.addColorStop(0.18, '#ffffff');
+            trkGrad.addColorStop(0.82, '#f8fafc');
+            trkGrad.addColorStop(1, '#cbd5e1');
+            ctx.fillStyle = trkGrad;
+            ctx.beginPath();
+            ctx.roundRect(rTilt * 0.4, 0, w, h * 0.84, Math.max(1.5, w * 0.05));
+            ctx.fill();
 
-        // Luces de gálibo superiores ámbar
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath();
-        ctx.arc(w * 0.12, 4, 2.5, 0, Math.PI * 2);
-        ctx.arc(w * 0.50, 4, 2.5, 0, Math.PI * 2);
-        ctx.arc(w * 0.88, 4, 2.5, 0, Math.PI * 2);
-        ctx.fill();
+            if (w >= 14) {
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = Math.max(0.7, w * 0.015);
+                ctx.stroke();
 
-        // Focos traseros rojos brillantes
-        ctx.fillStyle = '#dc2626';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.06, h * 0.86, w * 0.18, h * 0.09, 2);
-        ctx.roundRect(w * 0.76, h * 0.86, w * 0.18, h * 0.09, 2);
-        ctx.fill();
-    } else if (type === 'yellow_cab') {
-        // Clásico Escarabajo / Beetle Amarillo (Líneas suaves y redondeadas)
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.02, h * 0.58, w * 0.18, h * 0.42, 3);
-        ctx.roundRect(w * 0.80, h * 0.58, w * 0.18, h * 0.42, 3);
-        ctx.fill();
+                // Puertas traseras y bisagras cromadas
+                ctx.fillStyle = '#f1f5f9';
+                ctx.fillRect(rTilt * 0.4 + w * 0.06, h * 0.08, w * 0.41, h * 0.68);
+                ctx.fillRect(rTilt * 0.4 + w * 0.53, h * 0.08, w * 0.41, h * 0.68);
 
-        const btlGrad = ctx.createRadialGradient(w / 2, h * 0.45, w * 0.1, w / 2, h * 0.45, w * 0.5);
-        btlGrad.addColorStop(0, '#fef08a');
-        btlGrad.addColorStop(0.6, '#eab308');
-        btlGrad.addColorStop(1, '#ca8a04');
+                ctx.fillStyle = '#64748b';
+                const barW = Math.max(1, w * 0.025);
+                ctx.fillRect(rTilt * 0.4 + w * 0.25, h * 0.08, barW, h * 0.68);
+                ctx.fillRect(rTilt * 0.4 + w * 0.73, h * 0.08, barW, h * 0.68);
 
-        ctx.fillStyle = btlGrad;
-        ctx.beginPath();
-        ctx.ellipse(w / 2, h * 0.52, w * 0.48, h * 0.46, 0, Math.PI, 0);
-        ctx.roundRect(w * 0.02, h * 0.48, w * 0.96, h * 0.38, 4);
-        ctx.fill();
+                // Franja reflectante roja-blanca DOT
+                ctx.fillStyle = '#dc2626';
+                ctx.fillRect(rTilt * 0.4 + w * 0.04, h * 0.78, w * 0.92, h * 0.065);
+            }
 
-        // Luneta trasera curva con reflejo de cielo
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.ellipse(w / 2, h * 0.38, w * 0.28, h * 0.18, 0, Math.PI, 0);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(147, 197, 253, 0.7)';
-        ctx.beginPath();
-        ctx.ellipse(w * 0.45, h * 0.34, w * 0.14, h * 0.08, -0.2, 0, Math.PI * 2);
-        ctx.fill();
+            // Luces de gálibo superiores ámbar escaladas
+            const gR = Math.max(0.8, w * 0.025);
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(rTilt * 0.4 + w * 0.14, h * 0.05, gR, 0, Math.PI * 2);
+            ctx.arc(rTilt * 0.4 + w * 0.50, h * 0.05, gR, 0, Math.PI * 2);
+            ctx.arc(rTilt * 0.4 + w * 0.86, h * 0.05, gR, 0, Math.PI * 2);
+            ctx.fill();
 
-        // Parachoques cromado con sobre-defensas
-        ctx.fillStyle = '#e2e8f0';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.06, h * 0.80, w * 0.88, h * 0.09, 3);
-        ctx.fill();
+            // Parachoques metálico inferior y luces traseras
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(w * 0.08, h * 0.85, w * 0.84, h * 0.08);
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.08, h * 0.85, w * 0.18, h * 0.08, 1);
+            ctx.roundRect(w * 0.74, h * 0.85, w * 0.18, h * 0.08, 1);
+            ctx.fill();
+        } else if (type === 'yellow_cab') {
+            drawRivalTires(0.58, 0.18, 0.42);
 
-        // Luces traseras redondeadas
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.arc(w * 0.16, h * 0.68, w * 0.07, 0, Math.PI * 2);
-        ctx.arc(w * 0.84, h * 0.68, w * 0.07, 0, Math.PI * 2);
-        ctx.fill();
-    } else if (type === 'blue_coupe') {
-        // Porsche 911 Turbo Azul (Alerón cola de ballena y hombros anchos)
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.roundRect(0, h * 0.60, w * 0.20, h * 0.40, 3);
-        ctx.roundRect(w * 0.80, h * 0.60, w * 0.20, h * 0.40, 3);
-        ctx.fill();
+            const btlGrad = ctx.createRadialGradient(w * 0.48 + rTilt, h * 0.42, w * 0.08, w * 0.5 + rTilt, h * 0.48, w * 0.52);
+            btlGrad.addColorStop(0, '#fef9c3');
+            btlGrad.addColorStop(0.5, '#facc15');
+            btlGrad.addColorStop(1, '#a16207');
+            ctx.fillStyle = btlGrad;
+            ctx.beginPath();
+            ctx.ellipse(w / 2 + rTilt, h * 0.52, w * 0.46, h * 0.45, 0, Math.PI, 0);
+            ctx.roundRect(w * 0.02 + rTilt * 0.5, h * 0.48, w * 0.96, h * 0.37, Math.max(2, w * 0.06));
+            ctx.fill();
 
-        const blueGrad = ctx.createLinearGradient(0, 0, 0, h);
-        blueGrad.addColorStop(0, '#38bdf8');
-        blueGrad.addColorStop(0.4, '#0284c7');
-        blueGrad.addColorStop(1, '#0369a1');
-        ctx.fillStyle = blueGrad;
-        ctx.beginPath();
-        ctx.roundRect(w * 0.02, h * 0.32, w * 0.96, h * 0.52, [6, 6, 3, 3]);
-        ctx.fill();
+            // Luneta trasera curva y reflejo solar
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.ellipse(w / 2 + rTilt, h * 0.38, w * 0.28, h * 0.19, 0, Math.PI, 0);
+            ctx.fill();
+            drawGlassReflection(w * 0.25 + rTilt, h * 0.21, w * 0.5, h * 0.16);
 
-        // Cabina fastback y luneta curva
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.18, h * 0.08, w * 0.64, h * 0.30, [8, 8, 0, 0]);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(125, 211, 252, 0.65)';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.24, h * 0.12, w * 0.52, h * 0.14, 4);
-        ctx.fill();
+            // Rejilla ventilación motor trasero y matrícula
+            if (w >= 24) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                ctx.fillRect(w * 0.35 + rTilt * 0.5, h * 0.56, w * 0.30, h * 0.04);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(w * 0.38 + rTilt * 0.5, h * 0.67, w * 0.24, h * 0.10);
+            }
 
-        // Alerón trasero "Whale Tail"
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.08, h * 0.32, w * 0.84, h * 0.11, 3);
-        ctx.fill();
+            // Defensas cromadas y faros rojos
+            ctx.fillStyle = '#e2e8f0';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.06 + rTilt * 0.4, h * 0.79, w * 0.88, h * 0.09, Math.max(1, w * 0.03));
+            ctx.fill();
 
-        // Franja luminosa continua roja estilo Porsche
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.08, h * 0.55, w * 0.84, h * 0.12, 2);
-        ctx.fill();
-        ctx.fillStyle = '#fca5a5';
-        ctx.fillRect(w * 0.12, h * 0.57, w * 0.18, h * 0.08);
-        ctx.fillRect(w * 0.70, h * 0.57, w * 0.18, h * 0.08);
-    } else if (type === 'purple_muscle') {
-        // Muscle Car Americano 70s (Doble franja de carrera blanca)
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.roundRect(0, h * 0.58, w * 0.22, h * 0.42, 3);
-        ctx.roundRect(w * 0.78, h * 0.58, w * 0.22, h * 0.42, 3);
-        ctx.fill();
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(w * 0.16 + rTilt * 0.5, h * 0.66, Math.max(1.2, w * 0.065), 0, Math.PI * 2);
+            ctx.arc(w * 0.84 + rTilt * 0.5, h * 0.66, Math.max(1.2, w * 0.065), 0, Math.PI * 2);
+            ctx.fill();
+        } else if (type === 'blue_coupe') {
+            drawRivalTires(0.60, 0.20, 0.40);
 
-        const purpGrad = ctx.createLinearGradient(0, 0, 0, h);
-        purpGrad.addColorStop(0, '#c084fc');
-        purpGrad.addColorStop(0.4, '#7e22ce');
-        purpGrad.addColorStop(1, '#581c87');
-        ctx.fillStyle = purpGrad;
-        ctx.beginPath();
-        ctx.roundRect(w * 0.03, h * 0.26, w * 0.94, h * 0.58, 4);
-        ctx.fill();
+            const blueGrad = ctx.createLinearGradient(0, 0, 0, h);
+            blueGrad.addColorStop(0, '#7dd3fc');
+            blueGrad.addColorStop(0.35, '#0284c7');
+            blueGrad.addColorStop(0.85, '#0369a1');
+            blueGrad.addColorStop(1, '#0c4a6e');
+            ctx.fillStyle = blueGrad;
+            ctx.beginPath();
+            ctx.roundRect(w * 0.02 + rTilt * 0.5, h * 0.32, w * 0.96, h * 0.53, [w * 0.07, w * 0.07, w * 0.04, w * 0.04]);
+            ctx.fill();
 
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(w * 0.34, h * 0.10, w * 0.10, h * 0.72);
-        ctx.fillRect(w * 0.56, h * 0.10, w * 0.10, h * 0.72);
+            // Cabina fastback y luneta trasera
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.18 + rTilt, h * 0.08, w * 0.64, h * 0.30, [w * 0.09, w * 0.09, 0, 0]);
+            ctx.fill();
+            drawGlassReflection(w * 0.22 + rTilt, h * 0.11, w * 0.56, h * 0.16);
 
-        ctx.fillStyle = '#09090b';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.16, h * 0.06, w * 0.68, h * 0.28, [6, 6, 0, 0]);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(167, 139, 250, 0.6)';
-        ctx.fillRect(w * 0.22, h * 0.10, w * 0.56, h * 0.12);
+            // Alerón Porsche Whale Tail con borde de color
+            ctx.fillStyle = '#0284c7';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.07 + rTilt * 0.7, h * 0.31, w * 0.86, h * 0.11, Math.max(1, w * 0.03));
+            ctx.fill();
+            ctx.fillStyle = '#09090b';
+            ctx.fillRect(w * 0.10 + rTilt * 0.7, h * 0.31, w * 0.80, h * 0.045);
 
-        ctx.fillStyle = '#e2e8f0';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.05, h * 0.74, w * 0.90, h * 0.12, 3);
-        ctx.fill();
+            // Franja óptica trasera roja iluminada
+            ctx.fillStyle = '#dc2626';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.08 + rTilt * 0.5, h * 0.54, w * 0.84, h * 0.12, 2);
+            ctx.fill();
+            ctx.fillStyle = '#fca5a5';
+            ctx.fillRect(w * 0.11 + rTilt * 0.5, h * 0.56, w * 0.17, h * 0.07);
+            ctx.fillRect(w * 0.72 + rTilt * 0.5, h * 0.56, w * 0.17, h * 0.07);
+            if (w >= 26) {
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(w * 0.42 + rTilt * 0.5, h * 0.69, w * 0.16, h * 0.09);
+            }
+        } else if (type === 'purple_muscle') {
+            drawRivalTires(0.58, 0.22, 0.42);
 
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(w * 0.08, h * 0.50, w * 0.16, h * 0.14);
-        ctx.fillRect(w * 0.76, h * 0.50, w * 0.16, h * 0.14);
-    } else {
-        // Superdeportivo Verde GT (Línea aerodinámica de cuña ultra baja)
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.roundRect(0, h * 0.58, w * 0.22, h * 0.42, 3);
-        ctx.roundRect(w * 0.78, h * 0.58, w * 0.22, h * 0.42, 3);
-        ctx.fill();
+            const purpGrad = ctx.createLinearGradient(0, 0, 0, h);
+            purpGrad.addColorStop(0, '#d8b4fe');
+            purpGrad.addColorStop(0.4, '#7e22ce');
+            purpGrad.addColorStop(1, '#3b0764');
+            ctx.fillStyle = purpGrad;
+            ctx.beginPath();
+            ctx.roundRect(w * 0.03 + rTilt * 0.5, h * 0.26, w * 0.94, h * 0.58, Math.max(2, w * 0.05));
+            ctx.fill();
 
-        const gtGrad = ctx.createLinearGradient(0, 0, 0, h);
-        gtGrad.addColorStop(0, '#4ade80');
-        gtGrad.addColorStop(0.4, '#16a34a');
-        gtGrad.addColorStop(1, '#14532d');
-        ctx.fillStyle = gtGrad;
-        ctx.beginPath();
-        ctx.roundRect(w * 0.02, h * 0.32, w * 0.96, h * 0.54, [8, 8, 3, 3]);
-        ctx.fill();
+            // Doble franja deportiva blanca
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(w * 0.34 + rTilt * 0.6, h * 0.10, w * 0.09, h * 0.72);
+            ctx.fillRect(w * 0.57 + rTilt * 0.6, h * 0.10, w * 0.09, h * 0.72);
 
-        ctx.fillStyle = '#09090b';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.20, h * 0.08, w * 0.60, h * 0.32, 4);
-        ctx.fill();
+            ctx.fillStyle = '#09090b';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.16 + rTilt, h * 0.06, w * 0.68, h * 0.28, [w * 0.07, w * 0.07, 0, 0]);
+            ctx.fill();
+            drawGlassReflection(w * 0.22 + rTilt, h * 0.09, w * 0.56, h * 0.14);
 
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.06, h * 0.28, w * 0.88, h * 0.08, 2);
-        ctx.fill();
+            // Defensa cromada trasera y doble escape
+            ctx.fillStyle = '#e2e8f0';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.05 + rTilt * 0.4, h * 0.74, w * 0.90, h * 0.11, Math.max(1, w * 0.03));
+            ctx.fill();
 
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.roundRect(w * 0.08, h * 0.58, w * 0.84, h * 0.08, 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(w * 0.44, h * 0.59, w * 0.12, h * 0.06);
-    }
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(w * 0.08 + rTilt * 0.5, h * 0.49, w * 0.17, h * 0.13);
+            ctx.fillRect(w * 0.75 + rTilt * 0.5, h * 0.49, w * 0.17, h * 0.13);
+        } else {
+            // Superdeportivo Verde GT
+            drawRivalTires(0.58, 0.22, 0.42);
+
+            const gtGrad = ctx.createLinearGradient(0, 0, 0, h);
+            gtGrad.addColorStop(0, '#86efac');
+            gtGrad.addColorStop(0.35, '#16a34a');
+            gtGrad.addColorStop(1, '#052e16');
+            ctx.fillStyle = gtGrad;
+            ctx.beginPath();
+            ctx.roundRect(w * 0.02 + rTilt * 0.5, h * 0.32, w * 0.96, h * 0.54, [w * 0.09, w * 0.09, w * 0.03, w * 0.03]);
+            ctx.fill();
+
+            ctx.fillStyle = '#09090b';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.20 + rTilt, h * 0.08, w * 0.60, h * 0.32, Math.max(2, w * 0.05));
+            ctx.fill();
+            drawGlassReflection(w * 0.24 + rTilt, h * 0.11, w * 0.52, h * 0.15);
+
+            // Alerón fibra de carbono
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.06 + rTilt * 0.7, h * 0.28, w * 0.88, h * 0.075, 2);
+            ctx.fill();
+
+            // Difusor y barra óptica trasera
+            ctx.fillStyle = '#09090b';
+            ctx.fillRect(w * 0.22 + rTilt * 0.4, h * 0.75, w * 0.56, h * 0.11);
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.roundRect(w * 0.08 + rTilt * 0.5, h * 0.57, w * 0.84, h * 0.09, 2);
+            ctx.fill();
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(w * 0.43 + rTilt * 0.5, h * 0.58, w * 0.14, h * 0.07);
+        }
     } finally {
         ctx.restore();
     }
 }
 
-// Coche del Jugador: 1986 Ferrari Testarossa Spider con Curvas Orgánicas y Acabado Realista
+// Coche del Jugador: 1986 Ferrari Testarossa Spider HD con Suspensión Dinámica, Difusor, Rines Animados y Reflejos
 function drawPlayerCar() {
     ctx.save();
     try {
-        // Si está en período de recuperación tras choque, permanece translúcido sin desaparecer jamás de la vista
         if (GameState.invulnerableTimer > 0) {
-            ctx.globalAlpha = (Math.floor(Date.now() / 90) % 2 === 0) ? 0.75 : 0.40;
+            ctx.globalAlpha = (Math.floor(Date.now() / 90) % 2 === 0) ? 0.78 : 0.42;
         }
 
-    const carW = 84;
-    const carH = 46;
-    const carX = Math.round(CANVAS_WIDTH / 2 - carW / 2);
-    const carY = CANVAS_HEIGHT - carH - 12;
+        const carW = 86;
+        const carH = 47;
+        const bounce = GameState.running && GameState.speed > 1500
+            ? Math.sin(GameState.playerZ * 0.018) * (GameState.shakeAmount > 0.5 ? 1.4 : 0.6)
+            : 0;
+        const carX = Math.round(CANVAS_WIDTH / 2 - carW / 2);
+        const carY = CANVAS_HEIGHT - carH - 12 + bounce;
 
-    const steer = GameState.input.steer;
-    const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
-    const currentSeg = GameState.segments[baseSegmentIndex % GameState.segments.length];
-    const curveTilt = currentSeg ? (currentSeg.curve * 0.35) : 0;
-    const tilt = Math.max(-8, Math.min(8, Math.round((steer + curveTilt) * 4.2))); // Inclinación suave y reactiva
+        const steer = GameState.input.steer;
+        const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+        const currentSeg = GameState.segments[baseSegmentIndex % GameState.segments.length];
+        const curveTilt = currentSeg ? (currentSeg.curve * 0.35) : 0;
+        const tilt = Math.max(-8, Math.min(8, Math.round((steer + curveTilt) * 4.2)));
+        const isBraking = GameState.input.brake;
 
-    ctx.translate(carX, carY);
+        ctx.translate(carX, carY);
 
-    // 1. Sombra suave elíptica de contacto sobre el asfalto (Sin bloques)
-    const shadowGrad = ctx.createRadialGradient(carW / 2 + tilt, carH - 1, carW * 0.2, carW / 2 + tilt, carH - 1, carW * 0.55);
-    shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
-    shadowGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.35)');
-    shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = shadowGrad;
-    ctx.beginPath();
-    ctx.ellipse(carW / 2 + tilt, carH - 1, carW * 0.58, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 2. Neumáticos Anchos de Competición con Rines de Aleación Plateados
-    const tireW = 16;
-    const tireH = 18;
-
-    const drawWheel = (wx, wy) => {
-        ctx.fillStyle = '#0a0a0a';
+        // 1. Sombra suave elíptica + Halo rojo de freno proyectado sobre el asfalto
+        const shadowGrad = ctx.createRadialGradient(carW / 2 + tilt, carH - 1, carW * 0.2, carW / 2 + tilt, carH - 1, carW * 0.60);
+        shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.72)');
+        shadowGrad.addColorStop(0.65, 'rgba(0, 0, 0, 0.38)');
+        shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = shadowGrad;
         ctx.beginPath();
-        ctx.roundRect(wx, wy, tireW, tireH, 4);
+        ctx.ellipse(carW / 2 + tilt, carH - 1, carW * 0.60, 7.5, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#374151';
-        ctx.beginPath();
-        ctx.ellipse(wx + tireW / 2, wy + tireH / 2, tireW * 0.38, tireH * 0.40, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#d1d5db';
-        ctx.beginPath();
-        ctx.arc(wx + tireW / 2, wy + tireH / 2, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#facc15';
-        ctx.beginPath();
-        ctx.arc(wx + tireW / 2, wy + tireH / 2, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-    };
 
-    // Rueda Izquierda y Rueda Derecha
-    drawWheel(-3 + tilt, carH - tireH);
-    drawWheel(carW - 13 + tilt, carH - tireH);
-
-    // 3. Carrocería Principal: Ferrari Rosso Corsa con Curvatura Aerodinámica y Brillo
-    const bodyGrad = ctx.createLinearGradient(0, 8, 0, carH);
-    bodyGrad.addColorStop(0, '#ff4a68');
-    bodyGrad.addColorStop(0.35, '#dc2626');
-    bodyGrad.addColorStop(0.75, '#b91c1c');
-    bodyGrad.addColorStop(1, '#7f1d1d');
-
-    ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.roundRect(2 + tilt, 12, carW - 4, carH - 18, [8, 8, 4, 4]);
-    ctx.fill();
-
-    // Hombros laterales ensanchados sobre las ruedas
-    ctx.beginPath();
-    ctx.ellipse(8 + tilt, carH - 16, 12, 10, -0.15, 0, Math.PI * 2);
-    ctx.ellipse(carW - 8 + tilt, carH - 16, 12, 10, 0.15, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Reflejo especular superior en la tapa del maletero / motor
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.beginPath();
-    ctx.roundRect(8 + tilt, 14, carW - 16, 3, 1.5);
-    ctx.fill();
-
-    // 4. Panel Trasero Negro con Ranuras Horizontales Testarossa (Strakes)
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.roundRect(6 + tilt, 19, carW - 12, 18, 3);
-    ctx.fill();
-
-    // Ranuras horizontales aerodinámicas
-    ctx.fillStyle = '#000000';
-    for (let sy = 21; sy <= 35; sy += 3.5) {
-        ctx.fillRect(7 + tilt, sy, carW - 14, 1.5);
-    }
-
-    // 5. Faros Traseros Circulares Empotrados
-    const isBraking = GameState.input.brake;
-    const tailCol = isBraking ? '#ff0033' : '#b91c1c';
-
-    const drawTailLamp = (lx, ly) => {
         if (isBraking) {
-            const glow = ctx.createRadialGradient(lx, ly, 2, lx, ly, 14);
-            glow.addColorStop(0, 'rgba(255, 0, 50, 0.85)');
-            glow.addColorStop(1, 'rgba(255, 0, 50, 0)');
-            ctx.fillStyle = glow;
+            const brakeFloor = ctx.createRadialGradient(carW / 2 + tilt, carH + 1, 4, carW / 2 + tilt, carH + 1, carW * 0.48);
+            brakeFloor.addColorStop(0, 'rgba(255, 20, 60, 0.35)');
+            brakeFloor.addColorStop(1, 'rgba(255, 20, 60, 0)');
+            ctx.fillStyle = brakeFloor;
             ctx.beginPath();
-            ctx.arc(lx, ly, 14, 0, Math.PI * 2);
+            ctx.ellipse(carW / 2 + tilt, carH + 1, carW * 0.48, 6, 0, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        ctx.fillStyle = tailCol;
-        ctx.beginPath();
-        ctx.arc(lx, ly, 5.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = isBraking ? '#ffffff' : '#f87171';
-        ctx.beginPath();
-        ctx.arc(lx, ly, 2.2, 0, Math.PI * 2);
-        ctx.fill();
-    };
+        // 2. Neumáticos Anchos Deportivos con Rines de 5 Radios Giratorios y Banda de Rodadura
+        const tireW = 16;
+        const tireH = 18;
+        const wheelSpin = (GameState.playerZ * 0.045) % (Math.PI * 2);
 
-    drawTailLamp(14 + tilt, 28);
-    drawTailLamp(23 + tilt, 28);
-    drawTailLamp(carW - 23 + tilt, 28);
-    drawTailLamp(carW - 14 + tilt, 28);
-
-    // 6. Matrícula Vintage OutRun
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.roundRect(carW / 2 - 14 + tilt, 24, 28, 8, 2);
-    ctx.fill();
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-    ctx.fillStyle = '#1e3a8a';
-    ctx.font = '5px "Press Start 2P", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('OUTRUN', carW / 2 + tilt, 28.5);
-
-    // 7. Tubos de Escape Dobles Cromados
-    ctx.fillStyle = '#94a3b8';
-    ctx.beginPath();
-    ctx.roundRect(10 + tilt, carH - 7, 7, 4, 2);
-    ctx.roundRect(carW - 17 + tilt, carH - 7, 7, 4, 2);
-    ctx.fill();
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.arc(12 + tilt, carH - 5, 1.8, 0, Math.PI * 2);
-    ctx.arc(15 + tilt, carH - 5, 1.8, 0, Math.PI * 2);
-    ctx.arc(carW - 15 + tilt, carH - 5, 1.8, 0, Math.PI * 2);
-    ctx.arc(carW - 12 + tilt, carH - 5, 1.8, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 8. Llamas Nitro Turbo (Efecto de propulsión fluido cuando se pulsa turbo)
-    if (GameState.input.turbo && GameState.speed > 5000) {
-        const flameLen = Math.random() * 8 + 8;
-        const drawFlame = (fx) => {
-            const fGrad = ctx.createLinearGradient(fx, carH - 3, fx, carH - 3 + flameLen);
-            fGrad.addColorStop(0, '#ffffff');
-            fGrad.addColorStop(0.3, '#00f5d4');
-            fGrad.addColorStop(0.7, '#ff007f');
-            fGrad.addColorStop(1, 'rgba(255, 0, 127, 0)');
-            ctx.fillStyle = fGrad;
+        const drawWheel = (wx, wy) => {
+            ctx.fillStyle = '#070709';
             ctx.beginPath();
-            ctx.ellipse(fx, carH - 3 + flameLen / 2, 3, flameLen / 2, 0, 0, Math.PI * 2);
+            ctx.roundRect(wx, wy, tireW, tireH, 4);
+            ctx.fill();
+
+            // Banda de rodadura sutil animada
+            if (GameState.speed > 500) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                const treadOffset = (Math.floor(GameState.playerZ * 0.12) % 4);
+                for (let ty = 2 + treadOffset; ty < tireH - 2; ty += 4) {
+                    ctx.fillRect(wx + 2, wy + ty, tireW - 4, 1.2);
+                }
+            }
+
+            // Rin de aleación metálica
+            const rimX = wx + tireW / 2;
+            const rimY = wy + tireH / 2;
+            ctx.fillStyle = '#4b5563';
+            ctx.beginPath();
+            ctx.ellipse(rimX, rimY, tireW * 0.36, tireH * 0.38, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#e5e7eb';
+            ctx.beginPath();
+            ctx.arc(rimX, rimY, 3.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 5 radios rotatorios
+            ctx.strokeStyle = '#9ca3af';
+            ctx.lineWidth = 1;
+            for (let sp = 0; sp < 5; sp++) {
+                const ang = wheelSpin + (sp * Math.PI * 2 / 5);
+                ctx.beginPath();
+                ctx.moveTo(rimX, rimY);
+                ctx.lineTo(rimX + Math.cos(ang) * 4.2, rimY + Math.sin(ang) * 4.5);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.arc(rimX, rimY, 1.4, 0, Math.PI * 2);
             ctx.fill();
         };
-        drawFlame(13.5 + tilt);
-        drawFlame(carW - 13.5 + tilt);
-    }
 
-    // 9. Habitáculo Descapotable, Parabrisas Curvo y Pasajeros
-    ctx.fillStyle = 'rgba(147, 197, 253, 0.75)';
-    ctx.beginPath();
-    ctx.roundRect(14 + tilt, 4, carW - 28, 9, [10, 10, 0, 0]);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
+        drawWheel(-3 + tilt, carH - tireH);
+        drawWheel(carW - 13 + tilt, carH - tireH);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.beginPath();
-    ctx.ellipse(22 + tilt, 6, 8, 2, -0.3, 0, Math.PI * 2);
-    ctx.fill();
+        // 3. Guardabarros Ensanchados y Carrocería Ferrari Rosso Corsa Metálica
+        const bodyGrad = ctx.createLinearGradient(0, 9, 0, carH - 4);
+        bodyGrad.addColorStop(0, '#ff6b81');
+        bodyGrad.addColorStop(0.28, '#ef233c');
+        bodyGrad.addColorStop(0.68, '#b91c1c');
+        bodyGrad.addColorStop(1, '#6b0f1a');
 
-    // Piloto (Conductor con camisa azul, gafas oscuras y manos en el volante)
-    ctx.fillStyle = '#b45309';
-    ctx.beginPath();
-    ctx.arc(26 + tilt, 2, 5.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.roundRect(24 + tilt, 2, 6, 2.5, 1);
-    ctx.fill();
-    ctx.fillStyle = '#1d4ed8';
-    ctx.beginPath();
-    ctx.roundRect(20 + tilt, 7, 12, 7, 3);
-    ctx.fill();
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.roundRect(2 + tilt, 12, carW - 4, carH - 18, [9, 9, 4, 4]);
+        ctx.fill();
 
-    // Copiloto Rubia (Cabello dorado ondulado al viento con animación fluida)
-    const hairSway = Math.sin(Date.now() / 60) * 4;
-    const hairGrad = ctx.createLinearGradient(carW - 32 + tilt, -2, carW - 14 + tilt + hairSway, 10);
-    hairGrad.addColorStop(0, '#fef08a');
-    hairGrad.addColorStop(0.5, '#facc15');
-    hairGrad.addColorStop(1, '#eab308');
+        // Hombros laterales ensanchados Testarossa
+        ctx.beginPath();
+        ctx.ellipse(8 + tilt, carH - 17, 13, 10, -0.15, 0, Math.PI * 2);
+        ctx.ellipse(carW - 8 + tilt, carH - 17, 13, 10, 0.15, 0, Math.PI * 2);
+        ctx.fill();
 
-    ctx.fillStyle = hairGrad;
-    ctx.beginPath();
-    ctx.moveTo(carW - 30 + tilt, 6);
-    ctx.quadraticCurveTo(carW - 24 + tilt + hairSway * 0.5, -4, carW - 18 + tilt + hairSway, 4);
-    ctx.quadraticCurveTo(carW - 16 + tilt + hairSway * 1.2, 10, carW - 24 + tilt, 12);
-    ctx.closePath();
-    ctx.fill();
+        // Brillo especular superior del capó / tapa trasera
+        const hoodSpec = ctx.createLinearGradient(8 + tilt, 12, carW - 8 + tilt, 12);
+        hoodSpec.addColorStop(0, 'rgba(255,255,255,0.12)');
+        hoodSpec.addColorStop(0.5, 'rgba(255,255,255,0.55)');
+        hoodSpec.addColorStop(1, 'rgba(255,255,255,0.12)');
+        ctx.fillStyle = hoodSpec;
+        ctx.beginPath();
+        ctx.roundRect(9 + tilt, 13.5, carW - 18, 2.6, 1.3);
+        ctx.fill();
 
-    ctx.fillStyle = '#fed7aa';
-    ctx.beginPath();
-    ctx.arc(carW - 27 + tilt, 3, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#db2777';
-    ctx.beginPath();
-    ctx.roundRect(carW - 29 + tilt, 2.5, 5.5, 2.2, 1);
-    ctx.fill();
+        // Insignia metálica cromada superior central
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(carW / 2 + tilt, 16.5, 1.3, 0, Math.PI * 2);
+        ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.roundRect(carW - 32 + tilt, 8, 11, 6, 3);
-    ctx.fill();
+        // 4. Panel Trasero Ahumado con Branquias Aerodinámicas Testarossa
+        ctx.fillStyle = '#090d16';
+        ctx.beginPath();
+        ctx.roundRect(6 + tilt, 19, carW - 12, 18, 3.5);
+        ctx.fill();
+
+        ctx.fillStyle = '#000000';
+        for (let sy = 21; sy <= 35; sy += 3.2) {
+            ctx.fillRect(7.5 + tilt, sy, carW - 15, 1.3);
+        }
+
+        // 5. Difusor Aerodinámico Inferior con Aletas Verticales
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.roundRect(22 + tilt, carH - 10, carW - 44, 5, 1.5);
+        ctx.fill();
+        ctx.fillStyle = '#334155';
+        for (let fx = 28; fx <= carW - 28; fx += 8) {
+            ctx.fillRect(fx + tilt, carH - 10, 1.2, 5);
+        }
+
+        // 6. Faros Traseros Cuádruples + Direccionales Ámbar con Óptica Realista
+        const tailCol = isBraking ? '#ff003c' : '#dc2626';
+        const drawTailLamp = (lx, ly, isInner) => {
+            if (isBraking) {
+                const glow = ctx.createRadialGradient(lx, ly, 1.5, lx, ly, 15);
+                glow.addColorStop(0, 'rgba(255, 10, 55, 0.92)');
+                glow.addColorStop(1, 'rgba(255, 0, 50, 0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(lx, ly, 15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = isInner ? '#f59e0b' : tailCol;
+            ctx.beginPath();
+            ctx.arc(lx, ly, 5.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = isBraking ? '#ffffff' : (isInner ? '#fef08a' : '#fca5a5');
+            ctx.beginPath();
+            ctx.arc(lx, ly, 2.0, 0, Math.PI * 2);
+            ctx.fill();
+        };
+
+        drawTailLamp(14 + tilt, 28, false);
+        drawTailLamp(23.5 + tilt, 28, true);
+        drawTailLamp(carW - 23.5 + tilt, 28, true);
+        drawTailLamp(carW - 14 + tilt, 28, false);
+
+        // 7. Matrícula Vintage Enmarcada OUTRUN
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.roundRect(carW / 2 - 14 + tilt, 24, 28, 8.5, 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1e3a8a';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        ctx.fillStyle = '#1e3a8a';
+        ctx.font = '5px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('OUTRUN', carW / 2 + tilt, 28.5);
+
+        // 8. Tubos de Escape Dobles Cromados
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.roundRect(10 + tilt, carH - 7.5, 8, 4.5, 2);
+        ctx.roundRect(carW - 18 + tilt, carH - 7.5, 8, 4.5, 2);
+        ctx.fill();
+        ctx.fillStyle = '#090d16';
+        ctx.beginPath();
+        ctx.arc(12.2 + tilt, carH - 5.2, 1.7, 0, Math.PI * 2);
+        ctx.arc(15.6 + tilt, carH - 5.2, 1.7, 0, Math.PI * 2);
+        ctx.arc(carW - 15.6 + tilt, carH - 5.2, 1.7, 0, Math.PI * 2);
+        ctx.arc(carW - 12.2 + tilt, carH - 5.2, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 9. Llamas de Plasma Nitro Turbo
+        if (GameState.input.turbo && GameState.speed > 5000) {
+            const flameLen = Math.random() * 9 + 10;
+            const drawFlame = (fx) => {
+                const fGrad = ctx.createLinearGradient(fx, carH - 3, fx, carH - 3 + flameLen);
+                fGrad.addColorStop(0, '#ffffff');
+                fGrad.addColorStop(0.28, '#00f5d4');
+                fGrad.addColorStop(0.68, '#ff007f');
+                fGrad.addColorStop(1, 'rgba(255, 0, 127, 0)');
+                ctx.fillStyle = fGrad;
+                ctx.beginPath();
+                ctx.ellipse(fx, carH - 3 + flameLen / 2, 3.4, flameLen / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            };
+            drawFlame(13.8 + tilt);
+            drawFlame(carW - 13.8 + tilt);
+        }
+
+        // 10. Cabina Descapotable, Asientos de Cuero Tan, Retrovisor y Pasajeros
+        // Reposacabezas cuero tan
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.roundRect(21 + tilt, 5, 10, 6, 3);
+        ctx.roundRect(carW - 32 + tilt, 5, 10, 6, 3);
+        ctx.fill();
+
+        // Parabrisas panorámico con marco cromado y reflejo de cielo
+        ctx.fillStyle = 'rgba(147, 197, 253, 0.72)';
+        ctx.beginPath();
+        ctx.roundRect(14 + tilt, 3.5, carW - 28, 9.5, [10, 10, 0, 0]);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(248, 250, 252, 0.92)';
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+
+        // Retrovisor central cromado
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.roundRect(carW / 2 - 4 + tilt, 4.5, 8, 2.2, 1);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+        ctx.beginPath();
+        ctx.ellipse(23 + tilt, 6, 8, 1.8, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Piloto (Camisa azul clásica y gafas Aviator con destello)
+        ctx.fillStyle = '#92400e';
+        ctx.beginPath();
+        ctx.arc(26.5 + tilt, 2, 5.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#090d16';
+        ctx.beginPath();
+        ctx.roundRect(24 + tilt, 2, 6, 2.4, 1);
+        ctx.fill();
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.roundRect(20.5 + tilt, 7.2, 12, 6.8, 3);
+        ctx.fill();
+
+        // Copiloto Rubia (Cabello dorado en dos mechones fluidos al viento)
+        const hairSway = Math.sin(Date.now() / 55) * 4.2;
+        const hairGrad = ctx.createLinearGradient(carW - 32 + tilt, -2, carW - 14 + tilt + hairSway, 11);
+        hairGrad.addColorStop(0, '#fef9c3');
+        hairGrad.addColorStop(0.5, '#facc15');
+        hairGrad.addColorStop(1, '#ca8a04');
+
+        ctx.fillStyle = hairGrad;
+        ctx.beginPath();
+        ctx.moveTo(carW - 30 + tilt, 6);
+        ctx.quadraticCurveTo(carW - 24 + tilt + hairSway * 0.5, -4, carW - 17 + tilt + hairSway, 4);
+        ctx.quadraticCurveTo(carW - 15 + tilt + hairSway * 1.2, 10, carW - 24 + tilt, 12);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#fed7aa';
+        ctx.beginPath();
+        ctx.arc(carW - 27 + tilt, 3, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#db2777';
+        ctx.beginPath();
+        ctx.roundRect(carW - 29 + tilt, 2.5, 5.5, 2.2, 1);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(carW - 32 + tilt, 8, 11, 6, 3);
+        ctx.fill();
     } finally {
         ctx.restore();
     }
