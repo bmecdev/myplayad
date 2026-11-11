@@ -4752,75 +4752,280 @@ function drawPlayerCar() {
             drawFlame(carW - 13.8 + tilt);
         }
 
-        // 10. Cabina Descapotable, Asientos de Cuero Tan, Retrovisor y Pasajeros
-        // Reposacabezas cuero tan
-        ctx.fillStyle = '#d97706';
+        // 10. Cabina Descapotable, Asientos de Cuero Tan, Volante, Parabrisas y Personajes Detallados
+        const seatShift = tilt * 0.85;
+        const speedNorm = Math.min(1.4, GameState.speed / 10000);
+        const steerLean = isRolling ? 0 : Math.max(-2.2, Math.min(2.2, steer * 2.2));
+
+        // 10a. Fondo interior oscuro de cabina + Volante deportivo inclinándose al girar
+        ctx.fillStyle = '#090d16';
         ctx.beginPath();
-        ctx.roundRect(21 + tilt, 5, 10, 6, 3);
-        ctx.roundRect(carW - 32 + tilt, 5, 10, 6, 3);
+        ctx.roundRect(15 + seatShift, 9, carW - 30, 5.5, 2.5);
         ctx.fill();
 
-        // Parabrisas panorámico con marco cromado y reflejo de cielo
-        ctx.fillStyle = 'rgba(147, 197, 253, 0.72)';
+        // Volante clásico visible tras el parabrisas (lado izquierdo)
+        ctx.save();
+        ctx.translate(27 + tilt * 0.9, 9.2);
+        ctx.rotate(steer * 0.35);
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.roundRect(14 + tilt, 3.5, carW - 28, 9.5, [10, 10, 0, 0]);
+        ctx.arc(0, 0, 5.2, Math.PI, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(4, 0);
+        ctx.stroke();
+        ctx.restore();
+
+        // 10b. Parabrisas panorámico tintado con marco cromado, reflejos y espejo retrovisor
+        const glassGrad = ctx.createLinearGradient(0, 2, 0, 12);
+        glassGrad.addColorStop(0, 'rgba(186, 230, 253, 0.80)');
+        glassGrad.addColorStop(0.55, 'rgba(125, 211, 252, 0.56)');
+        glassGrad.addColorStop(1, 'rgba(56, 189, 248, 0.38)');
+        ctx.fillStyle = glassGrad;
+        ctx.beginPath();
+        ctx.roundRect(13 + seatShift, 2.2, carW - 26, 10.2, [10, 10, 0, 0]);
         ctx.fill();
+
+        // Reflejos diagonales sobre el cristal
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(20 + seatShift, 3.2);
+        ctx.lineTo(27 + seatShift, 3.2);
+        ctx.lineTo(22 + seatShift, 11.4);
+        ctx.lineTo(17 + seatShift, 11.4);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(carW - 25 + seatShift, 3.2);
+        ctx.lineTo(carW - 21 + seatShift, 3.2);
+        ctx.lineTo(carW - 24 + seatShift, 11.4);
+        ctx.lineTo(carW - 27 + seatShift, 11.4);
+        ctx.closePath();
+        ctx.fill();
+
         ctx.strokeStyle = 'rgba(248, 250, 252, 0.92)';
         ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.roundRect(13 + seatShift, 2.2, carW - 26, 10.2, [10, 10, 0, 0]);
         ctx.stroke();
 
         // Retrovisor central cromado
         ctx.fillStyle = '#e2e8f0';
         ctx.beginPath();
-        ctx.roundRect(carW / 2 - 4 + tilt, 4.5, 8, 2.2, 1);
+        ctx.roundRect(carW / 2 - 4.2 + seatShift, 3.6, 8.4, 2.3, 1);
         ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(carW / 2 - 3.3 + seatShift, 4.1, 6.6, 1.3);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
-        ctx.beginPath();
-        ctx.ellipse(23 + tilt, 6, 8, 1.8, -0.3, 0, Math.PI * 2);
-        ctx.fill();
+        // 10c. Respaldos acolchados de cuero tan detrás de los hombros
+        const drawBucketSeat = (sx) => {
+            const seatGrad = ctx.createLinearGradient(sx, 5, sx, 13);
+            seatGrad.addColorStop(0, '#f59e0b');
+            seatGrad.addColorStop(0.5, '#d97706');
+            seatGrad.addColorStop(1, '#92400e');
+            ctx.fillStyle = seatGrad;
+            ctx.beginPath();
+            ctx.roundRect(sx, 5.2, 13.5, 7.8, [4, 4, 1, 1]);
+            ctx.fill();
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 0.7;
+            ctx.stroke();
+        };
+        drawBucketSeat(20 + seatShift);
+        drawBucketSeat(carW - 33.5 + seatShift);
 
-        // Piloto (Camisa azul clásica y gafas Aviator con destello)
-        ctx.fillStyle = '#92400e';
-        ctx.beginPath();
-        ctx.arc(26.5 + tilt, 2, 5.4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#090d16';
-        ctx.beginPath();
-        ctx.roundRect(24 + tilt, 2, 6, 2.4, 1);
-        ctx.fill();
-        ctx.fillStyle = '#2563eb';
-        ctx.beginPath();
-        ctx.roundRect(20.5 + tilt, 7.2, 12, 6.8, 3);
-        ctx.fill();
+        // 10d. Piloto (Izquierda): Chaqueta bomber azul con franjas retro, cuello levantado, cabello castaño al viento y perfil con gafas Aviator al girar
+        const drvX = 26.8 + tilt + steerLean * 0.45;
+        const drvHairWave = Math.sin(Date.now() / 68) * (0.4 + speedNorm * 0.9);
 
-        // Copiloto Rubia (Cabello dorado en dos mechones fluidos al viento)
-        const hairSway = Math.sin(Date.now() / 55) * 4.2;
-        const hairGrad = ctx.createLinearGradient(carW - 32 + tilt, -2, carW - 14 + tilt + hairSway, 11);
-        hairGrad.addColorStop(0, '#fef9c3');
-        hairGrad.addColorStop(0.5, '#facc15');
-        hairGrad.addColorStop(1, '#ca8a04');
-
-        ctx.fillStyle = hairGrad;
+        // Hombros y chaqueta bomber clásica azul metálico
+        const drvJacket = ctx.createLinearGradient(drvX - 8, 6.5, drvX + 8, 13.5);
+        drvJacket.addColorStop(0, '#3b82f6');
+        drvJacket.addColorStop(0.55, '#1d4ed8');
+        drvJacket.addColorStop(1, '#1e3a8a');
+        ctx.fillStyle = drvJacket;
         ctx.beginPath();
-        ctx.moveTo(carW - 30 + tilt, 6);
-        ctx.quadraticCurveTo(carW - 24 + tilt + hairSway * 0.5, -4, carW - 17 + tilt + hairSway, 4);
-        ctx.quadraticCurveTo(carW - 15 + tilt + hairSway * 1.2, 10, carW - 24 + tilt, 12);
+        ctx.moveTo(drvX - 7.8, 13.5);
+        ctx.quadraticCurveTo(drvX - 8.2, 7.6, drvX - 3.2, 6.9);
+        ctx.lineTo(drvX + 3.2, 6.9);
+        ctx.quadraticCurveTo(drvX + 8.2, 7.6, drvX + 7.8, 13.5);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = '#fed7aa';
+        // Franja deportiva blanca en hombros y costura central de espalda
+        ctx.strokeStyle = '#e0f2fe';
+        ctx.lineWidth = 1.1;
         ctx.beginPath();
-        ctx.arc(carW - 27 + tilt, 3, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#db2777';
+        ctx.moveTo(drvX - 6.6, 9.6);
+        ctx.quadraticCurveTo(drvX - 4.5, 7.7, drvX - 2.6, 7.2);
+        ctx.moveTo(drvX + 6.6, 9.6);
+        ctx.quadraticCurveTo(drvX + 4.5, 7.7, drvX + 2.6, 7.2);
+        ctx.stroke();
+
+        // Cuello blanco levantado de la chaqueta + nuca sombreada
+        ctx.fillStyle = '#d99b66';
+        ctx.fillRect(drvX - 1.9, 4.8, 3.8, 3.0);
+        ctx.fillStyle = '#f8fafc';
         ctx.beginPath();
-        ctx.roundRect(carW - 29 + tilt, 2.5, 5.5, 2.2, 1);
+        ctx.roundRect(drvX - 3.4, 5.8, 6.8, 2.3, 1.2);
         ctx.fill();
 
-        ctx.fillStyle = '#ffffff';
+        // Orejas y ligera vista de perfil al girar
+        ctx.fillStyle = '#e0a97b';
         ctx.beginPath();
-        ctx.roundRect(carW - 32 + tilt, 8, 11, 6, 3);
+        ctx.arc(drvX - 4.3 + steer * 0.6, 2.3, 1.4, 0, Math.PI * 2);
+        ctx.arc(drvX + 4.3 + steer * 0.6, 2.3, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Patilla dorada/oscura de gafas Aviator asomándose lateralmente al girar
+        if (Math.abs(steer) > 0.2) {
+            const side = steer > 0 ? 1 : -1;
+            ctx.fillStyle = '#090d16';
+            ctx.beginPath();
+            ctx.roundRect(drvX + side * (2.6 + Math.abs(steer) * 0.8) - 1.2, 1.5, 2.6, 1.5, 0.5);
+            ctx.fill();
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillRect(drvX + side * 2.1, 1.8, 1.8 * side, 0.5);
+        }
+
+        // Cabeza y cabello castaño texturizado visto desde atrás (con mechones en coronilla)
+        const drvHeadX = drvX + steer * 0.5;
+        const drvHairGrad = ctx.createLinearGradient(drvHeadX - 4, -3.5, drvHeadX + 4, 5.5);
+        drvHairGrad.addColorStop(0, '#92400e');
+        drvHairGrad.addColorStop(0.55, '#5c2808');
+        drvHairGrad.addColorStop(1, '#2d1203');
+        ctx.fillStyle = drvHairGrad;
+        ctx.beginPath();
+        ctx.arc(drvHeadX, 1.7, 4.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Corona y mechón dinámico despeinado por el viento en la parte superior
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath();
+        ctx.moveTo(drvHeadX - 3.6, 0.5);
+        ctx.quadraticCurveTo(drvHeadX - 1.2, -4.4 + drvHairWave * 0.3, drvHeadX + 1.4 + drvHairWave * 0.5, -2.5);
+        ctx.quadraticCurveTo(drvHeadX + 3.8, -1.8, drvHeadX + 3.4, 1.0);
+        ctx.closePath();
+        ctx.fill();
+
+        // Contorno sutil del corte en la nuca
+        ctx.fillStyle = '#3b1806';
+        ctx.beginPath();
+        ctx.roundRect(drvHeadX - 2.6, 4.0, 5.2, 1.8, 0.8);
+        ctx.fill();
+
+        // 10e. Copiloto Rubia (Derecha): Blusa crema/coral veraniega, pañuelo al viento y melena dorada ondulante en capas
+        const pasX = carW - 26.8 + tilt + steerLean * 0.35;
+        const tHair = Date.now() / 62;
+        const windAmp = 1.4 + speedNorm * 3.8;
+        const wave1 = Math.sin(tHair) * windAmp;
+        const wave2 = Math.sin(tHair + 1.3) * (windAmp * 1.15);
+
+        // Hombros estilizados y blusa blanca veraniega con cuello abierto
+        const pasTopGrad = ctx.createLinearGradient(pasX - 7, 7, pasX + 7, 13.5);
+        pasTopGrad.addColorStop(0, '#ffffff');
+        pasTopGrad.addColorStop(0.65, '#f1f5f9');
+        pasTopGrad.addColorStop(1, '#cbd5e1');
+        ctx.fillStyle = pasTopGrad;
+        ctx.beginPath();
+        ctx.moveTo(pasX - 6.8, 13.5);
+        ctx.quadraticCurveTo(pasX - 6.9, 8.0, pasX - 2.6, 7.2);
+        ctx.lineTo(pasX + 2.6, 7.2);
+        ctx.quadraticCurveTo(pasX + 6.9, 8.0, pasX + 6.8, 13.5);
+        ctx.closePath();
+        ctx.fill();
+
+        // Nuca cálida + Pañuelo retro rosa coral ondeando sutilmente sobre el hombro derecho
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(pasX - 1.6, 4.8, 3.2, 2.8);
+
+        const scarfGrad = ctx.createLinearGradient(pasX - 2, 6, pasX + 7 + wave1 * 0.4, 11);
+        scarfGrad.addColorStop(0, '#f43f5e');
+        scarfGrad.addColorStop(1, '#fb7185');
+        ctx.fillStyle = scarfGrad;
+        ctx.beginPath();
+        ctx.roundRect(pasX - 2.6, 6.4, 5.2, 1.8, 0.9);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pasX + 1.4, 7.2);
+        ctx.quadraticCurveTo(pasX + 5.5 + wave1 * 0.45, 7.5, pasX + 7.2 + wave2 * 0.55, 11.4);
+        ctx.quadraticCurveTo(pasX + 3.8 + wave1 * 0.35, 10.6, pasX + 1.2, 8.2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Orejita / destello de patilla coral al girar
+        const pasHeadX = pasX + steer * 0.4;
+        ctx.fillStyle = '#fdba74';
+        ctx.beginPath();
+        ctx.arc(pasHeadX - 3.6 + steer * 0.5, 2.3, 1.2, 0, Math.PI * 2);
+        ctx.arc(pasHeadX + 3.6 + steer * 0.5, 2.3, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        if (Math.abs(steer) > 0.25) {
+            const pSide = steer > 0 ? 1 : -1;
+            ctx.fillStyle = '#ec4899';
+            ctx.fillRect(pasHeadX + pSide * 2.2, 1.7, 1.6 * pSide, 1.1);
+        }
+
+        // Melena rubia en 3 capas dinámicas (volumen dorsal + mechones sueltos al viento + brillos dorados)
+        const mainHairGrad = ctx.createLinearGradient(pasHeadX - 5, -3.5, pasHeadX + 10 + wave1, 11.5);
+        mainHairGrad.addColorStop(0, '#fef9c3');
+        mainHairGrad.addColorStop(0.45, '#facc15');
+        mainHairGrad.addColorStop(1, '#ca8a04');
+
+        // Capa posterior/izquierda flotando suavemente
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.moveTo(pasHeadX - 4.0, 2.0);
+        ctx.quadraticCurveTo(pasHeadX - 6.2 + wave2 * 0.35, 6.2, pasHeadX - 4.2 + wave1 * 0.45, 10.4);
+        ctx.quadraticCurveTo(pasHeadX - 0.5, 9.6, pasHeadX + 1.2, 6.8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Corona redondeada de la cabeza y mechones fluidos con puntas suavizadas al viento
+        ctx.fillStyle = mainHairGrad;
+        ctx.beginPath();
+        ctx.arc(pasHeadX, 1.9, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(pasHeadX - 1.2, -2.2);
+        ctx.bezierCurveTo(
+            pasHeadX + 4.8, -2.5,
+            pasHeadX + 7.4 + wave1 * 0.6, 1.8,
+            pasHeadX + 7.0 + wave2 * 0.72, 6.2
+        );
+        ctx.bezierCurveTo(
+            pasHeadX + 6.4 + wave2 * 0.65, 9.6,
+            pasHeadX + 4.2 + wave1 * 0.45, 11.2,
+            pasHeadX + 2.4 + wave1 * 0.3, 10.6
+        );
+        ctx.quadraticCurveTo(pasHeadX + 1.4, 7.6, pasHeadX + 0.4, 4.8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Mechón superior dorado luminoso con brillo de sol curvado
+        ctx.fillStyle = '#fef9c3';
+        ctx.beginPath();
+        ctx.moveTo(pasHeadX - 2.0, -1.0);
+        ctx.quadraticCurveTo(pasHeadX + 2.4, -2.2, pasHeadX + 5.2 + wave1 * 0.4, 1.6);
+        ctx.quadraticCurveTo(pasHeadX + 5.0 + wave2 * 0.35, 4.2, pasHeadX + 2.2, 2.8);
+        ctx.quadraticCurveTo(pasHeadX + 0.4, 1.4, pasHeadX - 0.8, 1.0);
+        ctx.closePath();
+        ctx.fill();
+
+        // 10f. Borde acolchado de capota plegada / labio trasero de cabina (integra a los personajes DENTRO del coche)
+        const rimGrad = ctx.createLinearGradient(0, 11.6, 0, 14.5);
+        rimGrad.addColorStop(0, '#92400e');
+        rimGrad.addColorStop(0.5, '#78350f');
+        rimGrad.addColorStop(1, '#ef233c');
+        ctx.fillStyle = rimGrad;
+        ctx.beginPath();
+        ctx.roundRect(11 + tilt, 11.6, carW - 22, 2.7, 1.2);
         ctx.fill();
     } finally {
         ctx.restore();
