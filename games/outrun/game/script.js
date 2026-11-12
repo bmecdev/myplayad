@@ -609,7 +609,8 @@ const DIFFICULTY_CONFIG = {
         trafficCountMult: 0.65,
         trafficSpeedMult: 0.85,
         centrifugal: 0.16,
-        offRoadDecel: 2600,
+        offRoadMaxSpeed: 4200,
+        offRoadDecel: 5800,
         scoreMultiplier: 1.0,
         laneChangeFreq: 0.5
     },
@@ -622,7 +623,8 @@ const DIFFICULTY_CONFIG = {
         trafficCountMult: 1.0,
         trafficSpeedMult: 1.0,
         centrifugal: 0.22,
-        offRoadDecel: 4200,
+        offRoadMaxSpeed: 3500,
+        offRoadDecel: 7600,
         scoreMultiplier: 1.25,
         laneChangeFreq: 1.0
     },
@@ -635,7 +637,8 @@ const DIFFICULTY_CONFIG = {
         trafficCountMult: 1.35,
         trafficSpeedMult: 1.2,
         centrifugal: 0.28,
-        offRoadDecel: 6200,
+        offRoadMaxSpeed: 2800,
+        offRoadDecel: 9600,
         scoreMultiplier: 1.75,
         laneChangeFreq: 1.8
     }
@@ -964,8 +967,10 @@ const GameState = {
     accel: 6800,          // Aceleración rápida y reactiva
     braking: 10500,       // Frenado con pedal
     decel: 800,           // Desaceleración suave al soltar gas (no frena de golpe)
-    offRoadDecel: 4200,   // Resistencia en pasto/arena (no frena a 0)
+    offRoadMaxSpeed: 3500,// Tope de velocidad al salir de pista (~70 KM/H en Normal)
+    offRoadDecel: 7600,   // Desaceleración firme al pisar pasto/arena
     centrifugal: 0.22,    // Fuerza centrífuga en curvas
+    isOffRoad: false,     // Estado actual fuera de la calzada
     skyOffset: 0,         // Parallax del cielo
     shakeAmount: 0,       // Efecto temblor por choque o offroad
 
@@ -986,13 +991,14 @@ const GameState = {
     },
 
     // Efectos Visuales y Jugabilidad
-    invulnerableTimer: 0, // Tiempo de gracia / invulnerabilidad tras choque
+    invulnerableTimer: 0, // Tiempo de parpadeo tras choque
+    crashLockTimer: 0,    // Bloqueo de arranque tras chocar con un rival (2.0s)
     smokeParticles: [],   // Partículas de humo, derrape y chispas
     turboFlameTimer: 0,   // Efecto visual de llamas de nitro en escapes
     crashRoll: {          // Volcadura espectacular al chocar a alta velocidad
         active: false,
         timer: 0,
-        duration: 1.35,
+        duration: 1.15,
         dir: 1,
         startSpeed: 0,
         bouncedMid: false
@@ -1039,6 +1045,7 @@ function setDifficulty(level, broadcast = false) {
     GameState.difficulty = level;
     const cfg = DIFFICULTY_CONFIG[level];
     GameState.centrifugal = cfg.centrifugal;
+    GameState.offRoadMaxSpeed = cfg.offRoadMaxSpeed;
     GameState.offRoadDecel = cfg.offRoadDecel;
 
     // Actualizar indicador en HUD
@@ -1424,6 +1431,7 @@ function spawnTrafficForStage(tier, startZ) {
             offset: laneOffset,
             targetOffset: laneOffset,
             laneChangeTimer: (14 + Math.random() * 10) / diffCfg.laneChangeFreq,
+            baseSpeed: adjustedSpeed,
             speed: adjustedSpeed,
             passed: false
         });
@@ -1486,6 +1494,7 @@ function spawnTraffic(tier = 0) {
             offset: laneOffset,
             targetOffset: laneOffset,
             laneChangeTimer: (14 + Math.random() * 10) / diffCfg.laneChangeFreq,
+            baseSpeed: adjustedSpeed,
             speed: adjustedSpeed,
             passed: false
         });
@@ -1524,6 +1533,10 @@ function recycleCarAhead(car) {
     car.z = targetZ;
     car.passed = false;
     car.crashCooldown = 0;
+    car.forkSide = undefined;
+    if (car.baseSpeed) {
+        car.speed = car.baseSpeed;
+    }
 
     // Asignar carril despejado
     const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
@@ -2080,7 +2093,9 @@ function startGame() {
     GameState.score = 0;
     GameState.timeLeft = diffCfg.initialTime;
     GameState.centrifugal = diffCfg.centrifugal;
+    GameState.offRoadMaxSpeed = diffCfg.offRoadMaxSpeed;
     GameState.offRoadDecel = diffCfg.offRoadDecel;
+    GameState.isOffRoad = false;
     GameState.checkpointsCleared = 0;
     GameState.currentTier = 0;
     GameState.currentRouteIndex = 0;
@@ -2094,12 +2109,13 @@ function startGame() {
     GameState.running = true;
     GameState.lastWarningSecond = -1;
     GameState.invulnerableTimer = 0;
+    GameState.crashLockTimer = 0;
     GameState.smokeParticles = [];
     GameState.turboFlameTimer = 0;
     GameState.crashRoll = {
         active: false,
         timer: 0,
-        duration: 1.35,
+        duration: 1.15,
         dir: 1,
         startSpeed: 0,
         bouncedMid: false
@@ -2160,6 +2176,8 @@ function endGame(won = false, goal = null) {
     GameState.playerZ = 0;
     GameState.playerX = 0;
     GameState.speed = 0;
+    GameState.isOffRoad = false;
+    GameState.crashLockTimer = 0;
     updateHUD();
 }
 
@@ -2193,6 +2211,16 @@ function update(dt) {
         GameState.invulnerableTimer -= dt;
     }
 
+    // Bloqueo de arranque de 2 segundos tras chocar contra un auto rival
+    const wasCrashLocked = GameState.crashLockTimer > 0;
+    if (GameState.crashLockTimer > 0) {
+        GameState.crashLockTimer = Math.max(0, GameState.crashLockTimer - dt);
+        if (GameState.crashLockTimer === 0 && wasCrashLocked && !GameState.gameOver) {
+            audio.playBeep();
+            showBanner('¡EN MARCHA!', 'ACELERA!', '#3dff8a', 0.65);
+        }
+    }
+
     // Actualización física de volcadura (rollover) por choque a alta velocidad
     if (GameState.crashRoll && GameState.crashRoll.active) {
         GameState.crashRoll.timer += dt;
@@ -2205,7 +2233,7 @@ function update(dt) {
         }
         if (GameState.crashRoll.timer >= GameState.crashRoll.duration) {
             GameState.crashRoll.active = false;
-            GameState.speed = 2400;
+            GameState.speed = 0;
             GameState.shakeAmount = 3.5;
             createTireSmoke(CANVAS_WIDTH / 2 - 20, CANVAS_HEIGHT - 14, 6, false, '#cbd5e1');
             createTireSmoke(CANVAS_WIDTH / 2 + 20, CANVAS_HEIGHT - 14, 6, false, '#cbd5e1');
@@ -2250,12 +2278,51 @@ function update(dt) {
             isOffRoad = Math.abs(GameState.playerX) > 1.05;
         }
     }
+    GameState.isOffRoad = isOffRoad;
 
     const isRolling = Boolean(GameState.crashRoll && GameState.crashRoll.active);
+    const isCrashLocked = GameState.crashLockTimer > 0;
+
     if (isRolling) {
         const rp = Math.min(1, GameState.crashRoll.timer / Math.max(0.01, GameState.crashRoll.duration));
-        GameState.speed = Math.max(1600, GameState.crashRoll.startSpeed * Math.pow(1 - rp, 1.35));
+        GameState.speed = Math.max(0, GameState.crashRoll.startSpeed * Math.pow(1 - rp, 2.0));
         GameState.shakeAmount = Math.max(1.5, GameState.shakeAmount - dt * 5);
+        if (isCrashLocked) {
+            GameState.banner.text = '¡VOLCADURA!';
+            GameState.banner.subtext = `ARRANCANDO EN ${GameState.crashLockTimer.toFixed(1)}s...`;
+            GameState.banner.color = '#ff4d6d';
+            GameState.banner.timer = Math.max(GameState.banner.timer, 0.12);
+        }
+    } else if (isCrashLocked) {
+        // Motor detenido por choque: permanece frenado 2 segundos antes de volver a arrancar
+        GameState.speed = 0;
+        GameState.shakeAmount = Math.max(0, GameState.shakeAmount - dt * 6);
+        if (Math.random() < 0.32) {
+            createTireSmoke(CANVAS_WIDTH / 2 + (Math.random() * 18 - 9), CANVAS_HEIGHT - 34, 1, false, 'rgba(226, 232, 240, 0.72)');
+        }
+        GameState.banner.text = '¡CHOQUE!';
+        GameState.banner.subtext = `ARRANCANDO EN ${GameState.crashLockTimer.toFixed(1)}s...`;
+        GameState.banner.color = '#ff4d6d';
+        GameState.banner.timer = Math.max(GameState.banner.timer, 0.12);
+    } else if (isOffRoad) {
+        // Fuera de pista (pasto/arena): reduce velocidad decididamente aunque se presione acelerador o turbo
+        const offCap = GameState.offRoadMaxSpeed || 3500;
+        if (GameState.speed > offCap) {
+            const extraBrake = GameState.input.brake ? GameState.braking : 0;
+            GameState.speed -= (GameState.offRoadDecel + extraBrake) * dt;
+            const minOff = GameState.input.gas ? offCap : 0;
+            GameState.speed = Math.max(minOff, GameState.speed);
+        } else if (GameState.input.gas) {
+            GameState.speed = Math.min(offCap, GameState.speed + (GameState.accel * 0.55) * dt);
+        } else if (GameState.input.brake) {
+            GameState.speed -= GameState.braking * dt;
+            if (GameState.speed > 1500) audio.playTireScreech();
+        } else {
+            GameState.speed -= (GameState.decel + GameState.offRoadDecel * 0.35) * dt;
+        }
+        GameState.shakeAmount = GameState.speed > 1200 ? 2.2 : 0;
+        if (GameState.speed > 2500 && Math.random() < 0.15) audio.playTireScreech();
+        GameState.speed = Math.max(0, Math.min(GameState.speed, topSpeed));
     } else {
         if (GameState.input.gas) {
             GameState.speed += GameState.accel * dt;
@@ -2266,19 +2333,7 @@ function update(dt) {
             // Desaceleración suave por inercia
             GameState.speed -= GameState.decel * dt;
         }
-
-        // En pasto/arena desacelera pero NO frena a 0, permite conducir a ~90 KM/H
-        if (isOffRoad) {
-            if (GameState.speed > 4500) {
-                GameState.speed -= GameState.offRoadDecel * dt;
-            }
-            GameState.shakeAmount = 2.2;
-            if (GameState.speed > 2500 && Math.random() < 0.15) audio.playTireScreech();
-        } else {
-            GameState.shakeAmount = Math.max(0, GameState.shakeAmount - dt * 6);
-        }
-
-        // Límites de velocidad
+        GameState.shakeAmount = Math.max(0, GameState.shakeAmount - dt * 6);
         GameState.speed = Math.max(0, Math.min(GameState.speed, topSpeed));
     }
 
@@ -2434,9 +2489,9 @@ function update(dt) {
             return;
         }
 
-        // Si el auto ya quedó al costado o detrás del Ferrari del jugador (relZ < 750), evitar que alcance desde atrás
-        if (relZ < 750 && car.speed >= GameState.speed) {
-            car.speed = Math.max(0, GameState.speed * 0.6);
+        // Si el auto ya quedó al costado o detrás del Ferrari del jugador (relZ < 780), evitar que alcance desde atrás
+        if (relZ < 780 && (car.speed >= GameState.speed || isCrashLocked)) {
+            car.speed = isCrashLocked ? 0 : Math.max(0, GameState.speed * 0.6);
         }
 
         // IA: cambio de carril muy suave y raro (solo si el jugador está a más de 1600 px)
@@ -2456,7 +2511,7 @@ function update(dt) {
         }
 
         // Detección de rebase limpio (Pass bonus de +500 PTS al dejar atrás el auto sin chocar)
-        if (relZ < 750 && relZ > -150 && !car.passed && car.crashCooldown <= 0) {
+        if (!isCrashLocked && relZ < 750 && relZ > -150 && !car.passed && car.crashCooldown <= 0) {
             car.passed = true;
             GameState.score += 500;
             audio.playPassBonus();
@@ -2469,7 +2524,7 @@ function update(dt) {
         // y enfriamiento individual por coche (car.crashCooldown) para nunca volverse fantasma ante otros autos.
         const segMinZ = Math.min(prevRelZ, relZ);
         const segMaxZ = Math.max(prevRelZ, relZ);
-        if (car.crashCooldown <= 0 && segMaxZ >= 760 && segMinZ <= 1030) {
+        if (!GameState.gameWon && !isCrashLocked && car.crashCooldown <= 0 && segMaxZ >= 760 && segMinZ <= 1030) {
             const totalSegs = GameState.segments.length;
             const carSegIndex = ((Math.floor(car.z / SEGMENT_LENGTH) % totalSegs) + totalSegs) % totalSegs;
             const carSeg = GameState.segments[carSegIndex];
@@ -2478,32 +2533,35 @@ function update(dt) {
             const distX = Math.abs(carWorldX - GameState.playerX);
             // Ancho visual combinado: semiancho rival (0.208) + semiancho Ferrari (~0.125) = ~0.33 -> 0.32 garantiza choque al tocar cualquier borde
             if (distX < 0.32) {
-                car.crashCooldown = 1.2;
+                car.crashCooldown = 2.2;
                 car.passed = true;
                 const impactSpeed = GameState.speed;
                 const HIGH_SPEED_ROLL_THRESHOLD = 8500; // ~170+ KM/H provoca volcadura
+
+                GameState.crashLockTimer = 2.0; // Durará 2 segundos en arrancar tras cualquier choque con otro auto
 
                 if (!isRolling && impactSpeed >= HIGH_SPEED_ROLL_THRESHOLD) {
                     GameState.crashRoll = {
                         active: true,
                         timer: 0,
-                        duration: 1.35,
+                        duration: 1.15,
                         dir: (GameState.playerX >= carWorldX) ? 1 : -1,
                         startSpeed: impactSpeed,
                         bouncedMid: false
                     };
-                    GameState.invulnerableTimer = 0.35;
+                    GameState.invulnerableTimer = 2.3;
                     GameState.shakeAmount = 10.5;
                     audio.playRolloverCrash();
-                    showBanner('¡VOLCADURA!', 'IMPACTO A ALTA VELOCIDAD', '#ff4d6d', 1.6);
+                    showBanner('¡VOLCADURA!', 'ARRANCANDO EN 2.0s...', '#ff4d6d', 2.0);
                     createTireSmoke(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 24, 20, true);
                 } else if (!isRolling) {
-                    GameState.invulnerableTimer = 0.45; // Parpadeo breve de impacto (NO desactiva choques con otros autos)
-                    GameState.speed = Math.max(3500, impactSpeed * 0.40);
-                    GameState.shakeAmount = 6.5;
+                    GameState.invulnerableTimer = 2.3;
+                    GameState.speed = 0;
+                    GameState.shakeAmount = 8.0;
                     audio.playCrash();
-                    showBanner('CRASH!', 'RECOVERING...', '#ff4d6d', 1.5);
-                    createTireSmoke(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 24, 12, true);
+                    audio.stopEngine();
+                    showBanner('¡CHOQUE!', 'ARRANCANDO EN 2.0s...', '#ff4d6d', 2.0);
+                    createTireSmoke(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 24, 14, true);
                 } else {
                     GameState.shakeAmount = 8.0;
                     createTireSmoke(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 24, 10, true);
@@ -3240,10 +3298,11 @@ function draw() {
     drawPlayerCar();
 
     // Efecto sutil de líneas de velocidad periféricas en alta velocidad / Turbo
-    if (GameState.running && (GameState.speed > 9200 || (GameState.input.turbo && GameState.speed > 6500))) {
-        const intensity = GameState.input.turbo ? 0.24 : Math.min(0.16, (GameState.speed - 9200) / 20000);
+    const showTurboFx = GameState.input.turbo && !GameState.isOffRoad && !(GameState.crashLockTimer > 0);
+    if (GameState.running && (GameState.speed > 9200 || (showTurboFx && GameState.speed > 6500))) {
+        const intensity = showTurboFx ? 0.24 : Math.min(0.16, (GameState.speed - 9200) / 20000);
         const phase = (Date.now() / 45) % 10;
-        ctx.strokeStyle = GameState.input.turbo ? `rgba(0, 245, 212, ${intensity.toFixed(2)})` : `rgba(255, 255, 255, ${intensity.toFixed(2)})`;
+        ctx.strokeStyle = showTurboFx ? `rgba(0, 245, 212, ${intensity.toFixed(2)})` : `rgba(255, 255, 255, ${intensity.toFixed(2)})`;
         ctx.lineWidth = 1.1;
         for (let k = 0; k < 6; k++) {
             const leftY = CANVAS_HEIGHT * 0.56 + ((k * 23 + phase * 4) % (CANVAS_HEIGHT * 0.40));
@@ -4735,7 +4794,7 @@ function drawPlayerCar() {
         ctx.fill();
 
         // 9. Llamas de Plasma Nitro Turbo
-        if (!isRolling && GameState.input.turbo && GameState.speed > 5000) {
+        if (!isRolling && !GameState.isOffRoad && !(GameState.crashLockTimer > 0) && GameState.input.turbo && GameState.speed > 5000) {
             const flameLen = Math.random() * 9 + 10;
             const drawFlame = (fx) => {
                 const fGrad = ctx.createLinearGradient(fx, carH - 3, fx, carH - 3 + flameLen);
