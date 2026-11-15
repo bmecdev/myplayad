@@ -70,17 +70,23 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 30m
+          command_timeout: 10m
           script: |
             mkdir -p /srv/videos/pool
             chmod -R 777 /srv/videos 2>/dev/null || true
             cp /opt/myplayad/portal/scripts/fixtures/sample-spot.mp4 /srv/videos/pool/demo-spot.mp4 2>/dev/null || true
             chmod 666 /srv/videos/pool/demo-spot.mp4 2>/dev/null || true
             cd /opt/myplayad/server
-            docker compose up -d postgres
-            sleep 3
+            docker compose up -d postgres mosquitto
+            until docker compose exec -T postgres pg_isready -U postgres; do
+              echo "Esperando que postgres este listo..."
+              sleep 2
+            done
             docker compose exec -T postgres psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'mysecretpassword';" || true
+            docker rm -f prisma-db-push 2>/dev/null || true
             docker compose build prisma-db-push
             docker compose run --rm prisma-db-push npx prisma db push --accept-data-loss
-            docker compose up -d --build --remove-orphans
+            docker compose up -d --build --remove-orphans postgres mosquitto signaling videos portal
+            sleep 3
+            docker compose ps
             docker compose logs --tail=50 portal || true
