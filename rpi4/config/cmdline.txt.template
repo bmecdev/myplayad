@@ -1,0 +1,1 @@
+console=serial0,115200 console=tty1 root=PARTUUID=REPLACE_PARTUUID rootfstype=ext4 fsck.repair=yes rootwait quiet logo.nologo vt.global_cursor_default=0 consoleblank=0 video=HDMI-A-1:1920x1080@60,rotate=90

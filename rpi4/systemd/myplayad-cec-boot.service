@@ -1,0 +1,12 @@
+[Unit]
+Description=MyPlayAd Boot-Time TV Power On (HDMI-CEC Image View On)
+After=systemd-udev-settle.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '(echo "tx 10:04"; sleep 0.5; echo "on 0"; sleep 0.5; echo "as") | cec-client -s -d 1 >/dev/null 2>&1 || true'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=basic.target

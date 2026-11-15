@@ -1,0 +1,41 @@
+# ==============================================================================
+# MyPlayAd — Raspberry Pi 4 (1GB) Optimized Hardware & Firmware Config
+# Ubicación en la MicroSD: /boot/firmware/config.txt (o /boot/config.txt)
+# ==============================================================================
+
+# --- Parámetros de Pantalla y Red MyPlayAd (Editables por el Administrador) ---
+SCREEN_ID="bc502bba-859c-461c-a795-f6e4bf2d4931"
+SCREEN_ROTATE=90
+SCREEN_RESOLUTION=1920x1080
+REMOTE_VIDEO_SERVER_URL="https://videos.myplayad.com"
+
+# --- Control HDMI y Encendido Automático HDMI-CEC ---
+# Fuerza la salida HDMI activa aunque el televisor esté apagado al enchufar la consola
+hdmi_force_hotplug=1
+hdmi_force_hotplug:0=1
+hdmi_force_hotplug:1=1
+
+# Nombre visible en el bus CEC del televisor
+cec_osd_name=MyPlayAd
+
+# Evita que el televisor desconecte la señal HDMI en reposo
+hdmi_drive=2
+hdmi_drive:0=2
+
+# --- Driver Gráfico DRM/KMS con Asignación Dinámica de Memoria (CMA) ---
+# En RPi 4, el driver vc4-kms-v3d administra la GPU mediante CMA (Contiguous Memory Allocator).
+# 128MB o 192MB de CMA es el balance perfecto para decodificación H.264 1080p60 y Canvas 2D
+# sin ahogar la memoria RAM principal de 1GB.
+dtoverlay=vc4-kms-v3d,cma-128
+max_framebuffers=2
+
+# --- Aceleración y Rendimiento RPi 4 ---
+arm_64bit=1
+
+# --- Optimización de Tiempo de Arranque (Boot en segundos) ---
+disable_splash=1
+boot_delay=0
+
+# Desactivar Bluetooth y Wi-Fi si la consola opera con módem 4G LTE por USB (opcional para ahorrar RAM y energía)
+# dtoverlay=disable-bt
+# dtoverlay=disable-wifi
