@@ -9,10 +9,12 @@ El **Portal Web de MyPlayAd** es el centro de control unificado desde donde admi
 * **URL de Staging (Entorno de Pruebas):** `https://dev-portal.myplayad.com`
 * **URL de Producción:** `https://portal.myplayad.com`
 
-### 1.1. Modalidades Físicas de Pantallas & Conectividad 4G (Plug & Play):
+### 1.1. Modalidades de Pantallas & Conectividad Plug & Play:
+* **🕹️ Consola Standalone (Raspberry Pi 4 / 5 desde 1GB RAM):** Dispositivo compacto para clientes o pautantes que ya disponen de televisores o monitores. Corre bajo la arquitectura ultraligera `rpi4/` (Cage + Wayland + ZRAM, consumo ~380MB RAM) o Kiosk estándar.
 * **🏢 Pantalla Grande Fija:** Formato tótem vertical de gran formato (43&quot;, 55&quot;, 65&quot;+) Full HD / 4K para áreas de alta concurrencia en **Centros Comerciales (CC / Malls)**, pasillos y plazoletas de comidas. Estructura fija para instalación permanente y duradera.
 * **🏪 Pantalla Mediana Portable:** Formato ligero y estilizado (32&quot; a 43&quot;) con atril portable para **Negocios Locales, Stands y Ferias Comerciales**. Se transporta y monta en menos de 5 minutos en recepciones o mostradores.
-* **📶 Conectividad 4G LTE Incluida (Plug & Play):** Cada pantalla incluye módem celular 4G LTE preconfigurado de fábrica. **¡Lo único que necesitas es una toma de corriente eléctrica!** No requiere solicitar claves Wi-Fi locales ni permisos de red corporativa.
+* **🖥️ Kiosco Virtual Web (`/demo`):** Consola basada 100% en navegador para PC, laptops o Smart TVs sin hardware Raspberry Pi dedicado.
+* **📶 Conectividad 4G LTE Incluida (Plug & Play):** Cada pantalla física incluye módem celular 4G LTE preconfigurado de fábrica. **¡Lo único que necesitas es una toma de corriente eléctrica!** No requiere solicitar claves Wi-Fi locales ni permisos de red corporativa.
 
 ---
 

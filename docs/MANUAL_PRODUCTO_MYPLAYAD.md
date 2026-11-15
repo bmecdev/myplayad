@@ -117,25 +117,36 @@ Para establecimientos comerciales, oficinas, franquicias o stands que deseen pro
 
 ## 4. Especificaciones de Hardware del Kiosco
 
-Para garantizar una operación ininterrumpida 24/7 en locales comerciales, el hardware interno de cada punto de venta cumple con las siguientes especificaciones:
+Para garantizar una operación ininterrumpida 24/7 en locales comerciales al menor costo de adquisición, el hardware de cada punto de venta admite tanto la nueva generación de placas de bajo consumo como estaciones de alta capacidad:
 
 | Componente | Especificación Recomendada | Función en MyPlayAd |
 | :--- | :--- | :--- |
-| **Computador Kiosco** | Raspberry Pi 5 (4GB u 8GB RAM) | Reproducción dual de video y juegos a 60 fps bajo Debian GNU/Linux 13. |
+| **Computador Kiosco (Económico / 1GB)** | **Raspberry Pi 5 (1GB)** ($45 USD) o **Raspberry Pi 4 (1GB / 2GB)** | Consola embebida ultraligera. Corre bajo Raspberry Pi OS Lite 64-bit con Cage Wayland y ZRAM (consumo ~380MB RAM). |
+| **Computador Kiosco (Estándar)** | **Raspberry Pi 5 (2GB, 4GB u 8GB)** o **Raspberry Pi 4 (4GB)** | Reproducción dual de video y juegos a 60 fps con soporte para entornos desktop completos o modo Lite. |
 | **Módem Celular** | Módulo 4G LTE Industrial (SIM multi-operador) | Conectividad autónoma a Internet sin requerir Wi-Fi ni red cableada local. |
-| **Almacenamiento** | MicroSD A2 Clase 10 (32GB o 64GB) | Sistema operativo, almacenamiento en caché local de videos y binarios de juegos. |
+| **Almacenamiento** | MicroSD A2 Clase 10 (16GB, 32GB o 64GB) | Sistema operativo en modo solo lectura (OverlayFS), caché local de videos y binarios de juegos. |
 | **Refrigeración** | Cooler activo oficial o disipador pasivo de aluminio | Prevención de *thermal throttling* en reproducción continua de video 24/7. |
-| **Conectividad de Video** | Cable Micro-HDMI a HDMI con soporte CEC | Transmisión de video a 1080p/4K y control remoto de energía (encendido/apagado de TV). |
-| **Pantalla / Monitor** | Televisor o Display Comercial (Full HD o 4K) | Orientación vertical (9:16) con HDMI-CEC habilitado. |
-| **Alimentación** | Fuente oficial Raspberry Pi 27W USB-C (5V / 5A) | Suministro eléctrico estable para evitar bloqueos por bajo voltaje. |
+| **Conectividad de Video** | Cable Micro-HDMI a HDMI con soporte CEC | Transmisión de video a 1080p/4K y control remoto de energía (encendido/apagado de TV). Conectar a **HDMI 0**. |
+| **Pantalla / Monitor** | Televisor o Display Comercial (Full HD o 4K) | Orientación vertical (9:16) u horizontal (16:9) con HDMI-CEC habilitado. |
+| **Alimentación** | Fuente oficial Raspberry Pi USB-C (15W para RPi 4 / 27W para RPi 5) | Suministro eléctrico estable para evitar bloqueos por bajo voltaje. |
 
 ---
 
-## 5. Arquitectura de Software del Kiosco (`screen/`)
+## 5. Arquitectura de Software del Kiosco (`screen/` y `rpi4/`)
 
-El reproductor físico implementa una arquitectura autónoma optimizada para arranque desatendido:
+El sistema cuenta con **dos perfiles de software oficiales** según la memoria RAM del hardware:
 
-### 4.1. Rotación Vertical por Hardware (Kernel DRM/KMS)
+1. **Perfil Embebido Ligero Universal ([`rpi4/`](../rpi4/)):**  
+   * **Hardware Objetivo:** Raspberry Pi 5 (1GB / 2GB) y Raspberry Pi 4 (1GB / 2GB).
+   * **Pila de Software:** Raspberry Pi OS Lite (64-bit) + compositor Wayland **Cage** (~18MB RAM) + **ZRAM Swap LZ4** (añade 1GB de RAM virtual comprimida) + **Chromium Wayland** afinado (<350MB RAM con límite de 2 subprocesos) + **OverlayFS** nativo.
+   * **Consumo de Memoria:** Apenas **~380 MB**, dejando más de 600 MB libres en placas de 1GB.
+   * **Arranque:** En frío en solo **5 a 8 segundos**.
+
+2. **Perfil Kiosco Estándar ([`screen/`](../screen/)):**  
+   * **Hardware Objetivo:** Raspberry Pi 5 (4GB u 8GB) con Raspberry Pi OS Desktop.
+   * **Pila de Software:** Compositor Wayland `labwc` + `swaybg` + Chromium en modo kiosco.
+
+### 5.1. Rotación Vertical por Hardware (Kernel DRM/KMS)
 En lugar de forzar a Chromium o a la CPU a transformar y rotar cada frame en memoria, la rotación de pantalla se delega al Kernel de Linux vía `/boot/firmware/cmdline.txt`:
 ```text
 video=HDMI-A-1:1920x1080@60,rotate=90
@@ -223,30 +234,39 @@ SCREEN_RESOLUTION=1920x1080
 ```
 
 ### Paso 3: Clonar el Repositorio y Ejecutar el Instalador
-Conéctate por SSH a la Raspberry Pi y ejecuta:
+Conéctate por SSH a la Raspberry Pi y ejecuta según tu placa y sistema operativo:
+
+#### Opción A: Modo Embebido Ligero (Recomendado para RPi 4 de 1GB y RPi 5 de 1GB/2GB)
+Ideal para placas con 1GB de RAM sobre **Raspberry Pi OS Lite (64-bit)**:
 ```bash
 # Clonar el proyecto
-git clone https://github.com/tu-usuario/myPlayAd.git ~/screen
+git clone https://github.com/bmecdev/myplayad.git ~/screen
 
-# Entrar y ejecutar el instalador desatendido
+# Entrar a la carpeta rpi4 y ejecutar el instalador universal
+cd ~/screen/rpi4
+sudo bash setup_rpi4.sh
+```
+*Autodetecta si la placa es RPi 4 o RPi 5, instala el compositor Wayland **Cage**, configura **ZRAM LZ4** (~1.6GB virtuales en RAM), ajusta flags de Chromium a <350MB, habilita auto-encendido **HDMI-CEC** e incluye scripts de protección **OverlayFS**.*
+
+#### Opción B: Modo Kiosco Estándar (Para RPi 5 de 4GB u 8GB con Desktop)
+```bash
 cd ~/screen/screen
 chmod +x setup_kiosk.sh
 sudo ./setup_kiosk.sh
 ```
 
-El script `setup_kiosk.sh` realiza automáticamente:
-* Instalación de herramientas del sistema (`curl`, `git`, `ffmpeg`, `cec-utils`, `swaybg`, `kanshi`, `chromium`).
-* Detección e instalación automática de **Node.js 20 LTS** y `npm`.
-* Compilación y resolución de dependencias npm (`npm install --omit=dev`).
-* Configuración de rotación DRM/KMS en el Kernel.
-* Creación del cursor invisible.
-* Configuración de inicio automático con Labwc, verificación de conectividad previa de Node y flags blindadas de Chromium.
-
 ### Paso 4: Reiniciar
 ```bash
 sudo reboot
 ```
-La Raspberry Pi encenderá directamente en modo kiosco vertical a pantalla completa.
+La Raspberry Pi encenderá directamente en modo kiosco vertical a pantalla completa, despertando el televisor por HDMI-CEC.
+
+### Paso 5: Blindaje Anti-Apagones (Recomendado para Opción A)
+Para hacer la tarjeta MicroSD inmune a apagones abruptos cuando los empleados desconectan la pantalla de la pared:
+```bash
+sudo bash ~/screen/rpi4/scripts/enable-readonly.sh
+sudo reboot
+```
 
 ---
 
