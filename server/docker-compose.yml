@@ -45,7 +45,6 @@ services:
       context: ../portal
       dockerfile: Dockerfile
       target: deps
-    container_name: prisma-db-push
     restart: "no"
     environment:
       - DATABASE_URL=postgresql://postgres:mysecretpassword@postgres:5432/myplayad?schema=public
@@ -72,8 +71,6 @@ services:
     depends_on:
       postgres:
         condition: service_started
-      prisma-db-push:
-        condition: service_completed_successfully
 
   mosquitto:
     image: eclipse-mosquitto:2
