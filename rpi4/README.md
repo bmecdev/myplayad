@@ -1,18 +1,21 @@
-# 🍓 Guía de Despliegue MyPlayAd Kiosk — Raspberry Pi 4 (1GB RAM)
+# 🍓 Guía de Despliegue MyPlayAd Kiosk — Raspberry Pi 4 y 5 (Modo Lite / Embebido)
 
-Esta carpeta contiene la solución de arquitectura embebida y scripts de despliegue para operar el sistema **MyPlayAd** en una **Raspberry Pi 4 de 1GB de RAM** (o superior), logrando un rendimiento fluido a 60 fps en Canvas 2D, decodificación por hardware de video 1080p, arranque rápido e inmunidad total contra cortes repentinos de energía.
+Esta carpeta contiene la solución de arquitectura embebida y scripts de despliegue para operar el sistema **MyPlayAd** en una **Raspberry Pi 4 de 1GB de RAM** (o superior) y en **Raspberry Pi 5 (2GB / 4GB / 8GB)**, logrando un rendimiento fluido a 60 fps en Canvas 2D, decodificación por hardware de video 1080p, arranque ultrarrápido (6-10 segundos) e inmunidad total contra cortes repentinos de energía.
+
+> ℹ️ **Compatibilidad Universal RPi 4 y RPi 5:**  
+> El instalador `setup_rpi4.sh` detecta automáticamente si el hardware es una **Raspberry Pi 4** o una **Raspberry Pi 5** y adapta la aceleración de video y memoria (`cma-128` para RPi 4 vs. dynamic VideoCore VII para RPi 5). No requieres otra carpeta separada; el mismo script sirve para ambas generaciones.
 
 ---
 
-## 🎯 Por qué esta arquitectura para 1GB de RAM
+## 🎯 Por qué esta arquitectura para 1GB o 2GB de RAM
 
-En cartelería digital, una Raspberry Pi 4 de 1GB suele fallar cuando se usa el sistema operativo con escritorio completo (`Raspberry Pi OS Desktop` + `Chromium` estándar) porque consume entre 750 y 900 MB de RAM, activando el *Out-Of-Memory Killer* (OOM) de Linux.
+En cartelería digital, una Raspberry Pi 4 de 1GB o Raspberry Pi 5 de 2GB suele sufrir cuando se usa el sistema operativo con escritorio completo (`Raspberry Pi OS Desktop` + `Chromium` estándar) porque consume entre 750 y 900 MB de RAM, activando el *Out-Of-Memory Killer* (OOM) de Linux.
 
 Esta solución optimizada implementa **5 pilares de ingeniería embebida**:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                   PILA DE SOFTWARE MYPLAYAD (RPi 4)                    │
+│               PILA DE SOFTWARE MYPLAYAD (RPi 4 y RPi 5 LITE)           │
 ├────────────────────────────────────────────────────────────────────────┤
 │  1. SO Base:      Raspberry Pi OS Lite (64-bit) — Sin escritorio       │
 │  2. Memoria:      ZRAM Swap LZ4 (Virtualiza ~1.6GB RAM con 0ms latency)│
@@ -23,17 +26,17 @@ Esta solución optimizada implementa **5 pilares de ingeniería embebida**:
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Resultado:** Consumo total en operación de **~380 a 420 MB de RAM**, dejando más de **550 MB de memoria libre** y garantizando estabilidad ininterrumpida 24/7.
+**Resultado:** Consumo total en operación de **~380 a 420 MB de RAM**, dejando más de **550 MB libres en RPi 4 (1GB)** y más de **1.5 GB libres en RPi 5 (2GB)**, garantizando estabilidad ininterrumpida 24/7.
 
 ---
 
 ## 📋 Requisitos de Hardware
 
-* **Placa:** Raspberry Pi 4 Model B (1GB, 2GB o 4GB).
+* **Placa:** Raspberry Pi 4 Model B (1GB, 2GB o 4GB) O Raspberry Pi 5 (2GB, 4GB u 8GB).
 * **Almacenamiento:** Tarjeta MicroSD Clase 10 / A1 o A2 (16GB o 32GB recomendada).
-* **Alimentación:** Fuente oficial USB-C 5.1V / 3.0A (15W).
+* **Alimentación:** Fuente oficial USB-C (15W para RPi 4 / 27W para RPi 5).
 * **Video:** Cable Micro-HDMI a HDMI conectado al puerto **HDMI 0** (puerto junto a la entrada USB-C).
-* **Refrigeración:** Disipador pasivo de aluminio o cooler activo básico.
+* **Refrigeración:** Disipador pasivo de aluminio o cooler oficial activo.
 
 ---
 
@@ -42,7 +45,7 @@ Esta solución optimizada implementa **5 pilares de ingeniería embebida**:
 ### Paso 1: Flashear la MicroSD con Raspberry Pi OS Lite
 1. Abre **Raspberry Pi Imager** en tu ordenador.
 2. Selecciona:
-   * **Dispositivo:** Raspberry Pi 4.
+   * **Dispositivo:** Raspberry Pi 4 o Raspberry Pi 5 (según la placa que vayas a usar).
    * **Sistema Operativo:** *Raspberry Pi OS (other)* ➔ **Raspberry Pi OS Lite (64-bit)** (Debian Bookworm).
 3. En las opciones de personalización (engranaje):
    * Nombre de host: `MyPlayAd-RPi4`.

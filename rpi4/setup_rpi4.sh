@@ -28,8 +28,20 @@ TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)
 TARGET_HOME="${TARGET_HOME:-/home/$TARGET_USER}"
 
+# Detectar modelo de Raspberry Pi (RPi 4 vs RPi 5)
+DETECTED_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Raspberry Pi 4 Model B")
+if echo "$DETECTED_MODEL" | grep -qi "Raspberry Pi 5"; then
+    RPI_GEN=5
+    GPU_OVERLAY="dtoverlay=vc4-kms-v3d"
+    echo "🔍 Hardware detectado: Raspberry Pi 5 ($DETECTED_MODEL)"
+else
+    RPI_GEN=4
+    GPU_OVERLAY="dtoverlay=vc4-kms-v3d,cma-128"
+    echo "🔍 Hardware detectado: Raspberry Pi 4 ($DETECTED_MODEL)"
+fi
+
 echo "👤 Usuario destino:     $TARGET_USER ($TARGET_HOME)"
-echo "📁 Directorio RPi4:      $SCRIPT_DIR"
+echo "📁 Directorio RPi:       $SCRIPT_DIR"
 echo "📁 Directorio Screen:    $SCREEN_DIR"
 echo ""
 
@@ -125,11 +137,11 @@ fi
 if [ -f "$CONFIG_FILE" ]; then
     # Verificar si ya tiene configuración MyPlayAd
     if ! grep -q "MyPlayAd Config" "$CONFIG_FILE" && ! grep -q "SCREEN_ID=" "$CONFIG_FILE"; then
-        echo "Añadiendo parámetros MyPlayAd a $CONFIG_FILE..."
-        cat << 'EOF' >> "$CONFIG_FILE"
+        echo "Añadiendo parámetros MyPlayAd a $CONFIG_FILE (RPi $RPI_GEN)..."
+        cat << EOF >> "$CONFIG_FILE"
 
 # ==========================================
-# MyPlayAd Config (RPi 4 - 1GB RAM)
+# MyPlayAd Config (RPi $RPI_GEN Kiosk)
 # ==========================================
 SCREEN_ID=bc502bba-859c-461c-a795-f6e4bf2d4931
 SCREEN_ROTATE=90
@@ -143,8 +155,8 @@ hdmi_force_hotplug:0=1
 cec_osd_name=MyPlayAd
 hdmi_drive=2
 
-# Aceleración GPU y Memoria CMA balanceada para 1GB RAM
-dtoverlay=vc4-kms-v3d,cma-128
+# Aceleración GPU y Memoria DRM/KMS
+$GPU_OVERLAY
 max_framebuffers=2
 disable_splash=1
 boot_delay=0
