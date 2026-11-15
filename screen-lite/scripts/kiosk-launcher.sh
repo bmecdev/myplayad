@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# MyPlayAd — Lanzador de Kiosco para Raspberry Pi 4 (Cage + Wayland)
+# MyPlayAd — Lanzador de Kiosk Lite para MyPlayAd Hub (Cage + Wayland)
 # ==============================================================================
 
 set -e
@@ -60,7 +60,7 @@ export REMOTE_VIDEO_SERVER_URL="${REMOTE_VIDEO_SERVER_URL:-https://videos.myplay
 export BROWSER_ENGINE="${BROWSER_ENGINE:-chromium}"
 
 echo "================================================="
-echo "   Iniciando Kiosco MyPlayAd (RPi 4 - 1GB RAM)"
+echo "   Iniciando MyPlayAd Kiosk Lite (1GB+ RAM)"
 echo "================================================="
 echo "Pantalla ID:      $SCREEN_ID"
 echo "Orientación:      $SCREEN_ROTATE"
