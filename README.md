@@ -2,13 +2,14 @@
 
 Este repositorio contiene el código fuente completo del sistema MyPlayAd, una plataforma de publicidad interactiva y cartelería digital (Digital Signage) que combina reproducción de videos con minijuegos retro (Arkanoid Clon, Circus Charlie, Cyber Canyon, Duck Hunt, Galaga Clon, Space Invaders Clon, Mega Man Arcade, OutRun Clon, Pacman Clon, Pinball Arcade, Skyroads Clon, Snake Clon, Star Wars: Falcon) controlados en tiempo real desde los teléfonos de los usuarios.
 
-## Arquitectura del Proyecto
+## Arquitectura del Ecosistema MyPlayAd
 
-El proyecto está dividido en tres componentes principales:
+El ecosistema de MyPlayAd se estructura en cuatro pilares tecnológicos oficiales:
 
-1. **`portal/` (Next.js):** El panel de administración web y la API pública. Maneja la programación de campañas, gestión de pantallas, catálogo arcade con reproductor interactivo por teclado/QR (`/games`), y el **Kiosco Virtual** en vivo para PC/Smart TV (`/demo`) con rotación de videos comerciales por plan y orientación vertical/horizontal.
-2. **`screen/` (Node.js + HTML/JS):** El servidor local y frontend que corre físicamente en cada pantalla (ej. Raspberry Pi). Sincroniza y almacena en caché los videos localmente para evitar cortes de internet, y reproduce el bucle publicitario.
-3. **`games/` (Static HTML/JS):** Los juegos retro interactivos. Tienen dos vistas: la del juego (que carga la pantalla) y el control (que carga el usuario en su móvil escaneando un código QR).
+1. **`portal/` — MyPlayAd Portal (Next.js):** El panel de administración web y la API pública. Maneja la programación de campañas publicitarias, gestión de pantallas, catálogo arcade con reproductor interactivo por teclado/QR (`/games`), y el **Kiosco Virtual** en vivo para PC/Smart TV (`/demo`) con rotación de videos comerciales por plan y orientación vertical/horizontal.
+2. **`screen/` y `screen-lite/` — MyPlayAd Kiosk (Edge Player):** El reproductor interactivo local que opera sobre las pantallas físicas y tótems. Dispone del perfil estándar en `screen/` (para entornos desktop con `labwc`) y del perfil embebido ultraligero en [`screen-lite/`](screen-lite/) (Wayland directo con Cage + ZRAM a ~380MB RAM para **MyPlayAd Hub** desde 1GB).
+3. **`games/` — Catálogo Retro Arcade:** Minijuegos retro interactivos (Arkanoid, Circus Charlie, Cyber Canyon, Duck Hunt, Galaga, Space Invaders, Mega Man, OutRun, Pacman, Pinball, Skyroads, Snake, Star Wars). Vista de pantalla arcade en TV y vista de control táctil en el smartphone vía WebRTC DataChannel (0ms latencia).
+4. **MyPlayAd Media — Distribución de Pauta Publicitaria:** El subsistema integral de almacenamiento, sincronización en caché local, cuotas de rotación por plan comercial y anuncios pre-juego obligatorios (*pre-game video ads*).
 
 ---
 
@@ -28,7 +29,7 @@ MyPlayAd se adapta a cualquier infraestructura mediante **4 opciones de producto
 
 | Opción de Producto | Entorno Objetivo | Formato & Dimensiones | Requisitos & Conectividad | Características Destacadas |
 | :--- | :--- | :--- | :--- | :--- |
-| **🕹️ 1. Consola MyPlayAd (Standalone)** | Negocios o empresas de publicidad que **ya tienen pantallas o televisores**. | Dispositivo compacto Plug & Play (Raspberry Pi 4 / Raspberry Pi 5 desde 1GB RAM) con salida HDMI y software arcade/publicidad. | Cable HDMI al televisor + corriente + Wi-Fi o red local. | Aprovecha tu inversión previa en pantallas sin comprar nuevo hardware de visualización. Gestión remota Cloud. |
+| **🕹️ 1. MyPlayAd Hub (Consola Standalone)** | Negocios o empresas de publicidad que **ya tienen pantallas o televisores**. | Dispositivo compacto Plug & Play (Raspberry Pi 4 / Raspberry Pi 5 desde 1GB RAM) con salida HDMI y software arcade/publicidad. | Cable HDMI al televisor + corriente + Wi-Fi o red local. | Aprovecha tu inversión previa en pantallas sin comprar nuevo hardware de visualización. Gestión remota Cloud. |
 | **🎪 2. Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable. | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Ligera, compacta y transportable. Montaje en menos de 5 minutos en mostradores, recepciones o stands. |
 | **🏢 3. Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K). | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Estructura fija de alta presencia, visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual. |
 | **🖥️ 4. Kiosco Virtual (Web PC / Smart TV)** | **Oficinas, Franquicias y Negocios sin hardware RPi** | Navegador web en ordenadores (Windows/Mac/Linux) o Smart TVs (`/demo`). | Conexión a Internet + Navegador moderno (Chrome/Edge/Safari/Firefox). | Cero hardware adicional. Segmentación estricta por plan (`currentUser.plan.games`), playlist de pantalla y modo pantalla completa `F11`. |
@@ -214,21 +215,21 @@ Cuando la pantalla arcade cargue cualquier minijuego (ej. Arkanoid, Circus, Star
 
 El software de pantalla cuenta con **dos opciones de despliegue** según la memoria y el modelo de Raspberry Pi:
 
-### Opción 1: Modo Embebido Ligero Universal (Recomendado para RPi 4 y RPi 5 desde 1GB RAM)
+### Opción 1: MyPlayAd Kiosk Lite Embebido (Recomendado para MyPlayAd Hub desde 1GB RAM)
 Diseñado específicamente para operar en placas económicas como la **Raspberry Pi 5 de 1GB ($45 USD)** o **Raspberry Pi 4 (1GB / 2GB)** bajo **Raspberry Pi OS Lite (64-bit)** sin escritorio:
 
 ```bash
 # 1. Clonar el proyecto
 git clone https://github.com/bmecdev/myplayad.git ~/screen
 
-# 2. Entrar a la carpeta rpi4 y ejecutar el instalador universal
-cd ~/screen/rpi4
-sudo bash setup_rpi4.sh
+# 2. Entrar a la carpeta screen-lite y ejecutar el instalador universal
+cd ~/screen/screen-lite
+sudo bash setup_lite.sh
 
 # 3. Reiniciar
 sudo reboot
 ```
-* **Ventajas:** Consume apenas **~380 MB de RAM**, arranque en frío en **5 a 8 segundos**, compositor Wayland **Cage** sin barras de tareas, memoria virtual **ZRAM LZ4** (~1.6GB en RAM) y blindaje anti-apagones con **OverlayFS** (`sudo bash ~/screen/rpi4/scripts/enable-readonly.sh`). Más detalles en [`rpi4/README.md`](rpi4/README.md).
+* **Ventajas:** Consume apenas **~380 MB de RAM**, arranque en frío en **5 a 8 segundos**, compositor Wayland **Cage** sin barras de tareas, memoria virtual **ZRAM LZ4** (~1.6GB en RAM) y blindaje anti-apagones con **OverlayFS** (`sudo bash ~/screen/screen-lite/scripts/enable-readonly.sh`). Más detalles en [`screen-lite/README.md`](screen-lite/README.md).
 
 ---
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# MyPlayAd — Instalador Automatizado de Kiosk Mode para Raspberry Pi 4 (1GB RAM)
+# MyPlayAd — Instalador Automatizado Kiosk Lite (Raspberry Pi 4 y 5 desde 1GB)
 # ==============================================================================
 # Diseñado para Raspberry Pi OS Lite (64-bit) basado en Debian Bookworm.
 # Pila: Cage (Wayland) + Chromium Optimizado (<350MB) + ZRAM (LZ4) + HDMI-CEC
@@ -15,7 +15,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "================================================================="
-echo "   🚀 Instalando MyPlayAd Kiosk para Raspberry Pi 4 (1GB RAM)"
+echo "   🚀 Instalando MyPlayAd Kiosk Lite en MyPlayAd Hub (1GB+ RAM)"
 echo "================================================================="
 
 # Directorio base del script
@@ -227,7 +227,7 @@ echo ""
 echo "================================================================="
 echo "   🎉 ¡INSTALACIÓN COMPLETADA EXITOSAMENTE!                     "
 echo "================================================================="
-echo "La Raspberry Pi 4 de 1GB está lista para operar en modo Kiosco."
+echo "El MyPlayAd Hub ($DETECTED_MODEL) está listo para operar en modo Kiosk Lite."
 echo ""
 echo "📌 Resumen de optimizaciones aplicadas:"
 echo "   1. Compositor Wayland ultraligero Cage (~18MB RAM)."

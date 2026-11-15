@@ -8,33 +8,41 @@
 
 A diferencia de la cartelería digital pasiva tradicional, MyPlayAd implementa un **Layout Dual Responsivo**:
 1. **Zona Arcade Interactiva:** Minijuegos retro (Arkanoid, Snake, Space Invaders, Cyber Canyon, etc.) renderizados a 60 fps con estética CRT. Los espectadores en el punto de venta pueden escanear un código QR local con su teléfono móvil y jugar al instante como control remoto, **sin necesidad de descargar aplicaciones** (WebRTC P2P en el navegador).
-2. **Zona Publicitaria de Video:** Espacio de alta visibilidad donde rotan spots de video corporativos y comerciales, sincronizados y cacheados localmente en el dispositivo para garantizar reproducción continua e ininterrumpida incluso ante caídas de conexión a Internet.
+2. **Zona Publicitaria de Video (MyPlayAd Media):** Espacio de alta visibilidad donde rotan spots de video corporativos y comerciales, sincronizados y cacheados localmente en el dispositivo para garantizar reproducción continua e ininterrumpida incluso ante caídas de conexión a Internet.
 
 ---
 
-## 2. Arquitectura Global del Sistema
+## 2. Nomenclatura Oficial del Ecosistema MyPlayAd
 
-El ecosistema de MyPlayAd está compuesto por tres capas interconectadas: **Cloud & APIs**, **Edge Player (Kiosco Físico)** y **Móviles de Usuarios (Controladores WebRTC)**.
+La plataforma se organiza en cuatro pilares tecnológicos de producto claramente definidos:
+
+* **🕹️ MyPlayAd Hub:** Es el dispositivo y hardware físico edge (la "consola" o microcomputador en punto de venta, basado en **Raspberry Pi 4 o Raspberry Pi 5 desde 1GB RAM**, módem industrial 4G LTE y almacenamiento blindado).
+* **🖥️ MyPlayAd Kiosk:** Es la pantalla interactiva y el entorno de visualización (tótems verticales de centros comerciales, pantallas portables en negocios, o el Kiosco Virtual en navegador `/demo`). Cuenta con dos perfiles de software: **Kiosk Estándar** (`screen/`) y **Kiosk Lite Embebido** (`screen-lite/`).
+* **🎬 MyPlayAd Media:** Es el subsistema de distribución publicitaria y pauta multimedia (gestión de videos comerciales, almacenamiento cloud, sincronización local con FFmpeg, control estricto de cuotas por plan y pausas publicitarias obligatorias pre-juego).
+* **🌐 MyPlayAd Portal:** Es la plataforma web centralizada (`portal/`) en la nube para administración de clientes, asignación de pauta, monitoreo de pantallas, control de energía HDMI-CEC y analítica.
 
 ```mermaid
 flowchart TD
     subgraph Cloud["Nube MyPlayAd (VPS / Docker)"]
-        Portal["Portal Administrativo Web<br/>(Next.js 16 + Prisma + PostgreSQL)"]
-        VideosServer["Servidor de Videos<br/>(Nginx / Storage)"]
+        Portal["MyPlayAd Portal<br/>(Next.js 16 + Prisma + PostgreSQL)"]
+        VideosServer["MyPlayAd Media Server<br/>(Nginx / Storage / FFmpeg)"]
         MQTTBroker["Broker MQTT Mosquitto<br/>(Comandos en Tiempo Real)"]
         SignalingServer["Servidor Señalización WebRTC<br/>(WebSocket Node.js)"]
     end
 
-    subgraph Hardware["Kiosco Físico (Punto de Venta)"]
-        RPi5["Raspberry Pi 5 (8GB/4GB RAM)"]
-        Labwc["Compositor Wayland (labwc)<br/>+ DRM/KMS Vertical 90°"]
-        NodeServer["Servidor Node.js Local (:8090)<br/>• Sincronizador de Videos (FFmpeg 720p)<br/>• Cliente MQTT CEC/Sync<br/>• Servidor Web Kiosk"]
-        Chromium["Chromium Kiosk (Wayland Nativo)<br/>• Canvas Dual Layout (Juego + Anuncio)"]
-        Display["Pantalla / TV Comercial 1080p / 4K<br/>(HDMI con soporte HDMI-CEC)"]
+    subgraph Hub["MyPlayAd Hub (Punto de Venta)"]
+        RPi["Raspberry Pi 4 / 5 (1GB a 8GB RAM)<br/>+ Módem 4G LTE Plug & Play"]
+        Compositor["Compositor Wayland<br/>• Cage (Lite / 1GB)<br/>• labwc (Estándar / Desktop)"]
+        NodeServer["Servidor Node.js Local (:8090)<br/>• Sincronizador MyPlayAd Media<br/>• Cliente MQTT CEC/Sync<br/>• Servidor Web Local"]
+        Chromium["Chromium Kiosk (Wayland Nativo)<br/>• Canvas Dual Layout (Juego + Media)"]
         
-        RPi5 --> Labwc
-        Labwc --> NodeServer
-        Labwc --> Chromium
+        RPi --> Compositor
+        Compositor --> NodeServer
+        Compositor --> Chromium
+    end
+
+    subgraph KioskDisplay["MyPlayAd Kiosk (Pantalla)"]
+        Display["Tótem Vertical / Display Comercial 1080p / 4K<br/>(HDMI con soporte HDMI-CEC)"]
         Chromium --> Display
     end
 
@@ -44,7 +52,7 @@ flowchart TD
 
     %% Conexiones
     Portal -.->|Publica Comandos| MQTTBroker
-    Portal -.->|Registra y Asigna| VideosServer
+    Portal -.->|Registra y Asigna Pauta| VideosServer
     MQTTBroker ==>|Comandos POWER / SYNC| NodeServer
     VideosServer ==>|Descarga de Videos .mp4| NodeServer
     SignalingServer <==>|Handshake SDP / ICE| Chromium
@@ -115,35 +123,35 @@ Para establecimientos comerciales, oficinas, franquicias o stands que deseen pro
 
 ---
 
-## 4. Especificaciones de Hardware del Kiosco
+## 4. Especificaciones de Hardware — MyPlayAd Hub
 
-Para garantizar una operación ininterrumpida 24/7 en locales comerciales al menor costo de adquisición, el hardware de cada punto de venta admite tanto la nueva generación de placas de bajo consumo como estaciones de alta capacidad:
+Para garantizar una operación ininterrumpida 24/7 en locales comerciales al menor costo de adquisición, el hardware **MyPlayAd Hub** de cada punto de venta admite tanto la nueva generación de placas de bajo consumo como estaciones de alta capacidad:
 
 | Componente | Especificación Recomendada | Función en MyPlayAd |
 | :--- | :--- | :--- |
-| **Computador Kiosco (Económico / 1GB)** | **Raspberry Pi 5 (1GB)** ($45 USD) o **Raspberry Pi 4 (1GB / 2GB)** | Consola embebida ultraligera. Corre bajo Raspberry Pi OS Lite 64-bit con Cage Wayland y ZRAM (consumo ~380MB RAM). |
-| **Computador Kiosco (Estándar)** | **Raspberry Pi 5 (2GB, 4GB u 8GB)** o **Raspberry Pi 4 (4GB)** | Reproducción dual de video y juegos a 60 fps con soporte para entornos desktop completos o modo Lite. |
+| **MyPlayAd Hub (Económico / 1GB)** | **Raspberry Pi 5 (1GB)** ($45 USD) o **Raspberry Pi 4 (1GB / 2GB)** | Consola embebida ultraligera. Corre bajo Raspberry Pi OS Lite 64-bit con Cage Wayland y ZRAM (consumo ~380MB RAM). |
+| **MyPlayAd Hub (Estándar)** | **Raspberry Pi 5 (2GB, 4GB u 8GB)** o **Raspberry Pi 4 (4GB)** | Reproducción dual de video y juegos a 60 fps con soporte para entornos desktop completos o modo Lite. |
 | **Módem Celular** | Módulo 4G LTE Industrial (SIM multi-operador) | Conectividad autónoma a Internet sin requerir Wi-Fi ni red cableada local. |
 | **Almacenamiento** | MicroSD A2 Clase 10 (16GB, 32GB o 64GB) | Sistema operativo en modo solo lectura (OverlayFS), caché local de videos y binarios de juegos. |
 | **Refrigeración** | Cooler activo oficial o disipador pasivo de aluminio | Prevención de *thermal throttling* en reproducción continua de video 24/7. |
 | **Conectividad de Video** | Cable Micro-HDMI a HDMI con soporte CEC | Transmisión de video a 1080p/4K y control remoto de energía (encendido/apagado de TV). Conectar a **HDMI 0**. |
-| **Pantalla / Monitor** | Televisor o Display Comercial (Full HD o 4K) | Orientación vertical (9:16) u horizontal (16:9) con HDMI-CEC habilitado. |
+| **Pantalla / Monitor (MyPlayAd Kiosk)** | Televisor o Display Comercial (Full HD o 4K) | Orientación vertical (9:16) u horizontal (16:9) con HDMI-CEC habilitado. |
 | **Alimentación** | Fuente oficial Raspberry Pi USB-C (15W para RPi 4 / 27W para RPi 5) | Suministro eléctrico estable para evitar bloqueos por bajo voltaje. |
 
 ---
 
-## 5. Arquitectura de Software del Kiosco (`screen/` y `rpi4/`)
+## 5. Arquitectura de Software de MyPlayAd Kiosk (`screen/` y `screen-lite/`)
 
 El sistema cuenta con **dos perfiles de software oficiales** según la memoria RAM del hardware:
 
-1. **Perfil Embebido Ligero Universal ([`rpi4/`](../rpi4/)):**  
-   * **Hardware Objetivo:** Raspberry Pi 5 (1GB / 2GB) y Raspberry Pi 4 (1GB / 2GB).
+1. **Perfil Embebido Ligero Universal ([`screen-lite/`](../screen-lite/)):**  
+   * **Hardware Objetivo:** MyPlayAd Hub con Raspberry Pi 5 (1GB / 2GB) y Raspberry Pi 4 (1GB / 2GB).
    * **Pila de Software:** Raspberry Pi OS Lite (64-bit) + compositor Wayland **Cage** (~18MB RAM) + **ZRAM Swap LZ4** (añade 1GB de RAM virtual comprimida) + **Chromium Wayland** afinado (<350MB RAM con límite de 2 subprocesos) + **OverlayFS** nativo.
    * **Consumo de Memoria:** Apenas **~380 MB**, dejando más de 600 MB libres en placas de 1GB.
    * **Arranque:** En frío en solo **5 a 8 segundos**.
 
 2. **Perfil Kiosco Estándar ([`screen/`](../screen/)):**  
-   * **Hardware Objetivo:** Raspberry Pi 5 (4GB u 8GB) con Raspberry Pi OS Desktop.
+   * **Hardware Objetivo:** MyPlayAd Hub con Raspberry Pi 5 (4GB u 8GB) con Raspberry Pi OS Desktop.
    * **Pila de Software:** Compositor Wayland `labwc` + `swaybg` + Chromium en modo kiosco.
 
 ### 5.1. Rotación Vertical por Hardware (Kernel DRM/KMS)
@@ -236,19 +244,19 @@ SCREEN_RESOLUTION=1920x1080
 ### Paso 3: Clonar el Repositorio y Ejecutar el Instalador
 Conéctate por SSH a la Raspberry Pi y ejecuta según tu placa y sistema operativo:
 
-#### Opción A: Modo Embebido Ligero (Recomendado para RPi 4 de 1GB y RPi 5 de 1GB/2GB)
+#### Opción A: Modo Kiosk Lite Embebido (Recomendado para MyPlayAd Hub desde 1GB RAM)
 Ideal para placas con 1GB de RAM sobre **Raspberry Pi OS Lite (64-bit)**:
 ```bash
 # Clonar el proyecto
 git clone https://github.com/bmecdev/myplayad.git ~/screen
 
-# Entrar a la carpeta rpi4 y ejecutar el instalador universal
-cd ~/screen/rpi4
-sudo bash setup_rpi4.sh
+# Entrar a la carpeta screen-lite y ejecutar el instalador universal
+cd ~/screen/screen-lite
+sudo bash setup_lite.sh
 ```
 *Autodetecta si la placa es RPi 4 o RPi 5, instala el compositor Wayland **Cage**, configura **ZRAM LZ4** (~1.6GB virtuales en RAM), ajusta flags de Chromium a <350MB, habilita auto-encendido **HDMI-CEC** e incluye scripts de protección **OverlayFS**.*
 
-#### Opción B: Modo Kiosco Estándar (Para RPi 5 de 4GB u 8GB con Desktop)
+#### Opción B: Modo Kiosco Estándar (Para MyPlayAd Hub con Desktop y >=4GB RAM)
 ```bash
 cd ~/screen/screen
 chmod +x setup_kiosk.sh
@@ -264,7 +272,7 @@ La Raspberry Pi encenderá directamente en modo kiosco vertical a pantalla compl
 ### Paso 5: Blindaje Anti-Apagones (Recomendado para Opción A)
 Para hacer la tarjeta MicroSD inmune a apagones abruptos cuando los empleados desconectan la pantalla de la pared:
 ```bash
-sudo bash ~/screen/rpi4/scripts/enable-readonly.sh
+sudo bash ~/screen/screen-lite/scripts/enable-readonly.sh
 sudo reboot
 ```
 
