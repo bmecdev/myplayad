@@ -14,7 +14,7 @@ StandardOutput=journal
 StandardError=journal
 Environment=WLR_LIBINPUT_NO_DEVICES=1
 Environment=XDG_RUNTIME_DIR=/run/user/1000
-ExecStart=/bin/bash /home/screen/screen/rpi4/scripts/kiosk-launcher.sh
+ExecStart=/bin/bash /home/screen/screen/screen-lite/scripts/kiosk-launcher.sh
 Restart=always
 RestartSec=3
 

@@ -1,9 +1,9 @@
-# 🍓 Guía de Despliegue MyPlayAd Kiosk — Raspberry Pi 4 y 5 (Modo Lite / Embebido)
+# 🍓 Guía de Despliegue MyPlayAd Kiosk Lite — MyPlayAd Hub (RPi 4 y 5 desde 1GB)
 
-Esta carpeta contiene la solución de arquitectura embebida y scripts de despliegue para operar el sistema **MyPlayAd** en placas **Raspberry Pi 4 (1GB, 2GB o 4GB)** y **Raspberry Pi 5 (1GB, 2GB, 4GB u 8GB)**, logrando un rendimiento fluido a 60 fps en Canvas 2D, decodificación por hardware de video 1080p, arranque ultrarrápido (5 a 8 segundos) e inmunidad total contra cortes repentinos de energía.
+Esta carpeta contiene la solución de arquitectura embebida y scripts de despliegue para operar **MyPlayAd Kiosk Lite** en el hardware **MyPlayAd Hub** basado en placas **Raspberry Pi 4 (1GB, 2GB o 4GB)** y **Raspberry Pi 5 (1GB, 2GB, 4GB u 8GB)**, logrando un rendimiento fluido a 60 fps en Canvas 2D, decodificación por hardware de video 1080p para **MyPlayAd Media**, arranque ultrarrápido (5 a 8 segundos) e inmunidad total contra cortes repentinos de energía.
 
 > ℹ️ **Compatibilidad Universal RPi 4 y RPi 5 (incluida la RPi 5 de 1GB de $45):**  
-> El instalador `setup_rpi4.sh` detecta automáticamente si el hardware es una **Raspberry Pi 4** o una **Raspberry Pi 5** y adapta la aceleración de video y memoria (`cma-128` para RPi 4 vs. dynamic VideoCore VII para RPi 5). No requieres otra carpeta separada; el mismo script sirve para ambas generaciones y modelos de 1GB.
+> El instalador `setup_lite.sh` detecta automáticamente si el hardware es una **Raspberry Pi 4** o una **Raspberry Pi 5** y adapta la aceleración de video y memoria (`cma-128` para RPi 4 vs. dynamic VideoCore VII para RPi 5). Un único script universal sirve para ambas generaciones y modelos desde 1GB RAM.
 
 ---
 
@@ -73,9 +73,9 @@ Una vez dentro de la terminal de la Raspberry Pi:
 # 1. Clonar el repositorio oficial
 git clone https://github.com/bmecdev/myplayad.git ~/screen
 
-# 2. Entrar a la carpeta rpi4 y ejecutar el instalador automatizado
-cd ~/screen/rpi4
-sudo bash setup_rpi4.sh
+# 2. Entrar a la carpeta screen-lite y ejecutar el instalador automatizado
+cd ~/screen/screen-lite
+sudo bash setup_lite.sh
 ```
 
 El script ejecutará automáticamente en menos de 5 minutos:
@@ -108,7 +108,7 @@ Al encender:
 En instalaciones comerciales, los empleados desconectan los tótems tirando del cable de electricidad. Para hacer que la tarjeta MicroSD sea **físicamente inmune a la corrupción por apagones abruptos**:
 
 ```bash
-sudo bash ~/screen/rpi4/scripts/enable-readonly.sh
+sudo bash ~/screen/screen-lite/scripts/enable-readonly.sh
 sudo reboot
 ```
 
@@ -117,7 +117,7 @@ sudo reboot
 
 > **Nota para Mantenimiento:** Si en el futuro necesitas actualizar el sistema o instalar paquetes, desactiva temporalmente el modo solo lectura con:
 > ```bash
-> sudo bash ~/screen/rpi4/scripts/disable-readonly.sh
+> sudo bash ~/screen/screen-lite/scripts/disable-readonly.sh
 > sudo reboot
 > ```
 
@@ -129,7 +129,7 @@ Puedes configurar pantallas en masa simplemente editando el archivo `/boot/firmw
 
 ```ini
 # ==========================================
-# MyPlayAd Config (RPi 4 - 1GB RAM)
+# MyPlayAd Config (MyPlayAd Hub - 1GB+ RAM)
 # ==========================================
 SCREEN_ID=tu-uuid-de-pantalla
 SCREEN_ROTATE=90               # 90: Vertical | 0: Horizontal | 270: Vertical invertido
@@ -140,16 +140,16 @@ BROWSER_ENGINE=chromium        # chromium (por defecto) o cog (WPE WebKit)
 
 ---
 
-## 📊 Estructura de la Carpeta `rpi4/`
+## 📊 Estructura de la Carpeta `screen-lite/`
 
 ```text
-rpi4/
+screen-lite/
 ├── README.md                          # Este manual de referencia
-├── setup_rpi4.sh                      # Instalador maestro automatizado
+├── setup_lite.sh                      # Instalador maestro automatizado (symlink setup_rpi4.sh)
 ├── config/
 │   ├── chromium-flags.conf            # Flags de Chromium optimizadas para 1GB RAM
 │   ├── cmdline.txt.template           # Parámetros del Kernel (KMS rotation, no consoleblank)
-│   └── config.txt.template            # Parámetros de firmware RPi 4, CMA y HDMI-CEC
+│   └── config.txt.template            # Parámetros de firmware RPi 4/5, CMA y HDMI-CEC
 ├── scripts/
 │   ├── kiosk-launcher.sh              # Orquestador: enciende TV, arranca Node y lanza Cage
 │   ├── zram-setup.sh                  # Configura 1GB de swap comprimido en RAM (LZ4)
