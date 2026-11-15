@@ -28,7 +28,7 @@ MyPlayAd se adapta a cualquier infraestructura mediante **4 opciones de producto
 
 | Opción de Producto | Entorno Objetivo | Formato & Dimensiones | Requisitos & Conectividad | Características Destacadas |
 | :--- | :--- | :--- | :--- | :--- |
-| **🕹️ 1. Consola MyPlayAd (Standalone)** | Negocios o empresas de publicidad que **ya tienen pantallas o televisores**. | Dispositivo compacto Plug & Play (Raspberry Pi 5) con salida HDMI y software arcade/publicidad. | Cable HDMI al televisor + corriente + Wi-Fi o red local. | Aprovecha tu inversión previa en pantallas sin comprar nuevo hardware de visualización. Gestión remota Cloud. |
+| **🕹️ 1. Consola MyPlayAd (Standalone)** | Negocios o empresas de publicidad que **ya tienen pantallas o televisores**. | Dispositivo compacto Plug & Play (Raspberry Pi 4 / Raspberry Pi 5 desde 1GB RAM) con salida HDMI y software arcade/publicidad. | Cable HDMI al televisor + corriente + Wi-Fi o red local. | Aprovecha tu inversión previa en pantallas sin comprar nuevo hardware de visualización. Gestión remota Cloud. |
 | **🎪 2. Pantalla Mediana Portable** | **Negocios Locales, Stands y Ferias** | Formato estilizado 32" a 43" (Full HD) con atril o soporte portable. | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Ligera, compacta y transportable. Montaje en menos de 5 minutos en mostradores, recepciones o stands. |
 | **🏢 3. Pantalla Grande Fija** | **Centros Comerciales (CC / Malls)** | Tótem vertical 43", 55" o 65"+ (Full HD / 4K). | **¡Solo electricidad!** Conexión celular 4G LTE interna preconfigurada. | Estructura fija de alta presencia, visibilidad en pasillos centrales, plazas y plazoletas de comidas. Máximo impacto visual. |
 | **🖥️ 4. Kiosco Virtual (Web PC / Smart TV)** | **Oficinas, Franquicias y Negocios sin hardware RPi** | Navegador web en ordenadores (Windows/Mac/Linux) o Smart TVs (`/demo`). | Conexión a Internet + Navegador moderno (Chrome/Edge/Safari/Firefox). | Cero hardware adicional. Segmentación estricta por plan (`currentUser.plan.games`), playlist de pantalla y modo pantalla completa `F11`. |
@@ -210,12 +210,32 @@ Cuando la pantalla arcade cargue cualquier minijuego (ej. Arkanoid, Circus, Star
 
 ---
 
-## 🍓 Configuración para Raspberry Pi 5 (Producción - Modo Kiosco Wayland)
+## 🍓 Configuración para Raspberry Pi (Producción - Modo Kiosco Wayland)
 
-Para desplegar este sistema en un televisor o pantalla comercial real usando una **Raspberry Pi 5**, el software está diseñado para operar de forma 100% autónoma y desatendida bajo **Debian Bookworm/Trixie de 64 bits** con el compositor gráfico Wayland (`labwc`), aceleración por hardware GPU y sin escritorios tradicionales.
+El software de pantalla cuenta con **dos opciones de despliegue** según la memoria y el modelo de Raspberry Pi:
 
-### 1. Instalación Rápida Desatendida (`setup_kiosk.sh`)
-1. Flashea la MicroSD con **Raspberry Pi OS (64-bit)** mediante Raspberry Pi Imager.
+### Opción 1: Modo Embebido Ligero Universal (Recomendado para RPi 4 y RPi 5 desde 1GB RAM)
+Diseñado específicamente para operar en placas económicas como la **Raspberry Pi 5 de 1GB ($45 USD)** o **Raspberry Pi 4 (1GB / 2GB)** bajo **Raspberry Pi OS Lite (64-bit)** sin escritorio:
+
+```bash
+# 1. Clonar el proyecto
+git clone https://github.com/bmecdev/myplayad.git ~/screen
+
+# 2. Entrar a la carpeta rpi4 y ejecutar el instalador universal
+cd ~/screen/rpi4
+sudo bash setup_rpi4.sh
+
+# 3. Reiniciar
+sudo reboot
+```
+* **Ventajas:** Consume apenas **~380 MB de RAM**, arranque en frío en **5 a 8 segundos**, compositor Wayland **Cage** sin barras de tareas, memoria virtual **ZRAM LZ4** (~1.6GB en RAM) y blindaje anti-apagones con **OverlayFS** (`sudo bash ~/screen/rpi4/scripts/enable-readonly.sh`). Más detalles en [`rpi4/README.md`](rpi4/README.md).
+
+---
+
+### Opción 2: Modo Kiosco Estándar con Desktop (Para RPi 5 de 4GB u 8GB)
+Para placas con entorno de escritorio completo usando el compositor Wayland `labwc`:
+
+1. Flashea la MicroSD con **Raspberry Pi OS con Desktop (64-bit)** mediante Raspberry Pi Imager.
 2. Añade tu `SCREEN_ID` y la rotación al final de `/boot/firmware/config.txt`:
    ```ini
    # Configuración MyPlayAd Screen
