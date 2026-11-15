@@ -86,7 +86,7 @@ jobs:
             docker rm -f prisma-db-push 2>/dev/null || true
             docker compose build prisma-db-push
             docker compose run --rm prisma-db-push npx prisma db push --accept-data-loss
-            docker compose up -d --build --remove-orphans postgres mosquitto signaling videos portal
+            docker compose up -d --build --force-recreate --remove-orphans postgres mosquitto signaling videos portal
             sleep 3
             docker compose ps
-            docker compose logs --tail=50 portal || true
+            docker logs --tail 50 portal || true
