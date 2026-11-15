@@ -1,0 +1,25 @@
+[Unit]
+Description=MyPlayAd Kiosk Service (Cage Wayland Compositor)
+After=network-online.target time-sync.target zramswap.service
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=screen
+Group=screen
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Environment=WLR_LIBINPUT_NO_DEVICES=1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/bin/bash /home/screen/screen/rpi4/scripts/kiosk-launcher.sh
+Restart=always
+RestartSec=3
+
+# Límites de proceso suaves
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
