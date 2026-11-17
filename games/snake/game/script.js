@@ -231,13 +231,15 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Configuration
-const GRID_SIZE = 10;
-const CANVAS_WIDTH = 200;
-const CANVAS_HEIGHT = 160;
-const COLS = CANVAS_WIDTH / GRID_SIZE;
-const ROWS = CANVAS_HEIGHT / GRID_SIZE;
+// Configuration (Resolución HD 400x320 con celdas de 20px)
+const GRID_SIZE = 20;
+const CANVAS_WIDTH = 400;
+const CANVAS_HEIGHT = 320;
+const COLS = CANVAS_WIDTH / GRID_SIZE; // 20 columnas lógicas
+const ROWS = CANVAS_HEIGHT / GRID_SIZE; // 16 filas lógicas
 const MATRIX_GREEN = '#3dff8a';
+const INITIAL_GAME_SPEED = 150; // Velocidad más suave y controlable (150ms por casilla)
+const MIN_GAME_SPEED = 75;      // Límite máximo de velocidad tras comer manzanas
 
 // Game state encapsulation
 const GameState = {
@@ -261,7 +263,7 @@ const GameState = {
     isRespawning: false,
     isInvulnerable: false, 
     lastTime: 0,
-    gameSpeed: 100,
+    gameSpeed: INITIAL_GAME_SPEED,
     currentNickname: 'Player',
     roomId: Math.random().toString(36).substring(2, 6).toUpperCase()
 };
@@ -902,23 +904,25 @@ function drawRoundRect(ctx, x, y, w, h, r) {
 function createEatBurst(gridX, gridY, customColor = null) {
     const px = gridX * GRID_SIZE + GRID_SIZE / 2;
     const py = gridY * GRID_SIZE + GRID_SIZE / 2;
-    const count = customColor ? 18 : 12;
-    const palette = customColor ? [customColor, '#ffffff', '#fffa65'] : ['#ff2a6d', '#ff4d6d', '#3dff8a', '#ffffff'];
+    const count = customColor ? 22 : 16;
+    const palette = customColor 
+        ? [customColor, '#ffffff', '#fffa65', '#ffd166'] 
+        : ['#ff2a6d', '#ff4d6d', '#ff7597', '#3dff8a', '#ffffff'];
     
     for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.4;
-        const speed = Math.random() * 2.2 + 0.8;
+        const speed = Math.random() * 3.6 + 1.2;
         GameState.particles.push({
             x: px,
             y: py,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
-            size: Math.random() * 2 + 1.2,
+            size: Math.random() * 3.2 + 1.8,
             color: palette[Math.floor(Math.random() * palette.length)],
             alpha: 1.0,
-            life: Math.floor(Math.random() * 15 + 15),
-            maxLife: 30,
-            drag: 0.94
+            life: Math.floor(Math.random() * 16 + 18),
+            maxLife: 34,
+            drag: 0.93
         });
     }
 }
@@ -926,48 +930,48 @@ function createEatBurst(gridX, gridY, customColor = null) {
 function createBonusBurst(gridX, gridY) {
     const px = gridX * GRID_SIZE + GRID_SIZE / 2;
     const py = gridY * GRID_SIZE + GRID_SIZE / 2;
-    const palette = ['#ffe600', '#ffb703', '#ffffff', '#00f5d4', '#ff7b00'];
+    const palette = ['#ffe600', '#ffb703', '#ffffff', '#00f5d4', '#ff7b00', '#ffea00'];
     
-    for (let i = 0; i < 20; i++) {
-        const angle = (Math.PI * 2 * i) / 20 + (Math.random() - 0.5) * 0.3;
-        const speed = Math.random() * 2.8 + 1.0;
+    for (let i = 0; i < 28; i++) {
+        const angle = (Math.PI * 2 * i) / 28 + (Math.random() - 0.5) * 0.3;
+        const speed = Math.random() * 4.6 + 1.5;
         GameState.particles.push({
             x: px,
             y: py,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
-            size: Math.random() * 2.2 + 1.2,
+            size: Math.random() * 3.8 + 2.0,
             color: palette[Math.floor(Math.random() * palette.length)],
             alpha: 1.0,
-            life: Math.floor(Math.random() * 20 + 20),
-            maxLife: 40,
+            life: Math.floor(Math.random() * 24 + 22),
+            maxLife: 46,
             drag: 0.94
         });
     }
 }
 
 function createDeathExplosion(snakeSegments) {
-    GameState.screenShake = 10;
-    const colors = ['#3dff8a', '#ff4d6d', '#ffb703', '#ffffff', '#00f5d4'];
+    GameState.screenShake = 12;
+    const colors = ['#3dff8a', '#ff4d6d', '#ffb703', '#ffffff', '#00f5d4', '#ff0055'];
     
     snakeSegments.forEach((segment, idx) => {
         const px = segment.x * GRID_SIZE + GRID_SIZE / 2;
         const py = segment.y * GRID_SIZE + GRID_SIZE / 2;
-        const count = idx === 0 ? 8 : 4;
+        const count = idx === 0 ? 12 : 6;
         
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 3 + 1;
+            const speed = Math.random() * 4.8 + 1.4;
             GameState.particles.push({
                 x: px,
                 y: py,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed,
-                size: Math.random() * 2.5 + 1.5,
+                size: Math.random() * 4.2 + 2.2,
                 color: colors[Math.floor(Math.random() * colors.length)],
                 alpha: 1.0,
-                life: Math.floor(Math.random() * 25 + 20),
-                maxLife: 45,
+                life: Math.floor(Math.random() * 28 + 24),
+                maxLife: 52,
                 drag: 0.95
             });
         }
@@ -981,24 +985,24 @@ function createFloatingText(px, py, text, color = '#3dff8a') {
         text: text,
         color: color,
         alpha: 1.0,
-        life: 35,
-        maxLife: 35
+        life: 40,
+        maxLife: 40
     });
 }
 
 function createTailDust(px, py) {
-    if (GameState.particles.length > 50) return;
+    if (GameState.particles.length > 60) return;
     GameState.particles.push({
-        x: px + (Math.random() - 0.5) * 3,
-        y: py + (Math.random() - 0.5) * 3,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        size: Math.random() * 1.5 + 0.8,
-        color: '#10b981',
-        alpha: 0.6,
-        life: 16,
-        maxLife: 16,
-        drag: 0.92
+        x: px + (Math.random() - 0.5) * 6,
+        y: py + (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6,
+        size: Math.random() * 2.2 + 1.2,
+        color: Math.random() < 0.5 ? '#10b981' : '#00f5d4',
+        alpha: 0.7,
+        life: 18,
+        maxLife: 18,
+        drag: 0.91
     });
 }
 
@@ -1035,7 +1039,7 @@ function updateEffects() {
 function init() {
     resetSnakePosition(false); 
     GameState.score = 0;
-    GameState.gameSpeed = 100; 
+    GameState.gameSpeed = INITIAL_GAME_SPEED; 
     GameState.foodsEaten = 0;
     GameState.bonusFood = null;
     GameState.bonusTimer = 0;
@@ -1110,7 +1114,7 @@ function placeBonusFood() {
         const onFood = GameState.food && GameState.food.x === newBonus.x && GameState.food.y === newBonus.y;
         if (!onSnake && !onFood) {
             GameState.bonusFood = newBonus;
-            GameState.bonusTimer = 90; // ~9 segundos
+            GameState.bonusTimer = 60; // ~9 segundos a velocidad normal
             createEatBurst(newBonus.x, newBonus.y, '#ffe600');
             break;
         }
@@ -1150,9 +1154,9 @@ function moveSnake() {
         GameState.foodsEaten++;
         updateScore();
         createEatBurst(head.x, head.y);
-        createFloatingText(head.x * GRID_SIZE + 5, head.y * GRID_SIZE - 2, '+10', '#3dff8a');
+        createFloatingText(head.x * GRID_SIZE + GRID_SIZE / 2, head.y * GRID_SIZE - 4, '+10', '#3dff8a');
         placeFood();
-        if (GameState.gameSpeed > 50) GameState.gameSpeed -= 1;
+        if (GameState.gameSpeed > MIN_GAME_SPEED) GameState.gameSpeed -= 1;
 
         // Generar estrella dorada cada 4 manzanas
         if (GameState.foodsEaten % 4 === 0 && !GameState.bonusFood) {
@@ -1167,7 +1171,7 @@ function moveSnake() {
         GameState.score += 50;
         updateScore();
         createBonusBurst(head.x, head.y);
-        createFloatingText(head.x * GRID_SIZE + 5, head.y * GRID_SIZE - 4, '+50 BONUS!', '#ffe600');
+        createFloatingText(head.x * GRID_SIZE + GRID_SIZE / 2, head.y * GRID_SIZE - 6, '+50 BONUS!', '#ffe600');
         GameState.bonusFood = null;
         GameState.bonusTimer = 0;
     }
@@ -1251,194 +1255,267 @@ function draw(time = performance.now()) {
 
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Fondo cibernético oscuro
-    ctx.fillStyle = '#060b08';
+    // Fondo cibernético con gradiente radial de profundidad
+    const bgGrad = ctx.createRadialGradient(
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 40,
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_WIDTH * 0.68
+    );
+    bgGrad.addColorStop(0, '#0d2217');
+    bgGrad.addColorStop(0.65, '#06120b');
+    bgGrad.addColorStop(1, '#020604');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Rejilla cibernética sutil dentro de la arena jugable
-    ctx.strokeStyle = 'rgba(61, 255, 138, 0.04)';
+    // Rejilla cibernética sutil dentro de la arena jugable (GRID_SIZE = 20)
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.055)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let c = 1; c < COLS - 1; c++) {
-        ctx.moveTo(c * GRID_SIZE, GRID_SIZE);
-        ctx.lineTo(c * GRID_SIZE, CANVAS_HEIGHT - GRID_SIZE);
+        const gx = c * GRID_SIZE;
+        ctx.moveTo(gx, GRID_SIZE);
+        ctx.lineTo(gx, CANVAS_HEIGHT - GRID_SIZE);
     }
     for (let r = 1; r < ROWS - 1; r++) {
-        ctx.moveTo(GRID_SIZE, r * GRID_SIZE);
-        ctx.lineTo(CANVAS_WIDTH - GRID_SIZE, r * GRID_SIZE);
+        const gy = r * GRID_SIZE;
+        ctx.moveTo(GRID_SIZE, gy);
+        ctx.lineTo(CANVAS_WIDTH - GRID_SIZE, gy);
     }
     ctx.stroke();
 
-    // Micro-puntos de intersección
-    ctx.fillStyle = 'rgba(61, 255, 138, 0.12)';
-    for (let c = 1; c < COLS - 1; c += 2) {
-        for (let r = 1; r < ROWS - 1; r += 2) {
-            ctx.fillRect(c * GRID_SIZE - 0.5, r * GRID_SIZE - 0.5, 1, 1);
+    // Micro-nodos cibernéticos en intersecciones
+    ctx.fillStyle = 'rgba(61, 255, 138, 0.16)';
+    for (let c = 1; c < COLS - 1; c++) {
+        for (let r = 1; r < ROWS - 1; r++) {
+            ctx.fillRect(c * GRID_SIZE - 1, r * GRID_SIZE - 1, 2, 2);
         }
     }
 
     // Retículo táctico central en el fondo
     const cx = CANVAS_WIDTH / 2;
     const cy = CANVAS_HEIGHT / 2;
-    ctx.strokeStyle = 'rgba(61, 255, 138, 0.035)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(61, 255, 138, 0.04)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
+    ctx.arc(cx, cy, 52, 0, Math.PI * 2);
     ctx.arc(cx, cy, 26, 0, Math.PI * 2);
-    ctx.moveTo(cx - 32, cy); ctx.lineTo(cx - 20, cy);
-    ctx.moveTo(cx + 20, cy); ctx.lineTo(cx + 32, cy);
-    ctx.moveTo(cx, cy - 32); ctx.lineTo(cx, cy - 20);
-    ctx.moveTo(cx, cy + 20); ctx.lineTo(cx, cy + 32);
+    ctx.moveTo(cx - 65, cy); ctx.lineTo(cx - 40, cy);
+    ctx.moveTo(cx + 40, cy); ctx.lineTo(cx + 65, cy);
+    ctx.moveTo(cx, cy - 65); ctx.lineTo(cx, cy - 40);
+    ctx.moveTo(cx, cy + 40); ctx.lineTo(cx, cy + 65);
     ctx.stroke();
 
-    // Detección de peligro por proximidad a los muros
+    // Detección de peligro por proximidad a los muros perimetrales
     const head = GameState.snake[0];
     const nearWall = head && (head.x <= 1 || head.x >= COLS - 2 || head.y <= 1 || head.y >= ROWS - 2);
-    const wallAlarm = nearWall && Math.floor(time / 120) % 2 === 0;
+    const wallAlarm = nearWall && Math.floor(time / 110) % 2 === 0;
 
-    // Pared perimetral de peligro
-    ctx.fillStyle = '#0a1610';
+    // Pared perimetral de peligro (Grosor = 20px)
+    ctx.fillStyle = '#08140e';
     ctx.fillRect(0, 0, CANVAS_WIDTH, GRID_SIZE);
     ctx.fillRect(0, CANVAS_HEIGHT - GRID_SIZE, CANVAS_WIDTH, GRID_SIZE);
     ctx.fillRect(0, 0, GRID_SIZE, CANVAS_HEIGHT);
     ctx.fillRect(CANVAS_WIDTH - GRID_SIZE, 0, GRID_SIZE, CANVAS_HEIGHT);
 
-    // Rayas diagonales de peligro en el borde
-    ctx.fillStyle = wallAlarm ? 'rgba(255, 77, 109, 0.25)' : 'rgba(61, 255, 138, 0.08)';
-    for (let i = 0; i < CANVAS_WIDTH; i += 12) {
-        ctx.fillRect(i + 2, 2, 4, GRID_SIZE - 4);
-        ctx.fillRect(i + 2, CANVAS_HEIGHT - GRID_SIZE + 2, 4, GRID_SIZE - 4);
+    // Franjas diagonales hazard de peligro
+    ctx.fillStyle = wallAlarm ? 'rgba(255, 77, 109, 0.35)' : (nearWall ? 'rgba(255, 183, 3, 0.20)' : 'rgba(61, 255, 138, 0.09)');
+    for (let i = 0; i < CANVAS_WIDTH; i += 24) {
+        ctx.fillRect(i + 3, 3, 8, GRID_SIZE - 6);
+        ctx.fillRect(i + 3, CANVAS_HEIGHT - GRID_SIZE + 3, 8, GRID_SIZE - 6);
     }
-    for (let i = 0; i < CANVAS_HEIGHT; i += 12) {
-        ctx.fillRect(2, i + 2, GRID_SIZE - 4, 4);
-        ctx.fillRect(CANVAS_WIDTH - GRID_SIZE + 2, i + 2, GRID_SIZE - 4, 4);
+    for (let i = 0; i < CANVAS_HEIGHT; i += 24) {
+        ctx.fillRect(3, i + 3, GRID_SIZE - 6, 8);
+        ctx.fillRect(CANVAS_WIDTH - GRID_SIZE + 3, i + 3, GRID_SIZE - 6, 8);
     }
 
-    // Línea láser perimetral neón
-    ctx.strokeStyle = wallAlarm ? '#ff4d6d' : (nearWall ? '#ffb703' : '#3dff8a');
-    ctx.lineWidth = 1.5;
+    // Línea láser perimetral neón con resplandor
+    const laserCol = wallAlarm ? '#ff4d6d' : (nearWall ? '#ffb703' : '#3dff8a');
+    ctx.strokeStyle = laserCol;
+    ctx.lineWidth = 2.0;
     ctx.strokeRect(GRID_SIZE - 0.5, GRID_SIZE - 0.5, CANVAS_WIDTH - 2 * GRID_SIZE + 1, CANVAS_HEIGHT - 2 * GRID_SIZE + 1);
 
-    // Nodos tecnológicos en las 4 esquinas con LEDs brillantes
+    // 4 Nodos / Torretas de energía en las esquinas con capacitores
+    const cornerW = GRID_SIZE;
     const corners = [
-        [GRID_SIZE - 2, GRID_SIZE - 2],
-        [CANVAS_WIDTH - GRID_SIZE - 3, GRID_SIZE - 2],
-        [GRID_SIZE - 2, CANVAS_HEIGHT - GRID_SIZE - 3],
-        [CANVAS_WIDTH - GRID_SIZE - 3, CANVAS_HEIGHT - GRID_SIZE - 3]
+        [0, 0],
+        [CANVAS_WIDTH - cornerW, 0],
+        [0, CANVAS_HEIGHT - cornerW],
+        [CANVAS_WIDTH - cornerW, CANVAS_HEIGHT - cornerW]
     ];
     corners.forEach(([kx, ky]) => {
-        ctx.fillStyle = wallAlarm ? '#ff4d6d' : '#ffb703';
-        ctx.fillRect(kx, ky, 5, 5);
+        ctx.fillStyle = '#102419';
+        ctx.fillRect(kx, ky, cornerW, cornerW);
+        ctx.strokeStyle = laserCol;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(kx + 1.5, ky + 1.5, cornerW - 3, cornerW - 3);
+
+        const corePulse = 3.6 + Math.sin(time / 140) * 0.9;
+        ctx.fillStyle = wallAlarm ? '#ff4d6d' : '#ffea00';
+        ctx.beginPath();
+        ctx.arc(kx + cornerW / 2, ky + cornerW / 2, corePulse, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(kx + 1.5, ky + 1.5, 2, 2);
+        ctx.fillRect(kx + cornerW / 2 - 1, ky + cornerW / 2 - 1, 2, 2);
     });
 
     // ----------------------------------------------------
-    // Comida Principal: Manzana Neón 3D con Brillos y Hoja
+    // Comida Principal: Manzana Neón 3D con Brillos y Sombra
     // ----------------------------------------------------
     if (GameState.food) {
         const fx = GameState.food.x * GRID_SIZE;
         const fy = GameState.food.y * GRID_SIZE;
-        const bob = Math.sin(time / 160) * 0.8;
-        const appleY = fy + bob;
+        const bob = Math.sin(time / 160) * 1.5;
+        const appleX = fx + 10;
+        const appleY = fy + 10 + bob;
 
-        // Halo de brillo radial
-        const glow = ctx.createRadialGradient(fx + 5, appleY + 5.5, 1, fx + 5, appleY + 5.5, 9);
-        glow.addColorStop(0, 'rgba(255, 42, 109, 0.4)');
+        // Sombra suave en el suelo
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(appleX, fy + 17, Math.max(2, 6.5 - bob * 0.4), Math.max(1, 2.2 - bob * 0.15), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Halo de resplandor radial cálido
+        const glow = ctx.createRadialGradient(appleX, appleY, 2, appleX, appleY, 18);
+        glow.addColorStop(0, 'rgba(255, 42, 109, 0.45)');
+        glow.addColorStop(0.65, 'rgba(255, 42, 109, 0.15)');
         glow.addColorStop(1, 'rgba(255, 42, 109, 0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(fx + 5, appleY + 5.5, 9, 0, Math.PI * 2);
+        ctx.arc(appleX, appleY, 18, 0, Math.PI * 2);
         ctx.fill();
 
-        // Cuerpo de la manzana (3D degradado)
-        const appleGrad = ctx.createLinearGradient(fx + 2, appleY + 2, fx + 8, appleY + 8);
-        appleGrad.addColorStop(0, '#ff4d6d');
-        appleGrad.addColorStop(0.6, '#ff0055');
-        appleGrad.addColorStop(1, '#9b002c');
-        ctx.fillStyle = appleGrad;
-        drawRoundRect(ctx, fx + 2, appleY + 3, 6, 5.5, 2.5);
-        ctx.fill();
+        // Cuerpo esférico 3D de la manzana
+        const bodyGrad = ctx.createRadialGradient(appleX - 2.5, appleY - 2.5, 1.5, appleX, appleY, 7.5);
+        bodyGrad.addColorStop(0, '#ff7597');
+        bodyGrad.addColorStop(0.3, '#ff1744');
+        bodyGrad.addColorStop(0.75, '#c2185b');
+        bodyGrad.addColorStop(1, '#500018');
+        ctx.fillStyle = bodyGrad;
 
-        // Brillo especular
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        // Geometría orgánica de manzana con hendidura superior
         ctx.beginPath();
-        ctx.arc(fx + 3.8, appleY + 4.2, 1, 0, Math.PI * 2);
+        ctx.arc(appleX - 2.8, appleY + 0.5, 5.0, 0, Math.PI * 2);
+        ctx.arc(appleX + 2.8, appleY + 0.5, 5.0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(appleX, appleY + 2.2, 5.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Tallo
-        ctx.strokeStyle = '#92400e';
-        ctx.lineWidth = 1;
+        // Reflejo especular blanco curvado
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
         ctx.beginPath();
-        ctx.moveTo(fx + 5, appleY + 3);
-        ctx.lineTo(fx + 5.2, appleY + 1.2);
+        ctx.ellipse(appleX - 2.8, appleY - 2.2, 2.0, 1.2, -Math.PI / 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Reflejo verde ambiente en borde inferior derecho (rebote de luz de la arena)
+        ctx.fillStyle = 'rgba(61, 255, 138, 0.35)';
+        ctx.beginPath();
+        ctx.arc(appleX + 3.2, appleY + 4.0, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tallo curvado de madera
+        ctx.strokeStyle = '#8d6e63';
+        ctx.lineWidth = 1.8;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(appleX, appleY - 3.5);
+        ctx.quadraticCurveTo(appleX + 1.5, appleY - 6.5, appleX + 3.5, appleY - 7.5);
         ctx.stroke();
 
-        // Hoja verde esmeralda neón
-        ctx.fillStyle = '#3dff8a';
+        // Hoja verde esmeralda neón con nervio
+        ctx.fillStyle = '#00e676';
         ctx.beginPath();
-        ctx.ellipse(fx + 6.8, appleY + 1.6, 1.8, 1, Math.PI / 4, 0, Math.PI * 2);
+        ctx.ellipse(appleX + 4.5, appleY - 5.5, 3.2, 1.8, Math.PI / 4, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#b9f6ca';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(appleX + 2.5, appleY - 5.5);
+        ctx.lineTo(appleX + 6.5, appleY - 5.5);
+        ctx.stroke();
     }
 
     // ----------------------------------------------------
-    // Comida Bonus: Estrella Dorada Centelleante
+    // Comida Bonus: Estrella Dorada Cósmica Centelleante
     // ----------------------------------------------------
     if (GameState.bonusFood) {
         const bx = GameState.bonusFood.x * GRID_SIZE;
         const by = GameState.bonusFood.y * GRID_SIZE;
-        const bBob = Math.sin(time / 110) * 1.2;
-        const starX = bx + 5;
-        const starY = by + 5 + bBob;
+        const bBob = Math.sin(time / 110) * 2.0;
+        const starX = bx + 10;
+        const starY = by + 10 + bBob;
 
-        // Halo dorado
-        const bGlow = ctx.createRadialGradient(starX, starY, 1, starX, starY, 11);
-        bGlow.addColorStop(0, 'rgba(255, 183, 3, 0.55)');
+        // Sombra proyectada
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
+        ctx.beginPath();
+        ctx.ellipse(starX, by + 17, 7, 2.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Halo dorado exterior
+        const bGlow = ctx.createRadialGradient(starX, starY, 2, starX, starY, 22);
+        bGlow.addColorStop(0, 'rgba(255, 215, 0, 0.65)');
+        bGlow.addColorStop(0.5, 'rgba(255, 183, 3, 0.28)');
         bGlow.addColorStop(1, 'rgba(255, 183, 3, 0)');
         ctx.fillStyle = bGlow;
         ctx.beginPath();
-        ctx.arc(starX, starY, 11, 0, Math.PI * 2);
+        ctx.arc(starX, starY, 22, 0, Math.PI * 2);
         ctx.fill();
 
-        // Estrella de 4 puntas
-        const starGrad = ctx.createLinearGradient(starX - 4, starY - 4, starX + 4, starY + 4);
-        starGrad.addColorStop(0, '#fff3b0');
-        starGrad.addColorStop(0.4, '#ffb703');
-        starGrad.addColorStop(1, '#fb8500');
-        ctx.fillStyle = starGrad;
+        // Anillo medidor de tiempo restante
+        const timerFraction = Math.max(0, GameState.bonusTimer / 60);
+        const ringCol = timerFraction > 0.4 ? '#ffea00' : '#ff4d6d';
+        ctx.strokeStyle = ringCol;
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(starX, starY - 4.5);
-        ctx.lineTo(starX + 1.8, starY - 1.8);
-        ctx.lineTo(starX + 4.5, starY);
-        ctx.lineTo(starX + 1.8, starY + 1.8);
-        ctx.lineTo(starX, starY + 4.5);
-        ctx.lineTo(starX - 1.8, starY + 1.8);
-        ctx.lineTo(starX - 4.5, starY);
-        ctx.lineTo(starX - 1.8, starY - 1.8);
+        ctx.arc(starX, starY, 13.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timerFraction);
+        ctx.stroke();
+
+        // Estrella de 8 puntas facetada en oro brillante
+        const outerR = 8.5;
+        const innerR = 3.8;
+        ctx.fillStyle = '#ffb300';
+        ctx.beginPath();
+        for (let p = 0; p < 16; p++) {
+            const r = (p % 2 === 0) ? outerR : innerR;
+            const a = (p * Math.PI) / 8 - Math.PI / 2;
+            const px = starX + Math.cos(a) * r;
+            const py = starY + Math.sin(a) * r;
+            if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
         ctx.closePath();
         ctx.fill();
 
-        // Destello central blanco
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(starX - 1, starY - 1, 2, 2);
-
-        // Partículas orbitales
-        const orbitAngle = time / 100;
-        const ox1 = starX + Math.cos(orbitAngle) * 6;
-        const oy1 = starY + Math.sin(orbitAngle) * 6;
-        const ox2 = starX + Math.cos(orbitAngle + Math.PI) * 6;
-        const oy2 = starY + Math.sin(orbitAngle + Math.PI) * 6;
-        ctx.fillStyle = '#fffa65';
-        ctx.fillRect(ox1 - 0.8, oy1 - 0.8, 1.6, 1.6);
-        ctx.fillStyle = '#00f5d4';
-        ctx.fillRect(ox2 - 0.8, oy2 - 0.8, 1.6, 1.6);
-
-        // Anillo temporizador del bonus
-        const timerFraction = GameState.bonusTimer / 90;
-        ctx.strokeStyle = 'rgba(255, 183, 3, 0.7)';
-        ctx.lineWidth = 1;
+        // Faceta interna brillante
+        const coreR = 5.5;
+        const starGrad = ctx.createLinearGradient(starX - coreR, starY - coreR, starX + coreR, starY + coreR);
+        starGrad.addColorStop(0, '#ffffff');
+        starGrad.addColorStop(0.4, '#fff59d');
+        starGrad.addColorStop(1, '#ffa000');
+        ctx.fillStyle = starGrad;
         ctx.beginPath();
-        ctx.arc(starX, starY, 7.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timerFraction);
-        ctx.stroke();
+        ctx.arc(starX, starY, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Destello de 4 rayos
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillRect(starX - 5.5, starY - 0.75, 11, 1.5);
+        ctx.fillRect(starX - 0.75, starY - 5.5, 1.5, 11);
+
+        // Orbes orbitales de plasma
+        const orbitA = time / 110;
+        const ox1 = starX + Math.cos(orbitA) * 11;
+        const oy1 = starY + Math.sin(orbitA) * 11;
+        const ox2 = starX + Math.cos(orbitA + Math.PI) * 11;
+        const oy2 = starY + Math.sin(orbitA + Math.PI) * 11;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(ox1, oy1, 2.0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffea00';
+        ctx.beginPath(); ctx.arc(ox1, oy1, 3.2, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(ox2, oy2, 2.0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#00f5d4';
+        ctx.beginPath(); ctx.arc(ox2, oy2, 3.2, 0, Math.PI * 2); ctx.fill();
     }
 
     // ----------------------------------------------------
@@ -1446,168 +1523,203 @@ function draw(time = performance.now()) {
     // ----------------------------------------------------
     if (GameState.snake && GameState.snake.length > 0) {
         ctx.save();
-        
-        // Transparencia e Inmunidad
         if (GameState.isInvulnerable) {
             ctx.globalAlpha = 0.65 + 0.35 * Math.sin(time / 60);
         }
 
         const totalSegments = GameState.snake.length;
-        const pulseSegment = Math.floor((time / 65) % (totalSegments + 4));
+        const pulseSegment = Math.floor((time / 70) % (totalSegments + 6));
+        const segBoxSize = 15;
 
-        // Dibujar segmentos de cola a cabeza
+        // 1. Sombras del cuerpo entero sobre el asfalto
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
         for (let i = totalSegments - 1; i >= 0; i--) {
             const seg = GameState.snake[i];
-            const sx = seg.x * GRID_SIZE;
-            const sy = seg.y * GRID_SIZE;
-            const t = i / Math.max(1, totalSegments - 1);
+            const sx = seg.x * GRID_SIZE + 10;
+            const sy = seg.y * GRID_SIZE + 10;
+            ctx.beginPath();
+            ctx.ellipse(sx, sy + 2, 7.5, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
-            // Gradiente: Cabeza (#3dff8a) -> Cuerpo Esmeralda (#10b981) -> Cola Teal (#059669)
-            const r = Math.round(61 * (1 - t) + 5 * t);
-            const g = Math.round(255 * (1 - t) + 150 * t);
-            const b = Math.round(138 * (1 - t) + 105 * t);
-            let segColor = `rgb(${r}, ${g}, ${b})`;
+        // 2. Puentes continuos entre segmentos adyacentes para formar cuerpo sin costuras
+        for (let i = totalSegments - 1; i > 0; i--) {
+            const seg = GameState.snake[i];
+            const prev = GameState.snake[i - 1];
+            const pdx = prev.x - seg.x;
+            const pdy = prev.y - seg.y;
+            const sx = seg.x * GRID_SIZE + 10;
+            const sy = seg.y * GRID_SIZE + 10;
 
-            // Pulso energético dorsal viajando por la columna
-            if (i === pulseSegment) {
-                segColor = '#00f5d4';
-            }
+            if (Math.abs(pdx) <= 1 && Math.abs(pdy) <= 1) {
+                const t = i / Math.max(1, totalSegments - 1);
+                const r = Math.round(61 * (1 - t) + 6 * t);
+                const g = Math.round(255 * (1 - t) + 120 * t);
+                const b = Math.round(138 * (1 - t) + 85 * t);
+                const bridgeCol = (i === pulseSegment) ? '#00f5d4' : `rgb(${r}, ${g}, ${b})`;
 
-            // Puentes entre segmentos adyacentes para formar un cuerpo serpiente continuo
-            if (i > 0) {
-                const prev = GameState.snake[i - 1];
-                const pdx = prev.x - seg.x;
-                const pdy = prev.y - seg.y;
-                if (Math.abs(pdx) <= 1 && Math.abs(pdy) <= 1) {
-                    ctx.fillStyle = segColor;
-                    if (pdx === 1) ctx.fillRect(sx + 5, sy + 1.5, 6, 7);
-                    else if (pdx === -1) ctx.fillRect(sx - 1, sy + 1.5, 6, 7);
-                    else if (pdy === 1) ctx.fillRect(sx + 1.5, sy + 5, 7, 6);
-                    else if (pdy === -1) ctx.fillRect(sx + 1.5, sy - 1, 7, 6);
-                }
-            }
-
-            // Segmento individual
-            if (i === 0) {
-                // Cabeza: dibujada al final para estar encima
-            } else if (i === totalSegments - 1) {
-                // Punta de la cola afinada
-                ctx.fillStyle = segColor;
-                drawRoundRect(ctx, sx + 2, sy + 2, 6, 6, 2.5);
-                ctx.fill();
-
-                if (Math.random() < 0.25 && GameState.gameRunning) {
-                    createTailDust(sx + 5, sy + 5);
-                }
-            } else {
-                // Segmento de cuerpo
-                ctx.fillStyle = segColor;
-                drawRoundRect(ctx, sx + 1.5, sy + 1.5, 7, 7, 2.5);
-                ctx.fill();
-
-                // Brillo de escama dorsal
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-                ctx.fillRect(sx + 2.5, sy + 2, 5, 1.2);
-
-                // Núcleo espinal cibernético
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-                ctx.fillRect(sx + 4, sy + 4, 2, 2);
+                ctx.fillStyle = bridgeCol;
+                if (pdx === 1) ctx.fillRect(sx, sy - 6.5, GRID_SIZE, 13);
+                else if (pdx === -1) ctx.fillRect(sx - GRID_SIZE, sy - 6.5, GRID_SIZE, 13);
+                else if (pdy === 1) ctx.fillRect(sx - 6.5, sy, 13, GRID_SIZE);
+                else if (pdy === -1) ctx.fillRect(sx - 6.5, sy - GRID_SIZE, 13, GRID_SIZE);
             }
         }
 
-        // ----------------------------------------------------
-        // Cabeza Esculpida y Ojos Expresivos (Índice 0)
-        // ----------------------------------------------------
+        // 3. Segmentos de cola a cuello (excluyendo la cabeza para dibujarla al final)
+        for (let i = totalSegments - 1; i > 0; i--) {
+            const seg = GameState.snake[i];
+            const sx = seg.x * GRID_SIZE + 2.5;
+            const sy = seg.y * GRID_SIZE + 2.5;
+            const t = i / Math.max(1, totalSegments - 1);
+
+            const r = Math.round(61 * (1 - t) + 6 * t);
+            const g = Math.round(255 * (1 - t) + 120 * t);
+            const b = Math.round(138 * (1 - t) + 85 * t);
+            const isPulse = (i === pulseSegment);
+            const segColor = isPulse ? '#00f5d4' : `rgb(${r}, ${g}, ${b})`;
+
+            if (i === totalSegments - 1) {
+                // Punta de la cola afinada
+                ctx.fillStyle = segColor;
+                drawRoundRect(ctx, sx + 2, sy + 2, 11, 11, 5.5);
+                ctx.fill();
+
+                // Sonajero tecnológico en la cola
+                ctx.fillStyle = '#ffea00';
+                drawRoundRect(ctx, sx + 4, sy + 4, 7, 7, 3.5);
+                ctx.fill();
+
+                if (Math.random() < 0.28 && GameState.gameRunning) {
+                    createTailDust(sx + 7.5, sy + 7.5);
+                }
+            } else {
+                // Segmento de cuerpo con relieve 3D y brillo
+                const segGrad = ctx.createLinearGradient(sx, sy, sx + segBoxSize, sy + segBoxSize);
+                segGrad.addColorStop(0, isPulse ? '#ffffff' : `rgb(${Math.min(255, r + 40)}, ${Math.min(255, g + 30)}, ${b})`);
+                segGrad.addColorStop(0.5, segColor);
+                segGrad.addColorStop(1, `rgb(${Math.max(0, r - 30)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 30)})`);
+                ctx.fillStyle = segGrad;
+                drawRoundRect(ctx, sx, sy, segBoxSize, segBoxSize, 5);
+                ctx.fill();
+
+                // Escama dorsal reflectante
+                ctx.fillStyle = isPulse ? '#ffffff' : 'rgba(255, 255, 255, 0.45)';
+                ctx.beginPath();
+                ctx.ellipse(sx + segBoxSize / 2, sy + 3.8, 4.2, 1.8, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Núcleo espinal cibernético
+                ctx.fillStyle = isPulse ? '#00f5d4' : 'rgba(0, 0, 0, 0.28)';
+                ctx.fillRect(sx + segBoxSize / 2 - 1.5, sy + segBoxSize / 2 - 1.5, 3, 3);
+            }
+        }
+
+        // 4. Cabeza Viperina Esculpida (Segmento 0)
         const hSeg = GameState.snake[0];
-        const hx = hSeg.x * GRID_SIZE;
-        const hy = hSeg.y * GRID_SIZE;
+        const hx = hSeg.x * GRID_SIZE + 2;
+        const hy = hSeg.y * GRID_SIZE + 2;
+        const headSize = 16;
         const dx = GameState.dx;
         const dy = GameState.dy;
 
-        // Degradado de cabeza
-        const headGrad = ctx.createLinearGradient(hx + 1, hy + 1, hx + 9, hy + 9);
-        headGrad.addColorStop(0, '#52ff9a');
-        headGrad.addColorStop(1, '#059669');
+        // Degradado tridimensional de la cabeza
+        const headGrad = ctx.createLinearGradient(hx, hy, hx + headSize, hy + headSize);
+        headGrad.addColorStop(0, '#69f0ae');
+        headGrad.addColorStop(0.5, '#00e676');
+        headGrad.addColorStop(1, '#00796b');
         ctx.fillStyle = headGrad;
-        drawRoundRect(ctx, hx + 1, hy + 1, 8, 8, 3);
+        drawRoundRect(ctx, hx, hy, headSize, headSize, 6);
         ctx.fill();
 
-        // Resalte superior de la cabeza
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.fillRect(hx + 2.5, hy + 2, 5, 1.5);
+        // Placa dorsal de la cabeza
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.50)';
+        ctx.beginPath();
+        ctx.ellipse(hx + headSize / 2, hy + headSize / 2 - 1, 5, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
 
-        // Ojos de depredador (orientados hacia la dirección de movimiento)
-        let eye1 = { x: hx + 2.5, y: hy + 2.5 };
-        let eye2 = { x: hx + 6.5, y: hy + 6.5 };
+        // Ojos de depredador calculados según dirección
+        const centerHx = hx + headSize / 2;
+        const centerHy = hy + headSize / 2;
+        let eye1, eye2;
+
         if (dx === 1) { // Derecha
-            eye1 = { x: hx + 6, y: hy + 2.2 };
-            eye2 = { x: hx + 6, y: hy + 6.8 };
+            eye1 = { x: centerHx + 3.5, y: centerHy - 4.2 };
+            eye2 = { x: centerHx + 3.5, y: centerHy + 4.2 };
         } else if (dx === -1) { // Izquierda
-            eye1 = { x: hx + 3, y: hy + 2.2 };
-            eye2 = { x: hx + 3, y: hy + 6.8 };
+            eye1 = { x: centerHx - 3.5, y: centerHy - 4.2 };
+            eye2 = { x: centerHx - 3.5, y: centerHy + 4.2 };
         } else if (dy === 1) { // Abajo
-            eye1 = { x: hx + 2.2, y: hy + 6 };
-            eye2 = { x: hx + 6.8, y: hy + 6 };
-        } else if (dy === -1) { // Arriba
-            eye1 = { x: hx + 2.2, y: hy + 3 };
-            eye2 = { x: hx + 6.8, y: hy + 3 };
+            eye1 = { x: centerHx - 4.2, y: centerHy + 3.5 };
+            eye2 = { x: centerHx + 4.2, y: centerHy + 3.5 };
+        } else { // Arriba
+            eye1 = { x: centerHx - 4.2, y: centerHy - 3.5 };
+            eye2 = { x: centerHx + 4.2, y: centerHy - 3.5 };
         }
 
         [eye1, eye2].forEach(e => {
-            // Córnea ámbar brillante
+            // Cuenca ocular
+            ctx.fillStyle = '#02180c';
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Esclerótica ámbar neón
             ctx.fillStyle = '#ffea00';
             ctx.beginPath();
-            ctx.arc(e.x, e.y, 1.4, 0, Math.PI * 2);
+            ctx.arc(e.x, e.y, 2.4, 0, Math.PI * 2);
             ctx.fill();
 
-            // Pupila negra orientada al frente
+            // Pupila vertical rasgada orientada al frente
             ctx.fillStyle = '#000000';
-            ctx.beginPath();
-            ctx.arc(e.x + dx * 0.5, e.y + dy * 0.5, 0.8, 0, Math.PI * 2);
-            ctx.fill();
+            const pupilW = Math.abs(dx) > 0 ? 0.9 : 1.8;
+            const pupilH = Math.abs(dx) > 0 ? 3.0 : 0.9;
+            ctx.fillRect(e.x - pupilW / 2 + dx * 0.6, e.y - pupilH / 2 + dy * 0.6, pupilW, pupilH);
 
-            // Destello de mirada
+            // Destello de mirada especular
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(e.x - 0.4, e.y - 0.7, 0.8, 0.8);
+            ctx.fillRect(e.x - 0.7, e.y - 1.2, 1.2, 1.2);
         });
 
-        // Lengua bífida neón parpadeante
-        const tongueCycle = Math.sin(time / 75);
-        if (tongueCycle > 0.35 && GameState.gameRunning) {
-            const tx = hx + 5 + dx * 4.5;
-            const ty = hy + 5 + dy * 4.5;
-            const tipX = tx + dx * 3.5;
-            const tipY = ty + dy * 3.5;
+        // Lengua bífida animada
+        const tongueCycle = Math.sin(time / 70);
+        if (tongueCycle > 0.25 && GameState.gameRunning) {
+            const tx = centerHx + dx * 8.5;
+            const ty = centerHy + dy * 8.5;
+            const tipX = tx + dx * 6.5;
+            const tipY = ty + dy * 6.5;
 
             ctx.strokeStyle = '#ff0055';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1.6;
+            ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(tx, ty);
             ctx.lineTo(tipX, tipY);
 
-            // Puntas de la lengua bífida
+            // Dos puntas bífidas
             const perpX = -dy;
             const perpY = dx;
             ctx.moveTo(tipX, tipY);
-            ctx.lineTo(tipX + dx * 1.5 + perpX * 1.5, tipY + dy * 1.5 + perpY * 1.5);
+            ctx.lineTo(tipX + dx * 2.8 + perpX * 2.8, tipY + dy * 2.8 + perpY * 2.8);
             ctx.moveTo(tipX, tipY);
-            ctx.lineTo(tipX + dx * 1.5 - perpX * 1.5, tipY + dy * 1.5 - perpY * 1.5);
+            ctx.lineTo(tipX + dx * 2.8 - perpX * 2.8, tipY + dy * 2.8 - perpY * 2.8);
             ctx.stroke();
         }
 
-        // Campo de fuerza protector (cuando es invulnerable)
+        // Escudo de invulnerabilidad
         if (GameState.isInvulnerable) {
-            const shieldRadius = 9 + Math.sin(time / 80) * 1;
+            const shieldRadius = 16 + Math.sin(time / 80) * 1.5;
             ctx.strokeStyle = '#00f5d4';
-            ctx.lineWidth = 1.2;
+            ctx.lineWidth = 1.8;
             ctx.beginPath();
-            ctx.arc(hx + 5, hy + 5, shieldRadius, 0, Math.PI * 2);
+            ctx.arc(centerHx, centerHy, shieldRadius, 0, Math.PI * 2);
             ctx.stroke();
 
             const shieldAngle = time / 90;
             ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.2;
             ctx.beginPath();
-            ctx.arc(hx + 5, hy + 5, shieldRadius, shieldAngle, shieldAngle + Math.PI * 0.6);
+            ctx.arc(centerHx, centerHy, shieldRadius, shieldAngle, shieldAngle + Math.PI * 0.65);
             ctx.stroke();
         }
 
@@ -1621,7 +1733,7 @@ function draw(time = performance.now()) {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.alpha;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(0.5, p.size), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, Math.max(0.8, p.size), 0, Math.PI * 2);
         ctx.fill();
     });
     ctx.globalAlpha = 1.0;
@@ -1630,12 +1742,12 @@ function draw(time = performance.now()) {
     // Textos Flotantes (+10, +50 BONUS!)
     // ----------------------------------------------------
     GameState.floatingTexts.forEach(ft => {
-        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.font = '10px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
         ctx.globalAlpha = ft.alpha;
         
         ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.strokeText(ft.text, ft.x, ft.y);
         
         ctx.fillStyle = ft.color;
@@ -1648,14 +1760,15 @@ function draw(time = performance.now()) {
     // HUD Cibernético en Pantalla
     // ----------------------------------------------------
     if (GameState.gameRunning) {
-        ctx.font = '6px "Press Start 2P", monospace';
-        ctx.fillStyle = 'rgba(61, 255, 138, 0.65)';
-        ctx.fillText(`LEN:${GameState.snake.length}`, 13, CANVAS_HEIGHT - 3);
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.fillStyle = 'rgba(61, 255, 138, 0.75)';
+        ctx.fillText(`LEN:${GameState.snake.length}`, 28, CANVAS_HEIGHT - 6);
 
         if (GameState.bonusFood && GameState.bonusTimer > 0) {
             ctx.fillStyle = '#ffb703';
             ctx.textAlign = 'right';
-            ctx.fillText(`STAR:${Math.ceil(GameState.bonusTimer / 10)}s`, CANVAS_WIDTH - 13, CANVAS_HEIGHT - 3);
+            const remainSec = Math.ceil(GameState.bonusTimer / (60 / 9));
+            ctx.fillText(`STAR:${remainSec}s`, CANVAS_WIDTH - 28, CANVAS_HEIGHT - 6);
             ctx.textAlign = 'left';
         }
     }
