@@ -1,5 +1,5 @@
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -293,6 +293,11 @@ const BRICK_OFFSET_LEFT = 13;
 
 const BRICK_COLORS = ['#ff00ea', '#00f3ff', '#0088cc', '#ffffff', '#cccccc'];
 
+// Calibración arcade de velocidad optimizada para fluidez en RPi 4/5
+const INITIAL_BALL_SPEED = 240;
+const MAX_BALL_SPEED = 340;
+const PADDLE_SPEED = 440;
+
 const GameState = {
     score: 0,
     highScore: 0,
@@ -305,15 +310,17 @@ const GameState = {
     paddle: {
         x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 5,
+        targetX: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
         dx: 0,
-        speed: 360
+        speed: PADDLE_SPEED
     },
     ball: {
         x: CANVAS_WIDTH / 2,
         y: CANVAS_HEIGHT - PADDLE_HEIGHT - 10,
         dx: 0,
         dy: 0,
-        speed: 150,
+        speed: INITIAL_BALL_SPEED,
+        baseSpeed: INITIAL_BALL_SPEED,
         launched: false
     },
     bricks: [],
@@ -852,6 +859,7 @@ function resetBall() {
     GameState.ball.y = GameState.paddle.y - BALL_RADIUS - 2;
     GameState.ball.dx = 0;
     GameState.ball.dy = 0;
+    GameState.ball.speed = GameState.ball.baseSpeed || INITIAL_BALL_SPEED;
     GameState.ball.launched = false;
 }
 
@@ -862,7 +870,8 @@ function resetGame() {
     GameState.lives = 3;
     GameState.gameOver = false;
     GameState.running = true;
-    GameState.ball.speed = 150;
+    GameState.ball.baseSpeed = INITIAL_BALL_SPEED;
+    GameState.ball.speed = INITIAL_BALL_SPEED;
     GameState.paddle.x = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
     GameState.paddle.targetX = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
     GameState.paddle.dx = 0;
@@ -873,17 +882,15 @@ function resetGame() {
     waitingOverlay.classList.add('hidden');
 }
 
-function update(dt) {
-    if (!GameState.running || GameState.paused || GameState.gameOver) return;
-
-    // Move paddle
+function updateStep(dt) {
+    // 1. Mover la paleta
     if (GameState.paddle.targetX !== undefined) {
         const diff = GameState.paddle.targetX - GameState.paddle.x;
-        if (Math.abs(diff) < 0.2) {
+        if (Math.abs(diff) < 0.5) {
             GameState.paddle.x = GameState.paddle.targetX;
         } else {
-            // Lerp ultra reactivo para seguimiento inmediato y suave a 60fps
-            GameState.paddle.x += diff * Math.min(1, 45 * dt);
+            // Lerp ultra reactivo para seguimiento directo e instantáneo a 60fps
+            GameState.paddle.x += diff * Math.min(1, 60 * dt);
         }
     } else {
         GameState.paddle.x += GameState.paddle.dx * dt;
@@ -891,84 +898,126 @@ function update(dt) {
     if (GameState.paddle.x < 0) GameState.paddle.x = 0;
     if (GameState.paddle.x + PADDLE_WIDTH > CANVAS_WIDTH) GameState.paddle.x = CANVAS_WIDTH - PADDLE_WIDTH;
 
-    // Move ball
+    // 2. Mover la pelota
     if (!GameState.ball.launched) {
         GameState.ball.x = GameState.paddle.x + PADDLE_WIDTH / 2;
-    } else {
-        GameState.ball.x += GameState.ball.dx * dt;
-        GameState.ball.y += GameState.ball.dy * dt;
+        GameState.ball.y = GameState.paddle.y - BALL_RADIUS - 2;
+        return;
+    }
 
-        // Wall collisions
-        if (GameState.ball.x + BALL_RADIUS > CANVAS_WIDTH) {
-            GameState.ball.x = CANVAS_WIDTH - BALL_RADIUS;
-            GameState.ball.dx = -GameState.ball.dx;
-            audio.playWall();
-        } else if (GameState.ball.x - BALL_RADIUS < 0) {
-            GameState.ball.x = BALL_RADIUS;
-            GameState.ball.dx = -GameState.ball.dx;
-            audio.playWall();
+    const prevX = GameState.ball.x;
+    const prevY = GameState.ball.y;
+    GameState.ball.x += GameState.ball.dx * dt;
+    GameState.ball.y += GameState.ball.dy * dt;
+
+    // Colisión con paredes laterales
+    if (GameState.ball.x + BALL_RADIUS > CANVAS_WIDTH) {
+        GameState.ball.x = CANVAS_WIDTH - BALL_RADIUS;
+        GameState.ball.dx = -Math.abs(GameState.ball.dx);
+        audio.playWall();
+    } else if (GameState.ball.x - BALL_RADIUS < 0) {
+        GameState.ball.x = BALL_RADIUS;
+        GameState.ball.dx = Math.abs(GameState.ball.dx);
+        audio.playWall();
+    }
+
+    // Colisión con techo
+    if (GameState.ball.y - BALL_RADIUS < 0) {
+        GameState.ball.y = BALL_RADIUS;
+        GameState.ball.dy = Math.abs(GameState.ball.dy);
+        audio.playWall();
+    } else if (GameState.ball.y + BALL_RADIUS > CANVAS_HEIGHT) {
+        // Pérdida de vida
+        GameState.lives--;
+        audio.playLifeLost();
+        if (GameState.lives <= 0) {
+            endGame();
+        } else {
+            resetBall();
         }
+        updateUI();
+        return;
+    }
 
-        if (GameState.ball.y - BALL_RADIUS < 0) {
-            GameState.ball.y = BALL_RADIUS;
-            GameState.ball.dy = -GameState.ball.dy;
-            audio.playWall();
-        } else if (GameState.ball.y + BALL_RADIUS > CANVAS_HEIGHT) {
-            // Lost life
-            GameState.lives--;
-            audio.playLifeLost();
-            if (GameState.lives <= 0) {
-                endGame();
-            } else {
-                resetBall();
-            }
-            updateUI();
-        }
+    // Colisión con la paleta (solo cuando la pelota desciende hacia la barra)
+    if (GameState.ball.dy > 0 &&
+        GameState.ball.y + BALL_RADIUS >= GameState.paddle.y && 
+        GameState.ball.y - BALL_RADIUS <= GameState.paddle.y + PADDLE_HEIGHT &&
+        GameState.ball.x + BALL_RADIUS >= GameState.paddle.x && 
+        GameState.ball.x - BALL_RADIUS <= GameState.paddle.x + PADDLE_WIDTH) {
+        
+        GameState.ball.y = GameState.paddle.y - BALL_RADIUS - 0.5;
 
-        // Paddle collision (solo cuando la pelota desciende hacia la barra)
-        if (GameState.ball.dy > 0 &&
-            GameState.ball.y + BALL_RADIUS >= GameState.paddle.y && 
-            GameState.ball.y - BALL_RADIUS <= GameState.paddle.y + PADDLE_HEIGHT &&
-            GameState.ball.x + BALL_RADIUS >= GameState.paddle.x && 
-            GameState.ball.x - BALL_RADIUS <= GameState.paddle.x + PADDLE_WIDTH) {
-            
-            // Reubicar la pelota justo encima de la paleta para evitar atrapamiento o dobles impactos
-            GameState.ball.y = GameState.paddle.y - BALL_RADIUS - 0.5;
+        // Desvío angular respecto al centro de la paleta (-1.0 a +1.0)
+        let hitOffset = (GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2)) / (PADDLE_WIDTH / 2);
+        hitOffset = Math.max(-0.85, Math.min(0.85, hitOffset));
 
-            // Calcular desvío respecto al centro de la barra (-1.0 a +1.0)
-            let hitOffset = (GameState.ball.x - (GameState.paddle.x + PADDLE_WIDTH / 2)) / (PADDLE_WIDTH / 2);
-            // Limitar el ángulo para evitar rebotes puramente horizontales
-            hitOffset = Math.max(-0.85, Math.min(0.85, hitOffset));
+        // Rebote máximo de 60 grados (Math.PI / 3) conservando la velocidad
+        const bounceAngle = hitOffset * (Math.PI / 3);
+        GameState.ball.dx = Math.sin(bounceAngle) * GameState.ball.speed;
+        GameState.ball.dy = -Math.cos(bounceAngle) * GameState.ball.speed;
 
-            // Rebote máximo de 60 grados (Math.PI / 3) conservando la velocidad exacta
-            const bounceAngle = hitOffset * (Math.PI / 3);
-            GameState.ball.dx = Math.sin(bounceAngle) * GameState.ball.speed;
-            GameState.ball.dy = -Math.cos(bounceAngle) * GameState.ball.speed;
+        audio.playPaddle();
+    }
 
-            audio.playPaddle();
-        }
-
-        // Brick collision
-        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
-            for (let r = 0; r < BRICK_ROW_COUNT; r++) {
-                let b = GameState.bricks[c][r];
-                if (b.status === 1) {
-                    let brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
-                    let brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+    // Colisión con ladrillos (detección de impacto lateral vs frontal + aceleración progresiva)
+    let brickHit = false;
+    for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+        for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+            const b = GameState.bricks[c][r];
+            if (b.status === 1) {
+                const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
+                const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+                
+                if (GameState.ball.x + BALL_RADIUS > brickX && 
+                    GameState.ball.x - BALL_RADIUS < brickX + BRICK_WIDTH &&
+                    GameState.ball.y + BALL_RADIUS > brickY && 
+                    GameState.ball.y - BALL_RADIUS < brickY + BRICK_HEIGHT) {
                     
-                    if (GameState.ball.x > brickX && GameState.ball.x < brickX + BRICK_WIDTH &&
-                        GameState.ball.y > brickY && GameState.ball.y < brickY + BRICK_HEIGHT) {
+                    b.status = 0;
+                    GameState.score += (BRICK_ROW_COUNT - r) * 10;
+                    if (GameState.score > GameState.highScore) GameState.highScore = GameState.score;
+
+                    // Aceleración sutil arcade (+3 px/s por bloque, filas superiores dan más impulso)
+                    const speedBonus = (r <= 1) ? 5 : 3;
+                    GameState.ball.speed = Math.min(MAX_BALL_SPEED, GameState.ball.speed + speedBonus);
+
+                    // Rebote lateral si venía desde fuera del eje X del ladrillo
+                    const wasOutsideX = (prevX + BALL_RADIUS <= brickX) || (prevX - BALL_RADIUS >= brickX + BRICK_WIDTH);
+                    if (wasOutsideX) {
+                        GameState.ball.dx = -GameState.ball.dx;
+                    } else {
                         GameState.ball.dy = -GameState.ball.dy;
-                        b.status = 0;
-                        GameState.score += (BRICK_ROW_COUNT - r) * 10;
-                        if (GameState.score > GameState.highScore) GameState.highScore = GameState.score;
-                        audio.playBrick(r);
-                        updateUI();
-                        checkWin();
                     }
+
+                    // Preservar la magnitud exacta de velocidad
+                    const currentVel = Math.hypot(GameState.ball.dx, GameState.ball.dy);
+                    if (currentVel > 0) {
+                        GameState.ball.dx = (GameState.ball.dx / currentVel) * GameState.ball.speed;
+                        GameState.ball.dy = (GameState.ball.dy / currentVel) * GameState.ball.speed;
+                    }
+
+                    audio.playBrick(r);
+                    updateUI();
+                    checkWin();
+                    brickHit = true;
+                    break;
                 }
             }
         }
+        if (brickHit) break;
+    }
+}
+
+function update(dt) {
+    if (!GameState.running || GameState.paused || GameState.gameOver) return;
+
+    // Sub-stepping de 2 pasos para física 100% precisa y libre de túneles a alta velocidad en RPi
+    const steps = 2;
+    const stepDt = dt / steps;
+    for (let s = 0; s < steps; s++) {
+        updateStep(stepDt);
+        if (GameState.gameOver || !GameState.running) break;
     }
 }
 
@@ -985,57 +1034,74 @@ function checkWin() {
     if (allDestroyed) {
         audio.playLevelClear();
         initBricks();
+        GameState.ball.baseSpeed = Math.min(MAX_BALL_SPEED, (GameState.ball.baseSpeed || INITIAL_BALL_SPEED) + 20);
+        GameState.ball.speed = GameState.ball.baseSpeed;
         resetBall();
-        GameState.ball.speed += 20; // Increase speed for next level
     }
 }
 
 function draw() {
+    // Fondo de pantalla CRT oscuro
     ctx.fillStyle = '#0d0e15';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     if (GameState.gameOver) return;
 
-    // Draw paddle
-    ctx.fillStyle = '#00f3ff';
-    ctx.fillRect(GameState.paddle.x, GameState.paddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
-    // Draw paddle highlights
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(GameState.paddle.x, GameState.paddle.y, PADDLE_WIDTH, 2);
-
-    // Draw ball
-    ctx.beginPath();
-    ctx.arc(GameState.ball.x, GameState.ball.y, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = '#ff00ea';
-    ctx.fill();
-    ctx.closePath();
-
-    // Draw bricks
-    for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
-        for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+    // 1. Renderizado de ladrillos en 3 pasadas por lotes (reduce cambios de estado en GPU de 120 a 7)
+    // Pasada 1: Cuerpos de ladrillo agrupados por color/fila
+    for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+        ctx.fillStyle = BRICK_COLORS[r];
+        const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
             if (GameState.bricks[c][r].status === 1) {
-                let brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
-                let brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
-                
-                ctx.fillStyle = GameState.bricks[c][r].color;
+                const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 ctx.fillRect(brickX, brickY, BRICK_WIDTH, BRICK_HEIGHT);
-                
-                // Highlight
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            }
+        }
+    }
+
+    // Pasada 2: Brillos retro superiores/izquierdos
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+        const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+            if (GameState.bricks[c][r].status === 1) {
+                const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 ctx.fillRect(brickX, brickY, BRICK_WIDTH, 2);
                 ctx.fillRect(brickX, brickY, 2, BRICK_HEIGHT);
-                // Shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            }
+        }
+    }
+
+    // Pasada 3: Sombras retro inferiores/derechas
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+        const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+            if (GameState.bricks[c][r].status === 1) {
+                const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 ctx.fillRect(brickX, brickY + BRICK_HEIGHT - 2, BRICK_WIDTH, 2);
                 ctx.fillRect(brickX + BRICK_WIDTH - 2, brickY, 2, BRICK_HEIGHT);
             }
         }
     }
+
+    // 2. Paleta neón
+    ctx.fillStyle = '#00f3ff';
+    ctx.fillRect(GameState.paddle.x, GameState.paddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(GameState.paddle.x, GameState.paddle.y, PADDLE_WIDTH, 2);
+
+    // 3. Pelota brillante
+    ctx.fillStyle = '#ff00ea';
+    ctx.beginPath();
+    ctx.arc(GameState.ball.x, GameState.ball.y, BALL_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
 }
 
 function gameLoop(timestamp) {
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = (timestamp - GameState.lastTime) / 1000;
+    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.04);
     GameState.lastTime = timestamp;
 
     update(dt);
@@ -1321,9 +1387,8 @@ function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 470;
+    const naturalW = 476;
+    const naturalH = 444;
 
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
@@ -1413,7 +1478,15 @@ if (document.fonts && document.fonts.ready) {
 
 // Observe document body changes
 if (window.ResizeObserver) {
-    const ro = new ResizeObserver(() => autoScale());
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
     ro.observe(document.body);
 }
 
