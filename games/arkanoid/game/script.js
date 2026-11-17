@@ -294,9 +294,9 @@ const BRICK_OFFSET_LEFT = 13;
 const BRICK_COLORS = ['#ff00ea', '#00f3ff', '#0088cc', '#ffffff', '#cccccc'];
 
 // Calibración arcade de velocidad optimizada para fluidez en RPi 4/5
-const INITIAL_BALL_SPEED = 240;
-const MAX_BALL_SPEED = 340;
-const PADDLE_SPEED = 440;
+const INITIAL_BALL_SPEED = 180;
+const MAX_BALL_SPEED = 250;
+const PADDLE_SPEED = 420;
 
 const GameState = {
     score: 0,
@@ -978,8 +978,8 @@ function updateStep(dt) {
                     GameState.score += (BRICK_ROW_COUNT - r) * 10;
                     if (GameState.score > GameState.highScore) GameState.highScore = GameState.score;
 
-                    // Aceleración sutil arcade (+3 px/s por bloque, filas superiores dan más impulso)
-                    const speedBonus = (r <= 1) ? 5 : 3;
+                    // Aceleración suave (+1 px/s por bloque, filas superiores +2 px/s)
+                    const speedBonus = (r <= 1) ? 2 : 1;
                     GameState.ball.speed = Math.min(MAX_BALL_SPEED, GameState.ball.speed + speedBonus);
 
                     // Rebote lateral si venía desde fuera del eje X del ladrillo
