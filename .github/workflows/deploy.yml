@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'screen-lite/**'
+      - 'referencia/**'
+      - 'docs/**'
+      - '**.md'
 
 jobs:
   deploy:

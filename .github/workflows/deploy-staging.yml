@@ -7,6 +7,11 @@ on:
       - 'game/**'
       - 'feat/**'
       - 'fix/**'
+    paths-ignore:
+      - 'screen-lite/**'
+      - 'referencia/**'
+      - 'docs/**'
+      - '**.md'
 
 concurrency:
   group: staging-vps
