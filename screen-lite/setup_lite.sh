@@ -46,14 +46,19 @@ echo "📁 Directorio Screen:    $SCREEN_DIR"
 echo ""
 
 # 1. Actualizar repositorios e instalar paquetes base del sistema
-echo "[1/8] Instalando dependencias y compositor Wayland (Cage)..."
+echo "[1/8] Instalando dependencias y compositor Wayland..."
 apt-get update -qq
 
 apt-get install -y \
     curl \
     wget \
     git \
-    cage \
+    labwc \
+    kanshi \
+    swaybg \
+    seatd \
+    x11-apps \
+    fbi \
     cec-utils \
     zram-tools \
     libnss3 \
@@ -63,7 +68,7 @@ apt-get install -y \
     libgles2-mesa \
     libegl1-mesa \
     mesa-utils \
-    || apt-get install -y curl wget git cage cec-utils zram-tools
+    || apt-get install -y curl wget git labwc seatd x11-apps fbi cec-utils zram-tools
 
 # Intentar instalar Chromium nativo optimizado
 if ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
@@ -112,6 +117,89 @@ for grp in video render input tty dialout; do
         usermod -aG "$grp" "$TARGET_USER" || true
     fi
 done
+
+# Habilitar seatd para gestión de sesión DRM sin entorno de escritorio
+systemctl enable --now seatd 2>/dev/null || true
+
+# Configurar cursor transparente invisible (empty theme) idéntico a setup_kiosk.sh
+echo "Generando puntero de ratón transparente (empty theme)..."
+CURSOR_DIR="$TARGET_HOME/.icons/empty/cursors"
+SYS_CURSOR_DIR="/usr/share/icons/empty/cursors"
+mkdir -p "$CURSOR_DIR" "$SYS_CURSOR_DIR"
+cd "$CURSOR_DIR"
+
+echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 -d > empty.png
+echo "24 0 0 empty.png" > empty.cursor
+
+if command -v xcursorgen >/dev/null 2>&1; then
+    xcursorgen empty.cursor empty
+    for c in left_ptr default pointer arrow crosshair text wait hand2 dnd-none dnd-move dnd-copy; do
+        cp empty $c
+        cp empty "$SYS_CURSOR_DIR/$c"
+    done
+fi
+
+cat << THEME_EOF > "$TARGET_HOME/.icons/empty/index.theme"
+[Icon Theme]
+Name=empty
+Comment=Empty Cursor Theme
+THEME_EOF
+
+cat << THEME_EOF > "/usr/share/icons/empty/index.theme"
+[Icon Theme]
+Name=empty
+Comment=Empty Cursor Theme
+THEME_EOF
+
+mkdir -p "$TARGET_HOME/.icons/default" "/usr/share/icons/default"
+cat << THEME_EOF > "$TARGET_HOME/.icons/default/index.theme"
+[Icon Theme]
+Name=default
+Inherits=empty
+THEME_EOF
+
+cat << THEME_EOF > "/usr/share/icons/default/index.theme"
+[Icon Theme]
+Name=default
+Inherits=empty
+THEME_EOF
+
+chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.icons"
+cd "$SCRIPT_DIR"
+
+# Configurar Labwc (Environment, Autostart y WindowRules Fullscreen)
+mkdir -p "$TARGET_HOME/.config/labwc"
+cat << 'EOF' > "$TARGET_HOME/.config/labwc/environment"
+XKB_DEFAULT_MODEL=pc105
+XKB_DEFAULT_LAYOUT=us
+XKB_DEFAULT_VARIANT=
+XKB_DEFAULT_OPTIONS=
+XCURSOR_THEME=empty
+XCURSOR_SIZE=24
+EOF
+
+cat << 'EOF' > "$TARGET_HOME/.config/labwc/rc.xml"
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <gap>0</gap>
+  </core>
+  <theme>
+    <name>empty</name>
+    <cornerRadius>0</cornerRadius>
+  </theme>
+  <windowRules>
+    <windowRule identifier="*" serverDecoration="no" maximized="yes"/>
+  </windowRules>
+</labwc_config>
+EOF
+
+cat << EOF > "$TARGET_HOME/.config/labwc/autostart"
+#!/bin/bash
+/bin/bash "$SCRIPT_DIR/scripts/kiosk-launcher.sh" &
+EOF
+chmod +x "$TARGET_HOME/.config/labwc/autostart"
+chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/labwc"
 
 # Permisos de udev para el adaptador CEC sin requerir root
 cat << 'EOF' > /etc/udev/rules.d/99-cec.rules
@@ -196,9 +284,9 @@ systemctl enable myplayad-cec-boot.service
 LAUNCHER_PATH="$SCRIPT_DIR/scripts/kiosk-launcher.sh"
 cat << EOF > /etc/systemd/system/myplayad-kiosk.service
 [Unit]
-Description=MyPlayAd Kiosk Service (Cage Wayland)
-After=network-online.target time-sync.target zramswap.service
-Wants=network-online.target time-sync.target
+Description=MyPlayAd Kiosk Service (Labwc Wayland)
+After=network-online.target time-sync.target zramswap.service seatd.service
+Wants=network-online.target time-sync.target seatd.service
 
 [Service]
 Type=simple
@@ -206,12 +294,18 @@ User=$TARGET_USER
 Group=$TARGET_USER
 PAMName=login
 TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
 StandardInput=tty
 StandardOutput=journal
 StandardError=journal
 Environment=WLR_LIBINPUT_NO_DEVICES=1
+Environment=LIBSEAT_BACKEND=seatd
+Environment=XCURSOR_THEME=empty
+Environment=XCURSOR_SIZE=24
 Environment=XDG_RUNTIME_DIR=/run/user/$(id -u "$TARGET_USER")
-ExecStart=/bin/bash $LAUNCHER_PATH
+ExecStart=/usr/bin/labwc -s $LAUNCHER_PATH
 Restart=always
 RestartSec=3
 LimitNOFILE=65536
@@ -219,6 +313,33 @@ LimitNOFILE=65536
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# Servicio de Splash Screen opcional con logo
+LOGO_PATH="$SCREEN_DIR/logo.png"
+if [ ! -f "$LOGO_PATH" ] && [ -f "$TARGET_HOME/screen/logo.png" ]; then
+    LOGO_PATH="$TARGET_HOME/screen/logo.png"
+fi
+
+if [ -f "$LOGO_PATH" ] && command -v fbi >/dev/null 2>&1; then
+    cat << EOF > /etc/systemd/system/myplayad-splash.service
+[Unit]
+Description=MyPlayAd Splash Screen
+DefaultDependencies=no
+After=local-fs.target
+Before=myplayad-kiosk.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fbi -d /dev/fb0 --noverbose -a $LOGO_PATH
+StandardInput=tty
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=sysinit.target
+EOF
+    systemctl enable myplayad-splash.service 2>/dev/null || true
+fi
 
 systemctl daemon-reload
 systemctl enable myplayad-kiosk.service
