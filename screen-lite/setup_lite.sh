@@ -56,6 +56,7 @@ apt-get install -y \
     labwc \
     kanshi \
     swaybg \
+    wlr-randr \
     seatd \
     x11-apps \
     fbi \

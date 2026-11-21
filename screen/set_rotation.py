@@ -35,6 +35,21 @@ def update_rotation(target_value, custom_config=None):
     success_cfg = False
     if target_file:
         try:
+            # Si /boot/firmware está montado en solo lectura (OverlayFS / bootro), remontar rw temporalmente
+            is_boot_ro = False
+            mount_point = '/boot/firmware' if '/boot/firmware' in target_file else '/boot'
+            try:
+                with open('/proc/mounts', 'r') as mp:
+                    for line in mp:
+                        parts = line.split()
+                        if len(parts) >= 4 and parts[1] == mount_point and 'ro' in parts[3].split(','):
+                            is_boot_ro = True
+                            break
+                if is_boot_ro:
+                    os.system(f'mount -o remount,rw {mount_point} 2>/dev/null')
+            except Exception:
+                pass
+
             with open(target_file, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
 
@@ -49,6 +64,9 @@ def update_rotation(target_value, custom_config=None):
 
             print(f"[OK] {target_file} actualizado a SCREEN_ROTATE={rot}")
             success_cfg = True
+
+            if is_boot_ro:
+                os.system(f'mount -o remount,ro {mount_point} 2>/dev/null')
         except Exception as e:
             print(f"[ERROR] Falló la escritura en {target_file}: {e}", file=sys.stderr)
     else:
@@ -67,6 +85,20 @@ def update_rotation(target_value, custom_config=None):
 
     if cmdline_file:
         try:
+            is_cmdline_ro = False
+            mount_point = '/boot/firmware' if '/boot/firmware' in cmdline_file else '/boot'
+            try:
+                with open('/proc/mounts', 'r') as mp:
+                    for line in mp:
+                        parts = line.split()
+                        if len(parts) >= 4 and parts[1] == mount_point and 'ro' in parts[3].split(','):
+                            is_cmdline_ro = True
+                            break
+                if is_cmdline_ro:
+                    os.system(f'mount -o remount,rw {mount_point} 2>/dev/null')
+            except Exception:
+                pass
+
             with open(cmdline_file, 'r', encoding='utf-8', errors='ignore') as f:
                 cmd_content = f.read().strip()
 
@@ -81,6 +113,9 @@ def update_rotation(target_value, custom_config=None):
                 f.write(new_cmd + '\n')
 
             print(f"[OK] {cmdline_file} actualizado con rotate={rot}")
+
+            if is_cmdline_ro:
+                os.system(f'mount -o remount,ro {mount_point} 2>/dev/null')
         except Exception as e:
             print(f"[WARN] No se pudo actualizar {cmdline_file}: {e}", file=sys.stderr)
 
