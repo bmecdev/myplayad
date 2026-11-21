@@ -70,32 +70,53 @@ window.addEventListener('orientationchange', () => setTimeout(autoScaleVideo, 15
 // Sincronizar lista de videos locales
 async function syncLocalPlaylist() {
     if (!screenId) return;
+    let newVideos = [];
     try {
         const cacheRes = await fetch(`/api/cache/${screenId}`);
         if (cacheRes.ok) {
             const cacheData = await cacheRes.json();
-            if (cacheData.videos && cacheData.videos.length > 0) {
-                videoPlaylist = cacheData.videos;
+            if (Array.isArray(cacheData.videos)) {
+                newVideos = cacheData.videos;
             }
         }
     } catch (e) {
         console.warn('Error sincronizando playlist local vía cache:', e);
     }
 
-    if (!videoPlaylist.length) {
+    if (!newVideos.length) {
         try {
             const localRes = await fetch(`/api/videos/${screenId}`);
             if (localRes.ok) {
                 const localData = await localRes.json();
-                if (localData.videos && localData.videos.length > 0) {
-                    videoPlaylist = localData.videos;
+                if (Array.isArray(localData.videos) && localData.videos.length > 0) {
+                    newVideos = localData.videos;
                 }
             }
         } catch (_) {}
     }
-    
-    if (videoPlayer.paused && videoPlaylist.length > 0 && videoRankingOverlay.classList.contains('hidden')) {
-        playCurrentVideo();
+
+    // Actualizar siempre la playlist, incluso si ahora está vacía (desasignaron todos los videos)
+    const wasEmpty = videoPlaylist.length === 0;
+    videoPlaylist = newVideos;
+
+    if (videoPlaylist.length === 0) {
+        // Si no hay videos asignados, pausar y ocultar el reproductor
+        if (videoPlayer && !videoPlayer.paused) {
+            videoPlayer.pause();
+            videoPlayer.removeAttribute('src');
+            videoPlayer.load();
+        }
+        renderRankingOverlay();
+        if (videoRankingOverlay) {
+            videoRankingOverlay.classList.remove('hidden');
+        }
+    } else {
+        if (videoRankingOverlay) {
+            videoRankingOverlay.classList.add('hidden');
+        }
+        if (wasEmpty || videoPlayer.paused) {
+            playCurrentVideo();
+        }
     }
 }
 
@@ -503,6 +524,12 @@ async function checkSchedule() {
             if (currentUrl !== gameUrl) {
                 currentUrl = gameUrl;
                 gameFrame.src = gameUrl;
+            }
+        } else if (data.type === 'standby' || !data.type) {
+            // Si desasignaron o quitaron el juego programado, descargar el frame
+            if (currentUrl && currentUrl !== 'about:blank') {
+                currentUrl = 'about:blank';
+                gameFrame.src = 'about:blank';
             }
         }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
+import { publishSyncEvent } from '@/lib/mqttPublisher';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -77,6 +78,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
     });
 
+    await publishSyncEvent(screenId);
+
     return NextResponse.json({ success: true, schedule });
   } catch (error) {
     console.error('Error assigning game:', error);
@@ -124,6 +127,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         isActive: false,
       },
     });
+
+    await publishSyncEvent(screenId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
