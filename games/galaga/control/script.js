@@ -246,12 +246,18 @@ function connectSignaling(roomId) {
         };
 
         socket.onerror = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             status.textContent = 'ERROR DE CONEXIÓN';
             status.style.color = '#ff4d6d';
         };
 
         socket.onclose = () => {
-            if (thanksScreen.style.display === 'none') {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 roomSelection.style.display = 'block';
                 container.style.display = 'none';
             }
@@ -280,6 +286,12 @@ async function startWebRTC() {
     dataChannel.onmessage = (e) => {
         try {
             const data = JSON.parse(e.data);
+            if (data.type === 'ad_heartbeat') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                }
+                return;
+            }
             if (data.type === 'ad_playing') {
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
@@ -311,6 +323,13 @@ async function startWebRTC() {
         } catch (err) {}
     };
 
+    dataChannel.onclose = () => {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (!isAdWaiting) {
+            status.textContent = 'DESCONECTADO DE LA PANTALLA';
+        }
+    };
+
     pc.onicecandidate = (event) => {
         if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
@@ -323,11 +342,13 @@ async function startWebRTC() {
 
     pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        if (state === 'disconnected' || state === 'failed') {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
             status.textContent = 'DESCONECTADO DE LA PANTALLA';
             status.style.color = '#ffb703';
-            if (thanksScreen.style.display === 'none') {
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 container.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                 roomSelection.style.display = 'block';
             }
         }

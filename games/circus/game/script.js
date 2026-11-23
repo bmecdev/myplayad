@@ -54,7 +54,7 @@ class CircusAudio {
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().catch(() => {});
         }
-        if (!this.isPlayingMusic && !this.muted) {
+        if (!this.isPlayingMusic && !this.muted && !GameState.adPlaying && GameState.running) {
             this.startMusic();
         }
     }
@@ -73,7 +73,7 @@ class CircusAudio {
 
     // Melodía clásica de circo alegre de Circus Charlie
     startMusic() {
-        if (this.isPlayingMusic || !this.ctx) return;
+        if (this.isPlayingMusic || !this.ctx || GameState.adPlaying || !GameState.running) return;
         this.isPlayingMusic = true;
 
         // Frecuencias de la melodía circense alegre
@@ -3335,6 +3335,10 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    if (typeof audio !== 'undefined' && audio.stopMusic) {
+        audio.stopMusic();
+    }
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
@@ -3352,6 +3356,10 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
             return;
         }
 
+        if (typeof audio !== 'undefined' && audio.stopMusic) {
+            audio.stopMusic();
+        }
+
         // SOLO avisar al celular si REALMENTE hay un video publicitario válido para reproducir
         broadcastToControllers({ type: 'ad_playing', nickname: nickname });
 
@@ -3359,6 +3367,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
         if (adPilotName) adPilotName.textContent = `CHARLIE: ${(nickname || 'CHARLIE').toUpperCase()}`;
         if (adCountdown) adCountdown.textContent = 'INICIANDO...';
         adVideoOverlay.classList.remove('hidden');
+
+        // Latido continuo para mantener vivo WebRTC / NAT en móviles durante el video
+        let adHeartbeatInterval = setInterval(() => {
+            if (!GameState.adPlaying) {
+                clearInterval(adHeartbeatInterval);
+                return;
+            }
+            broadcastToControllers({ type: 'ad_heartbeat', t: Date.now() });
+        }, 2000);
 
         if (window.parent && window.parent !== window) {
             try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
@@ -3371,6 +3388,7 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
             if (adFinished) return;
             adFinished = true;
             if (safetyTimer) clearTimeout(safetyTimer);
+            if (adHeartbeatInterval) clearInterval(adHeartbeatInterval);
 
             adVideoPlayer.onended = null;
             adVideoPlayer.onerror = null;
@@ -3466,6 +3484,10 @@ function setupDataChannel(channel, playerId) {
 }
 
 function handleControllerDisconnect(playerId) {
+    if (GameState.adPlaying) {
+        console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
+        return;
+    }
     const pc = peerConnections.get(playerId);
     if (pc) {
         try { pc.close(); } catch (_) {}

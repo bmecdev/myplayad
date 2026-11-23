@@ -213,6 +213,9 @@ function initSignaling() {
         };
 
         socket.onclose = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             status.textContent = 'DESCONECTADO';
         };
     } catch (e) {
@@ -240,11 +243,13 @@ async function setupWebRTC() {
 
         pc.onconnectionstatechange = () => {
             const state = pc.connectionState;
-            if (state === 'disconnected' || state === 'failed') {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
                 status.textContent = 'DESCONECTADO';
                 if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                     if (rotateScreen) rotateScreen.style.display = 'none';
                     if (flightContainer) flightContainer.style.display = 'none';
+                    if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                     if (roomSelection) roomSelection.style.display = 'flex';
                 }
             }
@@ -265,6 +270,12 @@ async function setupWebRTC() {
     dataChannel.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+                if (data.type === 'ad_heartbeat') {
+                    if (dataChannel && dataChannel.readyState === 'open') {
+                        try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                    }
+                    return;
+                }
                 if (data.type === 'ad_playing') {
                     status.textContent = '📺 MIRA LA PANTALLA';
                     status.style.color = '#ffb703';
@@ -291,7 +302,10 @@ async function setupWebRTC() {
         };
 
         dataChannel.onclose = () => {
-            status.textContent = 'CONEXIÓN CERRADA';
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            if (!isAdWaiting) {
+                status.textContent = 'CONEXIÓN CERRADA';
+            }
         };
 
         const offer = await pc.createOffer();

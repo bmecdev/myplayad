@@ -111,8 +111,21 @@ async function connectToHost() {
     };
 
     socket.onerror = () => {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+        if (isAdWaiting || isChannelOpen) return;
         status.textContent = 'ERROR DE RED DE SEÑALIZACIÓN';
         connectBtn.disabled = false;
+    };
+
+    socket.onclose = () => {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+        if (isAdWaiting || isChannelOpen) return;
+        if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+            if (container) container.style.display = 'none';
+            roomSelection.style.display = 'block';
+        }
     };
 
     socket.onmessage = async (message) => {
@@ -166,6 +179,12 @@ async function initPeerConnection() {
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'ad_heartbeat') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                }
+                return;
+            }
             if (data.type === 'ad_playing') {
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
@@ -195,6 +214,13 @@ async function initPeerConnection() {
         } catch (e) {}
     };
 
+    dataChannel.onclose = () => {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (isAdWaiting) return;
+        status.textContent = 'DESCONECTADO DEL JUEGO';
+        status.style.color = 'orange';
+    };
+
     pc.onicecandidate = (event) => {
         if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({
@@ -206,9 +232,15 @@ async function initPeerConnection() {
     };
 
     pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (pc.connectionState === 'failed' || (pc.connectionState === 'disconnected' && !isAdWaiting)) {
             status.textContent = 'DESCONECTADO DEL JUEGO';
             status.style.color = 'orange';
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                if (container) container.style.display = 'none';
+                roomSelection.style.display = 'block';
+            }
         }
     };
 

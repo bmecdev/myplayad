@@ -379,14 +379,21 @@ async function initConnection() {
         };
 
         socket.onerror = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             status.textContent = 'Error de conexión';
             status.style.color = '#ff4d6d';
             roomSelection.style.display = 'flex';
         };
 
         socket.onclose = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
-                // Desconexión inesperada
+                container.style.display = 'none';
+                roomSelection.style.display = 'flex';
             }
         };
     } catch (e) {
@@ -409,7 +416,8 @@ async function setupWebRTC() {
 
     pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        if (state === 'disconnected' || state === 'failed') {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
             status.textContent = 'Desconectado';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -433,6 +441,12 @@ async function setupWebRTC() {
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'ad_heartbeat') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                }
+                return;
+            }
             if (data.type === 'ad_playing') {
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
@@ -495,6 +509,8 @@ async function setupWebRTC() {
     };
 
     dataChannel.onclose = () => {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (isAdWaiting) return;
         status.textContent = 'Desconectado';
         if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
             container.style.display = 'none';

@@ -2527,6 +2527,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
         if (adCountdown) adCountdown.textContent = 'INICIANDO...';
         adVideoOverlay.classList.remove('hidden');
 
+        // Latido continuo para mantener vivo WebRTC / NAT en móviles durante el video
+        let adHeartbeatInterval = setInterval(() => {
+            if (!GameState.adPlaying) {
+                clearInterval(adHeartbeatInterval);
+                return;
+            }
+            broadcastToControllers({ type: 'ad_heartbeat', t: Date.now() });
+        }, 2000);
+
         // Avisar a la pantalla principal para pausar el reproductor lateral
         if (window.parent && window.parent !== window) {
             try { window.parent.postMessage({ type: 'GAME_AD_START' }, '*'); } catch (_) {}
@@ -2539,6 +2548,7 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
             if (adFinished) return;
             adFinished = true;
             if (safetyTimer) clearTimeout(safetyTimer);
+            if (adHeartbeatInterval) clearInterval(adHeartbeatInterval);
 
             adVideoPlayer.onended = null;
             adVideoPlayer.onerror = null;
@@ -2602,13 +2612,17 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 }
 
 function handleControllerDisconnect(playerId) {
+    if (GameState.adPlaying) {
+        console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
+        return;
+    }
     const pc = peerConnections.get(playerId);
     if (pc) {
         try { pc.close(); } catch (e) {}
     }
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
-    if (peerConnections.size === 0 && !GameState.adPlaying) {
+    if (peerConnections.size === 0) {
         waitingOverlay.classList.remove('hidden');
     }
 }

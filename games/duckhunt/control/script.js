@@ -500,12 +500,18 @@ function initSignaling() {
         };
 
         socket.onclose = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             if (gameContainer.style.display !== 'flex') {
                 statusEl.textContent = 'CONEXIÓN CERRADA. REINTENTANDO...';
             }
         };
     } catch (e) {
         console.warn('Fallo WebSocket signaling:', e);
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+        if (isAdWaiting || isChannelOpen) return;
         statusEl.textContent = 'ERROR DE RED';
         connectBtn.disabled = false;
     }
@@ -552,6 +558,12 @@ async function setupWebRTC() {
     dataChannel.onmessage = (e) => {
         try {
             const msg = JSON.parse(e.data);
+            if (msg.type === 'ad_heartbeat') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                }
+                return;
+            }
             if (msg.type === 'ad_playing') {
                 statusEl.textContent = '📺 MIRA LA PANTALLA';
                 statusEl.style.color = '#ffb703';
@@ -608,7 +620,23 @@ async function setupWebRTC() {
     };
 
     dataChannel.onclose = () => {
-        statusEl.textContent = 'DESCONECTADO';
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (!isAdWaiting) {
+            statusEl.textContent = 'DESCONECTADO';
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
+            statusEl.textContent = 'DESCONECTADO';
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                if (gameContainer) gameContainer.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                roomSelection.style.display = 'flex';
+            }
+        }
     };
 
     const offer = await pc.createOffer();

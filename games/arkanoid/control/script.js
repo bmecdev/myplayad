@@ -299,12 +299,18 @@ function connectSignaling(roomId) {
         };
 
         socket.onerror = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             status.textContent = 'ERROR: No se pudo conectar';
             status.style.color = 'red';
         };
 
         socket.onclose = () => {
-            if (thanksScreen.style.display === 'none') {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 roomSelection.style.display = 'flex';
                 container.style.display = 'none';
             }
@@ -339,6 +345,12 @@ async function startWebRTC() {
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'ad_heartbeat') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                }
+                return;
+            }
             if (data.type === 'ad_playing') {
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
@@ -372,11 +384,12 @@ async function startWebRTC() {
     };
 
     dataChannel.onclose = () => {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (isAdWaiting) return;
         console.warn('DataChannel cerrado');
         status.textContent = 'Desconectado del juego';
         status.style.color = 'orange';
         if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
-            if (adWaitingScreen) adWaitingScreen.style.display = 'none';
             container.style.display = 'none';
             roomSelection.style.display = 'flex';
         }
@@ -394,12 +407,14 @@ async function startWebRTC() {
 
     pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        if (state === 'disconnected' || state === 'failed') {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
             console.warn(`Conexión WebRTC: ${state}`);
             status.textContent = 'Desconectado del juego';
             status.style.color = 'orange';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 container.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                 roomSelection.style.display = 'flex';
             }
         }

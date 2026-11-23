@@ -231,12 +231,24 @@ async function initConnection() {
         };
 
         socket.onerror = () => {
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
             status.textContent = 'ERROR DE CONEXIÓN';
             roomSelection.style.display = 'flex';
         };
 
         socket.onclose = () => {
-            // Desconexión limpia o cierre
+            const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+            const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
+            if (isAdWaiting || isChannelOpen) return;
+            if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                hasStarted = false;
+                isGameConnected = false;
+                container.style.display = 'none';
+                if (rotateScreen) rotateScreen.style.display = 'none';
+                roomSelection.style.display = 'flex';
+            }
         };
     } catch (e) {
         console.error('WS Exception:', e);
@@ -258,13 +270,15 @@ async function setupWebRTC() {
 
     pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        if (state === 'disconnected' || state === 'failed') {
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
             status.textContent = 'DESCONECTADO';
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
                 hasStarted = false;
                 isGameConnected = false;
                 container.style.display = 'none';
                 if (rotateScreen) rotateScreen.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                 roomSelection.style.display = 'flex';
             }
         }
@@ -284,6 +298,12 @@ async function setupWebRTC() {
     dataChannel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            if (data.type === 'ad_heartbeat') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    try { dataChannel.send(JSON.stringify({ type: 'ad_heartbeat_ack' })); } catch (_) {}
+                }
+                return;
+            }
             if (data.type === 'ad_playing') {
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
@@ -318,7 +338,10 @@ async function setupWebRTC() {
     };
 
     dataChannel.onclose = () => {
-        status.textContent = 'DESCONECTADO';
+        const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+        if (!isAdWaiting) {
+            status.textContent = 'DESCONECTADO';
+        }
     };
 
     const offer = await pc.createOffer();
