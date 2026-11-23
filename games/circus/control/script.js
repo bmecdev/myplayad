@@ -299,7 +299,6 @@ async function setupWebRTC() {
             status.textContent = 'DESCONECTADO';
         }
     };
-    };
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
