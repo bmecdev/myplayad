@@ -7,6 +7,7 @@ export function middleware(req: NextRequest) {
   // Rutas públicas que nunca requieren autenticación
   if (
     pathname.startsWith('/api/public') ||
+    pathname.startsWith('/api/rewards/claim') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     pathname === '/api/auth/login' ||
