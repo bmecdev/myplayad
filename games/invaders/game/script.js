@@ -606,9 +606,12 @@ function displayRanking(ranking) {
 
 function getControlUrl() {
     const baseUrl = CONFIG.CONTROL_URL;
+    const sId = new URLSearchParams(window.location.search).get('screenId');
+    const screenParam = sId ? `&screenId=${encodeURIComponent(sId)}` : '';
+    const separator = baseUrl.includes('?') ? '&' : '?';
     return baseUrl.includes('://')
-        ? `${baseUrl}?room=${GameState.roomId}`
-        : `${window.location.protocol}//${baseUrl}?room=${GameState.roomId}`;
+        ? `${baseUrl}${separator}room=${GameState.roomId}${screenParam}`
+        : `${window.location.protocol}//${baseUrl}${separator}room=${GameState.roomId}${screenParam}`;
 }
 
 function updateQrCode() {

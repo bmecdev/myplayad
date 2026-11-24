@@ -436,6 +436,7 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'skyroads');
     hasStarted = false;
     if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';

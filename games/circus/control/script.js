@@ -287,6 +287,7 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'circus');
     if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';
     roomSelection.style.display = 'none';

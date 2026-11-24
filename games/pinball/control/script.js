@@ -514,6 +514,7 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'pinball');
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'flex';

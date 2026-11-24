@@ -32,7 +32,44 @@
     <div id="thanks-screen" class="thanks-container" style="display: none;">
         <div class="header-logo">
             <h1>¡GRAN ACTUACIÓN!</h1>
+        
+        <!-- Contenedor Dinámico de Recompensa / Lead -->
+        <div id="reward-section" style="display: none; width: 100%; max-width: 360px; margin: 15px auto; padding: 15px; border-radius: 12px; background: rgba(255, 183, 3, 0.08); border: 1px solid rgba(255, 183, 3, 0.35); box-sizing: border-box;">
+            <div style="font-size: 14px; font-weight: 900; color: #ffb703; margin-bottom: 5px;">🎁 ¡GANASTE UN PREMIO!</div>
+            <div id="reward-desc-text" style="font-size: 13px; color: #fff; margin-bottom: 12px; font-weight: bold;"></div>
+            
+            <form id="reward-claim-form" style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
+                <div>
+                    <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 3px;">NOMBRE COMPLETO</label>
+                    <input type="text" id="lead-name" required placeholder="Tu nombre" style="width: 100%; box-sizing: border-box; padding: 10px; background: #0a0f0d; border: 1px solid #333; color: #fff; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div>
+                    <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 3px;">CORREO ELECTRÓNICO</label>
+                    <input type="email" id="lead-email" required placeholder="correo@ejemplo.com" style="width: 100%; box-sizing: border-box; padding: 10px; background: #0a0f0d; border: 1px solid #333; color: #fff; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div>
+                    <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 3px;">WHATSAPP / TELÉFONO</label>
+                    <input type="tel" id="lead-whatsapp" required placeholder="Ej: 3001234567" style="width: 100%; box-sizing: border-box; padding: 10px; background: #0a0f0d; border: 1px solid #333; color: #fff; border-radius: 8px; font-size: 14px;">
+                </div>
+                
+                <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px; color: #bbb; line-height: 1.4; cursor: pointer; margin-top: 4px;">
+                    <input type="checkbox" id="lead-terms" required checked style="margin-top: 3px; accent-color: #ffb703;">
+                    <span>Acepto los términos y condiciones, la política de tratamiento de datos personales y autorizo recibir novedades y promociones de este establecimiento.</span>
+                </label>
+
+                <button type="submit" id="lead-submit-btn" style="width: 100%; margin-top: 5px; padding: 12px; background: #ffb703; color: #000; font-weight: 900; font-size: 14px; border: none; border-radius: 8px; cursor: pointer;">
+                    OBTENER CÓDIGO DE RECLAMO
+                </button>
+            </form>
+
+            <div id="reward-code-box" style="display: none; text-align: center; padding: 15px 10px; background: #0a0f0d; border: 1px dashed #ffb703; border-radius: 10px; margin-top: 10px;">
+                <div style="font-size: 11px; color: #aaa; text-transform: uppercase;">MUESTRA ESTE CÓDIGO EN EL MOSTRADOR</div>
+                <div id="reward-code-value" style="font-size: 32px; font-weight: 900; font-family: monospace; color: #ffb703; letter-spacing: 2px; margin: 8px 0;">---</div>
+                <div id="reward-timer" style="font-size: 12px; color: #3dff8a; font-weight: bold;">⏱️ VÁLIDO POR: <span id="reward-countdown">--:--</span></div>
+                <div style="font-size: 10px; color: #888; margin-top: 6px;">* Válido únicamente para redimir ahora mismo en el establecimiento.</div>
+            </div>
         </div>
+</div>
         <p id="thanks-message">¡Espectáculo finalizado!</p>
         <p class="small">Vuelve a escanear el código QR para jugar de nuevo.</p>
         <button id="play-again-btn" class="play-again-btn">🔄 ESCANEAR DE NUEVO</button>
@@ -113,6 +150,7 @@
     </div>
 
     <script src="config.js?v=10"></script>
+    <script src="reward.js"></script>
     <script src="script.js?v=20"></script>
 </body>
 </html>

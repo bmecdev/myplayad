@@ -3486,7 +3486,9 @@ function updateQrCode() {
     if (!qrContainer) return;
     qrContainer.innerHTML = '';
 
-    const controlUrl = `${CONFIG.CONTROL_URL}/?room=${GameState.roomId}`;
+    const sId = new URLSearchParams(window.location.search).get('screenId');
+    const screenParam = sId ? `&screenId=${encodeURIComponent(sId)}` : '';
+    const controlUrl = `${CONFIG.CONTROL_URL}/?room=${GameState.roomId}${screenParam}`;
 
     if (typeof QRCode !== 'undefined') {
         new QRCode(qrContainer, {

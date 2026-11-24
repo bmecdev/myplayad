@@ -72,6 +72,12 @@ export default function ScreenDetailPage() {
   const [scheduleStartDate, setScheduleStartDate] = useState('');
   const [scheduleEndDate, setScheduleEndDate] = useState('');
 
+  // Reward Incentive Configuration State
+  const [rewardEnabled, setRewardEnabled] = useState(false);
+  const [rewardMinScore, setRewardMinScore] = useState(100);
+  const [rewardTitle, setRewardTitle] = useState('');
+  const [rewardExpireMinutes, setRewardExpireMinutes] = useState(15);
+
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   
   // Video Upload Modal State
@@ -138,6 +144,12 @@ export default function ScreenDetailPage() {
       setScreen(data.screen);
       setVideos(data.videos);
       setActiveGameSchedule(data.activeGameSchedule);
+      if (data.activeGameSchedule) {
+        setRewardEnabled(data.activeGameSchedule.rewardEnabled ?? false);
+        setRewardMinScore(data.activeGameSchedule.rewardMinScore ?? 100);
+        setRewardTitle(data.activeGameSchedule.rewardTitle || '');
+        setRewardExpireMinutes(data.activeGameSchedule.rewardExpireMinutes ?? 15);
+      }
       setUpcomingSchedules(data.upcomingSchedules || []);
       
       // Sincronizar estado del horario de energía
@@ -228,7 +240,11 @@ export default function ScreenDetailPage() {
       body: JSON.stringify({ 
         gameId: selectedGameId,
         startDate: assignStartDate ? new Date(assignStartDate).toISOString() : undefined,
-        endDate: assignEndDate ? new Date(assignEndDate).toISOString() : undefined
+        endDate: assignEndDate ? new Date(assignEndDate).toISOString() : undefined,
+        rewardEnabled,
+        rewardMinScore,
+        rewardTitle,
+        rewardExpireMinutes,
       })
     });
     
@@ -248,7 +264,11 @@ export default function ScreenDetailPage() {
         gameId: selectedGameId,
         startDate: new Date(scheduleStartDate).toISOString(),
         endDate: scheduleEndDate ? new Date(scheduleEndDate).toISOString() : undefined,
-        isActive: true
+        isActive: true,
+        rewardEnabled,
+        rewardMinScore,
+        rewardTitle,
+        rewardExpireMinutes,
       })
     });
     
@@ -644,6 +664,13 @@ export default function ScreenDetailPage() {
                           <Calendar className="w-4 h-4" /> 
                           Finaliza: {new Date(activeGameSchedule.endDate).toLocaleString()}
                         </p>
+                      )}
+                      {(activeGameSchedule as any).rewardEnabled && (activeGameSchedule as any).rewardTitle && (
+                        <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium">
+                          <span>🎁 Premio activo:</span>
+                          <strong>{(activeGameSchedule as any).rewardTitle}</strong>
+                          <span className="text-slate-400">({(activeGameSchedule as any).rewardMinScore}+ pts)</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1049,6 +1076,66 @@ export default function ScreenDetailPage() {
                   />
                 </div>
               </div>
+
+              {/* Configuración de Premio por Puntaje */}
+              <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-bold text-amber-400 block">🎁 Premio por Puntaje</span>
+                    <span className="text-xs text-muted-foreground">Incentiva a los clientes con un premio al superar un récord.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="rewardToggleGame"
+                    checked={rewardEnabled}
+                    onChange={(e) => setRewardEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  />
+                </div>
+
+                {rewardEnabled && (
+                  <div className="space-y-3 pt-2 border-t border-amber-500/20 text-xs">
+                    <div>
+                      <label className="block text-slate-300 font-medium mb-1">Título / Descripción del Premio</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: 1 Café Gratis o 15% de Descuento"
+                        value={rewardTitle}
+                        onChange={(e) => setRewardTitle(e.target.value)}
+                        required={rewardEnabled}
+                        className="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Puntaje Mínimo</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={rewardMinScore}
+                          onChange={(e) => setRewardMinScore(parseInt(e.target.value, 10) || 0)}
+                          className="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Minutos para Canjear</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={120}
+                          value={rewardExpireMinutes}
+                          onChange={(e) => setRewardExpireMinutes(parseInt(e.target.value, 10) || 15)}
+                          className="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 italic">
+                      * El jugador deberá registrar su nombre, email y WhatsApp para reclamar y mostrar el código en caja antes del límite.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 justify-end mt-6">
                 <button 
                   type="button" 
@@ -1116,6 +1203,66 @@ export default function ScreenDetailPage() {
                   />
                 </div>
               </div>
+
+              {/* Configuración de Premio por Puntaje */}
+              <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-bold text-amber-400 block">🎁 Premio por Puntaje</span>
+                    <span className="text-xs text-muted-foreground">Incentiva a los clientes con un premio al superar un récord.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="rewardToggleSchedule"
+                    checked={rewardEnabled}
+                    onChange={(e) => setRewardEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  />
+                </div>
+
+                {rewardEnabled && (
+                  <div className="space-y-3 pt-2 border-t border-amber-500/20 text-xs">
+                    <div>
+                      <label className="block text-slate-300 font-medium mb-1">Título / Descripción del Premio</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: 1 Café Gratis o 15% de Descuento"
+                        value={rewardTitle}
+                        onChange={(e) => setRewardTitle(e.target.value)}
+                        required={rewardEnabled}
+                        className="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Puntaje Mínimo</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={rewardMinScore}
+                          onChange={(e) => setRewardMinScore(parseInt(e.target.value, 10) || 0)}
+                          className="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-medium mb-1">Minutos para Canjear</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={120}
+                          value={rewardExpireMinutes}
+                          onChange={(e) => setRewardExpireMinutes(parseInt(e.target.value, 10) || 15)}
+                          className="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 italic">
+                      * El jugador deberá registrar su nombre, email y WhatsApp para reclamar y mostrar el código en caja antes del límite.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 justify-end mt-6">
                 <button 
                   type="button" 
