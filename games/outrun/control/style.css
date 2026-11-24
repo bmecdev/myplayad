@@ -437,16 +437,29 @@ body {
    📺 PANTALLA DE ESPERA DURANTE PUBLICIDAD (#ad-waiting-screen)
    ============================================================================== */
 #ad-waiting-screen {
-    max-width: 400px;
-    gap: 16px;
-    padding: 20px;
+    display: flex;
+    flex-direction: column !important;
+    align-items: center;
+    justify-content: center;
+    width: 90%;
+    max-width: 360px;
+    padding: 22px 18px;
     background: #141c17;
     border: 2px solid #283e31;
     border-radius: 16px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
     text-align: center;
-    width: 90%;
     margin: 0 auto;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+#ad-waiting-screen .header-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 12px;
 }
 
 .ad-tv-badge {
@@ -654,37 +667,34 @@ body {
     }
 
     #ad-waiting-screen {
-        max-width: 520px;
-        padding: 10px 16px;
-        gap: 8px;
+        max-width: 380px;
+        padding: 10px 14px;
+        gap: 6px;
     }
 
     #ad-waiting-screen .header-logo {
-        display: none;
+        margin-bottom: 4px;
     }
 
     .ad-waiting-body {
-        flex-direction: row;
+        flex-direction: column !important;
         justify-content: center;
         align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
+        gap: 8px;
     }
 
     .ad-screen-frame {
-        width: 85px;
-        height: 56px;
+        width: 80px;
+        height: 52px;
         flex-shrink: 0;
     }
 
     .ad-tv-icon {
-        font-size: 20px;
+        font-size: 18px;
     }
 
     .ad-message-box {
-        flex: 1;
-        min-width: 200px;
-        text-align: left;
+        text-align: center;
     }
 
     .ad-headline {
@@ -702,7 +712,6 @@ body {
 
     .ad-status-hint {
         font-size: 6px;
-        width: 100%;
         justify-content: center;
     }
 }

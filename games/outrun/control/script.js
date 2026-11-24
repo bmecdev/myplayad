@@ -314,8 +314,8 @@ function connectSignaling(roomId) {
                 } else if (data.type === 'answer') {
                     const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
                     await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
-                    status.textContent = '📺 MIRA LA PANTALLA...';
-                    status.style.color = '#ffb703';
+                    status.textContent = 'CONECTANDO...';
+                    status.style.color = '#7fae94';
                     roomSelection.style.display = 'none';
                     if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                     if (controllerContainer) controllerContainer.style.display = 'none';
@@ -398,8 +398,7 @@ async function startWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
-                status.textContent = '📺 MIRA LA PANTALLA';
-                status.style.color = '#ffb703';
+                status.textContent = '';
                 roomSelection.style.display = 'none';
                 if (adWaitingScreen) {
                     adWaitingScreen.style.display = 'flex';
