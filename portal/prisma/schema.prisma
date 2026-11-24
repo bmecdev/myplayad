@@ -32,6 +32,7 @@ model User {
   screens         Screen[]
   videos          Video[]
   updateSchedules UpdateSchedule[]
+  rewardLeads     RewardLead[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -70,6 +71,7 @@ model Screen {
   
   schedules       Schedule[]
   updateSchedules UpdateSchedule[]
+  rewardLeads     RewardLead[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 }
@@ -115,6 +117,12 @@ model Schedule {
   endDate     DateTime?
   
   isActive    Boolean   @default(true)
+
+  // Configuración de Premios e Incentivos por Puntaje
+  rewardEnabled       Boolean   @default(false)
+  rewardMinScore      Int       @default(100)
+  rewardTitle         String?   // Ej: "1 Café Americano Gratis"
+  rewardExpireMinutes Int       @default(15) // Minutos para redimir en el establecimiento
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -135,5 +143,43 @@ model UpdateSchedule {
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model RewardLead {
+  id              String      @id @default(uuid())
+  code            String      @unique // Código corto tipo "CAFE-8392"
+  
+  // Datos del Jugador / Lead
+  name            String
+  email           String
+  whatsapp        String
+  termsAccepted   Boolean     @default(true)
+  acceptedAt      DateTime    @default(now())
+  
+  // Contexto del Juego y Pantalla
+  gameSlug        String      // ej: "arkanoid"
+  score           Int
+  rewardTitle     String      // Copia del premio al momento de ganar
+  
+  // Multi-tenant: Relación con el Cliente (User)
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Pantalla física donde jugó
+  screenId        String
+  screen          Screen      @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  
+  // Estado del canje en el punto de venta
+  status          String      @default("PENDING") // "PENDING" | "REDEEMED" | "EXPIRED"
+  expiresAt       DateTime    // Fecha y hora límite para reclamar en caja
+  redeemedAt      DateTime?   // Fecha y hora cuando el cajero/cliente lo validó en portal
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId, email])
+  @@index([userId, code])
+  @@index([userId, status])
+  @@index([screenId])
 }
 

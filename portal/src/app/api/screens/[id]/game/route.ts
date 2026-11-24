@@ -12,7 +12,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { id: screenId } = await params;
     const body = await request.json();
-    const { gameId, startDate, endDate } = body;
+    const { 
+      gameId, 
+      startDate, 
+      endDate,
+      rewardEnabled,
+      rewardMinScore,
+      rewardTitle,
+      rewardExpireMinutes
+    } = body;
 
     if (!gameId) {
       return NextResponse.json({ error: 'Missing gameId' }, { status: 400 });
@@ -75,6 +83,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         startDate: startDate ? new Date(startDate) : new Date(),
         endDate: endDate ? new Date(endDate) : null,
         isActive: true,
+        rewardEnabled: Boolean(rewardEnabled),
+        rewardMinScore: rewardMinScore ? parseInt(String(rewardMinScore), 10) : 100,
+        rewardTitle: rewardTitle ? String(rewardTitle).trim() : null,
+        rewardExpireMinutes: rewardExpireMinutes ? parseInt(String(rewardExpireMinutes), 10) : 15,
       },
     });
 

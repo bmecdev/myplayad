@@ -604,6 +604,7 @@ async function setupWebRTC() {
                 if (thanksSubtitle) thanksSubtitle.textContent = 'Agotaste tus 3 oportunidades. Escanea de nuevo el código QR en la pantalla arcade para volver a jugar.';
                 if (finalScoreText) {
                     finalScoreText.textContent = `PUNTUACIÓN FINAL: ${msg.score || 0}`;
+                if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(msg.score || 0, 'duckhunt');
                 }
             } else if (msg.type === 'victory') {
                 gameContainer.style.display = 'none';
@@ -614,6 +615,7 @@ async function setupWebRTC() {
                 if (thanksSubtitle) thanksSubtitle.textContent = '¡Felicitaciones Cazador! Llegaste al Nivel 4 con éxito. Escanea el código QR para jugar otra partida.';
                 if (finalScoreText) {
                     finalScoreText.textContent = `¡LLEGASTE AL NIVEL 4! • SCORE: ${msg.score || 0}`;
+                if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(msg.score || 0, 'duckhunt');
                 }
             }
         } catch (_) {}

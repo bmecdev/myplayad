@@ -15,6 +15,7 @@ import {
   User,
   PanelLeftClose,
   X,
+  Gift,
   Tv,
 } from 'lucide-react';
 import { useSidebar } from '@/components/LayoutShell';
@@ -71,6 +72,7 @@ export default function Sidebar() {
         ]
       : []),
     { name: isSuperAdmin ? 'Juegos' : 'Juegos de mi Plan', href: '/games', icon: Gamepad2 },
+    { name: 'Premios & Leads', href: '/rewards', icon: Gift },
     { name: 'Videos', href: '/videos', icon: Film },
     { name: 'Kiosco Virtual', href: '/demo', icon: Tv },
   ];
