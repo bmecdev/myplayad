@@ -287,13 +287,20 @@ function connectSignaling(roomId) {
                 role: 'controller',
                 roomId: roomId
             }));
+            if (window._sigPingInterval) clearInterval(window._sigPingInterval);
+            window._sigPingInterval = setInterval(() => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    try { socket.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+                }
+            }, 5000);
         };
 
         socket.onmessage = async (message) => {
             try {
                 const data = JSON.parse(message.data);
+                if (data.type === 'pong') return;
                 if (data.type === 'error') {
-                    if (data.message === 'SALA_OCUPADA') {
+                    if (data.message === 'SALA_OCUPADA' || data.message === 'SALA_LLENA') {
                         status.textContent = 'SALA OCUPADA';
                         status.style.color = 'orange';
                         alert('Esta carrera ya tiene un piloto al volante.');
@@ -338,6 +345,7 @@ function connectSignaling(roomId) {
         };
 
         socket.onclose = () => {
+            if (window._sigPingInterval) clearInterval(window._sigPingInterval);
             const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
             const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
             if (isAdWaiting || isChannelOpen) return;
@@ -461,7 +469,13 @@ async function startWebRTC() {
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    socket.send(JSON.stringify({ ...offer, roomId: currentRoomId }));
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'offer',
+            sdp: offer.sdp,
+            roomId: currentRoomId
+        }));
+    }
 }
 
 function sendInputData(immediate = false) {

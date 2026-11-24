@@ -760,6 +760,12 @@ function connectSignaling() {
                 console.log(`Controlador ${data.playerId} conectado. Esperando oferta...`);
                 waitingOverlay.classList.add('hidden');
             } else if (data.type === 'controller_disconnected') {
+                const dc = dataChannels.get(data.playerId);
+                const pc = peerConnections.get(data.playerId);
+                if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
+                    console.log(`[signaling] Ignorando controller_disconnected para player ${data.playerId}: WebRTC sigue activo`);
+                    return;
+                }
                 handleControllerDisconnect(data.playerId);
             } else if (data.type === 'room_status') {
                 console.log(`Estado de sala: ${data.players.length}/${data.maxPlayers} jugadores.`);
@@ -971,6 +977,12 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 function handleControllerDisconnect(playerId) {
     if (GameState.adPlaying) {
         console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
+        return;
+    }
+    const dc = dataChannels.get(playerId);
+    const pc = peerConnections.get(playerId);
+    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
+        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: canal WebRTC sigue activo`);
         return;
     }
     console.log(`Controlador ${playerId} desconectado.`);

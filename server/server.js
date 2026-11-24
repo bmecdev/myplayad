@@ -21,12 +21,18 @@ wss.on('connection', (ws) => {
     let currentPlayerId = null;
 
     ws.on('message', (message) => {
+        ws.isAlive = true;
         try {
             const data = JSON.parse(message);
             
             if (!data || typeof data !== 'object') return;
 
             switch (data.type) {
+                case 'ping':
+                    ws.isAlive = true;
+                    try { ws.send(JSON.stringify({ type: 'pong' })); } catch (_) {}
+                    return;
+
                 case 'register':
                     const { roomId, role, maxPlayers } = data;
                     if (!roomId || !role) return;
@@ -60,6 +66,21 @@ wss.on('connection', (ws) => {
                             maxPlayers: room.maxPlayers
                         }));
                     } else if (role === 'controller') {
+                        // Limpiar controllers cerrados o inactivos
+                        for (const [pId, pWs] of room.controllers.entries()) {
+                            if (!pWs || pWs.readyState !== WebSocket.OPEN) {
+                                room.controllers.delete(pId);
+                            }
+                        }
+
+                        // En juegos de 1 solo jugador, permitir reconexión o reemplazo limpio
+                        if (room.maxPlayers === 1 && room.controllers.size >= 1 && !room.controllers.has(currentPlayerId)) {
+                            for (const [oldId, oldWs] of room.controllers.entries()) {
+                                try { oldWs.close(); } catch (_) {}
+                                room.controllers.delete(oldId);
+                            }
+                        }
+
                         if (room.controllers.size >= room.maxPlayers && !room.controllers.has(currentPlayerId)) {
                             console.log(`Conexión rechazada: Sala ${roomId} llena.`);
                             ws.send(JSON.stringify({ type: 'error', message: 'SALA_LLENA' }));

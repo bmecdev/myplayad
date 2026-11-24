@@ -107,6 +107,12 @@ async function connectToHost() {
             role: 'controller',
             roomId: currentRoomId
         }));
+        if (window._sigPingInterval) clearInterval(window._sigPingInterval);
+        window._sigPingInterval = setInterval(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                try { socket.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+            }
+        }, 5000);
         await initPeerConnection();
     };
 
@@ -119,6 +125,7 @@ async function connectToHost() {
     };
 
     socket.onclose = () => {
+        if (window._sigPingInterval) clearInterval(window._sigPingInterval);
         const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
         const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
         if (isAdWaiting || isChannelOpen) return;
@@ -131,6 +138,14 @@ async function connectToHost() {
     socket.onmessage = async (message) => {
         try {
             const data = JSON.parse(message.data);
+            if (data.type === 'pong') return;
+            if (data.type === 'error') {
+                if (data.message === 'SALA_OCUPADA' || data.message === 'SALA_LLENA') {
+                    status.textContent = 'SALA OCUPADA - INTENTA MÁS TARDE';
+                    alert('Esta sala ya tiene un jugador conectado.');
+                }
+                return;
+            }
 
             if (data.type === 'answer') {
                 const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');

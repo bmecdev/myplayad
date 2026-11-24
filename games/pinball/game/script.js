@@ -1888,7 +1888,14 @@ function connectSignaling() {
                         }
                     }
                 } else if (data.type === 'controller_disconnected') {
-                    handleControllerDisconnect(playerId);
+                    const targetId = data.playerId || playerId;
+                    const dc = dataChannels.get(targetId);
+                    const pc = peerConnections.get(targetId);
+                    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
+                        console.log(`[signaling] Ignorando controller_disconnected para player ${targetId}: WebRTC sigue activo`);
+                        return;
+                    }
+                    handleControllerDisconnect(targetId);
                 }
             } catch (err) {
                 console.error('Error WS:', err);
@@ -2110,6 +2117,15 @@ function handleControllerDisconnect(playerId) {
     if (GameState.adPlaying) {
         console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
         return;
+    }
+    const dc = dataChannels.get(playerId);
+    const pc = peerConnections.get(playerId);
+    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
+        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: canal WebRTC sigue activo`);
+        return;
+    }
+    if (pc) {
+        try { pc.close(); } catch (_) {}
     }
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);

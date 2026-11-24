@@ -292,11 +292,18 @@ function connectSignaling(roomId) {
 
         socket.onopen = () => {
             socket.send(JSON.stringify({ type: 'register', role: 'controller', roomId: roomId }));
+            if (window._sigPingInterval) clearInterval(window._sigPingInterval);
+            window._sigPingInterval = setInterval(() => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    try { socket.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+                }
+            }, 5000);
         };
 
         socket.onmessage = async (message) => {
             try {
                 const data = JSON.parse(message.data);
+                if (data.type === 'pong') return;
                 if (data.type === 'error') {
                     if (data.message === 'SALA_OCUPADA' || data.message === 'SALA_LLENA') {
                         status.textContent = 'SALA OCUPADA - ESPERA UN MOMENTO';
@@ -343,6 +350,7 @@ function connectSignaling(roomId) {
         };
 
         socket.onclose = () => {
+            if (window._sigPingInterval) clearInterval(window._sigPingInterval);
             const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
             const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
             if (isAdWaiting || isChannelOpen) return;

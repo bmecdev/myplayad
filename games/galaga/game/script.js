@@ -1924,8 +1924,15 @@ function connectSignaling() {
                     console.log('Controlador conectado:', data.playerId);
                     waitingOverlay.classList.add('hidden');
                 } else if (data.type === 'controller_disconnected') {
+                    const targetId = data.playerId || 'controller';
+                    const dc = dataChannels.get(targetId);
+                    const pc = peerConnections.get(targetId);
+                    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
+                        console.log(`[signaling] Ignorando controller_disconnected para player ${targetId}: WebRTC sigue activo`);
+                        return;
+                    }
                     console.log('Controlador desconectado:', data.playerId);
-                    handleControllerDisconnect(data.playerId || 'controller');
+                    handleControllerDisconnect(targetId);
                 }
             } catch (err) {
                 console.error('Error procesando mensaje de señalización:', err);
@@ -2236,7 +2243,12 @@ function handleControllerDisconnect(playerId) {
         console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
         return;
     }
+    const dc = dataChannels.get(playerId);
     const pc = peerConnections.get(playerId);
+    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
+        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: canal WebRTC sigue activo`);
+        return;
+    }
     if (pc) pc.close();
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
