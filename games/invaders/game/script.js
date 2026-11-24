@@ -749,7 +749,13 @@ function connectSignaling() {
                 await handleOffer(data);
             } else if (data.type === 'candidate') {
                 const pc = peerConnections.get(data.playerId);
-                if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                if (pc && data.candidate) {
+                    if (pc.remoteDescription) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+                    } else if (pc._pendingCandidates) {
+                        pc._pendingCandidates.push(data.candidate);
+                    }
+                }
             } else if (data.type === 'controller_connected') {
                 console.log(`Controlador ${data.playerId} conectado. Esperando oferta...`);
                 waitingOverlay.classList.add('hidden');
@@ -985,6 +991,7 @@ async function handleOffer(data) {
 
     const rtcConfig = (window.GAME_CONFIG && window.GAME_CONFIG.getIceConfig) ? window.GAME_CONFIG.getIceConfig() : getIceConfig();
     const pc = new RTCPeerConnection(rtcConfig);
+    pc._pendingCandidates = [];
     // Attach diagnostics if available
     if (window.GAME_CONFIG && window.GAME_CONFIG.attachPCDiagnostics) {
         try { window.GAME_CONFIG.attachPCDiagnostics(pc, `pc-${playerId}`); } catch (e) { console.warn('No se pudo attach PC diagnostics', e); }
@@ -1061,6 +1068,11 @@ async function handleOffer(data) {
     };
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+    while (pc._pendingCandidates && pc._pendingCandidates.length > 0) {
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(pc._pendingCandidates.shift()));
+        } catch (_) {}
+    }
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     

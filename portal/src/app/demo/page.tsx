@@ -184,6 +184,7 @@ export default function VirtualKioskPage() {
   const [orientation, setOrientation] = useState<'LANDSCAPE' | 'PORTRAIT'>('LANDSCAPE');
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [isGameLoading, setIsGameLoading] = useState<boolean>(true);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [selectedVideoSource, setSelectedVideoSource] = useState<string>('default');
@@ -202,32 +203,39 @@ export default function VirtualKioskPage() {
 
   // 1. Obtener usuario de sesión y pantallas accesibles al cargar la página
   useEffect(() => {
-    // Sesión
-    fetch('/api/auth/me')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.user) setCurrentUser(data.user);
-      })
-      .catch((err) => console.error('Error fetching session in Virtual Kiosk:', err));
+    Promise.all([
+      fetch('/api/auth/me').then((res) => (res.ok ? res.json() : null)).catch(() => null),
+      fetch('/api/screens').then((res) => (res.ok ? res.json() : [])).catch(() => []),
+    ]).then(([authData, screensData]: [any, ScreenOption[]]) => {
+      if (authData?.user) setCurrentUser(authData.user);
 
-    // Pantallas
-    fetch('/api/screens')
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: ScreenOption[]) => {
-        if (Array.isArray(data)) {
-          setScreens(data);
-          // Si la URL contiene ?screenId=, priorizarla
-          const params = new URLSearchParams(window.location.search);
-          const qScreenId = params.get('screenId');
-          if (qScreenId && data.some((s) => s.id === qScreenId)) {
-            setSelectedScreenId(qScreenId);
-          } else if (data.length > 0) {
-            // Seleccionar por defecto la primera pantalla si el usuario tiene pantallas creadas
-            setSelectedScreenId(data[0].id);
+      if (Array.isArray(screensData)) {
+        setScreens(screensData);
+        // Si la URL contiene ?screenId=, priorizarla
+        const params = new URLSearchParams(window.location.search);
+        const qScreenId = params.get('screenId');
+        let initialScreen: ScreenOption | null = null;
+        if (qScreenId && screensData.some((s) => s.id === qScreenId)) {
+          setSelectedScreenId(qScreenId);
+          initialScreen = screensData.find((s) => s.id === qScreenId) || null;
+        } else if (screensData.length > 0) {
+          // Seleccionar por defecto la primera pantalla si el usuario tiene pantallas creadas
+          setSelectedScreenId(screensData[0].id);
+          initialScreen = screensData[0];
+        }
+
+        // Si la pantalla inicial tiene un juego activo programado, aplicarlo antes de montar el juego
+        if (initialScreen?.schedules) {
+          const activeGameSchedule = initialScreen.schedules.find(
+            (sch) => sch.game && sch.game.slug && sch.isActive
+          );
+          if (activeGameSchedule?.game?.slug) {
+            setSelectedGameSlug(activeGameSchedule.game.slug);
           }
         }
-      })
-      .catch((err) => console.error('Error fetching screens for Virtual Kiosk:', err));
+      }
+      setIsInitializing(false);
+    });
   }, []);
 
   // Pantalla seleccionada actual
@@ -491,9 +499,7 @@ export default function VirtualKioskPage() {
       : DEFAULT_GAME_RANKINGS[selectedGameSlug] || DEFAULT_GAME_RANKINGS.circus;
 
   const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
-  const baseGameUrl = getGameUrl(selectedGameSlug, screenIdForGame);
-  const adVideoParam = activeVideoUrl ? `&adVideo=${encodeURIComponent(getAbsoluteVideoUrl(activeVideoUrl))}` : '';
-  const gameIframeSrc = `${baseGameUrl}${adVideoParam}`;
+  const gameIframeSrc = getGameUrl(selectedGameSlug, screenIdForGame);
 
   return (
     <div className="space-y-6 pb-12">
@@ -781,7 +787,16 @@ export default function VirtualKioskPage() {
                 : 'w-full h-1/2'
             }`}
           >
-            {isGameLoading && (
+            {isInitializing && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#070d0a] rounded-2xl border-2 border-[#1f7d49]/50">
+                <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin mb-3" />
+                <p className="font-arcade text-xs text-green-400 animate-pulse tracking-wider">
+                  CONECTANDO KIOSCO VIRTUAL...
+                </p>
+              </div>
+            )}
+
+            {isGameLoading && !isInitializing && (
               <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#070d0a] rounded-2xl border-2 border-[#1f7d49]/50">
                 <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin mb-3" />
                 <p className="font-arcade text-xs text-green-400 animate-pulse tracking-wider">
@@ -790,34 +805,36 @@ export default function VirtualKioskPage() {
               </div>
             )}
 
-            <iframe
-              key={`game-${selectedGameSlug}-${reloadKey}-${selectedScreenId}`}
-              ref={iframeRef}
-              src={gameIframeSrc}
-              onLoad={() => {
-                setIsGameLoading(false);
-                // Enviar inmediatamente la URL del anuncio pre-juego al iframe cargado
-                const fullUrl = getAbsoluteVideoUrl(activeVideoUrl);
-                if (iframeRef.current?.contentWindow && fullUrl) {
-                  iframeRef.current.contentWindow.postMessage(
-                    {
-                      type: 'AD_VIDEO_RESPONSE',
-                      videoUrl: fullUrl,
-                    },
-                    '*'
-                  );
-                  iframeRef.current.contentWindow.postMessage(
-                    {
-                      type: 'GET_RANKING',
-                    },
-                    '*'
-                  );
-                }
-              }}
-              className="w-full h-full rounded-2xl border-0 shadow-2xl bg-[#0a0f0d]"
-              title={`Consola Arcade - ${currentGame.name}`}
-              allow="autoplay; fullscreen"
-            />
+            {!isInitializing && (
+              <iframe
+                key={`game-${selectedGameSlug}-${reloadKey}`}
+                ref={iframeRef}
+                src={gameIframeSrc}
+                onLoad={() => {
+                  setIsGameLoading(false);
+                  // Enviar inmediatamente la URL del anuncio pre-juego al iframe cargado
+                  const fullUrl = getAbsoluteVideoUrl(activeVideoUrl);
+                  if (iframeRef.current?.contentWindow && fullUrl) {
+                    iframeRef.current.contentWindow.postMessage(
+                      {
+                        type: 'AD_VIDEO_RESPONSE',
+                        videoUrl: fullUrl,
+                      },
+                      '*'
+                    );
+                    iframeRef.current.contentWindow.postMessage(
+                      {
+                        type: 'GET_RANKING',
+                      },
+                      '*'
+                    );
+                  }
+                }}
+                className="w-full h-full rounded-2xl border-0 shadow-2xl bg-[#0a0f0d]"
+                title={`Consola Arcade - ${currentGame.name}`}
+                allow="autoplay; fullscreen"
+              />
+            )}
           </div>
 
           {/* SECCIÓN CANAL DE VIDEO PUBLICITARIO (BISEL RETRO CONSOLA) */}

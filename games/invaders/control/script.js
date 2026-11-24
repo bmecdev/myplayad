@@ -16,6 +16,7 @@ let dataChannel;
 let socket;
 let currentRoomId = null;
 let nickname = 'Player';
+let pendingCandidates = [];
 
 // Función para obtener configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -224,16 +225,32 @@ function connectSignaling(roomId) {
                 }
 
                 if (data.type === 'host_ready') {
+                    pendingCandidates = [];
                     startWebRTC();
                 } else if (data.type === 'answer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
+                    const sdp = typeof data.sdp === 'string' ? data.sdp : (data.sdp?.sdp || '');
+                    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
                     status.textContent = '📺 MIRA LA PANTALLA...';
                     status.style.color = '#ffb703';
                     roomSelection.style.display = 'none';
                     if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                     if (container) container.style.display = 'none';
+
+                    while (pendingCandidates.length > 0) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(pendingCandidates.shift()));
+                        } catch (_) {}
+                    }
                 } else if (data.type === 'candidate') {
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc && data.candidate) {
+                        if (pc.remoteDescription) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                            } catch (_) {}
+                        } else {
+                            pendingCandidates.push(data.candidate);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Err JSON:', e.message);
@@ -263,6 +280,7 @@ function connectSignaling(roomId) {
 }
 
 async function startWebRTC() {
+    pendingCandidates = [];
     const rtcConfig = (window.GAME_CONFIG && window.GAME_CONFIG.getIceConfig) ? window.GAME_CONFIG.getIceConfig() : getIceConfig();
     pc = new RTCPeerConnection(rtcConfig);
 

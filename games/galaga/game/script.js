@@ -1911,11 +1911,13 @@ function connectSignaling() {
                 } else if (data.type === 'candidate') {
                     const playerId = data.playerId || 'controller';
                     const pc = peerConnections.get(playerId);
-                    if (pc) {
-                        try {
-                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                        } catch (err) {
-                            console.warn('Error añadiendo candidate:', err);
+                    if (pc && data.candidate) {
+                        if (pc.remoteDescription) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                            } catch (_) {}
+                        } else if (pc._pendingCandidates) {
+                            pc._pendingCandidates.push(data.candidate);
                         }
                     }
                 } else if (data.type === 'controller_connected') {
@@ -1951,6 +1953,7 @@ async function handleOffer(data) {
         ? window.GAME_CONFIG.getIceConfig() 
         : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
     const pc = new RTCPeerConnection(rtcConfig);
+    pc._pendingCandidates = [];
     peerConnections.set(targetPlayerId, pc);
 
     if (window.GAME_CONFIG && window.GAME_CONFIG.attachPCDiagnostics) {
@@ -1978,6 +1981,11 @@ async function handleOffer(data) {
     };
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+    while (pc._pendingCandidates && pc._pendingCandidates.length > 0) {
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(pc._pendingCandidates.shift()));
+        } catch (_) {}
+    }
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 

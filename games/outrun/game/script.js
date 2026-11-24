@@ -1978,7 +1978,13 @@ function connectSignalingServer() {
                 await handleOffer(data);
             } else if (data.type === 'candidate') {
                 const pc = peerConnections.get(data.playerId);
-                if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                if (pc && data.candidate) {
+                    if (pc.remoteDescription) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+                    } else if (pc._pendingCandidates) {
+                        pc._pendingCandidates.push(data.candidate);
+                    }
+                }
             } else if (data.type === 'controller_connected') {
                 waitingOverlay.classList.add('hidden');
             } else if (data.type === 'controller_disconnected') {
@@ -2010,6 +2016,7 @@ function handleControllerDisconnect(playerId) {
 async function handleOffer(data) {
     const { playerId, type, sdp } = data;
     const pc = new RTCPeerConnection(getIceConfig());
+    pc._pendingCandidates = [];
     peerConnections.set(playerId, pc);
 
     pc.onicecandidate = (event) => {
@@ -2059,6 +2066,11 @@ async function handleOffer(data) {
     pc.onconnectionstatechange = () => refreshIceRoute(pc);
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+    while (pc._pendingCandidates && pc._pendingCandidates.length > 0) {
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(pc._pendingCandidates.shift()));
+        } catch (_) {}
+    }
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
