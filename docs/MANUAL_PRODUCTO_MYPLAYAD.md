@@ -353,4 +353,22 @@ Para salvaguardar la privacidad comercial y evitar que videos de un cliente se r
    * La API pública `/api/public/screens/:id/videos` que descarga los videos en el reproductor físico filtra en su consulta SQL/Prisma que los videos pertenezcan al mismo `userId` de la pantalla.
    * Si un Super Admin o usuario intenta asignar un video perteneciente al Cliente A en una pantalla del Cliente B, el sistema rechaza la operación con código HTTP 400/403.
 
+---
+
+## 10. Sistema de Premios, Redención en Caja y Captación de Leads (Multi-tenant)
+
+MyPlayAd incorpora un motor integral de gamificación y generación de prospectos comerciales que premia a los usuarios que superan récords de puntuación en las pantallas físicas:
+
+1. **Configuración Dinámica:**
+   * Cada pantalla permite configurar incentivos por juego: título del premio (ej: *"1 Café Gratis"*), puntuación mínima requerida y minutos de vigencia para canje inmediato.
+2. **Captación de Datos y Consentimiento Legal:**
+   * Tras superar el récord, el smartphone del jugador presenta un formulario protegido contra zoom donde captura Nombre, Email, WhatsApp y aceptación obligatoria de la política de tratamiento de datos personales y recepción de promociones.
+3. **Validación Antifraude en Punto de Venta:**
+   * El sistema emite un código alfanumérico único (ej: `WIN-8392`) con temporizador regresivo visible en el móvil.
+   * El comerciante busca y valida el código o correo desde el Portal (`/rewards`), quemando el código para evitar reutilizaciones posteriores o capturas de pantalla de otros días.
+4. **Exportación y Aislamiento:**
+   * Arquitectura multi-tenant absoluta: cada cliente solo puede consultar, validar y exportar los prospectos generados en sus propios kioscos.
+   * Botón de descarga en formato CSV / Excel listo para campañas de difusión externa.
+
+
 

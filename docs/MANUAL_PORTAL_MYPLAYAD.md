@@ -244,7 +244,47 @@ El módulo **Kiosco Virtual** (accesible desde la barra lateral o mediante el bo
 
 ---
 
-## 13. Videotutoriales Interactivos y Flujos de Negocio Paso a Paso
+## 13. Módulo de Premios por Récord y Captación de Clientes (Leads) — `/rewards`
+
+El módulo de **Premios y Leads** convierte las pantallas arcade de MyPlayAd en potentes herramientas de captación de clientes en el punto de venta (restaurantes, cafés, bares, ferias y locales comerciales). Permite al cliente premiar a los jugadores que superen una meta de puntaje a cambio de sus datos de contacto (Nombre, Correo, WhatsApp) y autorización para recibir promociones.
+
+### 13.1. Configuración del Premio por Pantalla
+Desde el panel de detalle de una pantalla (`/screens/:id`), al cambiar o programar un juego:
+1. Activa la casilla **🎁 Premio por Puntaje**.
+2. **Título del Premio:** Escribe el beneficio que entregarás al cliente (ej: *"1 Café Americano Gratis"*, *"15% de Descuento en la Cuenta"* o *"1 Porción de Papas"*).
+3. **Puntaje Mínimo:** Define el reto que el jugador debe alcanzar o superar en el juego arcade (ej: 100 puntos).
+4. **Minutos para Canjear:** Ventana de tiempo estricta para redimir el premio en caja (por defecto 15 minutos, máximo 120 min).
+
+### 13.2. Experiencia del Jugador en su Móvil
+1. El jugador escanea el código QR de la pantalla arcade con su smartphone. El QR incluye automáticamente el identificador de la pantalla (`&screenId=...`).
+2. Juega la partida desde su móvil. Al terminar (`FIN DE PARTIDA`):
+   * Si **no alcanzó** el puntaje mínimo: Se muestra la pantalla estándar de agradecimiento.
+   * Si **superó** el récord establecido: Se activa de inmediato el contenedor **🎁 ¡GANASTE UN PREMIO!**.
+3. **Formulario de Registro (Lead):**
+   * Nombre completo.
+   * Correo electrónico.
+   * WhatsApp / Teléfono de contacto.
+   * Casilla legal obligatoria: *"Acepto los términos y condiciones, la política de tratamiento de datos personales y autorizo recibir novedades y promociones de este establecimiento"*.
+4. **Emisión del Código Único:**
+   * Al enviar el formulario, el sistema genera un código alfanumérico corto (ej: `WIN-7K42`).
+   * El celular despliega un **reloj regresivo en vivo** (ej: `⏱️ VÁLIDO POR: 14:59`) y la advertencia: *"Válido únicamente para redimir ahora mismo en el establecimiento"*. Esto impide fraudes con capturas de pantalla de otros días.
+
+### 13.3. Validación en Mostrador / Caja (`/rewards`)
+En el menú lateral del Portal, tanto el cliente como sus cajeros tienen acceso directo a la sección **🎁 Premios & Leads**:
+1. El cliente pide al jugador su código (ej: `WIN-7K42`) o su correo electrónico y lo ingresa en el buscador de caja.
+2. El sistema valida el estado en tiempo real:
+   * **Listo para Canjear (`PENDING`):** Muestra el premio a entregar y el botón verde **"Marcar como Entregado / Canjear Ahora"**.
+   * **Ya Canjeado (`REDEEMED`):** Alerta que el código ya fue entregado previamente indicando la fecha y hora exacta del canje.
+   * **Expirado (`EXPIRED`):** Advierte si el tiempo límite del reloj regresivo concluyó.
+3. Al hacer clic en canjear, el código queda "quemado" de forma irreversible en la base de datos.
+
+### 13.4. Aislamiento Multi-tenant y Descarga de Base de Datos
+* **Privacidad Estricta Multi-tenant:** Cada cliente (`User`) es dueño exclusivo de sus pantallas y sus jugadores. Ningún cliente puede ver, buscar ni validar los leads o premios de otro establecimiento.
+* **Descarga en Excel / CSV:** La tabla de jugadores incluye el botón **"Descargar Leads (Excel / CSV)"**. El cliente puede descargar en un solo clic su base de datos completa con nombres, emails, números de WhatsApp y fechas para realizar campañas de fidelización o difusión por sus propios medios (WhatsApp Business, Mailchimp, etc.).
+
+---
+
+## 14. Videotutoriales Interactivos y Flujos de Negocio Paso a Paso
 
 Para facilitar la capacitación de nuevos administradores y la inducción de clientes comerciales, el portal cuenta con una **suite completa de 9 cápsulas de video tutorial** grabadas en alta resolución (1440x900). 
 
