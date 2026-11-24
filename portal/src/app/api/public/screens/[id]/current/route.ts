@@ -181,7 +181,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       };
     }).filter(s => s.type !== 'standby');
 
-    let responseData: { type: string; url: string | null; upcoming: any[]; orientation?: string; power?: any } = { 
+    let responseData: { 
+      type: string; 
+      url: string | null; 
+      upcoming: any[]; 
+      orientation?: string; 
+      power?: any;
+      reward?: {
+        enabled: boolean;
+        minScore: number;
+        title: string | null;
+        expireMinutes: number;
+      } | null;
+    } = { 
       type: 'standby', 
       url: null,
       upcoming,
@@ -193,12 +205,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         displayState: screen.displayState,
         shouldBeOn: isPowerOn,
       } : undefined,
+      reward: null,
     };
 
     if (currentSchedule) {
       if (currentSchedule.game) {
         responseData.type = 'game';
         responseData.url = `https://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`;
+        if (currentSchedule.rewardEnabled && currentSchedule.rewardTitle) {
+          responseData.reward = {
+            enabled: true,
+            minScore: currentSchedule.rewardMinScore,
+            title: currentSchedule.rewardTitle,
+            expireMinutes: currentSchedule.rewardExpireMinutes,
+          };
+        }
       } else if (currentSchedule.video) {
         responseData.type = 'video';
         responseData.url = `https://videos.myplayad.com/${currentSchedule.video.filename}`;

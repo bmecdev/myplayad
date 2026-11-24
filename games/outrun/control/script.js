@@ -480,6 +480,7 @@ function sendInputData(immediate = false) {
 }
 
 function showThanks(finalScore = 0, checkpoints = 0, won = false, goal = null) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'outrun');
     controllerContainer.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'block';

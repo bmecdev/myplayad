@@ -35,7 +35,18 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { screenId, gameId, videoId, startDate, endDate, isActive } = body;
+    const { 
+      screenId, 
+      gameId, 
+      videoId, 
+      startDate, 
+      endDate, 
+      isActive,
+      rewardEnabled,
+      rewardMinScore,
+      rewardTitle,
+      rewardExpireMinutes
+    } = body;
 
     const screen = await prisma.screen.findUnique({
       where: { id: screenId },
@@ -128,7 +139,11 @@ export async function POST(request: Request) {
         videoId: videoId || null, 
         startDate: new Date(startDate), 
         endDate: endDate ? new Date(endDate) : null,
-        isActive: isActive !== undefined ? isActive : true
+        isActive: isActive !== undefined ? isActive : true,
+        rewardEnabled: Boolean(rewardEnabled),
+        rewardMinScore: rewardMinScore ? parseInt(String(rewardMinScore), 10) : 100,
+        rewardTitle: rewardTitle ? String(rewardTitle).trim() : null,
+        rewardExpireMinutes: rewardExpireMinutes ? parseInt(String(rewardExpireMinutes), 10) : 15,
       },
       include: {
         game: true,

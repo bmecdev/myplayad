@@ -1790,9 +1790,10 @@ function updateQrCode() {
 
     qrContainer.innerHTML = '';
     const baseUrl = CONFIG.CONTROL_URL;
-    const finalUrl = baseUrl.includes('?') 
-        ? `${baseUrl}&room=${GameState.roomId}` 
-        : `${baseUrl}?room=${GameState.roomId}`;
+    const sId = new URLSearchParams(window.location.search).get('screenId');
+    const screenParam = sId ? `&screenId=${encodeURIComponent(sId)}` : '';
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const finalUrl = `${baseUrl}${separator}room=${GameState.roomId}${screenParam}`;
 
     new QRCode(qrContainer, {
         text: finalUrl,

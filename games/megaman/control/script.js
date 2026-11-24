@@ -356,6 +356,7 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'megaman');
     hasStarted = false;
     isGameConnected = false;
     if (rotateScreen) rotateScreen.style.display = 'none';

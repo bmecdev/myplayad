@@ -323,6 +323,7 @@ async function setupWebRTC() {
 }
 
 function handleGameOver(score) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(score, 'starwars');
     if (rotateScreen) rotateScreen.style.display = 'none';
     if (flightContainer) flightContainer.style.display = 'none';
     if (roomSelection) roomSelection.style.display = 'none';

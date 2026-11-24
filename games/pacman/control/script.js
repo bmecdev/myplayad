@@ -457,6 +457,7 @@ async function startWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'pacman');
     container.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'block';

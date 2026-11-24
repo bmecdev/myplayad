@@ -5138,9 +5138,12 @@ function updateHUD() {
 // Actualización del Código QR
 function updateQrCode() {
     const baseUrl = CONFIG.CONTROL_URL || 'https://controllers.myplayad.com/outrun';
+    const sId = new URLSearchParams(window.location.search).get('screenId');
+    const screenParam = sId ? `&screenId=${encodeURIComponent(sId)}` : '';
+    const separator = baseUrl.includes('?') ? '&' : '?';
     const controlUrl = baseUrl.includes('://')
-        ? `${baseUrl}?room=${GameState.roomId}`
-        : `${window.location.protocol}//${baseUrl}?room=${GameState.roomId}`;
+        ? `${baseUrl}${separator}room=${GameState.roomId}${screenParam}`
+        : `${window.location.protocol}//${baseUrl}${separator}room=${GameState.roomId}${screenParam}`;
 
     const qrContainer = document.getElementById('qrcode');
     if (qrContainer) {
