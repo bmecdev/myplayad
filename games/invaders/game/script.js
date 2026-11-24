@@ -986,7 +986,6 @@ function handleControllerDisconnect(playerId) {
         return;
     }
     console.log(`Controlador ${playerId} desconectado.`);
-    const pc = peerConnections.get(playerId);
     if (pc) pc.close();
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
