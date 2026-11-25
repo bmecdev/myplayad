@@ -1,5 +1,5 @@
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true }) || canvas.getContext('2d');
+const ctx = canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -768,9 +768,7 @@ function handleControllerDisconnect(playerId) {
     dataChannels.delete(playerId);
 
     if (peerConnections.size === 0) {
-        waitingOverlay.classList.remove('hidden');
-        GameState.running = false;
-        GameState.gameOver = true; // Auto game over on disconnect
+        startAttractMode();
     }
 }
 
@@ -932,7 +930,7 @@ function updateBotPaddle(dt) {
     // Si la pelota aún no ha sido lanzada, lanzarla tras un breve retraso
     if (!GameState.ball.launched) {
         if (!GameState._demoLaunchTimer) GameState._demoLaunchTimer = Date.now();
-        if (Date.now() - GameState._demoLaunchTimer > 900) {
+        if (Date.now() - GameState._demoLaunchTimer > 400) {
             GameState.ball.launched = true;
             const angleDir = Math.random() > 0.5 ? 1 : -1;
             const angleRad = angleDir * (Math.PI / 6 + Math.random() * (Math.PI / 8));
@@ -1139,7 +1137,10 @@ function draw() {
     ctx.fillStyle = '#0d0e15';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    if (GameState.gameOver) return;
+    // Asegurar ladrillos inicializados
+    if (!GameState.bricks || GameState.bricks.length === 0) {
+        initBricks();
+    }
 
     // 1. Renderizado de ladrillos en 3 pasadas por lotes (reduce cambios de estado en GPU de 120 a 7)
     // Pasada 1: Cuerpos de ladrillo agrupados por color/fila
@@ -1147,7 +1148,7 @@ function draw() {
         ctx.fillStyle = BRICK_COLORS[r];
         const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
         for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
-            if (GameState.bricks[c][r].status === 1) {
+            if (GameState.bricks[c] && GameState.bricks[c][r] && GameState.bricks[c][r].status === 1) {
                 const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 ctx.fillRect(brickX, brickY, BRICK_WIDTH, BRICK_HEIGHT);
             }
@@ -1159,7 +1160,7 @@ function draw() {
     for (let r = 0; r < BRICK_ROW_COUNT; r++) {
         const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
         for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
-            if (GameState.bricks[c][r].status === 1) {
+            if (GameState.bricks[c] && GameState.bricks[c][r] && GameState.bricks[c][r].status === 1) {
                 const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 ctx.fillRect(brickX, brickY, BRICK_WIDTH, 2);
                 ctx.fillRect(brickX, brickY, 2, BRICK_HEIGHT);
@@ -1172,7 +1173,7 @@ function draw() {
     for (let r = 0; r < BRICK_ROW_COUNT; r++) {
         const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
         for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
-            if (GameState.bricks[c][r].status === 1) {
+            if (GameState.bricks[c] && GameState.bricks[c][r] && GameState.bricks[c][r].status === 1) {
                 const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 ctx.fillRect(brickX, brickY + BRICK_HEIGHT - 2, BRICK_WIDTH, 2);
                 ctx.fillRect(brickX + BRICK_WIDTH - 2, brickY, 2, BRICK_HEIGHT);
@@ -1198,8 +1199,12 @@ function gameLoop(timestamp) {
     const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.04);
     GameState.lastTime = timestamp;
 
-    update(dt);
-    draw();
+    try {
+        update(dt);
+        draw();
+    } catch (err) {
+        console.error('[Arkanoid] gameLoop error:', err);
+    }
 
     requestAnimationFrame(gameLoop);
 }
@@ -1476,8 +1481,9 @@ async function fetchUpcomingSchedules() {
     }
 }
 
-// Inicialización
+// Inicialización inmediata y arranque de modo demostración
 initBricks();
+startAttractMode();
 updateUI();
 fetchRanking();
 updateQrCode();
@@ -1512,11 +1518,13 @@ function autoScale() {
     container.style.transform = `scale(${scale})`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+function initDomAndAttract() {
     updateQrCode();
     autoScale();
     fetchRanking();
-    startAttractMode();
+    if (!GameState.isDemo && !GameState.running) {
+        startAttractMode();
+    }
 
     const audioToggleBtn = document.getElementById('audio-toggle-btn');
     if (audioToggleBtn) {
@@ -1536,7 +1544,14 @@ window.addEventListener('DOMContentLoaded', () => {
             playPreGameAdThenStart('PILOT', () => resetGame());
         });
     }
-});
+}
+
+// Soporte robusto tanto para carga síncrona como asíncrona dentro de iframes
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
 
 // Multi-stage event bindings to ensure accurate dimensions
 window.addEventListener('resize', autoScale);
@@ -1547,6 +1562,9 @@ window.addEventListener('load', () => {
     cachedNaturalH = 0;
     updateQrCode();
     autoScale();
+    if (!GameState.running && !GameState.isDemo) {
+        startAttractMode();
+    }
 });
 if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => {
