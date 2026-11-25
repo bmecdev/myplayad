@@ -6,7 +6,7 @@
     <title>Arkanoid Clon - Retro Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=12">
+    <link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
     <div class="container">
@@ -62,31 +62,48 @@
                     </div>
                 </div>
 
-                <!-- Overlay de Conexión & Modo Atracción -->
+                <!-- Overlay de Modo Atracción & QR en Esquina -->
                 <div id="waiting-overlay">
-                    <div class="overlay-content" id="waiting-qr-panel">
-                        <h2 class="arcade-title">ARKANOID <span>CLON</span></h2>
-                        <p class="pulse-text">ESCANEA PARA JUGAR !!</p>
-                        <div class="qr-wrapper">
+                    <!-- Banner Superior de Modo Demostración -->
+                    <div class="attract-banner">
+                        <span class="attract-live-dot">●</span>
+                        <span class="attract-text">GAMEPLAY DEMO</span>
+                        <span class="attract-sep">|</span>
+                        <span class="attract-hint">ESCANEA PARA JUGAR</span>
+                    </div>
+
+                    <!-- Tarjeta de Código QR en la Esquina -->
+                    <div class="corner-qr-card" id="waiting-qr-panel">
+                        <div class="corner-qr-header">
+                            <span class="corner-qr-icon">📱</span>
+                            <span class="corner-qr-title">ESCANEA Y JUEGA</span>
+                        </div>
+                        <div class="corner-qr-wrapper">
                             <div id="qrcode"></div>
                         </div>
-                        <p class="status-text">ESPERANDO CONTROL...</p>
-                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
-                            <button id="instant-play-btn" class="instant-btn" style="background: rgba(61, 255, 138, 0.2); border: 1px solid #3dff8a; color: #3dff8a; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">▶ PROBAR CON TECLADO</button>
-                            <button id="toggle-hall-btn" class="instant-btn" style="background: rgba(255, 183, 3, 0.15); border: 1px solid #ffb703; color: #ffb703; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">🏆 VER RANKING</button>
+                        <div class="corner-qr-footer">
+                            <span id="corner-room-badge" class="corner-room-badge">SALA: ----</span>
+                            <div class="corner-buttons">
+                                <button id="instant-play-btn" class="corner-btn corner-btn-play" title="Probar con teclado">▶ TECLADO</button>
+                                <button id="toggle-hall-btn" class="corner-btn corner-btn-rank" title="Ver ranking">🏆 RANK</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="overlay-content hidden" id="waiting-ranking-panel">
-                        <h2 class="arcade-title" style="color: #ffb703; text-shadow: 0 0 10px rgba(255,183,3,0.7);">🏆 HALL OF FAME</h2>
-                        <p class="pulse-text" style="color: #3dff8a;">MEJORES PILOTOS</p>
-                        <div id="standby-ranking-container" style="width: 85%; max-width: 320px; margin: 6px auto;">
-                            <ul id="standby-ranking-list" class="ranking-list" style="list-style: none; padding: 0; margin: 0; font-family: 'Press Start 2P', monospace; font-size: 8px;"></ul>
+                    <!-- Mini Panel Flotante de Ranking Alternativo en Esquina -->
+                    <div class="corner-qr-card hidden" id="waiting-ranking-panel">
+                        <div class="corner-qr-header">
+                            <span class="corner-qr-icon">🏆</span>
+                            <span class="corner-qr-title">HALL OF FAME</span>
                         </div>
-                        <p class="status-text" style="color: #ffb703; font-size: 8px;">¡ESCANEA EL QR PARA ENTRAR AL RANKING!</p>
-                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
-                            <button id="back-to-qr-btn" class="instant-btn" style="background: rgba(61, 255, 138, 0.2); border: 1px solid #3dff8a; color: #3dff8a; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">📱 VER CÓDIGO QR</button>
-                            <button id="instant-play-btn-2" class="instant-btn" style="background: rgba(255, 183, 3, 0.2); border: 1px solid #ffb703; color: #ffb703; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px 12px; cursor: pointer;">▶ JUGAR AHORA</button>
+                        <div class="corner-ranking-content">
+                            <ul id="standby-ranking-list" class="corner-ranking-list"></ul>
+                        </div>
+                        <div class="corner-qr-footer">
+                            <div class="corner-buttons">
+                                <button id="back-to-qr-btn" class="corner-btn corner-btn-play">📱 VER QR</button>
+                                <button id="instant-play-btn-2" class="corner-btn corner-btn-rank">▶ JUGAR</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -103,6 +120,6 @@
     <!-- Scripts -->
     <script src="qrcode.min.js"></script>
     <script src="config.js?v=13"></script>
-    <script src="script.js?v=13"></script>
+    <script src="script.js?v=24"></script>
 </body>
 </html>

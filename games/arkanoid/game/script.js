@@ -83,6 +83,7 @@ class ArkanoidAudio {
     }
 
     playPaddle() {
+        if (GameState.isDemo) return;
         broadcastSFX('paddle');
         if (!this.ctx) return;
         this.resume();
@@ -103,6 +104,7 @@ class ArkanoidAudio {
     }
 
     playWall() {
+        if (GameState.isDemo) return;
         broadcastSFX('wall');
         if (!this.ctx) return;
         this.resume();
@@ -122,6 +124,7 @@ class ArkanoidAudio {
     }
 
     playBrick(row) {
+        if (GameState.isDemo) return;
         broadcastSFX('brick', row);
         if (!this.ctx) return;
         this.resume();
@@ -144,6 +147,7 @@ class ArkanoidAudio {
     }
 
     playLaunch() {
+        if (GameState.isDemo) return;
         broadcastSFX('launch');
         if (!this.ctx) return;
         this.resume();
@@ -306,6 +310,8 @@ const GameState = {
     gameOver: false,
     adPlaying: false,
     paused: false,
+    isDemo: false,
+    _demoLaunchTimer: null,
     lastTime: 0,
     paddle: {
         x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
@@ -903,6 +909,7 @@ function resetBall() {
 function resetGame() {
     stopAttractMode();
     audio.playStart();
+    GameState.isDemo = false;
     GameState.score = 0;
     GameState.lives = 3;
     GameState.gameOver = false;
@@ -919,7 +926,53 @@ function resetGame() {
     waitingOverlay.classList.add('hidden');
 }
 
+function updateBotPaddle(dt) {
+    if (!GameState.isDemo) return;
+
+    // Si la pelota aún no ha sido lanzada, lanzarla tras un breve retraso
+    if (!GameState.ball.launched) {
+        if (!GameState._demoLaunchTimer) GameState._demoLaunchTimer = Date.now();
+        if (Date.now() - GameState._demoLaunchTimer > 900) {
+            GameState.ball.launched = true;
+            const angleDir = Math.random() > 0.5 ? 1 : -1;
+            const angleRad = angleDir * (Math.PI / 6 + Math.random() * (Math.PI / 8));
+            GameState.ball.dx = Math.sin(angleRad) * GameState.ball.speed;
+            GameState.ball.dy = -Math.cos(angleRad) * GameState.ball.speed;
+            GameState._demoLaunchTimer = null;
+        }
+        return;
+    }
+
+    // Predicción de intercepción de la pelota
+    let targetX = GameState.ball.x - PADDLE_WIDTH / 2;
+    if (GameState.ball.dy > 0) {
+        const timeToPaddle = (GameState.paddle.y - GameState.ball.y) / GameState.ball.dy;
+        if (timeToPaddle > 0 && timeToPaddle < 2.5) {
+            let predictedX = GameState.ball.x + GameState.ball.dx * timeToPaddle;
+            while (predictedX < BALL_RADIUS || predictedX > CANVAS_WIDTH - BALL_RADIUS) {
+                if (predictedX < BALL_RADIUS) {
+                    predictedX = 2 * BALL_RADIUS - predictedX;
+                } else if (predictedX > CANVAS_WIDTH - BALL_RADIUS) {
+                    predictedX = 2 * (CANVAS_WIDTH - BALL_RADIUS) - predictedX;
+                }
+            }
+            const humanDrift = Math.sin(Date.now() / 500) * 8;
+            targetX = predictedX - PADDLE_WIDTH / 2 + humanDrift;
+        }
+    } else {
+        targetX = GameState.ball.x - PADDLE_WIDTH / 2;
+    }
+
+    targetX = Math.max(0, Math.min(CANVAS_WIDTH - PADDLE_WIDTH, targetX));
+    GameState.paddle.targetX = targetX;
+}
+
 function updateStep(dt) {
+    // 0. Inteligencia Artificial en Modo Demostración
+    if (GameState.isDemo) {
+        updateBotPaddle(dt);
+    }
+
     // 1. Mover la paleta
     if (GameState.paddle.targetX !== undefined) {
         const diff = GameState.paddle.targetX - GameState.paddle.x;
@@ -964,6 +1017,10 @@ function updateStep(dt) {
         GameState.ball.dy = Math.abs(GameState.ball.dy);
         audio.playWall();
     } else if (GameState.ball.y + BALL_RADIUS > CANVAS_HEIGHT) {
+        if (GameState.isDemo) {
+            resetBall();
+            return;
+        }
         // Pérdida de vida
         GameState.lives--;
         audio.playLifeLost();
@@ -1069,7 +1126,7 @@ function checkWin() {
         }
     }
     if (allDestroyed) {
-        audio.playLevelClear();
+        if (!GameState.isDemo) audio.playLevelClear();
         initBricks();
         GameState.ball.baseSpeed = Math.min(MAX_BALL_SPEED, (GameState.ball.baseSpeed || INITIAL_BALL_SPEED) + 20);
         GameState.ball.speed = GameState.ball.baseSpeed;
@@ -1189,6 +1246,15 @@ function updateUI() {
     scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(3, '0')}`;
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
     livesCountElement.textContent = GameState.lives;
+    if (playerNickElement) {
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = 'var(--amber)';
+        } else {
+            playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase().substring(0, 8)}`;
+            playerNickElement.style.color = '';
+        }
+    }
 }
 
 function getControlUrl() {
@@ -1204,14 +1270,17 @@ function getControlUrl() {
 function updateQrCode() {
     const controlUrl = getControlUrl();
     const qrContainer = document.getElementById('qrcode');
+    const cornerBadge = document.getElementById('corner-room-badge');
+    if (cornerBadge) cornerBadge.textContent = `SALA: ${GameState.roomId}`;
+
     if (qrContainer) {
         qrContainer.innerHTML = '';
         try {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 160,
-                    height: 160,
+                    width: 100,
+                    height: 100,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
                     correctLevel: QRCode.CorrectLevel.M
@@ -1221,12 +1290,12 @@ function updateQrCode() {
             }
         } catch (e) {
             console.warn('QRCode error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(controlUrl)}&margin=4`;
         }
     }
 }
@@ -1292,27 +1361,48 @@ function startAttractMode() {
     stopAttractMode();
     const qrPanel = document.getElementById('waiting-qr-panel');
     const rankingPanel = document.getElementById('waiting-ranking-panel');
-    if (!qrPanel || !rankingPanel) return;
 
     fetchRanking();
 
+    // Activar Demo Gameplay en Canvas
+    GameState.isDemo = true;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.paused = false;
+    GameState.score = 0;
+    GameState.lives = 3;
+    GameState.currentNickname = 'DEMO';
+    GameState.ball.baseSpeed = INITIAL_BALL_SPEED;
+    GameState.ball.speed = INITIAL_BALL_SPEED;
+    GameState.paddle.x = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    GameState.paddle.targetX = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    GameState.paddle.dx = 0;
+    initBricks();
+    resetBall();
+    updateUI();
+
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+    if (rankingPanel) rankingPanel.classList.add('hidden');
+    attractModeState = 'qr';
+
     attractModeInterval = setInterval(() => {
-        if (!waitingOverlay || waitingOverlay.classList.contains('hidden')) {
+        if (!waitingOverlay || waitingOverlay.classList.contains('hidden') || !GameState.isDemo) {
             stopAttractMode();
             return;
         }
 
         if (attractModeState === 'qr') {
             attractModeState = 'ranking';
-            qrPanel.classList.add('hidden');
-            rankingPanel.classList.remove('hidden');
+            if (qrPanel) qrPanel.classList.add('hidden');
+            if (rankingPanel) rankingPanel.classList.remove('hidden');
             fetchRanking();
         } else {
             attractModeState = 'qr';
-            rankingPanel.classList.add('hidden');
-            qrPanel.classList.remove('hidden');
+            if (rankingPanel) rankingPanel.classList.add('hidden');
+            if (qrPanel) qrPanel.classList.remove('hidden');
         }
-    }, 10000);
+    }, 12000);
 }
 
 function stopAttractMode() {
@@ -1320,6 +1410,8 @@ function stopAttractMode() {
         clearInterval(attractModeInterval);
         attractModeInterval = null;
     }
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
 }
 
 function submitScore(nickname, score) {
@@ -1565,7 +1657,7 @@ window.addEventListener('keydown', (e) => {
         GameState.paddle.dx = GameState.paddle.speed;
     }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter') {
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
             playPreGameAdThenStart('PILOT', () => resetGame());
         } else {
             handleJoystickInput({ fire: true });
@@ -1580,7 +1672,7 @@ window.addEventListener('keyup', (e) => {
 
 mainScreen.addEventListener('click', () => {
     audio.init();
-    if (!GameState.running || GameState.gameOver) {
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
         playPreGameAdThenStart('PILOT', () => resetGame());
     }
 });
