@@ -945,19 +945,22 @@ function updateBotPaddle(dt) {
     let targetX = GameState.ball.x - PADDLE_WIDTH / 2;
     if (GameState.ball.dy > 0) {
         const timeToPaddle = (GameState.paddle.y - GameState.ball.y) / GameState.ball.dy;
-        if (timeToPaddle > 0 && timeToPaddle < 2.5) {
+        if (timeToPaddle > 0 && timeToPaddle < 3.0) {
             let predictedX = GameState.ball.x + GameState.ball.dx * timeToPaddle;
-            while (predictedX < BALL_RADIUS || predictedX > CANVAS_WIDTH - BALL_RADIUS) {
+            let bounces = 0;
+            while ((predictedX < BALL_RADIUS || predictedX > CANVAS_WIDTH - BALL_RADIUS) && bounces < 6) {
                 if (predictedX < BALL_RADIUS) {
                     predictedX = 2 * BALL_RADIUS - predictedX;
                 } else if (predictedX > CANVAS_WIDTH - BALL_RADIUS) {
                     predictedX = 2 * (CANVAS_WIDTH - BALL_RADIUS) - predictedX;
                 }
+                bounces++;
             }
-            const humanDrift = Math.sin(Date.now() / 500) * 8;
+            const humanDrift = Math.sin(Date.now() / 450) * 6;
             targetX = predictedX - PADDLE_WIDTH / 2 + humanDrift;
         }
     } else {
+        // En ascenso, la paleta acompaña suavemente la trayectoria horizontal de la bola
         targetX = GameState.ball.x - PADDLE_WIDTH / 2;
     }
 
@@ -966,6 +969,20 @@ function updateBotPaddle(dt) {
 }
 
 function updateStep(dt) {
+    // Asegurar ladrillos inicializados
+    if (!GameState.bricks || !Array.isArray(GameState.bricks) || GameState.bricks.length < BRICK_COLUMN_COUNT) {
+        initBricks();
+    }
+
+    // Sanidad numérica de coordenadas
+    if (isNaN(GameState.paddle.x)) GameState.paddle.x = (CANVAS_WIDTH - PADDLE_WIDTH) / 2;
+    if (isNaN(GameState.paddle.y)) GameState.paddle.y = CANVAS_HEIGHT - PADDLE_HEIGHT - 5;
+    if (isNaN(GameState.ball.x)) GameState.ball.x = CANVAS_WIDTH / 2;
+    if (isNaN(GameState.ball.y)) GameState.ball.y = CANVAS_HEIGHT - PADDLE_HEIGHT - 10;
+    if (isNaN(GameState.ball.dx)) GameState.ball.dx = 0;
+    if (isNaN(GameState.ball.dy)) GameState.ball.dy = 0;
+    if (isNaN(GameState.ball.speed) || GameState.ball.speed <= 0) GameState.ball.speed = INITIAL_BALL_SPEED;
+
     // 0. Inteligencia Artificial en Modo Demostración
     if (GameState.isDemo) {
         updateBotPaddle(dt);
@@ -1017,6 +1034,7 @@ function updateStep(dt) {
     } else if (GameState.ball.y + BALL_RADIUS > CANVAS_HEIGHT) {
         if (GameState.isDemo) {
             resetBall();
+            GameState._demoLaunchTimer = Date.now();
             return;
         }
         // Pérdida de vida
@@ -1055,9 +1073,10 @@ function updateStep(dt) {
     // Colisión con ladrillos (detección de impacto lateral vs frontal + aceleración progresiva)
     let brickHit = false;
     for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+        if (!GameState.bricks[c]) continue;
         for (let r = 0; r < BRICK_ROW_COUNT; r++) {
             const b = GameState.bricks[c][r];
-            if (b.status === 1) {
+            if (b && b.status === 1) {
                 const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
                 const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
                 
@@ -1114,14 +1133,20 @@ function update(dt) {
 }
 
 function checkWin() {
+    if (!GameState.bricks || !Array.isArray(GameState.bricks)) {
+        initBricks();
+        return;
+    }
     let allDestroyed = true;
     for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+        if (!GameState.bricks[c]) continue;
         for (let r = 0; r < BRICK_ROW_COUNT; r++) {
-            if (GameState.bricks[c][r].status === 1) {
+            if (GameState.bricks[c][r] && GameState.bricks[c][r].status === 1) {
                 allDestroyed = false;
                 break;
             }
         }
+        if (!allDestroyed) break;
     }
     if (allDestroyed) {
         if (!GameState.isDemo) audio.playLevelClear();
@@ -1133,12 +1158,14 @@ function checkWin() {
 }
 
 function draw() {
+    if (!ctx) return;
+
     // Fondo de pantalla CRT oscuro
     ctx.fillStyle = '#0d0e15';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Asegurar ladrillos inicializados
-    if (!GameState.bricks || GameState.bricks.length === 0) {
+    if (!GameState.bricks || !Array.isArray(GameState.bricks) || GameState.bricks.length < BRICK_COLUMN_COUNT) {
         initBricks();
     }
 
@@ -1181,16 +1208,20 @@ function draw() {
         }
     }
 
-    // 2. Paleta neón
+    // 2. Paleta neón (garantizar coordenadas válidas)
+    const px = (isNaN(GameState.paddle.x) ? (CANVAS_WIDTH - PADDLE_WIDTH) / 2 : GameState.paddle.x);
+    const py = (isNaN(GameState.paddle.y) ? CANVAS_HEIGHT - PADDLE_HEIGHT - 5 : GameState.paddle.y);
     ctx.fillStyle = '#00f3ff';
-    ctx.fillRect(GameState.paddle.x, GameState.paddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
+    ctx.fillRect(px, py, PADDLE_WIDTH, PADDLE_HEIGHT);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(GameState.paddle.x, GameState.paddle.y, PADDLE_WIDTH, 2);
+    ctx.fillRect(px, py, PADDLE_WIDTH, 2);
 
-    // 3. Pelota brillante
+    // 3. Pelota brillante (garantizar coordenadas válidas)
+    const bx = (isNaN(GameState.ball.x) ? CANVAS_WIDTH / 2 : GameState.ball.x);
+    const by = (isNaN(GameState.ball.y) ? CANVAS_HEIGHT - PADDLE_HEIGHT - 10 : GameState.ball.y);
     ctx.fillStyle = '#ff00ea';
     ctx.beginPath();
-    ctx.arc(GameState.ball.x, GameState.ball.y, BALL_RADIUS, 0, Math.PI * 2);
+    ctx.arc(bx, by, BALL_RADIUS, 0, Math.PI * 2);
     ctx.fill();
 }
 
@@ -1201,9 +1232,14 @@ function gameLoop(timestamp) {
 
     try {
         update(dt);
+    } catch (err) {
+        console.error('[Arkanoid] update error:', err);
+    }
+
+    try {
         draw();
     } catch (err) {
-        console.error('[Arkanoid] gameLoop error:', err);
+        console.error('[Arkanoid] draw error:', err);
     }
 
     requestAnimationFrame(gameLoop);
@@ -1500,20 +1536,22 @@ setInterval(fetchRanking, 30000);
 requestAnimationFrame(gameLoop);
 connectSignalingServer();
 
-// Dimensiones de referencia de la consola arcade
-const ARCADE_NATURAL_W = 554;
-const ARCADE_NATURAL_H = 512;
+// Dimensiones de referencia de la consola arcade (Ancho 500px + 28px padding/bordes, Alto 426px + 62px header/footer/dots)
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
 
 // Auto-scale to fit browser window with high responsiveness
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
+    container.style.transform = 'none';
+
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
     if (!availableW || !availableH) return;
 
-    const padding = 12;
+    const padding = 8;
     const scaleX = (availableW - padding) / ARCADE_NATURAL_W;
     const scaleY = (availableH - padding) / ARCADE_NATURAL_H;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));

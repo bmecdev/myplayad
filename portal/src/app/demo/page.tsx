@@ -520,7 +520,8 @@ export default function VirtualKioskPage() {
       : DEFAULT_GAME_RANKINGS[selectedGameSlug] || DEFAULT_GAME_RANKINGS.circus;
 
   const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
-  const gameIframeSrc = getGameUrl(selectedGameSlug, screenIdForGame);
+  const gameBaseUrl = getGameUrl(selectedGameSlug, screenIdForGame);
+  const gameIframeSrc = `${gameBaseUrl}&v=37`;
 
   return (
     <div className="space-y-6 pb-12">
@@ -807,9 +808,9 @@ export default function VirtualKioskPage() {
             className={`relative flex items-center justify-center w-full h-full ${
               orientation === 'LANDSCAPE'
                 ? isFullscreen
-                  ? 'w-1/2'
-                  : 'w-full lg:w-1/2'
-                : 'h-1/2'
+                  ? 'flex-1 min-w-0 min-h-0 w-1/2'
+                  : 'flex-1 min-w-0 min-h-0 w-full lg:w-1/2'
+                : 'h-1/2 min-h-0'
             }`}
           >
             {isInitializing && (
@@ -867,14 +868,14 @@ export default function VirtualKioskPage() {
             className={`relative flex items-center justify-center w-full h-full ${
               orientation === 'LANDSCAPE'
                 ? isFullscreen
-                  ? 'w-1/2'
-                  : 'w-full lg:w-1/2'
-                : 'h-1/2'
+                  ? 'flex-1 min-w-0 min-h-0 w-1/2'
+                  : 'flex-1 min-w-0 min-h-0 w-full lg:w-1/2'
+                : 'h-1/2 min-h-0'
             }`}
           >
             <div
               className={`kiosk-bezel w-full h-full p-3 sm:p-4 lg:p-5 flex flex-col justify-between transition-all duration-300 ${
-                isFullscreen ? 'max-w-none max-h-full' : 'max-w-[850px] max-h-full'
+                isFullscreen ? 'max-w-none max-h-full' : 'max-w-none max-h-full'
               }`}
             >
               {/* Bezel Dots */}
