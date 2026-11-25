@@ -10,6 +10,7 @@ const displayDriver = document.getElementById('display-driver');
 const thanksResultText = document.getElementById('thanks-result-text');
 const adWaitingScreen = document.getElementById('ad-waiting-screen');
 const adPilotBadge = document.getElementById('ad-pilot-badge');
+const rotateScreen = document.getElementById('rotate-screen');
 
 // Elementos de Control Táctil
 const steerTrackpad = document.getElementById('steer-trackpad');
@@ -27,6 +28,7 @@ let currentRoomId = null;
 let nickname = 'DRIVER';
 let selectedDifficulty = 'normal';
 let pendingCandidates = [];
+let hasStarted = false;
 
 // Botones de Selector de Dificultad Móvil
 const mDiffEasy = document.getElementById('m-diff-easy');
@@ -239,6 +241,17 @@ window.addEventListener('load', () => {
     if (turnIp) localStorage.setItem('TURN_PUBLIC_IP', turnIp);
     if (turnUser) localStorage.setItem('TURN_USER', turnUser);
     if (turnPass) localStorage.setItem('TURN_PASS', turnPass);
+
+    if (nicknameInput) {
+        const validateNick = () => {
+            const val = nicknameInput.value.trim();
+            if (connectBtn) {
+                connectBtn.disabled = val.length < 2;
+            }
+        };
+        nicknameInput.addEventListener('input', validateNick);
+        validateNick();
+    }
 });
 
 connectBtn.addEventListener('click', () => {
@@ -252,6 +265,9 @@ connectBtn.addEventListener('click', () => {
     nickname = rawNick.toUpperCase().substring(0, 10);
     if (roomId) {
         currentRoomId = roomId;
+        hasStarted = true;
+        roomSelection.style.display = 'none';
+        updateOrientationView();
         connectSignaling(roomId);
     } else {
         alert('Por favor, ingresa el código de sala');
@@ -350,6 +366,8 @@ function connectSignaling(roomId) {
             const isChannelOpen = dataChannel && dataChannel.readyState === 'open';
             if (isAdWaiting || isChannelOpen) return;
             if (thanksScreen.style.display === 'none' || thanksScreen.style.display === '') {
+                hasStarted = false;
+                if (rotateScreen) rotateScreen.style.display = 'none';
                 roomSelection.style.display = 'block';
                 controllerContainer.style.display = 'none';
             }
@@ -379,7 +397,7 @@ async function startWebRTC() {
         if (adWaitingScreen) adWaitingScreen.style.display = 'none';
         status.textContent = 'EN PISTA';
         status.style.color = '#3dff8a';
-        if (controllerContainer) controllerContainer.style.display = 'flex';
+        updateOrientationView();
         dataChannel.send(JSON.stringify({ 
             type: 'join', 
             nickname: nickname, 
@@ -400,6 +418,7 @@ async function startWebRTC() {
             if (data.type === 'ad_playing') {
                 status.textContent = '';
                 roomSelection.style.display = 'none';
+                if (rotateScreen) rotateScreen.style.display = 'none';
                 if (adWaitingScreen) {
                     adWaitingScreen.style.display = 'flex';
                     if (adPilotBadge && (data.nickname || nickname)) {
@@ -412,7 +431,7 @@ async function startWebRTC() {
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
                 roomSelection.style.display = 'none';
-                if (controllerContainer) controllerContainer.style.display = 'flex';
+                updateOrientationView();
                 vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
                 showThanks(data.score, data.checkpoints, data.won, data.goal);
@@ -434,6 +453,8 @@ async function startWebRTC() {
     dataChannel.onclose = () => {
         const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
         if (isAdWaiting) return;
+        hasStarted = false;
+        if (rotateScreen) rotateScreen.style.display = 'none';
         status.textContent = 'DESCONECTADO';
         status.style.color = 'orange';
         if (thanksScreen.style.display === 'none') {
@@ -456,6 +477,8 @@ async function startWebRTC() {
         const state = pc.connectionState;
         const isAdWaiting = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
         if (state === 'failed' || (state === 'disconnected' && !isAdWaiting)) {
+            hasStarted = false;
+            if (rotateScreen) rotateScreen.style.display = 'none';
             status.textContent = 'DESCONECTADO';
             status.style.color = 'orange';
             if (thanksScreen.style.display === 'none') {
@@ -494,6 +517,8 @@ function sendInputData(immediate = false) {
 
 function showThanks(finalScore = 0, checkpoints = 0, won = false, goal = null) {
     if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'outrun');
+    hasStarted = false;
+    if (rotateScreen) rotateScreen.style.display = 'none';
     controllerContainer.style.display = 'none';
     roomSelection.style.display = 'none';
     thanksScreen.style.display = 'block';
@@ -522,6 +547,82 @@ function showThanks(finalScore = 0, checkpoints = 0, won = false, goal = null) {
     if (pc) pc.close();
     if (socket) socket.close();
 }
+
+// ==========================================
+// 🔄 Control de Orientación Horizontal (Landscape)
+// ==========================================
+function isPortraitMode() {
+    // 1. Orientación física de hardware (Screen Orientation API moderna)
+    if (window.screen && window.screen.orientation && typeof window.screen.orientation.type === 'string') {
+        if (window.screen.orientation.type.startsWith('portrait')) return true;
+        if (window.screen.orientation.type.startsWith('landscape')) return false;
+    }
+
+    // 2. window.orientation tradicional (Safari iOS y WebViews de Android)
+    if (typeof window.orientation === 'number') {
+        if (window.orientation === 0 || window.orientation === 180) return true;
+        if (window.orientation === 90 || window.orientation === -90) return false;
+    }
+
+    // 3. MatchMedia CSS en tiempo real
+    if (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) {
+        return true;
+    }
+
+    // 4. Fallback por proporción de dimensiones
+    return window.innerHeight > window.innerWidth;
+}
+
+function updateOrientationView() {
+    if (thanksScreen && (thanksScreen.style.display === 'block' || thanksScreen.style.display === 'flex')) {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    const isAdPlaying = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
+    if (isAdPlaying) {
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        return;
+    }
+
+    const inPortrait = isPortraitMode();
+
+    if (hasStarted) {
+        if (inPortrait) {
+            // El usuario ya ingresó nombre pero sostiene el celular en vertical:
+            // Mostrar ÚNICAMENTE el aviso animado en pantalla completa pidiendo girar
+            if (rotateScreen) rotateScreen.style.display = 'flex';
+            if (controllerContainer) controllerContainer.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+        } else {
+            // El usuario puso el celular en horizontal: ocultar aviso y mostrar mandos
+            if (rotateScreen) rotateScreen.style.display = 'none';
+            if (roomSelection) roomSelection.style.display = 'none';
+            if (controllerContainer) controllerContainer.style.display = 'flex';
+        }
+    } else {
+        // Pantalla inicial de bienvenida y nickname
+        if (rotateScreen) rotateScreen.style.display = 'none';
+        if (roomSelection) roomSelection.style.display = 'block';
+        if (controllerContainer) controllerContainer.style.display = 'none';
+    }
+}
+
+window.addEventListener('orientationchange', () => {
+    setTimeout(updateOrientationView, 120);
+});
+if (window.screen && window.screen.orientation) {
+    try {
+        window.screen.orientation.addEventListener('change', () => {
+            setTimeout(updateOrientationView, 100);
+        });
+    } catch (_) {}
+}
+window.addEventListener('resize', () => {
+    if (hasStarted) {
+        setTimeout(updateOrientationView, 150);
+    }
+});
 
 // Control del Volante / Trackpad de Dirección
 let trackpadRect = null;
