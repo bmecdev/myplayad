@@ -1380,6 +1380,14 @@ function startAttractMode() {
     GameState.paddle.dx = 0;
     initBricks();
     resetBall();
+
+    // Lanzar inmediatamente la pelota en demo para que el gameplay se vea activo desde el primer frame
+    GameState.ball.launched = true;
+    const angleDir = Math.random() > 0.5 ? 1 : -1;
+    const angleRad = angleDir * (Math.PI / 6 + Math.random() * (Math.PI / 8));
+    GameState.ball.dx = Math.sin(angleRad) * GameState.ball.speed;
+    GameState.ball.dy = -Math.cos(angleRad) * GameState.ball.speed;
+
     updateUI();
 
     if (waitingOverlay) waitingOverlay.classList.remove('hidden');
@@ -1492,27 +1500,22 @@ setInterval(fetchRanking, 30000);
 requestAnimationFrame(gameLoop);
 connectSignalingServer();
 
-let cachedNaturalW = 0;
-let cachedNaturalH = 0;
+// Dimensiones de referencia de la consola arcade
+const ARCADE_NATURAL_W = 554;
+const ARCADE_NATURAL_H = 512;
 
 // Auto-scale to fit browser window with high responsiveness
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    if (!cachedNaturalW || !cachedNaturalH) {
-        container.style.transform = 'none';
-        cachedNaturalW = container.offsetWidth || 554;
-        cachedNaturalH = container.offsetHeight || 510;
-    }
-
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
     if (!availableW || !availableH) return;
 
-    const padding = 8;
-    const scaleX = (availableW - padding) / cachedNaturalW;
-    const scaleY = (availableH - padding) / cachedNaturalH;
+    const padding = 12;
+    const scaleX = (availableW - padding) / ARCADE_NATURAL_W;
+    const scaleY = (availableH - padding) / ARCADE_NATURAL_H;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
 
     container.style.transform = `scale(${scale})`;
@@ -1558,8 +1561,6 @@ window.addEventListener('resize', autoScale);
 document.addEventListener('fullscreenchange', autoScale);
 document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
-    cachedNaturalW = 0;
-    cachedNaturalH = 0;
     updateQrCode();
     autoScale();
     if (!GameState.running && !GameState.isDemo) {
@@ -1568,8 +1569,6 @@ window.addEventListener('load', () => {
 });
 if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => {
-        cachedNaturalW = 0;
-        cachedNaturalH = 0;
         autoScale();
     });
 }
