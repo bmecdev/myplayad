@@ -37,9 +37,9 @@ body {
 /* Consola Bezel */
 .console-bezel {
     background: linear-gradient(180deg, #18231d, #0d1512);
-    padding: 16px 18px 8px 18px;
-    border-radius: 20px;
-    border: 4px solid #2b4536;
+    padding: 10px 14px 6px 14px;
+    border-radius: 18px;
+    border: 3px solid #2b4536;
     box-shadow: 0 0 0 2px #060a08, 0 10px 25px rgba(0,0,0,.7), inset 0 0 15px rgba(61,255,138,.06);
     position: relative;
     user-select: none;
@@ -52,17 +52,17 @@ body {
     text-align: right;
     color: #2b4536;
     font-family: 'Press Start 2P', monospace;
-    font-size: 8px;
-    letter-spacing: 6px;
-    padding: 0 6px 8px;
+    font-size: 7px;
+    letter-spacing: 5px;
+    padding: 0 4px 4px;
 }
 
 .lcd-screen {
     background: radial-gradient(ellipse at 50% 0%, #0e1a13 0%, #060b08 100%);
-    width: 440px;
-    height: 400px;
-    min-height: 400px;
-    padding: 8px 12px;
+    width: 500px;
+    height: 426px;
+    min-height: 426px;
+    padding: 6px 10px;
     border: 3px solid #060a08;
     border-radius: 10px;
     position: relative;
@@ -193,8 +193,8 @@ body {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 400px;
-    height: 320px;
+    width: 480px;
+    height: 384px;
     contain: strict;
     transform: translateZ(0);
 }
@@ -235,18 +235,18 @@ body {
 /* Banner Superior de Demostración */
 .attract-banner {
     position: absolute;
-    top: 36px;
+    top: 30px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(10, 15, 13, 0.88);
     border: 1px solid var(--phosphor);
     border-radius: 6px;
-    padding: 4px 10px;
+    padding: 3px 8px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-family: 'Press Start 2P', monospace;
-    font-size: 7px;
+    font-size: 6px;
     color: var(--phosphor);
     box-shadow: 0 0 12px rgba(61, 255, 138, 0.35);
     z-index: 12;
@@ -272,18 +272,18 @@ body {
 /* Tarjeta QR en la Esquina (Modo Atracción) */
 .corner-qr-card {
     position: absolute;
-    bottom: 8px;
-    right: 8px;
-    width: 126px;
+    bottom: 6px;
+    right: 6px;
+    width: 88px;
     background: rgba(8, 15, 11, 0.92);
     border: 2px solid var(--phosphor);
-    border-radius: 12px;
-    box-shadow: 0 0 18px rgba(61, 255, 138, 0.35), inset 0 0 10px rgba(0, 0, 0, 0.85);
-    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 0 12px rgba(61, 255, 138, 0.3), inset 0 0 6px rgba(0, 0, 0, 0.85);
+    padding: 5px 4px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
     z-index: 15;
     pointer-events: auto;
     box-sizing: border-box;
@@ -300,32 +300,32 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     width: 100%;
 }
 
 .corner-qr-icon {
-    font-size: 11px;
+    font-size: 9px;
 }
 
 .corner-qr-title {
     font-family: 'Press Start 2P', monospace;
-    font-size: 7px;
+    font-size: 6px;
     color: var(--phosphor);
-    letter-spacing: 0.5px;
+    letter-spacing: 0.2px;
     white-space: nowrap;
 }
 
 .corner-qr-wrapper {
     background: #ffffff;
-    padding: 4px;
-    border-radius: 6px;
+    padding: 3px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 8px rgba(61, 255, 138, 0.5);
-    width: 108px;
-    height: 108px;
+    box-shadow: 0 0 6px rgba(61, 255, 138, 0.4);
+    width: 74px;
+    height: 74px;
     box-sizing: border-box;
 }
 
@@ -337,8 +337,8 @@ body {
 
 .corner-qr-wrapper #qrcode canvas,
 .corner-qr-wrapper #qrcode img {
-    width: 100px !important;
-    height: 100px !important;
+    width: 68px !important;
+    height: 68px !important;
     display: block;
 }
 
@@ -346,30 +346,30 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     width: 100%;
 }
 
 .corner-room-badge {
     font-family: 'Press Start 2P', monospace;
-    font-size: 7px;
+    font-size: 6px;
     color: var(--amber);
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     text-shadow: 0 0 6px rgba(255, 183, 3, 0.5);
 }
 
 .corner-buttons {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     justify-content: center;
     width: 100%;
 }
 
 .corner-btn {
     font-family: 'Press Start 2P', monospace;
-    font-size: 6px;
-    padding: 4px 6px;
-    border-radius: 4px;
+    font-size: 5px;
+    padding: 3px 4px;
+    border-radius: 3px;
     cursor: pointer;
     border: 1px solid;
     transition: all 0.15s ease;
@@ -401,7 +401,7 @@ body {
 /* Ranking dentro de la tarjeta de esquina */
 .corner-ranking-content {
     width: 100%;
-    min-height: 108px;
+    min-height: 74px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -414,10 +414,10 @@ body {
     margin: 0;
     width: 100%;
     font-family: 'Press Start 2P', monospace;
-    font-size: 6px;
+    font-size: 5px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
 }
 
 .corner-ranking-list li {

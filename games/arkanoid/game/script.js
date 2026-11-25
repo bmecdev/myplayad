@@ -1279,8 +1279,8 @@ function updateQrCode() {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 100,
-                    height: 100,
+                    width: 68,
+                    height: 68,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
                     correctLevel: QRCode.CorrectLevel.M
@@ -1290,12 +1290,12 @@ function updateQrCode() {
             }
         } catch (e) {
             console.warn('QRCode error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=68x68&data=${encodeURIComponent(controlUrl)}&margin=3" alt="QR" style="width: 68px; height: 68px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(controlUrl)}&margin=4`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=68x68&data=${encodeURIComponent(controlUrl)}&margin=3`;
         }
     }
 }
@@ -1519,14 +1519,15 @@ function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    const naturalW = 476;
-    const naturalH = 444;
+    container.style.transform = 'none';
+    const naturalW = container.offsetWidth || 532;
+    const naturalH = container.offsetHeight || 460;
 
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
     if (!availableW || !availableH) return;
 
-    const padding = 20;
+    const padding = 8;
     const scaleX = (availableW - padding) / naturalW;
     const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
