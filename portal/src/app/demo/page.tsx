@@ -432,11 +432,32 @@ export default function VirtualKioskPage() {
 
   // Fullscreen listener
   useEffect(() => {
-    const handleFsChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+    const sendRescale = () => {
+      if (iframeRef.current?.contentWindow) {
+        try {
+          iframeRef.current.contentWindow.postMessage({ type: 'RESCALE' }, '*');
+        } catch (_) {}
+      }
     };
+
+    const handleFsChange = () => {
+      const fs = Boolean(document.fullscreenElement);
+      setIsFullscreen(fs);
+      // Notificar al iframe del juego arcade en múltiples ráfagas para sincronizar con la transición de tamaño
+      [0, 50, 150, 300, 500, 800, 1200].forEach((delay) => {
+        setTimeout(sendRescale, delay);
+      });
+    };
+
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    window.addEventListener('resize', sendRescale);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      window.removeEventListener('resize', sendRescale);
+    };
   }, []);
 
   // Al cambiar de juego, reiniciar rankingData y solicitar ranking actualizado al iframe
@@ -775,15 +796,21 @@ export default function VirtualKioskPage() {
         <div
           className={`relative transition-all duration-300 ${
             orientation === 'LANDSCAPE'
-              ? 'w-full max-w-[1200px] h-[480px] sm:h-[580px] lg:h-[650px] flex flex-col lg:flex-row gap-4 items-center justify-center'
-              : 'w-full max-w-[480px] h-[820px] sm:h-[920px] flex flex-col gap-4 items-center justify-center'
+              ? isFullscreen
+                ? 'w-full h-full flex flex-row gap-4 lg:gap-8 items-center justify-center p-2'
+                : 'w-full max-w-[1200px] h-[480px] sm:h-[580px] lg:h-[650px] flex flex-col lg:flex-row gap-4 items-center justify-center'
+              : isFullscreen
+                ? 'w-full h-full max-w-[650px] flex flex-col gap-4 items-center justify-center p-2'
+                : 'w-full max-w-[480px] h-[820px] sm:h-[920px] flex flex-col gap-4 items-center justify-center'
           }`}
         >
           {/* SECCIÓN JUEGO ARCADE (IFRAME RETRO CONSOLA) */}
           <div
             className={`relative flex items-center justify-center ${
               orientation === 'LANDSCAPE'
-                ? 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
+                ? isFullscreen
+                  ? 'w-1/2 h-full'
+                  : 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
                 : 'w-full h-1/2'
             }`}
           >
@@ -841,11 +868,17 @@ export default function VirtualKioskPage() {
           <div
             className={`relative flex items-center justify-center ${
               orientation === 'LANDSCAPE'
-                ? 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
+                ? isFullscreen
+                  ? 'w-1/2 h-full'
+                  : 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
                 : 'w-full h-1/2'
             }`}
           >
-            <div className="kiosk-bezel w-full h-full max-w-[500px] max-h-[500px] p-3 sm:p-4 flex flex-col justify-between">
+            <div
+              className={`kiosk-bezel w-full h-full p-3 sm:p-4 flex flex-col justify-between transition-all duration-300 ${
+                isFullscreen ? 'max-w-none max-h-none' : 'max-w-[500px] max-h-[500px]'
+              }`}
+            >
               {/* Bezel Dots */}
               <div className="text-right text-[8px] text-[#2b4536] tracking-[6px] font-arcade pr-1 select-none">
                 ● ● ●

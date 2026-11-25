@@ -1535,6 +1535,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // Multi-stage event bindings to ensure accurate dimensions
 window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
     updateQrCode();
     autoScale();
