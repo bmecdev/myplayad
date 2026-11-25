@@ -289,7 +289,7 @@ body {
     box-sizing: border-box;
     cursor: pointer;
     backdrop-filter: blur(4px);
-    opacity: 0.8;
+    opacity: 0.65;
     transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
 }
 
