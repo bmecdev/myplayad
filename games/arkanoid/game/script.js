@@ -1279,23 +1279,23 @@ function updateQrCode() {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 68,
-                    height: 68,
+                    width: 200,
+                    height: 200,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.M
+                    correctLevel: QRCode.CorrectLevel.L
                 });
             } else {
                 throw new Error('QRCode not loaded');
             }
         } catch (e) {
             console.warn('QRCode error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=68x68&data=${encodeURIComponent(controlUrl)}&margin=3" alt="QR" style="width: 68px; height: 68px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=68x68&data=${encodeURIComponent(controlUrl)}&margin=3`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4`;
         }
     }
 }

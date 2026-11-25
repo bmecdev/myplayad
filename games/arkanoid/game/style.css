@@ -273,13 +273,13 @@ body {
 /* Solo Código QR en la Esquina (Modo Atracción) */
 .corner-qr-card {
     position: absolute;
-    bottom: 6px;
-    right: 6px;
-    background: rgba(8, 15, 11, 0.92);
+    bottom: 8px;
+    right: 8px;
+    background: rgba(8, 15, 11, 0.94);
     border: 2px solid var(--phosphor);
-    border-radius: 8px;
-    box-shadow: 0 0 12px rgba(61, 255, 138, 0.35), inset 0 0 6px rgba(0, 0, 0, 0.85);
-    padding: 4px;
+    border-radius: 10px;
+    box-shadow: 0 0 16px rgba(61, 255, 138, 0.4), inset 0 0 8px rgba(0, 0, 0, 0.85);
+    padding: 5px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -293,8 +293,8 @@ body {
 }
 
 .corner-qr-card:hover {
-    transform: scale(1.04);
-    box-shadow: 0 0 18px rgba(61, 255, 138, 0.55);
+    transform: scale(1.05);
+    box-shadow: 0 0 22px rgba(61, 255, 138, 0.65);
 }
 
 .corner-qr-card.hidden {
@@ -303,14 +303,14 @@ body {
 
 .corner-qr-wrapper {
     background: #ffffff;
-    padding: 3px;
-    border-radius: 4px;
+    padding: 6px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 6px rgba(61, 255, 138, 0.4);
-    width: 74px;
-    height: 74px;
+    box-shadow: 0 0 8px rgba(61, 255, 138, 0.45);
+    width: 112px;
+    height: 112px;
     box-sizing: border-box;
 }
 
@@ -322,9 +322,11 @@ body {
 
 .corner-qr-wrapper #qrcode canvas,
 .corner-qr-wrapper #qrcode img {
-    width: 68px !important;
-    height: 68px !important;
+    width: 100px !important;
+    height: 100px !important;
     display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }
 
 #ad-video-overlay {
