@@ -1486,22 +1486,27 @@ setInterval(fetchRanking, 30000);
 requestAnimationFrame(gameLoop);
 connectSignalingServer();
 
+let cachedNaturalW = 0;
+let cachedNaturalH = 0;
+
 // Auto-scale to fit browser window with high responsiveness
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 532;
-    const naturalH = container.offsetHeight || 460;
+    if (!cachedNaturalW || !cachedNaturalH) {
+        container.style.transform = 'none';
+        cachedNaturalW = container.offsetWidth || 554;
+        cachedNaturalH = container.offsetHeight || 510;
+    }
 
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
     if (!availableW || !availableH) return;
 
     const padding = 8;
-    const scaleX = (availableW - padding) / naturalW;
-    const scaleY = (availableH - padding) / naturalH;
+    const scaleX = (availableW - padding) / cachedNaturalW;
+    const scaleY = (availableH - padding) / cachedNaturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
 
     container.style.transform = `scale(${scale})`;
@@ -1538,11 +1543,17 @@ window.addEventListener('resize', autoScale);
 document.addEventListener('fullscreenchange', autoScale);
 document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
+    cachedNaturalW = 0;
+    cachedNaturalH = 0;
     updateQrCode();
     autoScale();
 });
 if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(autoScale);
+    document.fonts.ready.then(() => {
+        cachedNaturalW = 0;
+        cachedNaturalH = 0;
+        autoScale();
+    });
 }
 
 // Observe document body changes

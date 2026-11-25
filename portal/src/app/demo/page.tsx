@@ -753,8 +753,8 @@ export default function VirtualKioskPage() {
         ref={stageRef}
         className={`w-full relative transition-all duration-300 flex items-center justify-center ${
           isFullscreen
-            ? 'fixed inset-0 z-50 bg-[#060a08] p-4 h-screen w-screen'
-            : 'bg-[#060a08]/90 p-4 sm:p-6 rounded-3xl border-4 border-[#1f3327] shadow-[0_0_80px_rgba(0,0,0,0.9)]'
+            ? 'fixed inset-0 z-50 bg-[#060a08] p-2 sm:p-4 lg:p-6 h-screen w-screen overflow-hidden'
+            : 'bg-[#060a08]/90 p-3 sm:p-4 md:p-6 rounded-3xl border-4 border-[#1f3327] shadow-[0_0_80px_rgba(0,0,0,0.9)] w-full min-h-[520px] h-[78vh] lg:h-[84vh] max-h-[960px]'
         }`}
       >
         {/* Barra Flotante Mínima en Pantalla Completa (Auto-ocultable o sutil en TV) */}
@@ -794,24 +794,22 @@ export default function VirtualKioskPage() {
 
         {/* Contenedor Kiosco según Orientación */}
         <div
-          className={`relative transition-all duration-300 ${
+          className={`relative w-full h-full transition-all duration-300 ${
             orientation === 'LANDSCAPE'
               ? isFullscreen
-                ? 'w-full h-full flex flex-row gap-4 lg:gap-8 items-center justify-center p-2'
-                : 'w-full max-w-[1200px] h-[480px] sm:h-[580px] lg:h-[650px] flex flex-col lg:flex-row gap-4 items-center justify-center'
-              : isFullscreen
-                ? 'w-full h-full max-w-[650px] flex flex-col gap-4 items-center justify-center p-2'
-                : 'w-full max-w-[480px] h-[820px] sm:h-[920px] flex flex-col gap-4 items-center justify-center'
+                ? 'flex flex-row gap-4 lg:gap-8 items-center justify-center max-w-none'
+                : 'flex flex-col lg:flex-row gap-4 lg:gap-6 items-center justify-center max-w-none'
+              : 'flex flex-col gap-4 items-center justify-center max-w-[700px]'
           }`}
         >
           {/* SECCIÓN JUEGO ARCADE (IFRAME RETRO CONSOLA) */}
           <div
-            className={`relative flex items-center justify-center ${
+            className={`relative flex items-center justify-center w-full h-full ${
               orientation === 'LANDSCAPE'
                 ? isFullscreen
-                  ? 'w-1/2 h-full'
-                  : 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
-                : 'w-full h-1/2'
+                  ? 'w-1/2'
+                  : 'w-full lg:w-1/2'
+                : 'h-1/2'
             }`}
           >
             {isInitializing && (
@@ -866,17 +864,17 @@ export default function VirtualKioskPage() {
 
           {/* SECCIÓN CANAL DE VIDEO PUBLICITARIO (BISEL RETRO CONSOLA) */}
           <div
-            className={`relative flex items-center justify-center ${
+            className={`relative flex items-center justify-center w-full h-full ${
               orientation === 'LANDSCAPE'
                 ? isFullscreen
-                  ? 'w-1/2 h-full'
-                  : 'w-full lg:w-1/2 h-[340px] sm:h-[420px] lg:h-full'
-                : 'w-full h-1/2'
+                  ? 'w-1/2'
+                  : 'w-full lg:w-1/2'
+                : 'h-1/2'
             }`}
           >
             <div
-              className={`kiosk-bezel w-full h-full p-3 sm:p-4 flex flex-col justify-between transition-all duration-300 ${
-                isFullscreen ? 'max-w-none max-h-none' : 'max-w-[500px] max-h-[500px]'
+              className={`kiosk-bezel w-full h-full p-3 sm:p-4 lg:p-5 flex flex-col justify-between transition-all duration-300 ${
+                isFullscreen ? 'max-w-none max-h-full' : 'max-w-[850px] max-h-full'
               }`}
             >
               {/* Bezel Dots */}
