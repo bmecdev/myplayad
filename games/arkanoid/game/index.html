@@ -6,7 +6,7 @@
     <title>Arkanoid Clon - Retro Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=14">
+    <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
     <div class="container">
@@ -67,43 +67,13 @@
                     <!-- Banner Superior de Modo Demostración -->
                     <div class="attract-banner">
                         <span class="attract-live-dot">●</span>
-                        <span class="attract-text">GAMEPLAY DEMO</span>
-                        <span class="attract-sep">|</span>
-                        <span class="attract-hint">ESCANEA PARA JUGAR</span>
+                        <span class="attract-text">ESCANEA Y JUEGA <span class="highlight">GRATIS</span></span>
                     </div>
 
-                    <!-- Tarjeta de Código QR en la Esquina -->
-                    <div class="corner-qr-card" id="waiting-qr-panel">
-                        <div class="corner-qr-header">
-                            <span class="corner-qr-icon">📱</span>
-                            <span class="corner-qr-title">ESCANEA Y JUEGA</span>
-                        </div>
+                    <!-- Solo Código QR en la Esquina -->
+                    <div class="corner-qr-card" id="waiting-qr-panel" title="Escanea para jugar o haz clic aquí">
                         <div class="corner-qr-wrapper">
                             <div id="qrcode"></div>
-                        </div>
-                        <div class="corner-qr-footer">
-                            <span id="corner-room-badge" class="corner-room-badge">SALA: ----</span>
-                            <div class="corner-buttons">
-                                <button id="instant-play-btn" class="corner-btn corner-btn-play" title="Probar con teclado">▶ TECLADO</button>
-                                <button id="toggle-hall-btn" class="corner-btn corner-btn-rank" title="Ver ranking">🏆 RANK</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Mini Panel Flotante de Ranking Alternativo en Esquina -->
-                    <div class="corner-qr-card hidden" id="waiting-ranking-panel">
-                        <div class="corner-qr-header">
-                            <span class="corner-qr-icon">🏆</span>
-                            <span class="corner-qr-title">HALL OF FAME</span>
-                        </div>
-                        <div class="corner-ranking-content">
-                            <ul id="standby-ranking-list" class="corner-ranking-list"></ul>
-                        </div>
-                        <div class="corner-qr-footer">
-                            <div class="corner-buttons">
-                                <button id="back-to-qr-btn" class="corner-btn corner-btn-play">📱 VER QR</button>
-                                <button id="instant-play-btn-2" class="corner-btn corner-btn-rank">▶ JUGAR</button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -120,6 +90,6 @@
     <!-- Scripts -->
     <script src="qrcode.min.js"></script>
     <script src="config.js?v=13"></script>
-    <script src="script.js?v=25"></script>
+    <script src="script.js?v=26"></script>
 </body>
 </html>

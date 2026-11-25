@@ -1354,13 +1354,9 @@ function fetchRanking() {
     }
 }
 
-let attractModeInterval = null;
-let attractModeState = 'qr';
-
 function startAttractMode() {
     stopAttractMode();
     const qrPanel = document.getElementById('waiting-qr-panel');
-    const rankingPanel = document.getElementById('waiting-ranking-panel');
 
     fetchRanking();
 
@@ -1383,33 +1379,9 @@ function startAttractMode() {
 
     if (waitingOverlay) waitingOverlay.classList.remove('hidden');
     if (qrPanel) qrPanel.classList.remove('hidden');
-    if (rankingPanel) rankingPanel.classList.add('hidden');
-    attractModeState = 'qr';
-
-    attractModeInterval = setInterval(() => {
-        if (!waitingOverlay || waitingOverlay.classList.contains('hidden') || !GameState.isDemo) {
-            stopAttractMode();
-            return;
-        }
-
-        if (attractModeState === 'qr') {
-            attractModeState = 'ranking';
-            if (qrPanel) qrPanel.classList.add('hidden');
-            if (rankingPanel) rankingPanel.classList.remove('hidden');
-            fetchRanking();
-        } else {
-            attractModeState = 'qr';
-            if (rankingPanel) rankingPanel.classList.add('hidden');
-            if (qrPanel) qrPanel.classList.remove('hidden');
-        }
-    }, 12000);
 }
 
 function stopAttractMode() {
-    if (attractModeInterval) {
-        clearInterval(attractModeInterval);
-        attractModeInterval = null;
-    }
     GameState.isDemo = false;
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
 }
@@ -1550,51 +1522,13 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const instantPlayBtn = document.getElementById('instant-play-btn');
-    const instantPlayBtn2 = document.getElementById('instant-play-btn-2');
-    const toggleHallBtn = document.getElementById('toggle-hall-btn');
-    const backToQrBtn = document.getElementById('back-to-qr-btn');
     const qrPanel = document.getElementById('waiting-qr-panel');
-    const rankingPanel = document.getElementById('waiting-ranking-panel');
-
-    if (instantPlayBtn) {
-        instantPlayBtn.addEventListener('click', (e) => {
+    if (qrPanel) {
+        qrPanel.addEventListener('click', (e) => {
             e.stopPropagation();
             stopAttractMode();
             audio.init();
             playPreGameAdThenStart('PILOT', () => resetGame());
-        });
-    }
-
-    if (instantPlayBtn2) {
-        instantPlayBtn2.addEventListener('click', (e) => {
-            e.stopPropagation();
-            stopAttractMode();
-            audio.init();
-            playPreGameAdThenStart('PILOT', () => resetGame());
-        });
-    }
-
-    if (toggleHallBtn) {
-        toggleHallBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (qrPanel && rankingPanel) {
-                attractModeState = 'ranking';
-                qrPanel.classList.add('hidden');
-                rankingPanel.classList.remove('hidden');
-                fetchRanking();
-            }
-        });
-    }
-
-    if (backToQrBtn) {
-        backToQrBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (qrPanel && rankingPanel) {
-                attractModeState = 'qr';
-                rankingPanel.classList.add('hidden');
-                qrPanel.classList.remove('hidden');
-            }
         });
     }
 });
