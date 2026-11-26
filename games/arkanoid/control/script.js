@@ -19,6 +19,51 @@ let currentScreenId = null;
 let nickname = 'Player';
 let pendingCandidates = [];
 let isAdPlaying = false;
+let hasLeftSession = false;
+
+function notifyControllerLeave() {
+    if (hasLeftSession) return;
+    if (!currentRoomId && !dataChannel && !socket) return;
+    hasLeftSession = true;
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
+    if (dataChannel && dataChannel.readyState === 'open') {
+        try { dataChannel.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
+    }
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: 'leave', roomId: currentRoomId })); } catch (_) {}
+    }
+    try { if (dataChannel) dataChannel.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
+    try { if (socket) socket.close(); } catch (_) {}
+}
+
+window.addEventListener('pagehide', notifyControllerLeave);
+window.addEventListener('beforeunload', notifyControllerLeave);
+
+let _hiddenLeaveTimer = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        if (_hiddenLeaveTimer) clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = setTimeout(() => {
+            if (document.visibilityState === 'hidden') {
+                notifyControllerLeave();
+                if (container) container.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                if (roomSelection && (!thanksScreen || thanksScreen.style.display === 'none' || thanksScreen.style.display === '')) {
+                    roomSelection.style.display = 'flex';
+                    if (status) {
+                        status.textContent = 'Sesión cerrada. Escanea el QR para volver a jugar.';
+                        status.style.color = '#ffb703';
+                    }
+                }
+            }
+        }, 3000);
+    } else if (_hiddenLeaveTimer) {
+        clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = null;
+    }
+});
 
 // Función para obtener configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -255,6 +300,7 @@ nicknameInput.addEventListener('keydown', (e) => {
 });
 
 function connectSignaling(roomId) {
+    hasLeftSession = false;
     if (typeof CONFIG === 'undefined') {
         console.error('ERR: config.js no cargó');
         return;
@@ -369,6 +415,12 @@ async function startWebRTC() {
         status.style.color = '#3dff8a';
         container.style.display = 'flex'; updateTrackpadDimensions(); dataChannel.send(JSON.stringify({ pos: currentSliderPos }));
         dataChannel.send(JSON.stringify({ type: 'nickname', value: nickname }));
+        if (window._dcKeepAlive) clearInterval(window._dcKeepAlive);
+        window._dcKeepAlive = setInterval(() => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                try { dataChannel.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+            }
+        }, 2000);
     };
 
     dataChannel.onmessage = (event) => {

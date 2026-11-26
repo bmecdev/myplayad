@@ -33,6 +33,23 @@ wss.on('connection', (ws) => {
                     try { ws.send(JSON.stringify({ type: 'pong' })); } catch (_) {}
                     return;
 
+                case 'leave':
+                    if (currentRoomId && rooms.has(currentRoomId) && currentRole === 'controller') {
+                        const leaveRoom = rooms.get(currentRoomId);
+                        leaveRoom.controllers.delete(currentPlayerId);
+                        console.log(`Controlador ${currentPlayerId} salió explícitamente de la sala ${currentRoomId}`);
+                        if (leaveRoom.host && leaveRoom.host.readyState === WebSocket.OPEN) {
+                            try {
+                                leaveRoom.host.send(JSON.stringify({
+                                    type: 'controller_disconnected',
+                                    playerId: currentPlayerId,
+                                    reason: 'leave'
+                                }));
+                            } catch (_) {}
+                        }
+                    }
+                    return;
+
                 case 'register':
                     const { roomId, role, maxPlayers } = data;
                     if (!roomId || !role) return;
@@ -175,7 +192,7 @@ const interval = setInterval(() => {
         ws.isAlive = false;
         ws.ping(noop);
     });
-}, 20000);
+}, 8000);
 
 wss.on('close', () => {
     clearInterval(interval);

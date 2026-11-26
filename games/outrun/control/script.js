@@ -30,6 +30,53 @@ let selectedDifficulty = 'normal';
 let pendingCandidates = [];
 let hasStarted = false;
 let isAdPlaying = false;
+let hasLeftSession = false;
+
+function notifyControllerLeave() {
+    if (hasLeftSession) return;
+    if (!currentRoomId && !dataChannel && !socket) return;
+    hasLeftSession = true;
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
+    if (dataChannel && dataChannel.readyState === 'open') {
+        try { dataChannel.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
+    }
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: 'leave', roomId: currentRoomId })); } catch (_) {}
+    }
+    try { if (dataChannel) dataChannel.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
+    try { if (socket) socket.close(); } catch (_) {}
+}
+
+window.addEventListener('pagehide', notifyControllerLeave);
+window.addEventListener('beforeunload', notifyControllerLeave);
+
+let _hiddenLeaveTimer = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        if (_hiddenLeaveTimer) clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = setTimeout(() => {
+            if (document.visibilityState === 'hidden' && (currentRoomId || dataChannel || socket)) {
+                notifyControllerLeave();
+                hasStarted = false;
+                if (rotateScreen) rotateScreen.style.display = 'none';
+                if (controllerContainer) controllerContainer.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                if (roomSelection && (!thanksScreen || thanksScreen.style.display === 'none' || thanksScreen.style.display === '')) {
+                    roomSelection.style.display = 'block';
+                    if (status) {
+                        status.textContent = 'Sesión cerrada. Escanea el QR para volver a jugar.';
+                        status.style.color = '#ffb703';
+                    }
+                }
+            }
+        }, 3000);
+    } else if (_hiddenLeaveTimer) {
+        clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = null;
+    }
+});
 
 // Botones de Selector de Dificultad Móvil
 const mDiffEasy = document.getElementById('m-diff-easy');
@@ -280,6 +327,7 @@ nicknameInput.addEventListener('keydown', (e) => {
 });
 
 function connectSignaling(roomId) {
+    hasLeftSession = false;
     if (typeof CONFIG === 'undefined') {
         console.error('config.js no cargado');
         return;
@@ -405,6 +453,12 @@ async function startWebRTC() {
             value: nickname, 
             difficulty: selectedDifficulty 
         }));
+        if (window._dcKeepAlive) clearInterval(window._dcKeepAlive);
+        window._dcKeepAlive = setInterval(() => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                try { dataChannel.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+            }
+        }, 2000);
     };
 
     dataChannel.onmessage = (event) => {

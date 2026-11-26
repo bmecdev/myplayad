@@ -29,6 +29,55 @@ let nickname = 'Charlie';
 let pendingCandidates = [];
 let hasStarted = false;
 let isAdPlaying = false;
+let hasLeftSession = false;
+
+function notifyControllerLeave() {
+    if (hasLeftSession) return;
+    if (!currentRoomId && !dataChannel && !socket) return;
+    hasLeftSession = true;
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
+    if (dataChannel && dataChannel.readyState === 'open') {
+        try { dataChannel.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
+    }
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: 'leave', roomId: currentRoomId })); } catch (_) {}
+    }
+    try { if (dataChannel) dataChannel.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
+    try { if (socket) socket.close(); } catch (_) {}
+}
+
+window.addEventListener('pagehide', notifyControllerLeave);
+window.addEventListener('beforeunload', notifyControllerLeave);
+
+let _hiddenLeaveTimer = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        if (_hiddenLeaveTimer) clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = setTimeout(() => {
+            if (document.visibilityState === 'hidden') {
+                const isConnected = hasStarted || isAdPlaying || (dataChannel && dataChannel.readyState === 'open') || (socket && socket.readyState === WebSocket.OPEN);
+                if (!isConnected) return;
+                notifyControllerLeave();
+                hasStarted = false;
+                if (rotateScreen) rotateScreen.style.display = 'none';
+                if (container) container.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                if (roomSelection && (!thanksScreen || thanksScreen.style.display === 'none' || thanksScreen.style.display === '')) {
+                    roomSelection.style.display = 'flex';
+                    if (status) {
+                        status.textContent = 'Sesión cerrada. Escanea el QR para volver a jugar.';
+                        status.style.color = '#ffb703';
+                    }
+                }
+            }
+        }, 3000);
+    } else if (_hiddenLeaveTimer) {
+        clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = null;
+    }
+});
 
 // ==========================================
 // 📡 Configuración ICE dinámica con TURN
@@ -123,6 +172,7 @@ const mobileAudio = new MobileAudio();
 // 📡 Conexión WebRTC P2P
 // ==========================================
 async function initConnection() {
+    hasLeftSession = false;
     status.textContent = 'CONECTANDO...';
 
     const serverIp = CONFIG.SIGNALING_SERVER_IP || window.location.hostname;
@@ -267,6 +317,12 @@ async function setupWebRTC() {
         status.style.color = '#3dff8a';
         updateOrientationView();
         dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+        if (window._dcKeepAlive) clearInterval(window._dcKeepAlive);
+        window._dcKeepAlive = setInterval(() => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                try { dataChannel.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+            }
+        }, 2000);
     };
 
     dataChannel.onmessage = (event) => {
@@ -333,6 +389,8 @@ async function setupWebRTC() {
 }
 
 function showThanks(finalScore) {
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
     if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(finalScore, 'circus');
     if (rotateScreen) rotateScreen.style.display = 'none';
     container.style.display = 'none';

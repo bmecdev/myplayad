@@ -684,7 +684,7 @@ const server = http.createServer((req, res) => {
                              ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
                              ext === '.svg' ? 'image/svg+xml' :
                              ext === '.json' ? 'application/json' : 'application/octet-stream';
-            res.writeHead(200, { 'Content-Type': mimeType });
+            res.writeHead(200, { 'Content-Type': mimeType, 'Cache-Control': 'no-cache, no-store, must-revalidate' });
             res.end(data);
         });
         return;
@@ -701,7 +701,7 @@ const server = http.createServer((req, res) => {
                 return;
             }
             const mimeType = file.endsWith('.css') ? 'text/css' : file.endsWith('.js') ? 'application/javascript' : 'text/html';
-            res.writeHead(200, { 'Content-Type': mimeType });
+            res.writeHead(200, { 'Content-Type': mimeType, 'Cache-Control': 'no-cache, no-store, must-revalidate' });
             res.end(data);
         });
         return;

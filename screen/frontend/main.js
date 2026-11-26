@@ -26,6 +26,8 @@ let upcomingGamesData = [];
 let activeOrientation = null;
 
 let cachedRanking = null;
+let isGameAdPlaying = false;
+let isGameSessionActive = false;
 
 function requestRankingFromGame() {
     if (gameFrame && gameFrame.contentWindow) {
@@ -262,7 +264,9 @@ videoPlayer.onended = () => {
         
         setTimeout(() => {
             videoRankingOverlay.classList.add('hidden');
-            playCurrentVideo();
+            if (!isGameAdPlaying) {
+                playCurrentVideo();
+            }
         }, 5000);
         return;
     }
@@ -274,7 +278,7 @@ videoPlayer.onended = () => {
 function getTargetGameUrl(slug) {
     const s = slug || new URLSearchParams(window.location.search).get('game') || 'outrun';
     currentGameSlug = s;
-    return `/games/${s}/?screenId=${screenId || ''}`;
+    return `/games/${s}/?screenId=${screenId || ''}&v=42`;
 }
 
 function loadGame(slug) {
@@ -285,6 +289,13 @@ function loadGame(slug) {
         gameFrame.src = targetUrl;
         gameFrame.onload = () => {
             requestRankingFromGame();
+            [50, 200, 600].forEach(delay => {
+                setTimeout(() => {
+                    if (gameFrame && gameFrame.contentWindow) {
+                        try { gameFrame.contentWindow.postMessage({ type: 'RESCALE' }, '*'); } catch (_) {}
+                    }
+                }, delay);
+            });
         };
     }
 }
@@ -523,7 +534,20 @@ async function checkSchedule() {
             const gameUrl = data.url || getTargetGameUrl('outrun');
             if (currentUrl !== gameUrl) {
                 currentUrl = gameUrl;
+                cachedRanking = null;
+                isGameAdPlaying = false;
+                isGameSessionActive = false;
                 gameFrame.src = gameUrl;
+                gameFrame.onload = () => {
+                    requestRankingFromGame();
+                    [50, 200, 600].forEach(delay => {
+                        setTimeout(() => {
+                            if (gameFrame && gameFrame.contentWindow) {
+                                try { gameFrame.contentWindow.postMessage({ type: 'RESCALE' }, '*'); } catch (_) {}
+                            }
+                        }, delay);
+                    });
+                };
             }
         } else if (data.type === 'standby' || !data.type) {
             // Si desasignaron o quitaron el juego programado, descargar el frame
@@ -585,16 +609,27 @@ window.addEventListener('message', async (event) => {
         }
     } else if (event.data.type === 'GAME_AD_START') {
         console.log('[screen] Minijuego inició video publicitario: pausando reproductor TV lateral');
-        if (videoPlayer && !videoPlayer.paused) {
+        isGameAdPlaying = true;
+        if (videoPlayer) {
             videoPlayer.pause();
+            videoPlayer.muted = true;
         }
     } else if (event.data.type === 'GAME_AD_END') {
         console.log('[screen] Minijuego terminó video publicitario: reanudando reproductor TV lateral');
+        isGameAdPlaying = false;
         const sleepOverlay = document.getElementById('sleep-overlay');
         const isSleeping = sleepOverlay && !sleepOverlay.classList.contains('hidden');
-        if (!isSleeping && videoPlayer && videoPlayer.paused && videoPlaylist.length > 0) {
-            videoPlayer.play().catch(e => console.warn('Error reanudando video lateral:', e));
+        if (!isSleeping && videoPlayer && videoPlaylist.length > 0) {
+            videoPlayer.muted = true;
+            if (videoPlayer.paused) {
+                videoPlayer.play().catch(e => console.warn('Error reanudando video lateral:', e));
+            }
         }
+    } else if (event.data.type === 'GAME_PLAY_START') {
+        isGameSessionActive = true;
+        if (videoPlayer) videoPlayer.muted = true;
+    } else if (event.data.type === 'GAME_PLAY_END') {
+        isGameSessionActive = false;
     } else if (event.data.type === 'FETCH_LOCAL_CACHE') {
         const sId = event.data.screenId || screenId;
         if (!sId) return;

@@ -210,8 +210,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     if (currentSchedule) {
       if (currentSchedule.game) {
+        const reqHost = request.headers.get('host') || '';
+        const isDevEnv = reqHost.includes('dev') || reqHost.includes('staging') || reqHost.includes('localhost');
+        const gamesBase = isDevEnv ? 'https://dev.myplayad.com' : 'https://games.myplayad.com';
         responseData.type = 'game';
-        responseData.url = `https://games.myplayad.com/${currentSchedule.game.slug}?screenId=${screenId}`;
+        responseData.url = `${gamesBase}/${currentSchedule.game.slug}/?screenId=${screenId}&v=42`;
         if (currentSchedule.rewardEnabled && currentSchedule.rewardTitle) {
           responseData.reward = {
             enabled: true,

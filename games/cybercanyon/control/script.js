@@ -23,6 +23,57 @@ let currentRoomId = null;
 let nickname = '';
 let pendingCandidates = [];
 let isAdPlaying = false;
+let hasLeftSession = false;
+
+function notifyControllerLeave() {
+    if (hasLeftSession) return;
+    if (!currentRoomId && !dataChannel && !socket) return;
+    hasLeftSession = true;
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
+    if (dataChannel && dataChannel.readyState === 'open') {
+        try { dataChannel.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
+    }
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: 'leave', roomId: currentRoomId })); } catch (_) {}
+    }
+    try { if (dataChannel) dataChannel.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
+    try { if (socket) socket.close(); } catch (_) {}
+}
+
+window.addEventListener('pagehide', notifyControllerLeave);
+window.addEventListener('beforeunload', notifyControllerLeave);
+
+let _hiddenLeaveTimer = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        if (_hiddenLeaveTimer) clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = setTimeout(() => {
+            if (document.visibilityState === 'hidden') {
+                const isConnected = isAdPlaying || (dataChannel && dataChannel.readyState === 'open') || (socket && socket.readyState === WebSocket.OPEN);
+                if (!isConnected) return;
+                notifyControllerLeave();
+                if (container) container.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                if (roomSelection && (!thanksScreen || thanksScreen.style.display === 'none' || thanksScreen.style.display === '')) {
+                    roomSelection.style.display = 'flex';
+                    if (connectBtn) {
+                        connectBtn.disabled = false;
+                        connectBtn.classList.remove('disabled');
+                    }
+                    if (status) {
+                        status.textContent = 'Sesión cerrada. Escanea el QR para volver a jugar.';
+                        status.style.color = '#ffb703';
+                    }
+                }
+            }
+        }, 3000);
+    } else if (_hiddenLeaveTimer) {
+        clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = null;
+    }
+});
 
 // Estado de control
 const flightState = {
@@ -89,6 +140,7 @@ async function connectToHost() {
     }
 
     nickname = rawNick.toUpperCase();
+    hasLeftSession = false;
     status.textContent = 'ENLAZANDO CON EL CAÑÓN...';
     connectBtn.disabled = true;
     connectBtn.classList.add('disabled');
@@ -190,6 +242,12 @@ async function initPeerConnection() {
         status.style.color = '#3dff8a';
         if (container) container.style.display = 'flex';
         dataChannel.send(JSON.stringify({ type: 'join', nickname: nickname, value: nickname }));
+        if (window._dcKeepAlive) clearInterval(window._dcKeepAlive);
+        window._dcKeepAlive = setInterval(() => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                try { dataChannel.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+            }
+        }, 2000);
     };
 
     dataChannel.onmessage = (event) => {
@@ -288,6 +346,8 @@ function showThanks(finalScore) {
     status.textContent = 'MISIÓN CONCLUIDA';
     haptic([100, 50, 150]);
 
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
     if (dataChannel) dataChannel.close();
     if (pc) pc.close();
     if (socket) socket.close();

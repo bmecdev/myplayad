@@ -781,13 +781,17 @@ function connectSignaling() {
                 stopAttractMode();
                 waitingOverlay.classList.add('hidden');
             } else if (data.type === 'controller_disconnected') {
-                const dc = dataChannels.get(data.playerId);
-                const pc = peerConnections.get(data.playerId);
-                if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
-                    console.log(`[signaling] Ignorando controller_disconnected para player ${data.playerId}: WebRTC sigue activo`);
+                if (data.reason === 'leave') {
+                    handleControllerDisconnect(data.playerId, true);
                     return;
                 }
-                handleControllerDisconnect(data.playerId);
+                const dc = dataChannels.get(data.playerId);
+                const recentlyActive = dc && dc.readyState === 'open' && dc._lastSeen && (Date.now() - dc._lastSeen < 5000);
+                if (recentlyActive && !GameState.adPlaying) {
+                    console.log(`[signaling] Ignorando controller_disconnected transitorio para player ${data.playerId}: DataChannel activo`);
+                    return;
+                }
+                handleControllerDisconnect(data.playerId, true);
             } else if (data.type === 'room_status') {
                 console.log(`Estado de sala: ${data.players.length}/${data.maxPlayers} jugadores.`);
             }
@@ -976,7 +980,35 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
             startGameCallback();
         };
 
+        const abortAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+            if (adHeartbeatInterval) clearInterval(adHeartbeatInterval);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
+
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+        };
+
         window._finishCurrentAd = finishAd;
+        window._abortCurrentAd = abortAd;
 
         adVideoPlayer.onended = finishAd;
         adVideoPlayer.onerror = (err) => {
@@ -1008,30 +1040,71 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
     };
 
     requestAdVideo().then((videoUrl) => {
+        if (!GameState.adPlaying || GameState.isDemo) return;
         startAdPlayback(videoUrl);
     });
 }
 
-function handleControllerDisconnect(playerId) {
-    if (GameState.adPlaying) {
-        console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
-        return;
-    }
+function handleControllerDisconnect(playerId, force = false) {
     const dc = dataChannels.get(playerId);
     const pc = peerConnections.get(playerId);
-    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
-        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: canal WebRTC sigue activo`);
+
+    if (!force && dc && dc.readyState === 'open') {
+        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: DataChannel sigue abierto`);
         return;
     }
+
     console.log(`Controlador ${playerId} desconectado.`);
-    if (pc) pc.close();
+    try { if (dc) dc.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    if (peerConnections.size === 0) {
+    if (peerConnections.size === 0 && !GameState.isDemo) {
+        // Cancelar cualquier publicidad pre-juego en curso y restaurar estado inicial con nuevo QR
+        if (typeof window._abortCurrentAd === 'function') {
+            window._abortCurrentAd();
+        } else if (GameState.adPlaying) {
+            if (adVideoOverlay) adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
+        }
+        if (typeof clearGameOverReturnTimer === 'function') clearGameOverReturnTimer();
+        if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+        // Generar nueva sala y código QR listo para el siguiente jugador
+        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const roomEl = document.getElementById('room-id');
+        if (roomEl) roomEl.textContent = `ROOM: ${GameState.roomId}`;
+        updateQrCode();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(JSON.stringify({
+                    type: 'register',
+                    role: 'host',
+                    roomId: GameState.roomId,
+                    maxPlayers: CONFIG.MAX_PLAYERS
+                }));
+            } catch (_) {}
+        }
         startAttractMode();
     }
 }
+
+// Watchdog de desconexión silenciosa (si el celular cierra/pierde señal sin avisar)
+setInterval(() => {
+    if (peerConnections.size === 0 || GameState.isDemo) return;
+    const now = Date.now();
+    for (const [playerId, dc] of Array.from(dataChannels.entries())) {
+        if (!dc || dc.readyState === 'closed' || dc.readyState === 'closing') {
+            handleControllerDisconnect(playerId, true);
+        } else if (dc._lastSeen && now - dc._lastSeen > 9000) {
+            console.log(`[watchdog] Controlador ${playerId} inactivo >9s, regresando a QR`);
+            handleControllerDisconnect(playerId, true);
+        }
+    }
+}, 2000);
 
 async function handleOffer(data) {
     const { playerId, type, sdp } = data;
@@ -1066,8 +1139,14 @@ async function handleOffer(data) {
         }
 
         receiveChannel.onmessage = (e) => {
+            receiveChannel._lastSeen = Date.now();
             try {
                 const input = JSON.parse(e.data);
+                if (input.type === 'ping' || input.type === 'ad_heartbeat_ack') return;
+                if (input.type === 'leave') {
+                    handleControllerDisconnect(playerId, true);
+                    return;
+                }
                 if (input.type === 'nickname' || input.type === 'join') {
                     GameState.currentNickname = input.value || input.nickname || 'COMMANDER';
                     if (playerNickElement) {
@@ -1087,6 +1166,7 @@ async function handleOffer(data) {
         };
 
         receiveChannel.onopen = () => {
+            receiveChannel._lastSeen = Date.now();
             console.log(`DataChannel abierto con jugador ${playerId}`);
             waitingOverlay.classList.add('hidden');
             GameState.statusMessage = 'Control conectado. Presiona para iniciar.';
@@ -1096,25 +1176,25 @@ async function handleOffer(data) {
 
         receiveChannel.onclose = () => {
             console.warn(`DataChannel cerrado para jugador ${playerId}`);
-            handleControllerDisconnect(playerId);
+            handleControllerDisconnect(playerId, true);
         };
     };
 
     pc.oniceconnectionstatechange = () => {
         refreshIceRoute(pc);
         const state = pc.iceConnectionState;
-        if (state === 'disconnected' || state === 'failed') {
+        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
             console.warn(`ICE connection ${state} para jugador ${playerId}`);
-            handleControllerDisconnect(playerId);
+            handleControllerDisconnect(playerId, true);
         }
     };
 
     pc.onconnectionstatechange = () => {
         refreshIceRoute(pc);
         const state = pc.connectionState;
-        if (state === 'disconnected' || state === 'failed') {
+        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
             console.warn(`Peer connection ${state} para jugador ${playerId}`);
-            handleControllerDisconnect(playerId);
+            handleControllerDisconnect(playerId, true);
         }
     };
 

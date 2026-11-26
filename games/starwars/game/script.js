@@ -3562,13 +3562,18 @@ function initSignaling() {
                         }
                     }
                 } else if (data.type === 'controller_disconnected') {
-                    const dc = dataChannels.get(data.playerId);
-                    const pc = peerConnections.get(data.playerId);
-                    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
-                        console.log(`[signaling] Ignorando controller_disconnected para player ${data.playerId}: WebRTC sigue activo`);
+                    const targetId = data.playerId || 'controller';
+                    if (data.reason === 'leave') {
+                        handleControllerDisconnect(targetId, true);
                         return;
                     }
-                    handleControllerDisconnect(data.playerId);
+                    const dc = dataChannels.get(targetId);
+                    const recentlyActive = dc && dc.readyState === 'open' && dc._lastSeen && (Date.now() - dc._lastSeen < 5000);
+                    if (recentlyActive && !GameState.adPlaying) {
+                        console.log(`[signaling] Ignorando controller_disconnected transitorio para player ${targetId}: DataChannel activo`);
+                        return;
+                    }
+                    handleControllerDisconnect(targetId, true);
                 }
             } catch (err) {
                 console.error('Error procesando socket:', err);
@@ -3610,6 +3615,20 @@ async function handleOffer(data) {
         const dc = e.channel;
         dataChannels.set(targetPlayerId, dc);
         setupDataChannel(dc, targetPlayerId);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+            handleControllerDisconnect(targetPlayerId, true);
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+            handleControllerDisconnect(targetPlayerId, true);
+        }
     };
 
     const sdpStr = typeof sdp === 'string' ? sdp : (sdp?.sdp || '');
@@ -3808,7 +3827,35 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
             startGameCallback();
         };
 
+        const abortAd = () => {
+            if (adFinished) return;
+            adFinished = true;
+            if (safetyTimer) clearTimeout(safetyTimer);
+            if (adHeartbeatInterval) clearInterval(adHeartbeatInterval);
+
+            adVideoPlayer.onended = null;
+            adVideoPlayer.onerror = null;
+            adVideoPlayer.ontimeupdate = null;
+
+            try {
+                adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
+                adVideoPlayer.removeAttribute('src');
+                adVideoPlayer.load();
+            } catch (_) {}
+
+            adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
+
+            if (window.parent && window.parent !== window) {
+                try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
+            }
+        };
+
         window._finishCurrentAd = finishAd;
+        window._abortCurrentAd = abortAd;
 
         adVideoPlayer.onended = finishAd;
         adVideoPlayer.onerror = (err) => {
@@ -3840,20 +3887,27 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
     };
 
     requestAdVideo().then((videoUrl) => {
+        if (!GameState.adPlaying) return;
         startAdPlayback(videoUrl);
     });
 }
 
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
+        channel._lastSeen = Date.now();
         GameState.isMobileSession = true;
         waitingOverlay.classList.add('hidden');
     };
 
     channel.onmessage = (e) => {
+        channel._lastSeen = Date.now();
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'ad_heartbeat_ack') return;
+            if (msg.type === 'ping' || msg.type === 'ad_heartbeat_ack') return;
+            if (msg.type === 'leave') {
+                handleControllerDisconnect(playerId, true);
+                return;
+            }
             if (msg.type === 'join' || msg.type === 'nickname') {
                 GameState.currentNickname = (msg.nickname || msg.value || 'PILOT').toUpperCase().substring(0, 10);
                 if (playerNickElement) {
@@ -3885,32 +3939,70 @@ function setupDataChannel(channel, playerId) {
         } catch (_) {}
     };
 
-    channel.onclose = () => handleControllerDisconnect(playerId);
+    channel.onclose = () => handleControllerDisconnect(playerId, true);
 }
 
-function handleControllerDisconnect(playerId) {
-    if (GameState.adPlaying) {
-        console.log(`[ad] Desconexión ignorada durante anuncio publicitario para player ${playerId}`);
-        return;
-    }
+function handleControllerDisconnect(playerId, force = false) {
     const dc = dataChannels.get(playerId);
     const pc = peerConnections.get(playerId);
-    if ((dc && dc.readyState === 'open') || (pc && pc.connectionState === 'connected')) {
-        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: canal WebRTC sigue activo`);
+
+    if (!force && dc && dc.readyState === 'open') {
+        console.log(`[webrtc] Desconexión ignorada para player ${playerId}: DataChannel sigue abierto`);
         return;
     }
-    const pcToClose = peerConnections.get(playerId);
-    if (pcToClose) {
-        try { pcToClose.close(); } catch (_) {}
-    }
+
+    try { if (dc) dc.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    // Solo si la sesión era estrictamente con mando móvil y ya no queda ningún móvil conectado
-    if (GameState.isMobileSession && peerConnections.size === 0 && !GameState.gameOver) {
+    if (peerConnections.size === 0 && !GameState.isDemo) {
+        if (typeof window._abortCurrentAd === 'function') {
+            window._abortCurrentAd();
+        } else if (GameState.adPlaying) {
+            if (adVideoOverlay) adVideoOverlay.classList.add('hidden');
+            GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
+        }
+        if (gameOverTimeout) {
+            clearTimeout(gameOverTimeout);
+            gameOverTimeout = null;
+        }
+        if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+
+        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const roomEl = document.getElementById('room-id');
+        if (roomEl) roomEl.textContent = `ID: ${GameState.roomId}`;
+        updateQrCode();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(JSON.stringify({
+                    type: 'register',
+                    role: 'host',
+                    roomId: GameState.roomId,
+                    maxPlayers: 1
+                }));
+            } catch (_) {}
+        }
         startAttractMode();
+        audio.updateEngineSound(0, false);
     }
 }
+
+// Watchdog de desconexión silenciosa (si el celular cierra/pierde señal sin avisar)
+setInterval(() => {
+    if (peerConnections.size === 0 || GameState.isDemo) return;
+    const now = Date.now();
+    for (const [playerId, dc] of Array.from(dataChannels.entries())) {
+        if (!dc || dc.readyState === 'closed' || dc.readyState === 'closing') {
+            handleControllerDisconnect(playerId, true);
+        } else if (dc._lastSeen && now - dc._lastSeen > 9000) {
+            console.log(`[watchdog] Controlador ${playerId} inactivo >9s, regresando a QR`);
+            handleControllerDisconnect(playerId, true);
+        }
+    }
+}, 2000);
 
 function resetSignalingAndRoom() {
     // Si la partida real está activa, ¡NUNCA interrumpirla ni mostrar el código QR!

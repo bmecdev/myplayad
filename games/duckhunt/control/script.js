@@ -380,6 +380,52 @@ let pendingCandidates = [];
 let targetRoomId = '';
 let playerNickname = '';
 let isAdPlaying = false;
+let hasLeftSession = false;
+
+function notifyControllerLeave() {
+    if (hasLeftSession) return;
+    if (!dataChannel && !socket && !pc) return;
+    hasLeftSession = true;
+    if (window._dcKeepAlive) { clearInterval(window._dcKeepAlive); window._dcKeepAlive = null; }
+    if (window._sigPingInterval) { clearInterval(window._sigPingInterval); window._sigPingInterval = null; }
+    if (dataChannel && dataChannel.readyState === 'open') {
+        try { dataChannel.send(JSON.stringify({ type: 'leave' })); } catch (_) {}
+    }
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: 'leave', roomId: targetRoomId })); } catch (_) {}
+    }
+    try { if (dataChannel) dataChannel.close(); } catch (_) {}
+    try { if (pc) pc.close(); } catch (_) {}
+    try { if (socket) socket.close(); } catch (_) {}
+}
+
+window.addEventListener('pagehide', notifyControllerLeave);
+window.addEventListener('beforeunload', notifyControllerLeave);
+
+let _hiddenLeaveTimer = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        if (_hiddenLeaveTimer) clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = setTimeout(() => {
+            if (document.visibilityState === 'hidden' && (dataChannel || socket || pc)) {
+                notifyControllerLeave();
+                if (gameContainer) gameContainer.style.display = 'none';
+                if (adWaitingScreen) adWaitingScreen.style.display = 'none';
+                if (roomSelection && (!thanksScreen || thanksScreen.style.display === 'none' || thanksScreen.style.display === '')) {
+                    roomSelection.style.display = 'flex';
+                    if (statusEl) {
+                        statusEl.textContent = 'Sesión cerrada. Escanea el QR para volver a jugar.';
+                        statusEl.style.color = '#ffb703';
+                    }
+                    checkValidForm();
+                }
+            }
+        }, 3000);
+    } else if (_hiddenLeaveTimer) {
+        clearTimeout(_hiddenLeaveTimer);
+        _hiddenLeaveTimer = null;
+    }
+});
 
 // Leer parámetro ?room=XXXX y credenciales TURN
 const urlParams = new URLSearchParams(window.location.search);
@@ -441,6 +487,7 @@ connectBtn.addEventListener('click', () => {
 });
 
 function initSignaling() {
+    hasLeftSession = false;
     const serverUrl = (typeof CONFIG !== 'undefined' && CONFIG.SIGNALING_SERVER_URL) ? CONFIG.SIGNALING_SERVER_URL : 'signaling.myplayad.com';
     const wsUrl = serverUrl.startsWith('ws://') || serverUrl.startsWith('wss://')
         ? serverUrl
@@ -570,6 +617,12 @@ async function setupWebRTC() {
         statusEl.style.color = '#3dff8a';
         if (gameContainer) gameContainer.style.display = 'flex';
         dataChannel.send(JSON.stringify({ type: 'join', nickname: playerNickname, value: playerNickname }));
+        if (window._dcKeepAlive) clearInterval(window._dcKeepAlive);
+        window._dcKeepAlive = setInterval(() => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                try { dataChannel.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+            }
+        }, 2000);
     };
 
     dataChannel.onmessage = (e) => {
