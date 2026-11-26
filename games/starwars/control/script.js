@@ -28,6 +28,7 @@ let pendingCandidates = [];
 let roomId = '';
 let nickname = 'SOLO';
 let hasStarted = false;
+let isAdPlaying = false;
 
 // Leer parámetro ?room=XXXX
 const urlParams = new URLSearchParams(window.location.search);
@@ -293,6 +294,7 @@ async function setupWebRTC() {
                     return;
                 }
                 if (data.type === 'ad_playing') {
+                    isAdPlaying = true;
                     status.textContent = '📺 MIRA LA PANTALLA';
                     status.style.color = '#ffb703';
                     roomSelection.style.display = 'none';
@@ -305,6 +307,7 @@ async function setupWebRTC() {
                     if (rotateScreen) rotateScreen.style.display = 'none';
                     if (flightContainer) flightContainer.style.display = 'none';
                 } else if (data.type === 'game_start') {
+                    isAdPlaying = false;
                     status.textContent = `⚡ HALCÓN LISTO • ${nickname}`;
                     status.style.color = '#3dff8a';
                     if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -312,7 +315,10 @@ async function setupWebRTC() {
                     updateOrientationView();
                     if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
                 } else if (data.type === 'game_over') {
+                    isAdPlaying = false;
                     handleGameOver(data.score);
+                } else if (data.type === 'sfx') {
+                    if (isAdPlaying) return;
                 }
             } catch (_) {}
         };

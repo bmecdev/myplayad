@@ -25,9 +25,11 @@ class InvadersAudio {
         this.ctx = null;
         this.masterGain = null;
         this.stepIdx = 0;
+        this.adMuted = false;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -43,7 +45,29 @@ class InvadersAudio {
         this.resume();
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.adMuted ? 0 : 0.45, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+                }
+            }
+        } catch (e) {}
+    }
+
     resume() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => this.updateUI()).catch(() => {});
         } else if (this.ctx && this.ctx.state === 'running') {
@@ -64,6 +88,7 @@ class InvadersAudio {
     }
 
     playBeep() {
+        if (this.adMuted || GameState.adPlaying) return;
         if (!this.ctx) return;
         try {
             const t = this.ctx.currentTime;
@@ -81,6 +106,8 @@ class InvadersAudio {
     }
 
     playLaser() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('laser');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -97,10 +124,10 @@ class InvadersAudio {
             osc.start(t);
             osc.stop(t + 0.12);
         } catch (e) {}
-        broadcastSFX('laser');
     }
 
     playInvaderStep() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx) return;
         this.resume();
         try {
@@ -122,6 +149,8 @@ class InvadersAudio {
     }
 
     playAlienExplosion() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('alienKilled');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -138,10 +167,11 @@ class InvadersAudio {
             osc.start(t);
             osc.stop(t + 0.2);
         } catch (e) {}
-        broadcastSFX('alienKilled');
     }
 
     playShieldHit() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('shieldHit');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -157,10 +187,10 @@ class InvadersAudio {
             osc.start(t);
             osc.stop(t + 0.06);
         } catch (e) {}
-        broadcastSFX('shieldHit');
     }
 
     playAlienShot() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx) return;
         this.resume();
         try {
@@ -180,6 +210,8 @@ class InvadersAudio {
     }
 
     playPlayerExplosion() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('playerExplode');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -196,10 +228,11 @@ class InvadersAudio {
             osc.start(t);
             osc.stop(t + 0.45);
         } catch (e) {}
-        broadcastSFX('playerExplode');
     }
 
     playWaveClear() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('waveClear');
         if (!this.ctx) return;
         this.resume();
         const notes = [392, 523.25, 659.25, 783.99];
@@ -216,10 +249,11 @@ class InvadersAudio {
             osc.start(t + idx * 0.08);
             osc.stop(t + idx * 0.08 + 0.13);
         });
-        broadcastSFX('waveClear');
     }
 
     playGameOver() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
         const notes = [330, 293.66, 261.63, 196];
@@ -236,10 +270,11 @@ class InvadersAudio {
             osc.start(t + idx * 0.16);
             osc.stop(t + idx * 0.16 + 0.22);
         });
-        broadcastSFX('gameover');
     }
 
     playUfoSiren() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('ufo');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -257,12 +292,12 @@ class InvadersAudio {
             osc.start(t);
             osc.stop(t + 0.25);
         } catch (e) {}
-        broadcastSFX('ufo');
     }
 }
 const audio = new InvadersAudio();
 
 function broadcastSFX(sound, param = null) {
+    if (GameState.adPlaying || GameState.isDemo) return;
     if (typeof dataChannels === 'undefined') return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
     dataChannels.forEach(ch => {
@@ -275,21 +310,10 @@ function broadcastSFX(sound, param = null) {
 // Desbloqueo y gestión global de audio en cualquier interacción
 ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => {
+        if (GameState.adPlaying) return;
         if (!audio.ctx) audio.init();
         else audio.resume();
     }, { passive: true });
-});
-
-window.addEventListener('DOMContentLoaded', () => {
-    const audioToggleBtn = document.getElementById('audio-toggle-btn');
-    if (audioToggleBtn) {
-        audioToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (!audio.ctx) audio.init();
-            else audio.resume();
-            audio.playBeep();
-        });
-    }
 });
 
 // Configuration
@@ -413,6 +437,7 @@ const GameState = {
     highScore: 0,
     lives: 5,
     running: false,
+    isDemo: false,
     gameOver: false,
     adPlaying: false,
     isRespawning: false,
@@ -623,23 +648,23 @@ function updateQrCode() {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 160,
-                    height: 160,
+                    width: 200,
+                    height: 200,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.M
+                    correctLevel: QRCode.CorrectLevel.L
                 });
             } else {
                 throw new Error('QRCode not loaded');
             }
         } catch (e) {
             console.warn('QRCode error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 100px; height: 100px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=10`;
         }
     }
 }
@@ -654,13 +679,8 @@ function resetSignaling() {
 
     GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
     connectSignaling();
-    waitingOverlay.classList.remove('hidden');
     gameOverOverlay.classList.add('hidden');
-    GameState.running = false;
-    GameState.currentNickname = 'Player';
-    resetGame();
-    if (playerNickElement) playerNickElement.textContent = 'PLAYER: ----';
-    loadRanking();
+    startAttractMode();
 }
 
 function clearSignalingReconnect() {
@@ -758,6 +778,7 @@ function connectSignaling() {
                 }
             } else if (data.type === 'controller_connected') {
                 console.log(`Controlador ${data.playerId} conectado. Esperando oferta...`);
+                stopAttractMode();
                 waitingOverlay.classList.add('hidden');
             } else if (data.type === 'controller_disconnected') {
                 const dc = dataChannels.get(data.playerId);
@@ -870,20 +891,34 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+    if (typeof clearGameOverReturnTimer === 'function') clearGameOverReturnTimer();
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -923,12 +958,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             if (window.parent && window.parent !== window) {
                 try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
@@ -991,8 +1029,7 @@ function handleControllerDisconnect(playerId) {
     dataChannels.delete(playerId);
 
     if (peerConnections.size === 0) {
-        waitingOverlay.classList.remove('hidden');
-        GameState.running = false;
+        startAttractMode();
     }
 }
 
@@ -1033,9 +1070,12 @@ async function handleOffer(data) {
                 const input = JSON.parse(e.data);
                 if (input.type === 'nickname' || input.type === 'join') {
                     GameState.currentNickname = input.value || input.nickname || 'COMMANDER';
-                    if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
+                    if (playerNickElement) {
+                        playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
+                        playerNickElement.style.color = '';
+                    }
                     playPreGameAdThenStart(GameState.currentNickname, () => {
-                        if (GameState.gameOver) resetGame();
+                        resetGame();
                         startGame();
                     });
                 } else {
@@ -1095,7 +1135,7 @@ async function handleOffer(data) {
 }
 
 function handleJoystickInput(input) {
-    if (GameState.isRespawning) return;
+    if (GameState.adPlaying || GameState.isRespawning || GameState.isDemo) return;
 
     if (!GameState.running && waitingOverlay.classList.contains('hidden')) {
         if (Math.abs(input.x) > 0.4 || Math.abs(input.y) > 0.4 || input.fire) {
@@ -1210,6 +1250,15 @@ function updateHud() {
     scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(3, '0')}`;
     livesCountElement.textContent = GameState.lives;
     highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
+    if (playerNickElement) {
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = 'var(--amber)';
+        } else {
+            playerNickElement.textContent = `PLAYER: ${(GameState.currentNickname || '----').toUpperCase()}`;
+            playerNickElement.style.color = '';
+        }
+    }
 }
 
 function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
@@ -1409,6 +1458,16 @@ function updateAliens(dt) {
     }
 
     if (aliveAliens.some((alien) => alien.y + ALIEN_HEIGHT >= GameState.player.y)) {
+        if (GameState.isDemo) {
+            GameState.wave = 1;
+            GameState.score = 0;
+            GameState.lives = 5;
+            GameState.shields = createShields();
+            resetRoundPositions();
+            createWave(1);
+            updateHud();
+            return;
+        }
         loseLife('Los invasores llegaron a la base.');
         return;
     }
@@ -1480,8 +1539,34 @@ function bulletHitsAlien(bullet, alien) {
     );
 }
 
+let gameOverReturnTimer = null;
+
+function clearGameOverReturnTimer() {
+    if (gameOverReturnTimer) {
+        clearTimeout(gameOverReturnTimer);
+        gameOverReturnTimer = null;
+    }
+}
+
 function loseLife(message) {
     if (GameState.gameOver) return;
+
+    if (GameState.isDemo) {
+        addExplosion(GameState.player.x + GameState.player.width / 2, GameState.player.y + 4, 18);
+        GameState.lives -= 1;
+        if (GameState.lives <= 0) {
+            GameState.lives = 5;
+            GameState.score = 0;
+            GameState.wave = 1;
+            GameState.shields = createShields();
+            resetRoundPositions();
+            createWave(1);
+        } else {
+            resetRoundPositions();
+        }
+        updateHud();
+        return;
+    }
 
     audio.playPlayerExplosion();
     GameState.lives -= 1;
@@ -1498,6 +1583,9 @@ function loseLife(message) {
 }
 
 function endGame(message) {
+    if (GameState.isDemo) return;
+    clearGameOverReturnTimer();
+
     audio.playGameOver();
     GameState.running = false;
     GameState.gameOver = true;
@@ -1529,7 +1617,11 @@ function endGame(message) {
         }, 5000);
     }
 
-    resetSignaling();
+    gameOverReturnTimer = setTimeout(() => {
+        if (!GameState.running && GameState.gameOver && !GameState.adPlaying) {
+            resetSignaling();
+        }
+    }, 5000);
 }
 
 function resolveCollisions() {
@@ -1993,6 +2085,139 @@ function draw() {
     drawExplosions();
 }
 
+// ==========================================
+// 🤖 Live AI Demo / Attract Mode
+// ==========================================
+let demoDodgeDir = 0;
+
+function updateDemoAI(dt) {
+    const p = GameState.player;
+    if (!p) return;
+
+    const pCenter = p.x + p.width / 2;
+
+    // 1. Evasión inteligente de proyectiles alienígenas entrantes
+    let closestThreat = null;
+    let minThreatScore = Infinity;
+
+    for (const b of GameState.alienBullets) {
+        if (b.y < 52 || b.y > p.y + 6) continue;
+        const bx = b.x + b.width / 2;
+        const dx = Math.abs(bx - pCenter);
+        if (dx < 17) {
+            const verticalDist = Math.max(1, p.y - b.y);
+            const score = verticalDist + dx * 2;
+            if (score < minThreatScore) {
+                minThreatScore = score;
+                closestThreat = b;
+            }
+        }
+    }
+
+    if (closestThreat) {
+        const bx = closestThreat.x + closestThreat.width / 2;
+        if (p.x < 24) {
+            demoDodgeDir = 1;
+        } else if (p.x > CANVAS_WIDTH - p.width - 24) {
+            demoDodgeDir = -1;
+        } else {
+            demoDodgeDir = bx >= pCenter ? -1 : 1;
+        }
+        p.inputX = demoDodgeDir;
+        GameState.fireRequested = false;
+        return;
+    }
+
+    // 2. Seleccionar objetivo (priorizar OVNI o los invasores de la fila inferior más cercanos)
+    let targetX = null;
+    if (GameState.ufo && GameState.ufo.x > 10 && GameState.ufo.x < CANVAS_WIDTH - 24) {
+        targetX = GameState.ufo.x + GameState.ufo.width / 2;
+    } else {
+        const aliveAliens = getAliveAliens();
+        if (aliveAliens.length > 0) {
+            // Elegir el alien más bajo y cercano horizontalmente
+            let bestAlien = aliveAliens[0];
+            let bestMetric = Infinity;
+            for (const a of aliveAliens) {
+                const aCenter = a.x + ALIEN_WIDTH / 2;
+                const metric = Math.abs(aCenter - pCenter) - a.y * 0.85;
+                if (metric < bestMetric) {
+                    bestMetric = metric;
+                    bestAlien = a;
+                }
+            }
+            targetX = bestAlien.x + ALIEN_WIDTH / 2;
+        }
+    }
+
+    if (targetX !== null) {
+        const diff = targetX - pCenter;
+        if (Math.abs(diff) > 3) {
+            p.inputX = Math.sign(diff);
+        } else {
+            p.inputX = 0;
+        }
+
+        // Disparar cuando está alineado con un invasor u OVNI
+        if (Math.abs(diff) < 12 && GameState.bullets.length < 3) {
+            GameState.fireRequested = true;
+        }
+    } else {
+        p.inputX = 0;
+    }
+}
+
+function startAttractMode() {
+    clearGameOverReturnTimer();
+    stopAttractMode();
+
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    loadRanking();
+
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.paused = false;
+    GameState.isRespawning = false;
+    GameState.wave = 1;
+    GameState.score = 0;
+    GameState.lives = 5;
+    GameState.currentNickname = 'DEMO';
+    GameState.frameFlip = false;
+    GameState.fireCooldown = 0;
+    GameState.ufo = null;
+    GameState.ufoTimer = 14;
+    resetRoundPositions();
+    GameState.invulnerableTimer = 0;
+    GameState.shields = createShields();
+    createWave(1);
+    // Disparo inicial para que la acción se vea viva desde el primer frame
+    GameState.bullets.push({
+        x: Math.round(GameState.player.x + GameState.player.width / 2) - 1,
+        y: GameState.player.y - 26,
+        width: 2,
+        height: 6,
+        speed: 220
+    });
+    updateHud();
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+}
+
+function stopAttractMode() {
+    GameState.isDemo = false;
+    if (GameState.player) GameState.player.inputX = 0;
+    GameState.fireRequested = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+}
+
 function update(dt) {
     if (!GameState.running || GameState.paused || GameState.gameOver) {
         updateExplosions(dt);
@@ -2002,6 +2227,10 @@ function update(dt) {
 
     if (GameState.invulnerableTimer > 0) {
         GameState.invulnerableTimer -= dt;
+    }
+
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
     }
 
     handlePlayerInput(dt);
@@ -2027,31 +2256,54 @@ function loop(timestamp) {
 }
 
 function startGame() {
-    if (GameState.isRespawning || GameState.running) return;
+    if (GameState.isRespawning) return;
+    clearGameOverReturnTimer();
 
     if (GameState.gameOver) {
         resetGame();
     }
 
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
     GameState.running = true;
     GameState.gameOver = false;
     GameState.lastTime = performance.now();
-    gameOverOverlay.classList.add('hidden');
-    waitingOverlay.classList.add('hidden');
+    if (GameState.player) GameState.player.inputX = 0;
+    GameState.fireRequested = false;
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    updateHud();
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
 }
 
 window.addEventListener('keydown', (e) => {
     if (GameState.isRespawning) return;
     const key = e.key.toLowerCase();
 
-    // Saltar publicidad durante pruebas de teclado si está activa
+    // Durante publicidad: bloquear cualquier entrada del juego (solo permitir saltar con Espacio/Enter/Escape)
     if (GameState.adPlaying) {
         if ([' ', 'enter', 'escape'].includes(key) || e.code === 'Space') {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
+    }
+
+    audio.init();
+
+    if ((key === ' ' || key === 'enter' || e.code === 'Space') && (GameState.isDemo || !GameState.running || GameState.gameOver)) {
+        e.preventDefault();
+        GameState.currentNickname = 'COMMANDER';
+        playPreGameAdThenStart('COMMANDER', () => {
+            resetGame();
+            startGame();
+        });
+        return;
     }
 
     if (['arrowleft', 'a'].includes(key)) {
@@ -2060,18 +2312,13 @@ window.addEventListener('keydown', (e) => {
     if (['arrowright', 'd'].includes(key)) {
         GameState.player.inputX = 1;
     }
-    if (key === ' ') {
+    if (key === ' ' || e.code === 'Space') {
         GameState.fireRequested = true;
-    }
-    if ((key === ' ' || key === 'enter') && (!GameState.running || GameState.gameOver)) {
-        playPreGameAdThenStart('COMMANDER', () => {
-            if (GameState.gameOver) resetGame();
-            startGame();
-        });
     }
 });
 
 window.addEventListener('keyup', (e) => {
+    if (GameState.adPlaying || GameState.isDemo) return;
     const key = e.key.toLowerCase();
     if (['arrowleft', 'a', 'arrowright', 'd'].includes(key)) {
         GameState.player.inputX = 0;
@@ -2079,46 +2326,34 @@ window.addEventListener('keyup', (e) => {
 });
 
 mainScreen.addEventListener('click', () => {
+    if (GameState.adPlaying) return;
     audio.init();
-    if (!GameState.running || GameState.gameOver) {
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+        GameState.currentNickname = 'COMMANDER';
         playPreGameAdThenStart('COMMANDER', () => {
-            if (GameState.gameOver) resetGame();
+            resetGame();
             startGame();
         });
     }
 });
 
-function init() {
-    GameState.stars = createStars(80);
-    resetGame();
-    gameOverOverlay.classList.add('hidden');
-    waitingOverlay.classList.remove('hidden');
-    updateQrCode();
-    autoScale();
-}
-
-loadRanking();
-init();
-updateQrCode();
-autoScale();
-draw();
-requestAnimationFrame(loop);
-connectSignaling();
+// Dimensiones de referencia de la consola arcade (fallback si aún no hay layout)
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
 
 // Auto-scale to fit browser window with high responsiveness
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 470;
-
+    // offsetWidth / offsetHeight devuelven siempre las dimensiones sin transform
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
-    const padding = 20;
+    const padding = 8;
     const scaleX = (availableW - padding) / naturalW;
     const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
@@ -2126,32 +2361,84 @@ function autoScale() {
     container.style.transform = `scale(${scale})`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+// Inicialización inmediata y arranque de modo demostración
+GameState.stars = createStars(80);
+startAttractMode();
+loadRanking();
+updateQrCode();
+autoScale();
+draw();
+requestAnimationFrame(loop);
+connectSignaling();
+
+function initDomAndAttract() {
     updateQrCode();
     autoScale();
+    loadRanking();
+    if (!GameState.isDemo && !GameState.running && !GameState.adPlaying) {
+        startAttractMode();
+    }
+
     const audioToggleBtn = document.getElementById('audio-toggle-btn');
     if (audioToggleBtn) {
         audioToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (GameState.adPlaying) return;
             if (!audio.ctx) audio.init();
             else audio.resume();
+            audio.playBeep();
         });
     }
-});
+
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) {
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            GameState.currentNickname = 'COMMANDER';
+            playPreGameAdThenStart('COMMANDER', () => {
+                resetGame();
+                startGame();
+            });
+        });
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
 
 // Multi-stage event bindings to ensure accurate dimensions
 window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
     updateQrCode();
     autoScale();
+    if (!GameState.running && !GameState.isDemo && !GameState.adPlaying) {
+        startAttractMode();
+    }
 });
 if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(autoScale);
+    document.fonts.ready.then(() => {
+        autoScale();
+    });
 }
 
 // Observe document body changes
 if (window.ResizeObserver) {
-    const ro = new ResizeObserver(() => autoScale());
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
     ro.observe(document.body);
 }
 

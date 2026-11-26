@@ -25,6 +25,11 @@ const adPilotName = document.getElementById('ad-pilot-name');
 let cachedAdVideoUrl = null;
 let adVideoPromise = null;
 
+// WebRTC State (Declarado al inicio para acceso global en broadcastSFX)
+const peerConnections = new Map();
+const dataChannels = new Map();
+let socket;
+
 // Dimensiones de renderizado fluido y nítido de alta definición (2x HiDPI sobre 400x320 lógico)
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
@@ -42,7 +47,7 @@ const CAMERA_DEPTH = 0.84;
 const DRAW_DISTANCE = 80;
 const LANES = 3;
 
-// // Audio Arcade Sintetizado (Web Audio API)
+// Audio Arcade Sintetizado (Web Audio API)
 class ArcadeAudio {
     constructor() {
         this.ctx = null;
@@ -50,16 +55,19 @@ class ArcadeAudio {
         this.engineOsc = null;
         this.engineGain = null;
         this.bgmTimer = null;
+        this.isMuted = false;
+        this.adMuted = false;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContext) return;
                 this.ctx = new AudioContext();
                 this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.5, this.ctx.currentTime);
                 this.masterGain.connect(this.ctx.destination);
 
                 this.engineOsc = this.ctx.createOscillator();
@@ -83,7 +91,33 @@ class ArcadeAudio {
         this.resume();
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (this.adMuted) {
+            this.stopMusic();
+            this.stopEngine();
+        }
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime((this.adMuted || this.isMuted) ? 0 : 0.5, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+                }
+            }
+        } catch (e) {}
+    }
+
     resume() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             this.init();
             return;
@@ -96,6 +130,7 @@ class ArcadeAudio {
     }
 
     toggleMute() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         this.init();
         if (!this.ctx) return;
         this.resume();
@@ -103,7 +138,7 @@ class ArcadeAudio {
         if (this.masterGain) {
             this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.5, this.ctx.currentTime);
         }
-        if (!this.isMuted && GameState.running && !this.bgmTimer) {
+        if (!this.isMuted && GameState.running && !GameState.isDemo && !this.bgmTimer) {
             this.startMusic();
         }
         this.updateUI();
@@ -125,6 +160,7 @@ class ArcadeAudio {
     }
 
     playBeep() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) return;
         try {
             const t = this.ctx.currentTime;
@@ -142,6 +178,10 @@ class ArcadeAudio {
     }
 
     updateEngine(speed, maxSpeed) {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) {
+            this.stopEngine();
+            return;
+        }
         if (!this.ctx || !this.engineGain) return;
         const ratio = Math.max(0, Math.min(1, speed / maxSpeed));
         const freq = 55 + (ratio * 260);
@@ -157,6 +197,7 @@ class ArcadeAudio {
     }
 
     playTireScreech() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
         if (!this.ctx) return;
         this.resume();
         try {
@@ -175,6 +216,8 @@ class ArcadeAudio {
     }
 
     playCrash() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('crash');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -191,10 +234,10 @@ class ArcadeAudio {
             osc.start(t);
             osc.stop(t + 0.4);
         } catch (e) {}
-        broadcastSFX('crash');
     }
 
     playRolloverCrash() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
         this.playCrash();
         if (!this.ctx) return;
         this.resume();
@@ -238,6 +281,8 @@ class ArcadeAudio {
     }
 
     playCheckpoint() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('checkpoint');
         if (!this.ctx) return;
         this.resume();
         const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
@@ -254,10 +299,11 @@ class ArcadeAudio {
             osc.start(t + idx * 0.08);
             osc.stop(t + idx * 0.08 + 0.15);
         });
-        broadcastSFX('checkpoint');
     }
 
     playPassBonus() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('pass');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -274,10 +320,11 @@ class ArcadeAudio {
             osc.start(t);
             osc.stop(t + 0.18);
         } catch (e) {}
-        broadcastSFX('pass');
     }
 
     playWarningBeep() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('warning');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -293,10 +340,11 @@ class ArcadeAudio {
             osc.start(t);
             osc.stop(t + 0.09);
         } catch (e) {}
-        broadcastSFX('warning');
     }
 
     playStartTune() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('start');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 554.37, 659.25, 880];
@@ -313,10 +361,11 @@ class ArcadeAudio {
             osc.start(t + idx * 0.09);
             osc.stop(t + idx * 0.09 + 0.15);
         });
-        broadcastSFX('start');
     }
 
     playGameOver() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 370, 311, 246.94];
@@ -333,10 +382,10 @@ class ArcadeAudio {
             osc.start(t + idx * 0.16);
             osc.stop(t + idx * 0.16 + 0.24);
         });
-        broadcastSFX('gameover');
     }
 
     startMusic() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
         this.init();
         if (!this.ctx) return;
         this.resume();
@@ -396,7 +445,7 @@ class ArcadeAudio {
         ];
 
         this.bgmTimer = setInterval(() => {
-            if (!GameState.running || GameState.gameOver) {
+            if (!GameState.running || GameState.gameOver || GameState.isDemo || GameState.adPlaying || this.adMuted) {
                 this.stopMusic();
                 return;
             }
@@ -536,6 +585,8 @@ class ArcadeAudio {
     }
 
     playVictory() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) return;
+        broadcastSFX('victory');
         if (!this.ctx) return;
         this.stopMusic();
         this.resume();
@@ -562,13 +613,14 @@ class ArcadeAudio {
             osc.stop(t + offset + n.d + 0.05);
             offset += n.d;
         });
-        broadcastSFX('victory');
     }
 }
 
 const audio = new ArcadeAudio();
 
 function broadcastSFX(sound, param = null) {
+    if (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo)) return;
+    if (typeof dataChannels === 'undefined') return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
     dataChannels.forEach(ch => {
         if (ch && ch.readyState === 'open') {
@@ -580,20 +632,10 @@ function broadcastSFX(sound, param = null) {
 // Desbloqueo y gestión global de audio en cualquier interacción
 ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => {
+        if (typeof GameState !== 'undefined' && GameState.adPlaying) return;
         if (!audio.ctx) audio.init();
         else audio.resume();
     }, { passive: true });
-});
-
-window.addEventListener('DOMContentLoaded', () => {
-    const audioToggleBtn = document.getElementById('audio-toggle-btn');
-    if (audioToggleBtn) {
-        audioToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            audio.toggleMute();
-            if (!audio.isMuted) audio.playBeep();
-        });
-    }
 });
 
 // ==============================================================
@@ -949,6 +991,8 @@ const GameState = {
     gameWon: false,
     stageCleared: false,
     running: false,
+    isDemo: false,
+    demoForkSide: -1,
     gameOver: false,
     adPlaying: false,
     paused: false,
@@ -1614,10 +1658,19 @@ function project3D(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roa
 
 // Soporte para Controles de Teclado (Pruebas directas en navegador)
 window.addEventListener('keydown', (e) => {
+    if (GameState.adPlaying) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+            if (typeof window._finishCurrentAd === 'function') {
+                window._finishCurrentAd();
+            }
+        }
+        return;
+    }
+
     audio.init();
 
-    // En la pantalla de espera, permitir cambiar dificultad con teclas numéricas 1, 2, 3 o con tecla D
-    if (!GameState.running && !GameState.gameOver) {
+    // En la pantalla de espera / modo demo, permitir cambiar dificultad con teclas 1, 2, 3
+    if (GameState.isDemo || (!GameState.running && !GameState.gameOver)) {
         if (e.code === 'Digit1' || e.code === 'Numpad1') {
             setDifficulty('easy');
             audio.playBeep();
@@ -1633,12 +1686,14 @@ window.addEventListener('keydown', (e) => {
             audio.playBeep();
             return;
         }
-        if (e.code === 'KeyD') {
-            const next = GameState.difficulty === 'easy' ? 'normal' : (GameState.difficulty === 'normal' ? 'hard' : 'easy');
-            setDifficulty(next);
-            audio.playBeep();
-            return;
+    }
+
+    // Auto-iniciar juego real desde modo demo o espera al presionar teclas de acción/dirección
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+        if (['Space', 'Enter', 'ArrowUp', 'KeyW', 'ArrowDown', 'KeyS', 'ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) {
+            playPreGameAdThenStart('DRIVER', () => startGame());
         }
+        return;
     }
 
     if (e.code === 'ArrowUp' || e.code === 'KeyW') GameState.input.gas = true;
@@ -1646,25 +1701,16 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') GameState.input.steer = -1.0;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') GameState.input.steer = 1.0;
     if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') GameState.input.turbo = true;
-    
-    // Auto-iniciar juego al presionar tecla si está esperando
-    if (!GameState.running && !GameState.gameOver) {
-        playPreGameAdThenStart('DRIVER', () => startGame());
-    }
 });
 
 window.addEventListener('keyup', (e) => {
+    if (GameState.adPlaying || GameState.isDemo) return;
     if (e.code === 'ArrowUp' || e.code === 'KeyW') GameState.input.gas = false;
     if (e.code === 'ArrowDown' || e.code === 'KeyS') GameState.input.brake = false;
     if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && GameState.input.steer < 0) GameState.input.steer = 0;
     if ((e.code === 'ArrowRight' || e.code === 'KeyD') && GameState.input.steer > 0) GameState.input.steer = 0;
     if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') GameState.input.turbo = false;
 });
-
-// WebRTC Host & Señalización
-const peerConnections = new Map();
-const dataChannels = new Map();
-let socket;
 
 // ==========================================
 // 📺 Sistema de Publicidad Pre-Juego
@@ -1760,20 +1806,35 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.stopMusic();
+    audio.stopEngine();
+    audio.setMutedForAd(true);
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -1813,12 +1874,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             if (window.parent && window.parent !== window) {
                 try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
@@ -2018,9 +2082,9 @@ function handleControllerDisconnect(playerId) {
     dataChannels.delete(playerId);
 
     if (peerConnections.size === 0 && !GameState.gameOver) {
-        waitingOverlay.classList.remove('hidden');
-        GameState.running = false;
+        audio.stopMusic();
         audio.stopEngine();
+        startAttractMode();
     }
 }
 
@@ -2093,6 +2157,7 @@ async function handleOffer(data) {
 }
 
 function handleMobileInput(input) {
+    if (GameState.adPlaying || GameState.isDemo) return;
     if (input.steer !== undefined) {
         GameState.input.steer = Math.max(-1, Math.min(1, input.steer));
     }
@@ -2123,6 +2188,14 @@ function showBanner(text, subtext = '', color = '#ffb703', duration = 2.0) {
 }
 
 function startGame() {
+    stopAttractMode();
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
+    audio.setMutedForAd(false);
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
     audio.init();
     audio.playStartTune();
     audio.startMusic();
@@ -2149,6 +2222,7 @@ function startGame() {
     GameState.crashLockTimer = 0;
     GameState.smokeParticles = [];
     GameState.turboFlameTimer = 0;
+    GameState.input = { steer: 0, gas: false, brake: false, turbo: false };
     GameState.crashRoll = {
         active: false,
         timer: 0,
@@ -2169,6 +2243,10 @@ function startGame() {
 }
 
 function endGame(won = false, goal = null) {
+    if (GameState.isDemo) {
+        startAttractMode();
+        return;
+    }
     GameState.gameOver = true;
     GameState.running = false;
     audio.stopBGM();
@@ -2189,12 +2267,6 @@ function endGame(won = false, goal = null) {
     dataChannels.clear();
     peerConnections.clear();
 
-    // Vuelve inmediatamente a la pantalla de espera con el QR y se queda allí
-    gameOverOverlay.classList.add('hidden');
-    waitingOverlay.classList.remove('hidden');
-
-    GameState.currentNickname = 'DRIVER';
-    if (playerNickElement) playerNickElement.textContent = 'DRIVER: ----';
     GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
     if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
     updateQrCode();
@@ -2208,23 +2280,99 @@ function endGame(won = false, goal = null) {
         }));
     }
 
-    // Reset de pista a Stage 1 inicial para que la pantalla de fondo muestre Coconut Beach
-    buildStageTrack(0, 0);
-    GameState.playerZ = 0;
-    GameState.playerX = 0;
-    GameState.speed = 0;
-    GameState.isOffRoad = false;
-    GameState.crashLockTimer = 0;
-    updateHUD();
+    // Vuelve inmediatamente al modo demostración en vivo con el QR
+    gameOverOverlay.classList.add('hidden');
+    startAttractMode();
+}
+
+// IA de Conducción Automática para Modo Demostración (Attract Mode)
+function updateDemoAI(dt) {
+    if (!GameState.isDemo) return;
+    GameState.input.gas = true;
+    GameState.input.brake = false;
+    GameState.input.turbo = false;
+
+    const totalSegs = GameState.segments.length;
+    if (!totalSegs) return;
+    const segIdx = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
+    const curSeg = GameState.segments[segIdx];
+    const aheadSeg = GameState.segments[Math.min(totalSegs - 1, segIdx + 10)];
+    if (!curSeg) return;
+
+    // Determinar el centro de calzada y carriles disponibles (incluyendo bifurcaciones y transiciones)
+    let centerX = 0;
+    let laneOffsets = [-0.62, 0, 0.62];
+
+    if (curSeg.isTransition) {
+        centerX = curSeg.chosenRoadCenter || 0;
+        const w = curSeg.chosenRoadWidth || 1.0;
+        laneOffsets = [-0.55 * w, 0, 0.55 * w].map(o => centerX + o);
+    } else if ((curSeg.forkProgress || 0) > 0.05) {
+        const sep = 1.35 * curSeg.forkProgress;
+        centerX = GameState.demoForkSide * sep;
+        laneOffsets = [centerX - 0.35, centerX, centerX + 0.35];
+    } else if (aheadSeg && (aheadSeg.forkProgress || 0) > 0.05) {
+        const sep = 1.35 * aheadSeg.forkProgress;
+        centerX = GameState.demoForkSide * sep;
+        laneOffsets = [centerX - 0.35, centerX, centerX + 0.35];
+    }
+
+    // Evaluar tráfico por delante para elegir el carril más despejado
+    let bestLane = centerX;
+    let bestScore = -Infinity;
+    const aheadCars = [];
+    for (let i = 0; i < GameState.cars.length; i++) {
+        const car = GameState.cars[i];
+        let relZ = car.z - GameState.playerZ;
+        if (relZ < -GameState.trackLength / 2) relZ += GameState.trackLength;
+        if (relZ > GameState.trackLength / 2) relZ -= GameState.trackLength;
+        if (relZ > 600 && relZ < 5200) {
+            const cIdx = ((Math.floor(car.z / SEGMENT_LENGTH) % totalSegs) + totalSegs) % totalSegs;
+            const cX = getCarEffectiveRoadX(car, GameState.segments[cIdx]);
+            aheadCars.push({ relZ, x: cX });
+        }
+    }
+
+    for (let l = 0; l < laneOffsets.length; l++) {
+        const candX = laneOffsets[l];
+        let score = -Math.abs(candX - centerX) * 10 - Math.abs(candX - GameState.playerX) * 6;
+        for (let j = 0; j < aheadCars.length; j++) {
+            const ac = aheadCars[j];
+            const dx = Math.abs(ac.x - candX);
+            if (dx < 0.52) {
+                const urgency = 1 - (ac.relZ / 5200);
+                score -= (320 * urgency + 120) * (1 - dx / 0.52);
+            }
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            bestLane = candX;
+        }
+    }
+
+    // Dirección suave compensando fuerza centrífuga en curvas
+    const curve = curSeg.curve || 0;
+    const speedRatio = Math.max(0.2, GameState.speed / GameState.maxSpeed);
+    const curveComp = (curve * GameState.centrifugal) / 2.4;
+    const steerCmd = (bestLane - GameState.playerX) * 2.5 + curveComp * (0.85 + 0.15 * speedRatio);
+    GameState.input.steer = Math.max(-0.95, Math.min(0.95, steerCmd));
 }
 
 // Bucle de Física y Actualización
 function update(dt) {
-    if (!GameState.running || GameState.gameOver) return;
+    if (!GameState.running || GameState.gameOver || GameState.paused || GameState.adPlaying) return;
+
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
+    }
 
     // Temporizador Time Attack
     GameState.timeLeft -= dt;
     if (GameState.timeLeft <= 0) {
+        if (GameState.isDemo) {
+            startAttractMode();
+            return;
+        }
         GameState.timeLeft = 0;
         updateHUD();
         endGame();
@@ -2233,7 +2381,7 @@ function update(dt) {
 
     // Alerta sonora en los últimos 10 segundos
     const currentSec = Math.floor(GameState.timeLeft);
-    if (currentSec <= 10 && currentSec !== GameState.lastWarningSecond) {
+    if (!GameState.isDemo && currentSec <= 10 && currentSec !== GameState.lastWarningSecond) {
         GameState.lastWarningSecond = currentSec;
         audio.playWarningBeep();
     }
@@ -2461,6 +2609,10 @@ function update(dt) {
             appendNextStage(nextTier, nextRouteIndex, choice, crossedCheckpointIdx);
         } else {
             // TIER 4: ¡META ALCANZADA! (GOALS A, B, C, D, E)
+            if (GameState.isDemo) {
+                startAttractMode();
+                return;
+            }
             GameState.gameWon = true;
             const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
             const goalLetter = GameState.currentStage?.goalLetter || ['A', 'B', 'C', 'D', 'E'][GameState.currentRouteIndex] || 'A';
@@ -2497,7 +2649,7 @@ function update(dt) {
     // Puntuación continua basada en velocidad y multiplicador de dificultad
     const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
     GameState.score += (GameState.speed / 1000) * dt * 25 * diffCfg.scoreMultiplier;
-    if (GameState.score > GameState.highScore) {
+    if (!GameState.isDemo && GameState.score > GameState.highScore) {
         GameState.highScore = GameState.score;
     }
 
@@ -5145,9 +5297,14 @@ function updateHUD() {
         speedCountElement.textContent = kmh.toString().padStart(3, '0');
     }
     if (playerNickElement) {
-        const stg = GameState.currentStage ? GameState.currentStage.name : 'COCONUT BEACH';
-        const nick = GameState.currentNickname || 'PILOT';
-        playerNickElement.textContent = `${nick} • STG ${GameState.currentTier + 1}`;
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = 'var(--amber)';
+        } else {
+            const nick = (GameState.currentNickname || 'PILOT').toUpperCase().substring(0, 8);
+            playerNickElement.textContent = `PLAYER: ${nick}`;
+            playerNickElement.style.color = '';
+        }
     }
     const diffBadge = document.getElementById('diff-badge');
     if (diffBadge) {
@@ -5175,25 +5332,26 @@ function updateQrCode() {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 160,
-                    height: 160,
+                    width: 200,
+                    height: 200,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.M
+                    correctLevel: QRCode.CorrectLevel.L
                 });
             } else {
                 throw new Error('QRCode not loaded');
             }
         } catch (e) {
             console.warn('QRCode error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4`;
         }
     }
+    if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
 }
 
 // Gestión de Rankings (Hall of Fame)
@@ -5259,6 +5417,76 @@ function submitScore(nickname, score) {
     }
 }
 
+// ==============================================================
+// 🕹️ Modo Atracción / Demo en Vivo (Attract Mode)
+// ==============================================================
+function startAttractMode() {
+    stopAttractMode();
+    audio.stopMusic();
+    audio.stopEngine();
+
+    fetchRanking();
+
+    const diffCfg = DIFFICULTY_CONFIG[GameState.difficulty] || DIFFICULTY_CONFIG.normal;
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.gameWon = false;
+    GameState.paused = false;
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    GameState.score = 0;
+    GameState.timeLeft = 60;
+    GameState.centrifugal = diffCfg.centrifugal;
+    GameState.offRoadMaxSpeed = diffCfg.offRoadMaxSpeed;
+    GameState.offRoadDecel = diffCfg.offRoadDecel;
+    GameState.isOffRoad = false;
+    GameState.checkpointsCleared = 0;
+    GameState.currentTier = 0;
+    GameState.currentRouteIndex = 0;
+    GameState.routePath = [{ tier: 0, index: 0 }];
+    GameState.stageCleared = false;
+    GameState.forkWarned = false;
+    GameState.demoForkSide = Math.random() > 0.5 ? 1 : -1;
+    GameState.currentNickname = 'DEMO';
+    GameState.playerX = 0;
+    GameState.playerZ = 0;
+    GameState.speed = 6500;
+    GameState.lastWarningSecond = -1;
+    GameState.invulnerableTimer = 0;
+    GameState.crashLockTimer = 0;
+    GameState.smokeParticles = [];
+    GameState.turboFlameTimer = 0;
+    GameState.banner.timer = 0;
+    GameState.crashRoll = {
+        active: false,
+        timer: 0,
+        duration: 1.15,
+        dir: 1,
+        startSpeed: 0,
+        bouncedMid: false
+    };
+    GameState.lastRoadCenter = null;
+    GameState.input = { steer: 0, gas: true, brake: false, turbo: false };
+
+    buildStageTrack(0, 0);
+    updateHUD();
+
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+}
+
+function stopAttractMode() {
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+}
+
 // Bucle Principal
 function gameLoop(timestamp) {
     requestAnimationFrame(gameLoop);
@@ -5275,20 +5503,23 @@ function gameLoop(timestamp) {
     }
 }
 
+// Dimensiones de referencia de la consola arcade (fallback si aún no hay layout)
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
+
 // Auto-Scale Reactivo para Kiosco / TV
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 470;
-
+    // offsetWidth / offsetHeight devuelven siempre las dimensiones sin transform
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
-    const padding = 20;
+    const padding = 8;
     const scaleX = (availableW - padding) / naturalW;
     const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
@@ -5296,39 +5527,80 @@ function autoScale() {
     container.style.transform = `scale(${scale})`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+// Inicialización inmediata y arranque de modo demostración
+buildTrack();
+startAttractMode();
+updateHUD();
+fetchRanking();
+updateQrCode();
+autoScale();
+draw();
+setInterval(fetchRanking, 30000);
+requestAnimationFrame(gameLoop);
+connectSignalingServer();
+
+function initDomAndAttract() {
     updateQrCode();
     autoScale();
+    fetchRanking();
+    setDifficulty(GameState.difficulty);
+    if (!GameState.isDemo && !GameState.running && !GameState.adPlaying) {
+        startAttractMode();
+    }
+
     const audioToggleBtn = document.getElementById('audio-toggle-btn');
     if (audioToggleBtn) {
         audioToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!audio.ctx) audio.init();
-            else audio.resume();
+            audio.toggleMute();
+            if (!audio.isMuted) audio.playBeep();
         });
     }
 
-    // Botones de Selección de Dificultad en Pantalla de Espera
-    ['easy', 'normal', 'hard'].forEach(diff => {
-        const btn = document.getElementById(`diff-${diff}`);
-        if (btn) {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setDifficulty(diff);
-                audio.playBeep();
-            });
-        }
-    });
-    setDifficulty(GameState.difficulty);
-});
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) {
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            playPreGameAdThenStart('DRIVER', () => startGame());
+        });
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
 
 window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
     updateQrCode();
     autoScale();
+    if (!GameState.running && !GameState.isDemo && !GameState.adPlaying) {
+        startAttractMode();
+    }
 });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
-if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+        autoScale();
+    });
+}
+if (window.ResizeObserver) {
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
+    ro.observe(document.body);
+}
 window.addEventListener('message', (e) => {
     if (!e.data) return;
     if (e.data.type === 'RESCALE') autoScale();
@@ -5339,20 +5611,12 @@ window.addEventListener('message', (e) => {
 const mainScreen = document.getElementById('main-screen');
 if (mainScreen) {
     mainScreen.addEventListener('click', () => {
+        if (GameState.adPlaying) return;
         audio.init();
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
             playPreGameAdThenStart('DRIVER', () => startGame());
         }
     });
 }
 
-// Inicio
 requestAdVideo();
-buildTrack();
-updateHUD();
-fetchRanking();
-updateQrCode();
-autoScale();
-setInterval(fetchRanking, 30000);
-requestAnimationFrame(gameLoop);
-connectSignalingServer();

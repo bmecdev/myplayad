@@ -556,7 +556,7 @@ export default function VirtualKioskPage() {
 
   const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
   const gameBaseUrl = getGameUrl(selectedGameSlug, screenIdForGame);
-  const gameIframeSrc = `${gameBaseUrl}&v=39`;
+  const gameIframeSrc = `${gameBaseUrl}&v=40`;
 
   return (
     <div className="space-y-6 pb-12">

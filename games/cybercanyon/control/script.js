@@ -22,6 +22,7 @@ let socket = null;
 let currentRoomId = null;
 let nickname = '';
 let pendingCandidates = [];
+let isAdPlaying = false;
 
 // Estado de control
 const flightState = {
@@ -201,6 +202,7 @@ async function initPeerConnection() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -212,6 +214,7 @@ async function initPeerConnection() {
                 }
                 if (container) container.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = `⚡ ENLACE ACTIVO: ${nickname}`;
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -219,8 +222,10 @@ async function initPeerConnection() {
                 if (container) container.style.display = 'flex';
                 haptic([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 if (data.sound === 'hit') haptic([60, 40, 80]);
                 else if (data.sound === 'laser') haptic([30, 25, 30]);
                 else if (data.sound === 'gate') haptic(35);

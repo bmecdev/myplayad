@@ -379,6 +379,7 @@ let dataChannel = null;
 let pendingCandidates = [];
 let targetRoomId = '';
 let playerNickname = '';
+let isAdPlaying = false;
 
 // Leer parámetro ?room=XXXX y credenciales TURN
 const urlParams = new URLSearchParams(window.location.search);
@@ -581,6 +582,7 @@ async function setupWebRTC() {
                 return;
             }
             if (msg.type === 'ad_playing') {
+                isAdPlaying = true;
                 statusEl.textContent = '📺 MIRA LA PANTALLA';
                 statusEl.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -592,6 +594,7 @@ async function setupWebRTC() {
                 }
                 if (gameContainer) gameContainer.style.display = 'none';
             } else if (msg.type === 'game_start') {
+                isAdPlaying = false;
                 statusEl.textContent = 'ZAPPER CONECTADO';
                 statusEl.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -604,6 +607,7 @@ async function setupWebRTC() {
                 if (msg.round) updateLevelHUD(msg.round);
                 if (typeof msg.lives !== 'undefined') updateLivesHUD(msg.lives);
             } else if (msg.type === 'sfx') {
+                if (isAdPlaying) return;
                 if (msg.sound === 'gunshot') {
                     if (performance.now() - lastLocalFireTime > 200) {
                         mobileAudio.playGunshot();
@@ -612,6 +616,7 @@ async function setupWebRTC() {
                     mobileAudio.play(msg.sound, msg.param);
                 }
             } else if (msg.type === 'game_over') {
+                isAdPlaying = false;
                 gameContainer.style.display = 'none';
                 thanksScreen.style.display = 'flex';
                 statusEl.textContent = 'PARTIDA FINALIZADA';
@@ -623,6 +628,7 @@ async function setupWebRTC() {
                 if (typeof checkAndDisplayReward === 'function') checkAndDisplayReward(msg.score || 0, 'duckhunt');
                 }
             } else if (msg.type === 'victory') {
+                isAdPlaying = false;
                 gameContainer.style.display = 'none';
                 thanksScreen.style.display = 'flex';
                 statusEl.textContent = '¡MISIÓN CUMPLIDA!';
@@ -763,6 +769,7 @@ let lastLocalFireTime = 0;
 
 // Botón de Disparo / Gatillo Zapper
 function triggerFire() {
+    if (isAdPlaying) return;
     lastLocalFireTime = performance.now();
     mobileAudio.playGunshot();
 

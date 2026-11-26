@@ -6,7 +6,7 @@
     <title>Mega Man Arcade - Retro NES Platformer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <div class="container">
@@ -63,29 +63,19 @@
                     </div>
                 </div>
 
-                <!-- Overlay de Espera / Código QR -->
+                <!-- Overlay de Modo Atracción & QR en Esquina -->
                 <div id="waiting-overlay">
-                    <div class="overlay-content">
-                        <h2 class="arcade-title">MEGA MAN <span>ARCADE</span></h2>
-                        
-                        <div class="quick-play-box">
-                            <button id="instant-play-btn" class="arcade-start-btn blink" type="button">
-                                ▶ JUGAR CON TECLADO [ESPACIO / D]
-                            </button>
-                            <p class="controls-guide">
-                                ◀ ▶ FLECHAS: Correr &nbsp;|&nbsp; ESPACIO: Salto &nbsp;|&nbsp; D: Disparo / Cargar
-                            </p>
-                        </div>
+                    <!-- Banner Superior de Modo Demostración -->
+                    <div class="attract-banner">
+                        <span class="attract-live-dot">●</span>
+                        <span class="attract-text">ESCANEA Y JUEGA <span class="highlight">GRATIS</span></span>
+                    </div>
 
-                        <div class="qr-divider">
-                            <span>O ESCANEA CON TU CELULAR</span>
-                        </div>
-
-                        <div class="qr-wrapper">
+                    <!-- Solo Código QR en la Esquina -->
+                    <div class="corner-qr-card" id="waiting-qr-panel" title="Escanea para jugar o haz clic aquí">
+                        <div class="corner-qr-wrapper">
                             <div id="qrcode"></div>
                         </div>
-                        <p class="status-text" id="status-text">ESPERANDO CONTROL MÓVIL...</p>
-                        <p class="sub-hint">CLIC O CUALQUIER TECLA PARA JUGAR INMEDIATAMENTE</p>
                     </div>
                 </div>
 
@@ -101,6 +91,6 @@
     <!-- Scripts -->
     <script src="qrcode.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="script.js?v=24"></script>
+    <script src="script.js?v=25"></script>
 </body>
 </html>

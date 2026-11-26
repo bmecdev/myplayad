@@ -167,9 +167,11 @@ class SkyroadsAudio {
         this.masterGain = null;
         this.engineOsc = null;
         this.engineGain = null;
+        this.adMuted = false;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -184,7 +186,34 @@ class SkyroadsAudio {
         this.resume();
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.adMuted ? 0 : 0.35, now);
+            }
+            if (this.engineGain) {
+                this.engineGain.gain.cancelScheduledValues(now);
+                const silenceDrone = this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo));
+                this.engineGain.gain.setValueAtTime(silenceDrone ? 0 : 0.04, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+                }
+            }
+        } catch (e) {}
+    }
+
     resume() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => this.updateUI()).catch(() => {});
         } else if (this.ctx && this.ctx.state === 'running') {
@@ -211,7 +240,8 @@ class SkyroadsAudio {
             this.engineGain = this.ctx.createGain();
             this.engineOsc.type = 'sawtooth';
             this.engineOsc.frequency.setValueAtTime(65, this.ctx.currentTime);
-            this.engineGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+            const silent = this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo));
+            this.engineGain.gain.setValueAtTime(silent ? 0 : 0.04, this.ctx.currentTime);
 
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'lowpass';
@@ -227,12 +257,23 @@ class SkyroadsAudio {
     updateEngineSpeed(speedRatio) {
         if (!this.engineOsc || !this.ctx) return;
         try {
+            if (this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo))) {
+                if (this.engineGain) {
+                    this.engineGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03);
+                }
+                return;
+            }
+            if (this.engineGain) {
+                this.engineGain.gain.setTargetAtTime(0.04, this.ctx.currentTime, 0.05);
+            }
             const freq = 60 + speedRatio * 95;
             this.engineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
         } catch (e) {}
     }
 
     playJump() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('jump');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -249,10 +290,11 @@ class SkyroadsAudio {
             osc.start(t);
             osc.stop(t + 0.2);
         } catch (e) {}
-        broadcastSFX('jump');
     }
 
     playLand() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('land');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -269,10 +311,11 @@ class SkyroadsAudio {
             osc.start(t);
             osc.stop(t + 0.09);
         } catch (e) {}
-        broadcastSFX('land');
     }
 
     playBoost() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('boost');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -289,10 +332,11 @@ class SkyroadsAudio {
             osc.start(t);
             osc.stop(t + 0.3);
         } catch (e) {}
-        broadcastSFX('boost');
     }
 
     playCrash() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('crash');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -318,10 +362,11 @@ class SkyroadsAudio {
             gain.connect(this.masterGain);
             noise.start(t);
         } catch (e) {}
-        broadcastSFX('crash');
     }
 
     playStageClear() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('clear');
         if (!this.ctx) return;
         this.resume();
         const notes = [330, 392, 523, 659];
@@ -338,10 +383,11 @@ class SkyroadsAudio {
             osc.start(t + idx * 0.12);
             osc.stop(t + idx * 0.12 + 0.2);
         });
-        broadcastSFX('clear');
     }
 
     playRing() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
+        broadcastSFX('ring');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -370,13 +416,13 @@ class SkyroadsAudio {
             osc1.stop(t + 0.32);
             osc2.stop(t + 0.32);
         } catch (e) {}
-        broadcastSFX('ring');
     }
 }
 const audio = new SkyroadsAudio();
 
 function broadcastSFX(sound, param = null) {
     if (typeof dataChannels === 'undefined') return;
+    if (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo)) return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
     dataChannels.forEach(ch => {
         if (ch && ch.readyState === 'open') {
@@ -387,20 +433,10 @@ function broadcastSFX(sound, param = null) {
 
 ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => {
+        if (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo)) return;
         if (!audio.ctx) audio.init();
         else audio.resume();
     }, { passive: true });
-});
-
-window.addEventListener('DOMContentLoaded', () => {
-    const audioToggleBtn = document.getElementById('audio-toggle-btn');
-    if (audioToggleBtn) {
-        audioToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (!audio.ctx) audio.init();
-            else audio.resume();
-        });
-    }
 });
 
 // ==========================================
@@ -459,9 +495,11 @@ const SEGMENT_LENGTH = 32;
 
 const GameState = {
     running: false,
+    isDemo: false,
     gameOver: false,
     adPlaying: false,
     paused: false,
+    _gameOverTimeout: null,
     score: 0,
     stageStartScore: 0,
     highScore: 0,
@@ -911,7 +949,179 @@ function generateTrack(stageNumber) {
 // ==========================================
 // 🕹️ Game Initialization & Lifecycle
 // ==========================================
+function startAttractMode() {
+    if (GameState._gameOverTimeout) {
+        clearTimeout(GameState._gameOverTimeout);
+        GameState._gameOverTimeout = null;
+    }
+    stopAttractMode();
+    loadRanking();
+
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.paused = false;
+    GameState.score = 0;
+    GameState.stageStartScore = 0;
+    GameState.lives = 3;
+    GameState.stage = 1;
+    GameState.currentNickname = 'DEMO';
+    GameState.particles = [];
+    GameState.popups = [];
+    audio.updateEngineSpeed(0);
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    const env = getStageEnv(GameState.stage);
+    initAtmosphericParticles(env.theme);
+    generateTrack(GameState.stage);
+    resetShip();
+    GameState.stageIntroTimer = 0; // Arrancar vuelo inmediatamente en demo
+
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+    updateUI();
+}
+
+function stopAttractMode() {
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+}
+
+function updateDemoAI(dt) {
+    if (!GameState.isDemo || GameState.adPlaying || GameState.paused) return;
+    const ship = GameState.ship;
+    if (ship.isCrashing || ship.isFalling) return;
+
+    const track = GameState.track;
+    if (!track || track.length === 0) return;
+
+    const cfg = getStageConfig(GameState.stage);
+    const curIdx = Math.max(0, Math.min(track.length - 1, Math.floor(ship.z / SEGMENT_LENGTH)));
+    const curSeg = track[curIdx];
+    const nextSeg = track[curIdx + 1] || null;
+    const distToEdge = curSeg ? (curSeg.z + curSeg.length - ship.z) : 999;
+
+    const laneCenterX = (l) => -TRACK_WIDTH / 2 + (l + 0.5) * LANE_WIDTH;
+    const isSafe = (seg, l) => Boolean(seg && l >= 0 && l < LANES_COUNT && seg.tiles[l] !== 0 && !(seg.obstacle && seg.obstacle.lane === l));
+
+    const curLane = Math.max(0, Math.min(LANES_COUNT - 1, Math.floor((ship.x + TRACK_WIDTH / 2) / LANE_WIDTH)));
+    let targetLane = curLane;
+
+    // 1. Verificar si el siguiente segmento es un abismo total (salto obligatorio)
+    const nextAllVoid = nextSeg ? nextSeg.tiles.every(t => t === 0) : false;
+
+    if (nextAllVoid) {
+        // Buscar la plataforma de aterrizaje más próxima para alinear la trayectoria
+        let landSeg = null;
+        for (let k = curIdx + 2; k < Math.min(track.length, curIdx + 7); k++) {
+            if (track[k] && track[k].tiles.some(t => t !== 0)) {
+                landSeg = track[k];
+                break;
+            }
+        }
+        // Si hay plataforma de salto (tile 3) en el segmento actual, centrarse en ella
+        if (curSeg && curSeg.tiles[5] === 3) {
+            targetLane = 5;
+        } else if (landSeg) {
+            if (isSafe(landSeg, 5) && isSafe(curSeg, 5)) {
+                targetLane = 5;
+            } else {
+                let best = curLane;
+                let bestDist = 999;
+                for (let l = 0; l < LANES_COUNT; l++) {
+                    if (isSafe(landSeg, l) && (isSafe(curSeg, l) || !ship.onGround)) {
+                        const d = Math.abs(l - curLane);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            best = l;
+                        }
+                    }
+                }
+                targetLane = best;
+            }
+        }
+
+        // Saltar limpiamente al acercarse al borde del abismo
+        if (ship.onGround && distToEdge <= 16 && isShipOnSolidRoad()) {
+            performJump();
+        }
+    } else if (nextSeg) {
+        // 2. Si el siguiente segmento tiene plataforma de salto (tile 3) en el centro, alinearse al centro
+        if (nextSeg.tiles[5] === 3 && isSafe(curSeg, 5)) {
+            targetLane = 5;
+        } else if (isSafe(nextSeg, curLane)) {
+            // Preferir el carril central (5) si toda la transición está libre y segura
+            if (curLane !== 5 && isSafe(nextSeg, 5) && isSafe(curSeg, 5) &&
+                Math.abs(curLane - 5) === 1) {
+                targetLane = 5;
+            } else {
+                targetLane = curLane;
+            }
+        } else {
+            // Buscar carril seguro más cercano en el siguiente segmento que sea transitable
+            let best = -1;
+            let bestScore = 999;
+            for (let l = 0; l < LANES_COUNT; l++) {
+                if (!isSafe(nextSeg, l)) continue;
+                const reachableOnGround = isSafe(curSeg, l);
+                const cost = Math.abs(l - curLane) + (reachableOnGround ? 0 : 12);
+                if (cost < bestScore) {
+                    bestScore = cost;
+                    best = l;
+                }
+            }
+            if (best !== -1) {
+                targetLane = best;
+                // Si hay vacío entre el carril actual y el destino (ej. salto lateral entre flancos), saltar
+                if (!isSafe(curSeg, targetLane) && ship.onGround && distToEdge <= 16 && isShipOnSolidRoad()) {
+                    performJump();
+                }
+            } else if (ship.onGround && distToEdge <= 16 && isShipOnSolidRoad()) {
+                performJump();
+            }
+        }
+
+        // 3. Evitar obstáculos inminentes en el carril actual
+        const obsAhead = (curSeg && curSeg.obstacle && curSeg.obstacle.lane === curLane) ||
+                         (nextSeg && nextSeg.obstacle && nextSeg.obstacle.lane === curLane);
+        if (obsAhead) {
+            if (isSafe(nextSeg, curLane - 1) && isSafe(curSeg, curLane - 1)) {
+                targetLane = curLane - 1;
+            } else if (isSafe(nextSeg, curLane + 1) && isSafe(curSeg, curLane + 1)) {
+                targetLane = curLane + 1;
+            } else if (ship.onGround && distToEdge <= 20 && isShipOnSolidRoad()) {
+                performJump();
+            }
+        }
+    }
+
+    const targetX = laneCenterX(targetLane);
+    const diffX = targetX - ship.x;
+    ship.targetVx = Math.max(-115, Math.min(115, diffX * 7.5));
+    ship.targetSpeed = cfg.baseSpeed;
+}
+
 function startNewGame() {
+    if (GameState._gameOverTimeout) {
+        clearTimeout(GameState._gameOverTimeout);
+        GameState._gameOverTimeout = null;
+    }
+    stopAttractMode();
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
+    audio.setMutedForAd(false);
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
+
     GameState.score = 0;
     GameState.stageStartScore = 0;
     GameState.lives = 3;
@@ -965,6 +1175,23 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
     if (ship.isCrashing) return;
 
     ship.isCrashing = true;
+
+    // En modo demostración, reiniciar silenciosamente la pista sin Game Over ni puntaje ni audio
+    if (GameState.isDemo) {
+        ship.crashTimer = 0.5;
+        setTimeout(() => {
+            if (!GameState.isDemo || GameState.adPlaying) return;
+            GameState.score = 0;
+            GameState.particles = [];
+            GameState.popups = [];
+            generateTrack(GameState.stage);
+            resetShip();
+            GameState.stageIntroTimer = 0;
+            updateUI();
+        }, 500);
+        return;
+    }
+
     ship.crashTimer = 1.3;
     audio.playCrash();
 
@@ -993,9 +1220,12 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
     updateUI();
 
     if (GameState.lives <= 0) {
-        setTimeout(endGame, 1200);
+        setTimeout(() => {
+            if (!GameState.isDemo && !GameState.adPlaying) endGame();
+        }, 1200);
     } else {
         setTimeout(() => {
+            if (!GameState.running || GameState.gameOver || GameState.isDemo || GameState.adPlaying) return;
             // Reinicia desde el comienzo del nivel actual hasta que logre superarlo
             GameState.score = GameState.stageStartScore;
             generateTrack(GameState.stage);
@@ -1009,6 +1239,17 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
 }
 
 function nextStage() {
+    if (GameState.isDemo) {
+        GameState.stage = (GameState.stage % 4) + 1;
+        const env = getStageEnv(GameState.stage);
+        initAtmosphericParticles(env.theme);
+        generateTrack(GameState.stage);
+        resetShip();
+        GameState.stageIntroTimer = 0;
+        updateUI();
+        return;
+    }
+
     audio.playStageClear();
     GameState.score += 1000 * GameState.stage;
     GameState.stageStartScore = GameState.score;
@@ -1024,6 +1265,7 @@ function nextStage() {
 }
 
 function endGame() {
+    if (GameState.isDemo) return;
     GameState.running = false;
     GameState.gameOver = true;
     gameOverOverlay.classList.remove('hidden');
@@ -1039,6 +1281,12 @@ function endGame() {
         }
     });
 
+    // Disconnect controllers so they re-scan
+    dataChannels.forEach(ch => { try { ch.close(); } catch (_) {} });
+    peerConnections.forEach(pc => { try { pc.close(); } catch (_) {} });
+    dataChannels.clear();
+    peerConnections.clear();
+
     const videoOverlay = document.getElementById('video-ranking-overlay');
     if (videoOverlay) {
         videoOverlay.classList.remove('hidden');
@@ -1049,6 +1297,26 @@ function endGame() {
             if (!GameState.running) videoOverlay.classList.add('hidden');
         }, 5000);
     }
+
+    if (GameState._gameOverTimeout) clearTimeout(GameState._gameOverTimeout);
+    GameState._gameOverTimeout = setTimeout(() => {
+        GameState._gameOverTimeout = null;
+        if (GameState.running || GameState.adPlaying) return;
+        gameOverOverlay.classList.add('hidden');
+        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        updateQrCode();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(JSON.stringify({
+                    type: 'register',
+                    role: 'host',
+                    roomId: GameState.roomId,
+                    maxPlayers: CONFIG.MAX_PLAYERS || 1
+                }));
+            } catch (_) {}
+        }
+        startAttractMode();
+    }, 15000);
 }
 
 // ==========================================
@@ -1098,8 +1366,8 @@ function releaseJump() {
 }
 
 function performJump() {
-    if (!GameState.running || GameState.gameOver || GameState.stageIntroTimer > 0) return;
-    audio.init();
+    if (!GameState.running || GameState.gameOver || GameState.adPlaying || GameState.paused || GameState.stageIntroTimer > 0) return;
+    if (!GameState.isDemo) audio.init();
     const ship = GameState.ship;
     ship.vy = Math.max(ship.vy, 160);
     ship.y = Math.max(ship.y, 0.5);
@@ -1134,7 +1402,7 @@ function createJumpSparks() {
 // 🚀 Physics & Collision Loop
 // ==========================================
 function update(dt) {
-    if (!GameState.running || GameState.gameOver) return;
+    if (!GameState.running || GameState.gameOver || GameState.adPlaying || GameState.paused) return;
 
     const ship = GameState.ship;
 
@@ -1159,6 +1427,10 @@ function update(dt) {
         ship.crashTimer -= dt;
         updateParticles(dt);
         return;
+    }
+
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
     }
 
     // Boost timer
@@ -2183,6 +2455,15 @@ function updateUI() {
     livesCountElement.textContent = GameState.lives;
     if (levelCountElement) levelCountElement.textContent = GameState.stage;
     speedMeterElement.textContent = `KM/H: ${Math.floor(GameState.ship.speed * 1.5)}`;
+    if (playerNickElement) {
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = 'var(--amber)';
+        } else {
+            playerNickElement.textContent = `PLAYER: ${(GameState.currentNickname || 'PILOT').toUpperCase().substring(0, 8)}`;
+            playerNickElement.style.color = '';
+        }
+    }
 }
 
 // ==========================================
@@ -2285,23 +2566,23 @@ function updateQrCode() {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 160,
-                    height: 160,
+                    width: 200,
+                    height: 200,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.M
+                    correctLevel: QRCode.CorrectLevel.L
                 });
             } else {
                 throw new Error('QRCode not loaded');
             }
         } catch (e) {
             console.warn('QRCode error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4`;
         }
     }
     const roomSpan = document.getElementById('room-id');
@@ -2511,20 +2792,33 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -2565,12 +2859,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             // Reanudar reproductor lateral
             if (window.parent && window.parent !== window) {
@@ -2638,13 +2935,13 @@ function handleControllerDisconnect(playerId) {
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
     if (peerConnections.size === 0) {
-        waitingOverlay.classList.remove('hidden');
+        startAttractMode();
     }
 }
 
 function setupDataChannel(dc, senderId) {
     dc.onopen = () => {
-        waitingOverlay.classList.add('hidden');
+        if (waitingOverlay) waitingOverlay.classList.add('hidden');
     };
 
     dc.onclose = () => {
@@ -2656,11 +2953,14 @@ function setupDataChannel(dc, senderId) {
             const data = JSON.parse(event.data);
             if (data.type === 'join' || data.type === 'nickname') {
                 GameState.currentNickname = data.nickname || data.value || 'Pilot';
-                playerNickElement.textContent = `PILOT: ${GameState.currentNickname.toUpperCase()}`;
+                updateUI();
                 playPreGameAdThenStart(GameState.currentNickname, () => {
                     startNewGame();
                 });
-            } else if (data.type === 'input') {
+                return;
+            }
+            if (GameState.adPlaying || GameState.paused || GameState.isDemo) return;
+            if (data.type === 'input') {
                 if (typeof data.x === 'number') {
                     GameState.ship.targetVx = data.x * 115;
                 }
@@ -2688,21 +2988,23 @@ function setupDataChannel(dc, senderId) {
 // ⌨️ Keyboard Controls (Single-Click Discrete Jump)
 // ==========================================
 window.addEventListener('keydown', (e) => {
-    audio.init();
     const key = e.key.toLowerCase();
-    
-    // Saltar publicidad durante pruebas de teclado si está activa
+
+    // Saltar publicidad durante pruebas de teclado si está activa; bloquear el resto de entradas
     if (GameState.adPlaying) {
         if ([' ', 'enter', 'escape'].includes(key)) {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
     }
 
+    audio.init();
+
     if (['arrowup', 'w', ' ', 'arrowleft', 'a', 'arrowright', 'd', 'enter'].includes(key)) {
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+            GameState.currentNickname = 'PILOT';
             playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
@@ -2730,6 +3032,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
+    if (GameState.adPlaying || GameState.isDemo) return;
     const key = e.key.toLowerCase();
     if (key === 'arrowleft' || key === 'a') {
         keys.left = false;
@@ -2747,37 +3050,32 @@ window.addEventListener('keyup', (e) => {
 });
 
 mainScreen.addEventListener('click', () => {
+    if (GameState.adPlaying) return;
     audio.init();
-    if (!GameState.running || GameState.gameOver) {
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+        GameState.currentNickname = 'PILOT';
         playPreGameAdThenStart('PILOT', () => startNewGame());
     }
 });
 
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        audio.init();
-        if (!GameState.running || GameState.gameOver) {
-            playPreGameAdThenStart('PILOT', () => startNewGame());
-        }
-    });
-}
-
 // ==========================================
 // 📐 AutoScale Multi-Stage Engine
 // ==========================================
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
+
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 470;
-
+    // offsetWidth / offsetHeight devuelven siempre las dimensiones sin transform
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
-    const padding = 20;
+    const padding = 8;
     const scaleX = (availableW - padding) / naturalW;
     const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
@@ -2785,49 +3083,87 @@ function autoScale() {
     container.style.transform = `scale(${scale})`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+function initDomAndAttract() {
     updateQrCode();
     autoScale();
+    loadRanking();
+    if (!GameState.isDemo && !GameState.running && !GameState.adPlaying) {
+        startAttractMode();
+    }
+
     const audioToggleBtn = document.getElementById('audio-toggle-btn');
-    if (audioToggleBtn) {
+    if (audioToggleBtn && !audioToggleBtn._boundClick) {
+        audioToggleBtn._boundClick = true;
         audioToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (GameState.adPlaying) return;
             if (!audio.ctx) audio.init();
             else audio.resume();
         });
     }
-});
 
-mainScreen.addEventListener('click', () => {
-    audio.init();
-    if (!GameState.running || GameState.gameOver) startNewGame();
-});
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel && !qrPanel._boundClick) {
+        qrPanel._boundClick = true;
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            GameState.currentNickname = 'PILOT';
+            playPreGameAdThenStart('PILOT', () => startNewGame());
+        });
+    }
+}
+
+// ==========================================
+// 🚀 Initial Launch
+// ==========================================
+startAttractMode();
+loadRanking();
+updateUI();
+updateQrCode();
+autoScale();
+render();
+requestAnimationFrame(gameLoop);
+connectSignaling();
+requestAdVideo();
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
 
 window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
     updateQrCode();
     autoScale();
+    if (!GameState.running && !GameState.isDemo && !GameState.adPlaying) {
+        startAttractMode();
+    }
 });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
-if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+        autoScale();
+    });
+}
+if (window.ResizeObserver) {
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
+    ro.observe(document.body);
+}
 window.addEventListener('message', (e) => {
     if (!e.data) return;
     if (e.data.type === 'RESCALE') autoScale();
     if (e.data.type === 'GET_RANKING') loadRanking();
 });
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
-
-// ==========================================
-// 🚀 Initial Launch
-// ==========================================
-const initialEnv = getStageEnv(1);
-initAtmosphericParticles(initialEnv.theme);
-generateTrack(1);
-resetShip();
-loadRanking();
-requestAdVideo();
-updateUI();
-updateQrCode();
-autoScale();
-requestAnimationFrame(gameLoop);
-connectSignaling();

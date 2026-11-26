@@ -36,6 +36,7 @@ const peerConnections = new Map();
 const dataChannels = new Map();
 
 function broadcastSFX(sound, param = null) {
+    if (typeof GameState !== 'undefined' && (GameState.isDemo || GameState.adPlaying)) return;
     if (typeof dataChannels === 'undefined' || !dataChannels || dataChannels.size === 0) return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
     dataChannels.forEach(dc => {
@@ -46,6 +47,7 @@ function broadcastSFX(sound, param = null) {
 }
 
 function broadcastState() {
+    if (typeof GameState !== 'undefined' && GameState.isDemo) return;
     if (typeof dataChannels === 'undefined' || !dataChannels || dataChannels.size === 0) return;
     const payload = JSON.stringify({
         type: 'state',
@@ -68,9 +70,11 @@ class DuckHuntAudio {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
+        this.adMuted = false;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -86,7 +90,29 @@ class DuckHuntAudio {
         this.resume();
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.adMuted ? 0 : 0.65, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+                }
+            }
+        } catch (e) {}
+    }
+
     resume() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => this.updateUI()).catch(() => {});
         } else if (this.ctx && this.ctx.state === 'running') {
@@ -106,8 +132,13 @@ class DuckHuntAudio {
         }
     }
 
+    isBlocked() {
+        return this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo));
+    }
+
     // Intro clásica de Duck Hunt NES
     playIntro() {
+        if (this.isBlocked()) return;
         broadcastSFX('intro');
         if (!this.ctx) this.init();
         this.resume();
@@ -141,6 +172,7 @@ class DuckHuntAudio {
 
     // Ladrido del perro
     playBark() {
+        if (this.isBlocked()) return;
         broadcastSFX('bark');
         if (!this.ctx) this.init();
         this.resume();
@@ -165,6 +197,7 @@ class DuckHuntAudio {
 
     // Aleteo del pato
     playFlap() {
+        if (this.isBlocked()) return;
         if (!this.ctx) this.init();
         this.resume();
         if (!this.ctx) return;
@@ -186,6 +219,7 @@ class DuckHuntAudio {
 
     // Disparo atronador de la Zapper NES (ruido blanco + punch grave analógico)
     playGunshot() {
+        if (this.isBlocked()) return;
         broadcastSFX('gunshot');
         if (!this.ctx) this.init();
         this.resume();
@@ -233,6 +267,7 @@ class DuckHuntAudio {
 
     // Graznido / Cuac del pato al ser impactado
     playQuack() {
+        if (this.isBlocked()) return;
         broadcastSFX('quack');
         if (!this.ctx) this.init();
         this.resume();
@@ -256,6 +291,7 @@ class DuckHuntAudio {
 
     // Silbido descendente de caída del pato
     playFall() {
+        if (this.isBlocked()) return;
         broadcastSFX('fall');
         if (!this.ctx) this.init();
         this.resume();
@@ -278,6 +314,7 @@ class DuckHuntAudio {
 
     // Golpe sordo al caer en la hierba
     playThud() {
+        if (this.isBlocked()) return;
         broadcastSFX('thud');
         if (!this.ctx) this.init();
         this.resume();
@@ -300,6 +337,7 @@ class DuckHuntAudio {
 
     // Risa burlona del perro
     playDogLaugh() {
+        if (this.isBlocked()) return;
         broadcastSFX('laugh');
         if (!this.ctx) this.init();
         this.resume();
@@ -324,6 +362,7 @@ class DuckHuntAudio {
 
     // Fanfarria de patos capturados
     playCaught() {
+        if (this.isBlocked()) return;
         broadcastSFX('caught');
         if (!this.ctx) this.init();
         this.resume();
@@ -348,6 +387,7 @@ class DuckHuntAudio {
 
     // Fanfarria de victoria de ronda
     playRoundPass() {
+        if (this.isBlocked()) return;
         broadcastSFX('round_pass');
         if (!this.ctx) this.init();
         this.resume();
@@ -372,6 +412,7 @@ class DuckHuntAudio {
 
     // Melodía de Game Over
     playGameOver() {
+        if (this.isBlocked()) return;
         broadcastSFX('gameover');
         if (!this.ctx) this.init();
         this.resume();
@@ -407,6 +448,7 @@ const audio = new DuckHuntAudio();
 // Desbloqueo y activación global de audio en cualquier interacción del usuario
 ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => {
+        if (typeof GameState !== 'undefined' && GameState.adPlaying) return;
         if (!audio.ctx) audio.init();
         else audio.resume();
     }, { passive: true });
@@ -418,6 +460,8 @@ const audio = new DuckHuntAudio();
 
 const GameState = {
     running: false,
+    isDemo: false,
+    paused: false,
     gameOver: false,
     adPlaying: false,
     score: 0,
@@ -2340,6 +2384,7 @@ function fireShot(aimX, aimY) {
 }
 
 function broadcastAmmo() {
+    if (GameState.isDemo) return;
     dataChannels.forEach(dc => {
         try {
             dc.send(JSON.stringify({ type: 'ammo', count: GameState.ammo }));
@@ -2399,6 +2444,23 @@ function spawnDuckWave() {
 }
 
 function checkNextDuckOrEndRound() {
+    // En modo demostración, ciclar rondas infinitamente sin Game Over ni envío de score
+    if (GameState.isDemo) {
+        GameState.round = (GameState.round % 3) + 1;
+        GameState.lives = 3;
+        GameState.ducksTotalInRound = Math.min(4, GameState.round + 1);
+        GameState.roundHitsArray = new Array(GameState.ducksTotalInRound).fill(null);
+        GameState.targetSkyColor = '#63b8ff';
+        if (roundCountElement) roundCountElement.textContent = String(GameState.round).padStart(2, '0');
+        updateLivesHUD();
+        setTimeout(() => {
+            if (GameState.isDemo && GameState.running && !GameState.adPlaying && !GameState.gameOver) {
+                spawnDuckWave();
+            }
+        }, 900);
+        return;
+    }
+
     // Si mató a todos los patos del nivel avanza, de lo contrario pierde 1 oportunidad y regresa al nivel 1
     const killedAll = !!GameState.roundWon;
 
@@ -2508,6 +2570,10 @@ function handleDucksFinished() {
 }
 
 function triggerGameOver() {
+    if (GameState.isDemo) {
+        startAttractMode();
+        return;
+    }
     if (GameState.gameOver) return;
     GameState.gameOver = true;
     GameState.running = false;
@@ -2538,6 +2604,10 @@ function triggerGameOver() {
 }
 
 function triggerVictory() {
+    if (GameState.isDemo) {
+        startAttractMode();
+        return;
+    }
     if (GameState.gameOver) return;
     GameState.gameOver = true;
     GameState.running = false;
@@ -2572,11 +2642,145 @@ function triggerVictory() {
 }
 
 // ==============================================================================
-// BUCLE PRINCIPAL DE JUEGO (GAME LOOP)
+// MODO DEMOSTRACIÓN IA (ATTRACT MODE) Y BUCLE PRINCIPAL DE JUEGO
 // ==============================================================================
 
+let demoFireCooldown = 0.6;
+let demoAimDriftPhase = 0;
+
+function updateDemoAI(dt) {
+    if (!GameState.isDemo || !GameState.running || GameState.paused || GameState.adPlaying) return;
+
+    demoAimDriftPhase += dt * 2.2;
+    if (demoFireCooldown > 0) demoFireCooldown -= dt;
+
+    if (GameState.subRoundState === 'hunting') {
+        // Buscar pato activo volando
+        const flyingDucks = activeDucks.filter(d => d.launchDelay <= 0 && (d.state === 'flying' || d.state === 'fly_away'));
+        if (flyingDucks.length > 0) {
+            // Elegir el pato más cercano a la retícula actual
+            let target = flyingDucks[0];
+            let bestDist = Math.hypot(target.x - Reticle.x, target.y - Reticle.y);
+            for (let i = 1; i < flyingDucks.length; i++) {
+                const d = Math.hypot(flyingDucks[i].x - Reticle.x, flyingDucks[i].y - Reticle.y);
+                if (d < bestDist) {
+                    bestDist = d;
+                    target = flyingDucks[i];
+                }
+            }
+
+            // Predicción suave de trayectoria
+            const leadX = target.x + target.vx * 0.10 + Math.sin(demoAimDriftPhase) * 4;
+            const leadY = target.y + target.vy * 0.10 + Math.cos(demoAimDriftPhase * 1.3) * 4;
+
+            const dx = leadX - Reticle.x;
+            const dy = leadY - Reticle.y;
+            const dist = Math.hypot(dx, dy);
+            const maxStep = 230 * dt;
+            if (dist > 1) {
+                const step = Math.min(dist, maxStep);
+                Reticle.x += (dx / dist) * step;
+                Reticle.y += (dy / dist) * step;
+            }
+
+            const aimErr = Math.hypot(target.x - Reticle.x, target.y - Reticle.y);
+            if (aimErr < 24 && demoFireCooldown <= 0 && GameState.ammo > 0) {
+                fireShot(Reticle.x, Reticle.y);
+                demoFireCooldown = 0.55 + Math.random() * 0.35;
+            }
+        }
+    } else {
+        // Retícula patrullando suavemente el cielo mientras el perro recoge los patos
+        const idleX = CANVAS_WIDTH * 0.5 + Math.sin(demoAimDriftPhase * 0.7) * 75;
+        const idleY = 115 + Math.cos(demoAimDriftPhase * 0.9) * 32;
+        Reticle.x += (idleX - Reticle.x) * Math.min(1, dt * 3.5);
+        Reticle.y += (idleY - Reticle.y) * Math.min(1, dt * 3.5);
+    }
+
+    Reticle.x = Math.max(16, Math.min(CANVAS_WIDTH - 16, Reticle.x));
+    Reticle.y = Math.max(16, Math.min(CANVAS_HEIGHT - 32, Reticle.y));
+}
+
+function startAttractMode() {
+    stopAttractMode();
+    if (gameOverTimeout) {
+        clearTimeout(gameOverTimeout);
+        gameOverTimeout = null;
+    }
+
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.paused = false;
+    GameState.isMobileSession = false;
+    GameState.score = 0;
+    GameState.round = 1;
+    GameState.lives = 3;
+    GameState.ducksTotalInRound = 2;
+    GameState.duckIndexInRound = 0;
+    GameState.ducksHitInRound = 0;
+    GameState.roundHitsArray = [null, null];
+    GameState.currentNickname = 'DEMO';
+    GameState.skyColor = '#63b8ff';
+    GameState.targetSkyColor = '#63b8ff';
+    GameState.whiteFlashTimer = 0;
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    activeDucks = [];
+    feathers = [];
+    floatingScores = [];
+    gunSmokes = [];
+    fallingLeaves = [];
+    screenShakeTimer = 0;
+    Dog.state = 'hidden';
+    Dog.pointsAwarded = false;
+    Dog.pendingPoints = 0;
+
+    Reticle.x = CANVAS_WIDTH / 2;
+    Reticle.y = 120;
+    Reticle.vx = 0;
+    Reticle.vy = 0;
+    Reticle.flashTimer = 0;
+    demoFireCooldown = 0.65;
+
+    initAmbientParticles();
+    spawnDuckWave();
+
+    // Ubicar los primeros patos ya en pleno vuelo para un modo demostración vibrante desde el primer frame
+    activeDucks.forEach((duck, idx) => {
+        duck.launchDelay = 0;
+        duck.x = idx === 0 ? 115 : 285;
+        duck.y = idx === 0 ? 145 : 108;
+        duck.vx = (idx === 0 ? 1 : -1) * Math.abs(duck.vx || duck.speed * 0.75);
+        duck.vy = (idx === 0 ? -0.45 : 0.4) * duck.speed;
+    });
+
+    if (playerNickElement) {
+        playerNickElement.textContent = 'PLAYER: DEMO';
+        playerNickElement.style.color = 'var(--amber)';
+    }
+    if (scoreElement) scoreElement.textContent = 'SCORE: 000000';
+    if (roundCountElement) roundCountElement.textContent = '01';
+    if (ammoCountElement) ammoCountElement.textContent = '● '.repeat(GameState.ammo).trim();
+    updateLivesHUD();
+
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+}
+
+function stopAttractMode() {
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+}
+
 function update(dt) {
-    if (!GameState.running || GameState.gameOver) return;
+    if (!GameState.running || GameState.gameOver || GameState.paused || GameState.adPlaying) return;
 
     // Destello de Zapper
     if (GameState.whiteFlashTimer > 0) {
@@ -2589,11 +2793,15 @@ function update(dt) {
     // Suavizado de transición de color de cielo
     GameState.skyColor = GameState.targetSkyColor;
 
-    // Actualizar movimiento de la retícula por teclado
-    Reticle.x += Reticle.vx * 260 * dt;
-    Reticle.y += Reticle.vy * 260 * dt;
-    Reticle.x = Math.max(16, Math.min(CANVAS_WIDTH - 16, Reticle.x));
-    Reticle.y = Math.max(16, Math.min(CANVAS_HEIGHT - 32, Reticle.y));
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
+    } else {
+        // Actualizar movimiento de la retícula por teclado
+        Reticle.x += Reticle.vx * 260 * dt;
+        Reticle.y += Reticle.vy * 260 * dt;
+        Reticle.x = Math.max(16, Math.min(CANVAS_WIDTH - 16, Reticle.x));
+        Reticle.y = Math.max(16, Math.min(CANVAS_HEIGHT - 32, Reticle.y));
+    }
 
     updateDog(dt);
     updateFeathers(dt);
@@ -2615,13 +2823,7 @@ function update(dt) {
     }
 }
 
-function gameLoop(time) {
-    if (!GameState.lastTime) GameState.lastTime = time;
-    const dt = Math.min((time - GameState.lastTime) / 1000, 0.1);
-    GameState.lastTime = time;
-
-    update(dt);
-
+function draw(dt = 0) {
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Guardar contexto para Screen Shake / Retroceso de la Zapper
@@ -2679,6 +2881,24 @@ function gameLoop(time) {
         ctx.fillStyle = `rgba(255, 255, 240, ${flashAlpha})`;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     }
+}
+
+function gameLoop(time) {
+    if (!GameState.lastTime) GameState.lastTime = time;
+    const dt = Math.min((time - GameState.lastTime) / 1000, 0.1);
+    GameState.lastTime = time;
+
+    try {
+        update(dt);
+    } catch (err) {
+        console.error('[DuckHunt] update error:', err);
+    }
+
+    try {
+        draw(dt);
+    } catch (err) {
+        console.error('[DuckHunt] draw error:', err);
+    }
 
     requestAnimationFrame(gameLoop);
 }
@@ -2692,6 +2912,10 @@ function startNewGame(fromController = false) {
         clearTimeout(gameOverTimeout);
         gameOverTimeout = null;
     }
+    stopAttractMode();
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
     GameState.running = true;
     GameState.gameOver = false;
     GameState.isMobileSession = !!fromController;
@@ -2701,6 +2925,13 @@ function startNewGame(fromController = false) {
     GameState.waveInRound = 0;
     GameState.ammo = 4;
     GameState.maxAmmo = 4;
+    if (!fromController && (!GameState.currentNickname || GameState.currentNickname === 'DEMO')) {
+        GameState.currentNickname = 'HUNTER';
+    }
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
 
     activeDucks = [];
     feathers = [];
@@ -2715,14 +2946,18 @@ function startNewGame(fromController = false) {
     scoreElement.textContent = 'SCORE: 000000';
     roundCountElement.textContent = '01';
     ammoCountElement.textContent = '● ● ● ●';
-    playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
+    if (playerNickElement) {
+        playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
+        playerNickElement.style.color = '';
+    }
     updateLivesHUD();
     broadcastState();
     broadcastAmmo();
 
-    waitingOverlay.classList.add('hidden');
-    gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
+    audio.setMutedForAd(false);
     audio.init();
     startRoundIntro();
 }
@@ -2733,6 +2968,7 @@ function startNewGame(fromController = false) {
 
 // Puntería y disparo directo con el ratón en la pantalla
 canvas.addEventListener('mousemove', (e) => {
+    if (GameState.adPlaying || GameState.isDemo) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = CANVAS_WIDTH / rect.width;
     const scaleY = CANVAS_HEIGHT / rect.height;
@@ -2741,8 +2977,10 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
+    if (GameState.adPlaying) return;
     if (audio.init) audio.init();
-    if (!GameState.running || GameState.gameOver) {
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+        e.stopPropagation();
         playPreGameAdThenStart('HUNTER', () => startNewGame());
     } else {
         fireShot(Reticle.x, Reticle.y);
@@ -2755,25 +2993,28 @@ window.addEventListener('keydown', (e) => {
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 's', 'a', 'd', ' ', 'enter'].includes(key) || e.code === 'Space') {
         e.preventDefault();
     }
-    if (audio.init) audio.init();
 
-    // Saltar publicidad durante pruebas de teclado si está activa
+    // Saltar publicidad durante pruebas de teclado si está activa y bloquear cualquier otra tecla
     if (GameState.adPlaying) {
         if ([' ', 'enter', 'escape'].includes(key) || e.code === 'Space') {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
     }
 
-    if (key === 'arrowleft' || key === 'a') Reticle.vx = -1;
-    if (key === 'arrowright' || key === 'd') Reticle.vx = 1;
-    if (key === 'arrowup' || key === 'w') Reticle.vy = -1;
-    if (key === 'arrowdown' || key === 's') Reticle.vy = 1;
+    if (audio.init) audio.init();
+
+    if (!GameState.isDemo) {
+        if (key === 'arrowleft' || key === 'a') Reticle.vx = -1;
+        if (key === 'arrowright' || key === 'd') Reticle.vx = 1;
+        if (key === 'arrowup' || key === 'w') Reticle.vy = -1;
+        if (key === 'arrowdown' || key === 's') Reticle.vy = 1;
+    }
 
     if (e.code === 'Space' || key === 'enter') {
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
             playPreGameAdThenStart('HUNTER', () => startNewGame());
         } else {
             fireShot(Reticle.x, Reticle.y);
@@ -2791,42 +3032,23 @@ window.addEventListener('keyup', (e) => {
 
 if (mainScreen) {
     mainScreen.addEventListener('click', (e) => {
+        if (GameState.adPlaying) return;
         if (e.target.closest('#game-over-overlay')) {
             resetSignalingAndRoom();
             return;
         }
         if (!audio.ctx) audio.init();
         else audio.resume();
-        if (!GameState.running && !GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
             playPreGameAdThenStart('HUNTER', () => startNewGame());
         }
     });
 }
 
 if (gameOverOverlay) {
-    gameOverOverlay.addEventListener('click', () => {
-        resetSignalingAndRoom();
-    });
-}
-
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        if (!audio.ctx) audio.init();
-        else audio.resume();
-        if (!GameState.running || GameState.gameOver) {
-            playPreGameAdThenStart('HUNTER', () => startNewGame());
-        }
-    });
-}
-
-const audioBtn = document.getElementById('audio-toggle-btn');
-if (audioBtn) {
-    audioBtn.addEventListener('click', (e) => {
+    gameOverOverlay.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!audio.ctx) audio.init();
-        else audio.resume();
-        audio.playBark(); // Ladrido de confirmación sonora instantánea
-        audio.updateUI();
+        resetSignalingAndRoom();
     });
 }
 
@@ -2841,16 +3063,24 @@ function updateQrCode() {
     qrContainer.innerHTML = '';
     const sId = new URLSearchParams(window.location.search).get('screenId');
     const screenParam = sId ? `&screenId=${encodeURIComponent(sId)}` : '';
-    const controlUrl = `${CONFIG.CONTROL_URL}/?room=${GameState.roomId}${screenParam}`;
-    if (typeof QRCode !== 'undefined') {
-        new QRCode(qrContainer, {
-            text: controlUrl,
-            width: 160,
-            height: 160,
-            colorDark: "#060a08",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.M
-        });
+    const baseUrl = (typeof CONFIG !== 'undefined' && CONFIG.CONTROL_URL) ? CONFIG.CONTROL_URL : 'https://controllers.myplayad.com/duckhunt';
+    const controlUrl = `${baseUrl}/?room=${GameState.roomId}${screenParam}`;
+    try {
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(qrContainer, {
+                text: controlUrl,
+                width: 200,
+                height: 200,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.L
+            });
+        } else {
+            throw new Error('QRCode not loaded');
+        }
+    } catch (e) {
+        console.warn('QRCode error, using fallback API:', e);
+        qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
     }
     if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
 }
@@ -3052,20 +3282,33 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -3105,12 +3348,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             if (window.parent && window.parent !== window) {
                 try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
@@ -3159,7 +3405,7 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
         GameState.isMobileSession = true;
-        waitingOverlay.classList.add('hidden');
+        if (waitingOverlay) waitingOverlay.classList.add('hidden');
     };
 
     channel.onmessage = (e) => {
@@ -3167,15 +3413,20 @@ function setupDataChannel(channel, playerId) {
             const msg = JSON.parse(e.data);
             if (msg.type === 'join' || msg.type === 'nickname') {
                 GameState.currentNickname = (msg.nickname || msg.value || 'HUNTER').toUpperCase().substring(0, 10);
-                if (playerNickElement) playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
+                if (playerNickElement) {
+                    playerNickElement.textContent = `HUNTER: ${GameState.currentNickname}`;
+                    playerNickElement.style.color = '';
+                }
                 playPreGameAdThenStart(GameState.currentNickname, () => {
                     startNewGame(true);
                 });
             } else if (msg.type === 'aim') {
+                if (GameState.adPlaying || GameState.isDemo) return;
                 // Mapear coordenadas normalizadas (0 a 1) al Canvas
                 Reticle.x = (msg.x || 0.5) * CANVAS_WIDTH;
                 Reticle.y = (msg.y || 0.5) * CANVAS_HEIGHT;
             } else if (msg.type === 'fire') {
+                if (GameState.adPlaying || GameState.isDemo) return;
                 if (msg.x !== undefined && msg.y !== undefined) {
                     Reticle.x = msg.x * CANVAS_WIDTH;
                     Reticle.y = msg.y * CANVAS_HEIGHT;
@@ -3205,9 +3456,8 @@ function handleControllerDisconnect(playerId) {
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    if (GameState.isMobileSession && peerConnections.size === 0 && !GameState.gameOver && GameState.running) {
-        waitingOverlay.classList.remove('hidden');
-        GameState.running = false;
+    if (GameState.isMobileSession && peerConnections.size === 0 && !GameState.gameOver) {
+        startAttractMode();
     }
 }
 
@@ -3224,18 +3474,11 @@ function resetSignalingAndRoom() {
     peerConnections.clear();
     dataChannels.clear();
 
-    GameState.gameOver = false;
-    GameState.running = false;
-    GameState.isMobileSession = false;
-    GameState.lives = 3;
-    GameState.round = 1;
     GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
     if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
 
     updateQrCode();
-    waitingOverlay.classList.remove('hidden');
-    gameOverOverlay.classList.add('hidden');
-    updateLivesHUD();
+    startAttractMode();
 
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
@@ -3280,20 +3523,22 @@ function renderRanking(scores) {
     }
 }
 
-// Motor reactivo autoScale multi-etapa
+// Dimensiones de referencia de la consola arcade (fallback si aún no hay layout)
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
+
+// Motor reactivo autoScale multi-etapa (sin resetear transform para evitar flicker)
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 470;
-
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
-    const padding = 20;
+    const padding = 8;
     const scaleX = (availableW - padding) / naturalW;
     const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
@@ -3301,29 +3546,83 @@ function autoScale() {
     container.style.transform = `scale(${scale})`;
 }
 
-// Arranque
-window.addEventListener('DOMContentLoaded', () => {
-    audio.init();
+function initDomAndAttract() {
     updateQrCode();
     autoScale();
-    initSignaling();
-    initAmbientParticles();
-    const savedHi = localStorage.getItem('duckhunt_highscore');
-    if (savedHi) {
-        GameState.highScore = parseInt(savedHi, 10);
-        highScoreElement.textContent = `HI: ${String(GameState.highScore).padStart(6, '0')}`;
+    if (!GameState.isDemo && !GameState.running) {
+        startAttractMode();
     }
-    const scores = JSON.parse(localStorage.getItem('duckhunt_scores') || '[]');
-    renderRanking(scores);
-    requestAdVideo();
-    requestAnimationFrame(gameLoop);
-});
+
+    const audioBtn = document.getElementById('audio-toggle-btn');
+    if (audioBtn && !audioBtn._bound) {
+        audioBtn._bound = true;
+        audioBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            if (!audio.ctx) audio.init();
+            else audio.resume();
+            audio.updateUI();
+        });
+    }
+
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel && !qrPanel._bound) {
+        qrPanel._bound = true;
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            playPreGameAdThenStart('HUNTER', () => startNewGame());
+        });
+    }
+}
+
+// Arranque inmediato y modo demostración activo desde el primer frame
+const savedHi = localStorage.getItem('duckhunt_highscore');
+if (savedHi) {
+    GameState.highScore = parseInt(savedHi, 10) || 0;
+    if (highScoreElement) highScoreElement.textContent = `HI: ${String(GameState.highScore).padStart(6, '0')}`;
+}
+renderRanking(JSON.parse(localStorage.getItem('duckhunt_scores') || '[]'));
+startAttractMode();
+updateQrCode();
+autoScale();
+draw(0);
+requestAnimationFrame(gameLoop);
+initSignaling();
+requestAdVideo();
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
 
 window.addEventListener('resize', autoScale);
-window.addEventListener('load', () => { updateQrCode(); autoScale(); });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
-if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
-[0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
+window.addEventListener('load', () => {
+    updateQrCode();
+    autoScale();
+    if (!GameState.running && !GameState.isDemo) {
+        startAttractMode();
+    }
+});
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => autoScale());
+}
+if (window.ResizeObserver) {
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
+    ro.observe(document.body);
+}
 
 window.addEventListener('message', (e) => {
     if (!e.data) return;
@@ -3333,4 +3632,6 @@ window.addEventListener('message', (e) => {
         renderRanking(scores);
     }
 });
+
+[0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
 

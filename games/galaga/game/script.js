@@ -31,9 +31,11 @@ class GalagaAudio {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
+        this.adMuted = false;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -49,7 +51,29 @@ class GalagaAudio {
         this.resume();
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.adMuted ? 0 : 0.4, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+                }
+            }
+        } catch (e) {}
+    }
+
     resume() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => this.updateUI()).catch(() => {});
         } else if (this.ctx && this.ctx.state === 'running') {
@@ -69,7 +93,13 @@ class GalagaAudio {
         }
     }
 
+    isBlocked() {
+        return this.adMuted || (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo));
+    }
+
     playLaser() {
+        if (this.isBlocked()) return;
+        broadcastSFX('laser');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -86,10 +116,11 @@ class GalagaAudio {
             osc.start(t);
             osc.stop(t + 0.08);
         } catch (e) {}
-        broadcastSFX('laser');
     }
 
     playAlienHit() {
+        if (this.isBlocked()) return;
+        broadcastSFX('alienHit');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -106,10 +137,11 @@ class GalagaAudio {
             osc.start(t);
             osc.stop(t + 0.06);
         } catch (e) {}
-        broadcastSFX('alienHit');
     }
 
     playBossDamage() {
+        if (this.isBlocked()) return;
+        broadcastSFX('bossHit');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -126,10 +158,11 @@ class GalagaAudio {
             osc.start(t);
             osc.stop(t + 0.07);
         } catch (e) {}
-        broadcastSFX('bossHit');
     }
 
     playAlienExplosion() {
+        if (this.isBlocked()) return;
+        broadcastSFX('alienKilled');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -146,10 +179,10 @@ class GalagaAudio {
             osc.start(t);
             osc.stop(t + 0.22);
         } catch (e) {}
-        broadcastSFX('alienKilled');
     }
 
     playDiveChirp() {
+        if (this.isBlocked()) return;
         if (!this.ctx) return;
         this.resume();
         try {
@@ -170,6 +203,7 @@ class GalagaAudio {
     }
 
     playTractorBeam() {
+        if (this.isBlocked()) return;
         if (!this.ctx) return;
         this.resume();
         try {
@@ -189,6 +223,8 @@ class GalagaAudio {
     }
 
     playPlayerExplosion() {
+        if (this.isBlocked()) return;
+        broadcastSFX('playerExplode');
         if (!this.ctx) return;
         this.resume();
         try {
@@ -205,10 +241,10 @@ class GalagaAudio {
             osc.start(t);
             osc.stop(t + 0.45);
         } catch (e) {}
-        broadcastSFX('playerExplode');
     }
 
     playStageIntro() {
+        if (this.isBlocked()) return;
         if (!this.ctx) return;
         this.resume();
         const notes = [293.66, 369.99, 440, 587.33, 523.25, 659.25, 783.99];
@@ -228,6 +264,8 @@ class GalagaAudio {
     }
 
     playStageClear() {
+        if (this.isBlocked()) return;
+        broadcastSFX('waveClear');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 554.37, 659.25, 880, 1108.73];
@@ -244,10 +282,11 @@ class GalagaAudio {
             osc.start(t + idx * 0.08);
             osc.stop(t + idx * 0.08 + 0.15);
         });
-        broadcastSFX('waveClear');
     }
 
     playGameOver() {
+        if (this.isBlocked()) return;
+        broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
         const notes = [440, 392, 349.23, 329.63, 293.66, 220];
@@ -264,12 +303,12 @@ class GalagaAudio {
             osc.start(t + idx * 0.15);
             osc.stop(t + idx * 0.15 + 0.2);
         });
-        broadcastSFX('gameover');
     }
 }
 const audio = new GalagaAudio();
 
 function broadcastSFX(sound, param = null) {
+    if (typeof GameState !== 'undefined' && (GameState.isDemo || GameState.adPlaying)) return;
     if (typeof dataChannels === 'undefined') return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
     dataChannels.forEach(ch => {
@@ -281,22 +320,10 @@ function broadcastSFX(sound, param = null) {
 
 ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => {
+        if (typeof GameState !== 'undefined' && GameState.adPlaying) return;
         if (!audio.ctx) audio.init();
         else audio.resume();
     }, { passive: true });
-});
-
-window.addEventListener('DOMContentLoaded', () => {
-    updateQrCode();
-    autoScale();
-    const audioToggleBtn = document.getElementById('audio-toggle-btn');
-    if (audioToggleBtn) {
-        audioToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (!audio.ctx) audio.init();
-            else audio.resume();
-        });
-    }
 });
 
 // ==========================================
@@ -307,8 +334,11 @@ const PLAYER_HEIGHT = 13;
 const PLAYER_SPEED = 240;
 const MAX_PLAYER_BULLETS = 16; // Permite disparos rápidos continuos sin bloquear los toques rápidos
 
+let gameOverRestartTimer = null;
+
 const GameState = {
     running: false,
+    isDemo: false,
     gameOver: false,
     adPlaying: false,
     paused: false,
@@ -522,6 +552,14 @@ function generateEntrancePath(col, row, delay = 0) {
 // 🚀 Game Setup & Reset
 // ==========================================
 function startNewGame() {
+    if (gameOverRestartTimer) {
+        clearTimeout(gameOverRestartTimer);
+        gameOverRestartTimer = null;
+    }
+    stopAttractMode();
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
     GameState.score = 0;
     GameState.lives = 3;
     GameState.stage = 1;
@@ -532,12 +570,21 @@ function startNewGame() {
     GameState.explosions = [];
     GameState.scorePopups = [];
     GameState.tractorBeam = null;
-    
+
+    if (!GameState.currentNickname || GameState.currentNickname === 'DEMO') {
+        GameState.currentNickname = 'PILOT';
+    }
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
+
+    audio.setMutedForAd(false);
     resetPlayerPosition();
     startStage(1);
     
-    gameOverOverlay.classList.add('hidden');
-    waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
     updateUI();
 }
 
@@ -612,8 +659,113 @@ function shootTorpedo() {
     });
 }
 
+let demoFireTimer = 0;
+
+function updateDemoAI(dt) {
+    if (!GameState.isDemo || !GameState.running || GameState.gameOver || GameState.paused || GameState.adPlaying || GameState.player.isCaptured) return;
+
+    const shipCenterX = GameState.player.x + PLAYER_WIDTH / 2;
+    const shipY = GameState.player.y;
+    let dodgeDir = 0;
+
+    // 1. Evaluar amenazas inminentes: rayos tractores, balas enemigas y aliens en picada
+    if (GameState.tractorBeam) {
+        const tb = GameState.tractorBeam;
+        const distBeam = shipCenterX - tb.x;
+        if (Math.abs(distBeam) < tb.maxWidth + 16) {
+            dodgeDir = distBeam >= 0 ? 1 : -1;
+            if (shipCenterX > CANVAS_WIDTH - 24) dodgeDir = -1;
+            if (shipCenterX < 24) dodgeDir = 1;
+        }
+    }
+
+    if (dodgeDir === 0) {
+        let urgentThreat = null;
+        let urgentScore = Infinity;
+
+        for (let i = 0; i < GameState.alienBullets.length; i++) {
+            const ab = GameState.alienBullets[i];
+            if (ab.y > shipY - 78 && ab.y < shipY + 12) {
+                const dx = Math.abs(ab.x - shipCenterX);
+                if (dx < 20) {
+                    const urgency = (shipY - ab.y) + dx * 1.5;
+                    if (urgency < urgentScore) {
+                        urgentScore = urgency;
+                        urgentThreat = { x: ab.x };
+                    }
+                }
+            }
+        }
+
+        for (let i = 0; i < GameState.aliens.length; i++) {
+            const a = GameState.aliens[i];
+            if ((a.state === 'diving' || a.state === 'beaming') && a.y > shipY - 72 && a.y < shipY + 14) {
+                const acx = a.x + a.width / 2;
+                const dx = Math.abs(acx - shipCenterX);
+                if (dx < 24) {
+                    const urgency = (shipY - a.y) + dx * 1.2;
+                    if (urgency < urgentScore) {
+                        urgentScore = urgency;
+                        urgentThreat = { x: acx };
+                    }
+                }
+            }
+        }
+
+        if (urgentThreat) {
+            dodgeDir = shipCenterX >= urgentThreat.x ? 1 : -1;
+            if (shipCenterX > CANVAS_WIDTH - 22) dodgeDir = -1;
+            if (shipCenterX < 22) dodgeDir = 1;
+        }
+    }
+
+    if (dodgeDir !== 0) {
+        GameState.player.dx = dodgeDir * PLAYER_SPEED * 0.85;
+    } else if (GameState.aliens.length > 0) {
+        // 2. Alinear con el enemigo más peligroso (diving primero, luego el más cercano)
+        let target = null;
+        let bestMetric = Infinity;
+        for (let i = 0; i < GameState.aliens.length; i++) {
+            const a = GameState.aliens[i];
+            if (a.y < 0) continue;
+            const acx = a.x + a.width / 2;
+            const isDiving = (a.state === 'diving' || a.state === 'beaming');
+            const metric = Math.abs(acx - shipCenterX) - (isDiving ? 45 : 0) - a.y * 0.25;
+            if (metric < bestMetric) {
+                bestMetric = metric;
+                target = a;
+            }
+        }
+
+        if (target) {
+            const targetCenterX = target.x + target.width / 2;
+            const diff = targetCenterX - shipCenterX;
+            if (Math.abs(diff) > 3) {
+                const factor = Math.min(1, Math.abs(diff) / 14);
+                GameState.player.dx = Math.sign(diff) * PLAYER_SPEED * 0.65 * factor;
+            } else {
+                GameState.player.dx = 0;
+            }
+        }
+    } else {
+        GameState.player.dx = 0;
+    }
+
+    // 3. Disparo láser continuo mientras esté alineado con enemigos
+    demoFireTimer -= dt;
+    if (demoFireTimer <= 0 && GameState.aliens.length > 0 && GameState.bullets.length < 8) {
+        const aligned = GameState.aliens.some(a => a.y > 0 && Math.abs((a.x + a.width / 2) - shipCenterX) < 22);
+        if (aligned || Math.random() < 0.35) {
+            shootTorpedo();
+            demoFireTimer = 0.22 + Math.random() * 0.14;
+        }
+    }
+}
+
 // Update aliens, dives, swoops, bullets, collisions
 function updateGame(dt) {
+    if (GameState.paused || GameState.adPlaying) return;
+
     // Parallax Starfield with hyperspace warp during stage intro
     const isWarp = GameState.stageIntroTimer > 0;
     const starSpeedMultiplier = isWarp ? 4.5 : 1.0;
@@ -633,6 +785,10 @@ function updateGame(dt) {
     if (GameState.screenShake > 0) {
         GameState.screenShake -= dt * 1.6;
         if (GameState.screenShake < 0) GameState.screenShake = 0;
+    }
+
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
     }
 
     // Player bank angle interpolation
@@ -987,11 +1143,20 @@ function updateTractorBeam(dt) {
 }
 
 function capturePlayer(boss) {
+    if (GameState.isDemo) {
+        addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, true);
+        GameState.tractorBeam = null;
+        if (boss) boss.state = 'diving';
+        resetPlayerPosition();
+        GameState.lives = 3;
+        return;
+    }
     GameState.player.isCaptured = true;
     audio.playPlayerExplosion();
     addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, true);
     
     setTimeout(() => {
+        if (GameState.isDemo || GameState.adPlaying) return;
         GameState.lives--;
         updateUI();
         if (GameState.lives <= 0) {
@@ -1031,7 +1196,7 @@ function checkBulletAlienCollisions() {
                     if (alien.state === 'beaming') points = 1000; // Huge bonus for saving from beam!
 
                     GameState.score += points;
-                    if (GameState.score > GameState.highScore) {
+                    if (!GameState.isDemo && GameState.score > GameState.highScore) {
                         GameState.highScore = GameState.score;
                     }
 
@@ -1084,6 +1249,13 @@ function checkAlienPlayerCollisions() {
 }
 
 function killPlayer() {
+    if (GameState.isDemo) {
+        addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, true);
+        GameState.alienBullets = [];
+        GameState.lives = 3;
+        resetPlayerPosition();
+        return;
+    }
     audio.playPlayerExplosion();
     addExplosion(GameState.player.x + PLAYER_WIDTH / 2, GameState.player.y + PLAYER_HEIGHT / 2, true);
     GameState.lives--;
@@ -1700,17 +1872,90 @@ function gameLoop(timestamp) {
     const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.05);
     GameState.lastTime = timestamp;
 
-    updateGame(dt);
-    render();
+    try {
+        updateGame(dt);
+    } catch (err) {
+        console.error('[Galaga] update error:', err);
+    }
+
+    try {
+        render();
+    } catch (err) {
+        console.error('[Galaga] render error:', err);
+    }
 
     requestAnimationFrame(gameLoop);
 }
 
+function startAttractMode() {
+    stopAttractMode();
+    if (gameOverRestartTimer) {
+        clearTimeout(gameOverRestartTimer);
+        gameOverRestartTimer = null;
+    }
+
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.paused = false;
+    GameState.score = 0;
+    GameState.lives = 3;
+    GameState.stage = 1;
+    GameState.stageIntroTimer = 0;
+    GameState.stageClearTimer = 0;
+    GameState.currentNickname = 'DEMO';
+    GameState.bullets = [];
+    GameState.alienBullets = [];
+    GameState.explosions = [];
+    GameState.scorePopups = [];
+    GameState.tractorBeam = null;
+    GameState.nextDiveTimer = 0.5;
+    demoFireTimer = 0.15;
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    resetPlayerPosition();
+    GameState.player.invulnerableTimer = 0;
+
+    // Formar la escuadra inmediatamente en posición de combate para lucir vibrante desde el primer frame
+    GameState.aliens = createSwarmFormation(1);
+    GameState.aliens.forEach(a => {
+        a.state = 'formation';
+        a.x = a.homeX;
+        a.y = a.homeY;
+        a.angle = 0;
+        a.pathProgress = 1;
+    });
+
+    // Lanzar de inmediato un par de atacantes en picada para acción en vivo
+    const diveCandidate = GameState.aliens.find(a => a.type === 'butterfly' && a.col === 3);
+    if (diveCandidate) launchDive(diveCandidate, false);
+
+    updateUI();
+
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+}
+
+function stopAttractMode() {
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+}
+
 function endGame() {
+    if (GameState.isDemo) {
+        startAttractMode();
+        return;
+    }
     audio.playGameOver();
     GameState.gameOver = true;
     GameState.running = false;
-    gameOverOverlay.classList.remove('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.remove('hidden');
 
     saveScore(GameState.currentNickname, GameState.score);
 
@@ -1724,17 +1969,27 @@ function endGame() {
     });
 
     // Auto-restart countdown (15s Hall of Fame display)
-    setTimeout(() => {
-        if (!GameState.running) {
+    if (gameOverRestartTimer) clearTimeout(gameOverRestartTimer);
+    gameOverRestartTimer = setTimeout(() => {
+        if (!GameState.running && !GameState.adPlaying) {
             resetSignalingAndRoom();
         }
     }, 15000);
 }
 
 function updateUI() {
-    scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(3, '0')}`;
-    highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
-    livesCountElement.textContent = GameState.lives;
+    if (scoreElement) scoreElement.textContent = `SCORE: ${GameState.score.toString().padStart(3, '0')}`;
+    if (highScoreElement) highScoreElement.textContent = `HI: ${GameState.highScore.toString().padStart(3, '0')}`;
+    if (livesCountElement) livesCountElement.textContent = GameState.lives;
+    if (playerNickElement) {
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = 'var(--amber)';
+        } else {
+            playerNickElement.textContent = `PLAYER: ${(GameState.currentNickname || 'PILOT').toUpperCase().substring(0, 8)}`;
+            playerNickElement.style.color = '';
+        }
+    }
 }
 
 // ==========================================
@@ -1828,23 +2083,23 @@ function updateQrCode() {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: controlUrl,
-                    width: 160,
-                    height: 160,
+                    width: 200,
+                    height: 200,
                     colorDark: '#000000',
                     colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.M
+                    correctLevel: QRCode.CorrectLevel.L
                 });
             } else {
                 throw new Error('QRCode library not loaded');
             }
         } catch (e) {
             console.warn('QRCode local error, using fallback API:', e);
-            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10" alt="QR" style="width: 160px; height: 160px; display: block;">`;
+            qrContainer.innerHTML = `<img id="qr-code-img" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4" alt="QR" style="width: 100px; height: 100px; display: block;">`;
         }
     } else {
         const qrCodeImg = document.getElementById('qr-code-img');
         if (qrCodeImg) {
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(controlUrl)}&margin=10`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(controlUrl)}&margin=4`;
         }
     }
     const roomIdEl = document.getElementById('room-id');
@@ -1852,20 +2107,18 @@ function updateQrCode() {
 }
 
 function resetSignalingAndRoom() {
-    dataChannels.forEach(ch => ch.close());
-    peerConnections.forEach(pc => pc.close());
+    if (gameOverRestartTimer) {
+        clearTimeout(gameOverRestartTimer);
+        gameOverRestartTimer = null;
+    }
+    dataChannels.forEach(ch => { try { ch.close(); } catch (_) {} });
+    peerConnections.forEach(pc => { try { pc.close(); } catch (_) {} });
     dataChannels.clear();
     peerConnections.clear();
 
     GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-    GameState.running = false;
-    GameState.gameOver = false;
-    GameState.currentNickname = 'Player';
-    if (playerNickElement) playerNickElement.textContent = 'PLAYER: ----';
-    
-    waitingOverlay.classList.remove('hidden');
-    gameOverOverlay.classList.add('hidden');
     updateQrCode();
+    startAttractMode();
     
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
@@ -2098,20 +2351,33 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -2151,12 +2417,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             if (window.parent && window.parent !== window) {
                 try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
@@ -2205,7 +2474,7 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
         console.log('WebRTC DataChannel abierto con el controlador:', playerId);
-        waitingOverlay.classList.add('hidden');
+        if (waitingOverlay) waitingOverlay.classList.add('hidden');
     };
 
     channel.onmessage = (e) => {
@@ -2213,11 +2482,16 @@ function setupDataChannel(channel, playerId) {
             const msg = JSON.parse(e.data);
             if (msg.type === 'join' || msg.type === 'nickname') {
                 GameState.currentNickname = (msg.nickname || msg.value || 'PILOT').toUpperCase().substring(0, 10);
-                if (playerNickElement) playerNickElement.textContent = `PLAYER: ${GameState.currentNickname}`;
+                if (playerNickElement) {
+                    playerNickElement.textContent = `PLAYER: ${GameState.currentNickname}`;
+                    playerNickElement.style.color = '';
+                }
                 playPreGameAdThenStart(GameState.currentNickname, () => {
                     startNewGame();
                 });
+                return;
             }
+            if (GameState.adPlaying || GameState.isDemo) return;
             if (msg.x !== undefined) {
                 const rawX = msg.x || 0;
                 const expX = Math.sign(rawX) * Math.pow(Math.abs(rawX), 1.15);
@@ -2249,42 +2523,65 @@ function handleControllerDisconnect(playerId) {
         console.log(`[webrtc] Desconexión ignorada para player ${playerId}: canal WebRTC sigue activo`);
         return;
     }
-    if (pc) pc.close();
+    if (pc) { try { pc.close(); } catch (_) {} }
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
 
-    if (peerConnections.size === 0 && !GameState.gameOver && GameState.running) {
-        waitingOverlay.classList.remove('hidden');
-        GameState.running = false;
+    if (peerConnections.size === 0 && !GameState.gameOver) {
+        startAttractMode();
     }
+}
+
+// ==========================================
+// 📐 AutoScale Responsive Multi-Stage Engine
+// ==========================================
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
+
+function autoScale() {
+    const container = document.querySelector('.container');
+    if (!container) return;
+
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
+    const availableW = window.innerWidth || document.documentElement.clientWidth;
+    const availableH = window.innerHeight || document.documentElement.clientHeight;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
+
+    const padding = 8;
+    const scaleX = (availableW - padding) / naturalW;
+    const scaleY = (availableH - padding) / naturalH;
+    const scale = Math.max(0.1, Math.min(scaleX, scaleY));
+
+    container.style.transform = `scale(${scale})`;
 }
 
 // Keyboard controls fallback for browser testing
 window.addEventListener('keydown', (e) => {
-    audio.init();
     const key = e.key.toLowerCase();
 
-    // Saltar publicidad durante pruebas de teclado si está activa
+    // Saltar publicidad durante pruebas de teclado si está activa y bloquear cualquier otra tecla
     if (GameState.adPlaying) {
         if ([' ', 'enter', 'escape'].includes(key) || e.code === 'Space') {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
     }
 
-    if (key === 'arrowleft' || key === 'a') GameState.player.dx = -PLAYER_SPEED;
-    if (key === 'arrowright' || key === 'd') GameState.player.dx = PLAYER_SPEED;
-    if (key === ' ' || key === 'w' || key === 'arrowup') {
-        if (!GameState.running || GameState.gameOver) {
+    audio.init();
+
+    if (!GameState.isDemo) {
+        if (key === 'arrowleft' || key === 'a') GameState.player.dx = -PLAYER_SPEED;
+        if (key === 'arrowright' || key === 'd') GameState.player.dx = PLAYER_SPEED;
+    }
+    if (key === ' ' || key === 'w' || key === 'arrowup' || key === 'enter' || e.code === 'Space') {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
             playPreGameAdThenStart('PILOT', () => startNewGame());
-        } else {
+        } else if (key !== 'enter') {
             shootTorpedo();
         }
-    }
-    if (key === 'enter') {
-        if (!GameState.running || GameState.gameOver) playPreGameAdThenStart('PILOT', () => startNewGame());
     }
 });
 
@@ -2295,57 +2592,92 @@ window.addEventListener('keyup', (e) => {
 });
 
 mainScreen.addEventListener('click', () => {
+    if (GameState.adPlaying) return;
     audio.init();
-    if (!GameState.running || GameState.gameOver) {
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
         playPreGameAdThenStart('PILOT', () => startNewGame());
     }
 });
 
+function initDomAndAttract() {
+    updateQrCode();
+    autoScale();
+    loadRanking();
+    if (!GameState.isDemo && !GameState.running) {
+        startAttractMode();
+    }
+
+    const audioToggleBtn = document.getElementById('audio-toggle-btn');
+    if (audioToggleBtn && !audioToggleBtn._bound) {
+        audioToggleBtn._bound = true;
+        audioToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            if (!audio.ctx) audio.init();
+            else audio.resume();
+        });
+    }
+
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel && !qrPanel._bound) {
+        qrPanel._bound = true;
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            playPreGameAdThenStart('PILOT', () => startNewGame());
+        });
+    }
+}
+
 // ==========================================
-// 📐 AutoScale Responsive Multi-Stage Engine
+// 🚀 Initialization
 // ==========================================
-function autoScale() {
-    const container = document.querySelector('.container');
-    if (!container) return;
+GameState.stars = initStarfield(75);
+startAttractMode();
+loadRanking();
+updateUI();
+updateQrCode();
+autoScale();
+render();
+requestAnimationFrame(gameLoop);
+connectSignaling();
+requestAdVideo();
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 470;
-
-    const availableW = window.innerWidth || document.documentElement.clientWidth;
-    const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
-
-    const padding = 20;
-    const scaleX = (availableW - padding) / naturalW;
-    const scaleY = (availableH - padding) / naturalH;
-    const scale = Math.max(0.1, Math.min(scaleX, scaleY));
-
-    container.style.transform = `scale(${scale})`;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
 }
 
 window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
     updateQrCode();
     autoScale();
+    if (!GameState.running && !GameState.isDemo) {
+        startAttractMode();
+    }
 });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
-if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => autoScale());
+}
+if (window.ResizeObserver) {
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
+    ro.observe(document.body);
+}
 window.addEventListener('message', (e) => {
     if (!e.data) return;
     if (e.data.type === 'RESCALE') autoScale();
     if (e.data.type === 'GET_RANKING') loadRanking();
 });
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
-
-// ==========================================
-// 🚀 Initialization
-// ==========================================
-GameState.stars = initStarfield(75);
-loadRanking();
-updateUI();
-updateQrCode();
-requestAdVideo();
-autoScale();
-requestAnimationFrame(gameLoop);
-connectSignaling();

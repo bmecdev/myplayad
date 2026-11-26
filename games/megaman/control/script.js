@@ -29,6 +29,7 @@ let nickname = 'MegaMan';
 let pendingCandidates = [];
 let hasStarted = false;
 let isGameConnected = false;
+let isAdPlaying = false;
 
 // ==========================================
 // 📡 Configuración ICE dinámica con TURN
@@ -321,6 +322,7 @@ async function setupWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -333,6 +335,7 @@ async function setupWebRTC() {
                 if (rotateScreen) rotateScreen.style.display = 'none';
                 if (container) container.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = '⚡ CONECTADO';
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -340,8 +343,10 @@ async function setupWebRTC() {
                 updateOrientationView();
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 if (data.sound === 'hit') {
                     mobileAudio.play('hit');
                     if (navigator.vibrate) navigator.vibrate(60);

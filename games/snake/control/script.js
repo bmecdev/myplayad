@@ -19,6 +19,7 @@ let socket;
 let currentRoomId = null;
 let nickname = 'VIPER';
 let pendingCandidates = [];
+let isAdPlaying = false;
 
 // Función para obtener configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -318,6 +319,7 @@ async function startWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -329,6 +331,7 @@ async function startWebRTC() {
                 }
                 if (container) container.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = '¡Listo!';
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -336,8 +339,10 @@ async function startWebRTC() {
                 if (container) container.style.display = 'flex';
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 showThanks(data.score);
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 mobileAudio.play(data.sound);
             }
         } catch (err) {}

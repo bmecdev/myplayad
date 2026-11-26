@@ -19,6 +19,7 @@ let socket;
 let currentRoomId = null;
 let nickname = 'Pilot';
 let pendingCandidates = [];
+let isAdPlaying = false;
 
 // Configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -328,6 +329,7 @@ async function startWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -339,6 +341,7 @@ async function startWebRTC() {
                 }
                 if (container) container.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = 'CONECTADO AL JUEGO';
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -346,10 +349,12 @@ async function startWebRTC() {
                 if (container) container.style.display = 'flex';
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 mobileAudio.play('gameover');
                 if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 mobileAudio.play(data.sound);
                 if (data.sound === 'playerExplode' && navigator.vibrate) {
                     navigator.vibrate([40, 30, 40]);
@@ -513,6 +518,7 @@ if (fireBtn) {
     fireBtn.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         e.preventDefault();
+        if (isAdPlaying) return;
         mobileAudio.play('laser');
         if (navigator.vibrate) navigator.vibrate(15);
         if (dataChannel && dataChannel.readyState === 'open') {

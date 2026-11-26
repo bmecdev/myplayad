@@ -18,6 +18,7 @@ let socket;
 let currentRoomId = null;
 let nickname = 'Pacman';
 let pendingCandidates = [];
+let isAdPlaying = false;
 
 function getIceConfig() {
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -387,6 +388,7 @@ async function startWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -398,6 +400,7 @@ async function startWebRTC() {
                 }
                 if (container) container.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = 'PACMAN LISTO';
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -405,10 +408,12 @@ async function startWebRTC() {
                 if (container) container.style.display = 'flex';
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
                 mobileAudio.play('gameover');
                 showThanks(data.score || 0);
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 mobileAudio.play(data.sound, data.param);
                 if ((data.sound === 'powerPellet' || data.sound === 'drinkSoda') && navigator.vibrate) {
                     navigator.vibrate(40);

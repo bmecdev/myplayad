@@ -38,9 +38,17 @@ class SoundFX {
         this.ctx = null;
         this.masterGain = null;
         this.muted = true;
+        this.adMuted = false;
+    }
+
+    canPlay() {
+        if (this.adMuted || this.muted || !this.ctx) return false;
+        if (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo)) return false;
+        return true;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
@@ -59,7 +67,29 @@ class SoundFX {
         }
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.adMuted || this.muted ? 0 : 0.4, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (!this.muted && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+            }
+        } catch (_) {}
+    }
+
     toggle() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             this.init();
             return;
@@ -80,7 +110,7 @@ class SoundFX {
     }
 
     playBumper() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -98,7 +128,7 @@ class SoundFX {
     }
 
     playSlingshot() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -116,7 +146,7 @@ class SoundFX {
     }
 
     playFlipper(up = true) {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -135,7 +165,7 @@ class SoundFX {
     }
 
     playWallBounce(intensity = 1) {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -154,7 +184,7 @@ class SoundFX {
     }
 
     playFlipperHit() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -172,7 +202,7 @@ class SoundFX {
     }
 
     playChute() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -190,7 +220,7 @@ class SoundFX {
     }
 
     playGatePass() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -208,7 +238,7 @@ class SoundFX {
     }
 
     playTarget() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -226,7 +256,7 @@ class SoundFX {
     }
 
     playCardFlip() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -244,7 +274,7 @@ class SoundFX {
     }
 
     playPlugActive() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const notes = [523, 659, 783, 1046];
             notes.forEach((freq, idx) => {
@@ -264,7 +294,7 @@ class SoundFX {
     }
 
     playLaunch() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -282,7 +312,7 @@ class SoundFX {
     }
 
     playDrain() {
-        if (!this.ctx || this.muted) return;
+        if (!this.canPlay()) return;
         try {
             const t = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -306,8 +336,16 @@ const audio = new SoundFX();
 // ==========================================
 const GameState = {
     running: false,
+    isDemo: false,
+    paused: false,
     gameOver: false,
     adPlaying: false,
+    _gameOverTimeout: null,
+    _demoPlungerTimer: 0,
+    _demoLeftFlipTimer: 0,
+    _demoLeftCooldown: 0,
+    _demoRightFlipTimer: 0,
+    _demoRightCooldown: 0,
     score: 0,
     highScore: 0,
     ballsLeft: 3,
@@ -509,7 +547,161 @@ function spawnBallInPlunger() {
     GameState.targetCamY = 160;
 }
 
+function startAttractMode() {
+    if (GameState._gameOverTimeout) {
+        clearTimeout(GameState._gameOverTimeout);
+        GameState._gameOverTimeout = null;
+    }
+    stopAttractMode();
+    loadRanking();
+
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.paused = false;
+    GameState.score = 0;
+    GameState.ballsLeft = 3;
+    GameState.multiplier = 1;
+    GameState.combo = 0;
+    GameState.comboTimer = 0;
+    GameState.currentNickname = 'DEMO';
+    GameState.tiltActive = false;
+    GameState.tiltTimer = 0;
+    GameState.nudgeCount = 0;
+    GameState.camY = 160;
+    GameState.targetCamY = 160;
+    GameState.particles = [];
+    GameState.popups = [];
+    GameState.balls = [];
+    GameState.plunger.charging = false;
+    GameState.plunger.power = 0;
+    GameState._demoPlungerTimer = 0;
+    GameState._demoLeftFlipTimer = 0;
+    GameState._demoLeftCooldown = 0;
+    GameState._demoRightFlipTimer = 0;
+    GameState._demoRightCooldown = 0;
+    ['upperLeft', 'lowerLeft', 'upperRight', 'lowerRight'].forEach(k => {
+        GameState.flippers[k].active = false;
+        GameState.flippers[k].angle = GameState.flippers[k].restAngle;
+    });
+    if (GameState.oneWayGate) {
+        GameState.oneWayGate.swing = 0;
+        GameState.oneWayGate.lit = 0;
+    }
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    initTableElements();
+    spawnBallInPlunger();
+
+    // Lanzar inmediatamente la primera bola en modo demostración para acción desde el primer frame
+    GameState.plunger.power = 0.92;
+    releasePlunger();
+
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+    updateUI();
+}
+
+function stopAttractMode() {
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+}
+
+function updateDemoAI(dt) {
+    if (!GameState.isDemo || GameState.adPlaying || GameState.paused) return;
+
+    // 1. Lanzamiento automático desde el plunger
+    const plungerBall = GameState.balls.find(b => b.active && b.inPlunger);
+    if (plungerBall) {
+        GameState._demoPlungerTimer += dt;
+        GameState.plunger.charging = true;
+        if (GameState._demoPlungerTimer >= 0.42 || GameState.plunger.power >= 0.88) {
+            GameState.plunger.power = 0.85 + Math.random() * 0.15;
+            releasePlunger();
+            GameState._demoPlungerTimer = 0;
+        }
+    } else {
+        GameState._demoPlungerTimer = 0;
+        GameState.plunger.charging = false;
+    }
+
+    // 2. Temporizadores de los flippers IA (pulsos dinámicos para golpear con fuerza real)
+    if (GameState._demoLeftCooldown > 0) GameState._demoLeftCooldown -= dt;
+    if (GameState._demoRightCooldown > 0) GameState._demoRightCooldown -= dt;
+
+    if (GameState._demoLeftFlipTimer > 0) {
+        GameState._demoLeftFlipTimer -= dt;
+        if (GameState._demoLeftFlipTimer <= 0) {
+            GameState.flippers.upperLeft.active = false;
+            GameState.flippers.lowerLeft.active = false;
+        }
+    }
+
+    if (GameState._demoRightFlipTimer > 0) {
+        GameState._demoRightFlipTimer -= dt;
+        if (GameState._demoRightFlipTimer <= 0) {
+            GameState.flippers.upperRight.active = false;
+            GameState.flippers.lowerRight.active = false;
+        }
+    }
+
+    // 3. Evaluar posición de las bolas activas en zonas de flippers superiores e inferiores
+    let triggerLeft = false;
+    let triggerRight = false;
+
+    for (let i = 0; i < GameState.balls.length; i++) {
+        const ball = GameState.balls[i];
+        if (!ball.active || ball.inPlunger) continue;
+
+        const inUpperZone = ball.y >= 114 && ball.y <= 144 && ball.vy > -25;
+        const inLowerZone = ball.y >= 274 && ball.y <= 307 && ball.vy > -25;
+
+        if (inUpperZone) {
+            if (ball.x >= 44 && ball.x <= 88) triggerLeft = true;
+            if (ball.x >= 106 && ball.x <= 150) triggerRight = true;
+        }
+        if (inLowerZone) {
+            if (ball.x >= 52 && ball.x <= 99) triggerLeft = true;
+            if (ball.x >= 95 && ball.x <= 142) triggerRight = true;
+        }
+    }
+
+    if (triggerLeft && GameState._demoLeftFlipTimer <= 0 && GameState._demoLeftCooldown <= 0) {
+        GameState.flippers.upperLeft.active = true;
+        GameState.flippers.lowerLeft.active = true;
+        GameState._demoLeftFlipTimer = 0.15;
+        GameState._demoLeftCooldown = 0.24;
+    }
+
+    if (triggerRight && GameState._demoRightFlipTimer <= 0 && GameState._demoRightCooldown <= 0) {
+        GameState.flippers.upperRight.active = true;
+        GameState.flippers.lowerRight.active = true;
+        GameState._demoRightFlipTimer = 0.15;
+        GameState._demoRightCooldown = 0.24;
+    }
+}
+
 function startNewGame() {
+    if (GameState._gameOverTimeout) {
+        clearTimeout(GameState._gameOverTimeout);
+        GameState._gameOverTimeout = null;
+    }
+    stopAttractMode();
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
+    audio.setMutedForAd(false);
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
+
     GameState.score = 0;
     GameState.ballsLeft = 3;
     GameState.multiplier = 1;
@@ -525,6 +717,12 @@ function startNewGame() {
     GameState.particles = [];
     GameState.popups = [];
     GameState.balls = [];
+    GameState.plunger.charging = false;
+    GameState.plunger.power = 0;
+    ['upperLeft', 'lowerLeft', 'upperRight', 'lowerRight'].forEach(k => {
+        GameState.flippers[k].active = false;
+        GameState.flippers[k].angle = GameState.flippers[k].restAngle;
+    });
     if (GameState.oneWayGate) {
         GameState.oneWayGate.swing = 0;
         GameState.oneWayGate.lit = 0;
@@ -540,6 +738,7 @@ function startNewGame() {
 }
 
 function endGame() {
+    if (GameState.isDemo) return;
     GameState.running = false;
     GameState.gameOver = true;
     audio.playDrain();
@@ -554,10 +753,36 @@ function endGame() {
         }
     });
 
+    // Desconectar mandos para que vuelvan a escanear
+    dataChannels.forEach(ch => { try { ch.close(); } catch (_) {} });
+    peerConnections.forEach(pc => { try { pc.close(); } catch (_) {} });
+    dataChannels.clear();
+    peerConnections.clear();
+
     gameOverOverlay.classList.remove('hidden');
+
+    if (GameState._gameOverTimeout) clearTimeout(GameState._gameOverTimeout);
+    GameState._gameOverTimeout = setTimeout(() => {
+        GameState._gameOverTimeout = null;
+        if (GameState.running || GameState.adPlaying) return;
+        gameOverOverlay.classList.add('hidden');
+        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        updateQrCode();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(JSON.stringify({
+                    type: 'register',
+                    role: 'host',
+                    roomId: GameState.roomId
+                }));
+            } catch (_) {}
+        }
+        startAttractMode();
+    }, 15000);
 }
 
 function broadcastSFX(soundName) {
+    if (GameState.adPlaying || GameState.isDemo) return;
     dataChannels.forEach(ch => {
         if (ch && ch.readyState === 'open') {
             try {
@@ -639,7 +864,11 @@ const tableWalls = [
 ];
 
 function updatePhysics(dt) {
-    if (!GameState.running || GameState.gameOver) return;
+    if (!GameState.running || GameState.gameOver || GameState.adPlaying || GameState.paused) return;
+
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
+    }
 
     // Reductor de combo
     if (GameState.comboTimer > 0) {
@@ -1015,17 +1244,25 @@ function updatePhysics(dt) {
     GameState.balls = GameState.balls.filter(b => b.active);
 
     if (GameState.balls.length === 0) {
-        audio.playDrain();
-        broadcastSFX('drain');
-        GameState.ballsLeft--;
-        updateUI();
-
-        if (GameState.ballsLeft > 0) {
-            setTimeout(() => {
-                spawnBallInPlunger();
-            }, 800);
+        if (GameState.isDemo) {
+            GameState.ballsLeft = 3;
+            GameState._demoPlungerTimer = 0;
+            spawnBallInPlunger();
+            updateUI();
         } else {
-            endGame();
+            audio.playDrain();
+            broadcastSFX('drain');
+            GameState.ballsLeft--;
+            updateUI();
+
+            if (GameState.ballsLeft > 0) {
+                setTimeout(() => {
+                    if (!GameState.running || GameState.gameOver || GameState.adPlaying || GameState.isDemo) return;
+                    spawnBallInPlunger();
+                }, 800);
+            } else {
+                endGame();
+            }
         }
     }
 
@@ -1078,16 +1315,22 @@ function updatePhysics(dt) {
             ball.stuckTimer = (ball.stuckTimer || 0) + dt;
             if (ball.stuckTimer >= 2.0) {
                 ball.stuckTimer = 0;
-                audio.playDrain();
-                startNewGame();
-                GameState.popups.push({
-                    text: '¡BOLA ESTANCADA - REINICIANDO!',
-                    x: 97,
-                    y: 160,
-                    vy: -15,
-                    alpha: 1.0,
-                    color: '#ff4d6d'
-                });
+                if (GameState.isDemo) {
+                    GameState.balls = [];
+                    GameState._demoPlungerTimer = 0;
+                    spawnBallInPlunger();
+                } else {
+                    audio.playDrain();
+                    startNewGame();
+                    GameState.popups.push({
+                        text: '¡BOLA ESTANCADA - REINICIANDO!',
+                        x: 97,
+                        y: 160,
+                        vy: -15,
+                        alpha: 1.0,
+                        color: '#ff4d6d'
+                    });
+                }
             }
         } else {
             ball.stuckTimer = 0;
@@ -1561,6 +1804,15 @@ function updateUI() {
     livesCountElement.textContent = GameState.ballsLeft;
     multCountElement.textContent = `${GameState.multiplier}X`;
     comboMeterElement.textContent = `COMBO: ${GameState.combo}`;
+    if (playerNickElement) {
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = 'var(--amber)';
+        } else {
+            playerNickElement.textContent = `PLAYER: ${(GameState.currentNickname || 'PILOT').toUpperCase().substring(0, 8)}`;
+            playerNickElement.style.color = '';
+        }
+    }
 }
 
 // ==========================================
@@ -1581,7 +1833,7 @@ function gameLoop(timestamp) {
 // 🕹️ Entrada de Controles (Flippers, Plunger y Tilt)
 // ==========================================
 function activateFlipper(side, active) {
-    if (GameState.tiltActive) return;
+    if (GameState.tiltActive || GameState.adPlaying || GameState.paused) return;
 
     if (side === 'left') {
         GameState.flippers.upperLeft.active = active;
@@ -1596,10 +1848,12 @@ function activateFlipper(side, active) {
 }
 
 function chargePlunger() {
+    if (GameState.adPlaying || GameState.paused) return;
     GameState.plunger.charging = true;
 }
 
 function releasePlunger() {
+    if (GameState.adPlaying || GameState.paused) return;
     if (!GameState.plunger.charging && GameState.plunger.power === 0) {
         GameState.plunger.power = 0.9;
     }
@@ -1626,7 +1880,7 @@ function releasePlunger() {
 }
 
 function nudgeTable() {
-    if (GameState.tiltActive) return;
+    if (GameState.tiltActive || GameState.adPlaying || GameState.paused || GameState.isDemo) return;
 
     GameState.nudgeCount++;
     GameState.nudgeResetTimer = 3.5;
@@ -1649,49 +1903,56 @@ function nudgeTable() {
 
 // Controles de Teclado
 window.addEventListener('keydown', (e) => {
-    audio.init();
     const key = e.key.toLowerCase();
 
-    // Saltar publicidad durante pruebas de teclado si está activa
+    // Saltar publicidad durante pruebas de teclado si está activa; bloquear el resto de entradas
     if (GameState.adPlaying) {
         if ([' ', 'enter', 'escape'].includes(key)) {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
     }
 
+    audio.init();
+
     // Tecla 'R' para reiniciar partida manualmente en cualquier momento
-    if (key === 'r') {
+    if (key === 'r' && !GameState.isDemo) {
         startNewGame();
         return;
     }
 
     if (['arrowleft', 'a', 'z'].includes(key)) {
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+            GameState.currentNickname = 'PILOT';
             playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
         activateFlipper('left', true);
     } else if (['arrowright', 'd', 'x', '/'].includes(key)) {
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+            GameState.currentNickname = 'PILOT';
             playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
         activateFlipper('right', true);
     } else if (key === ' ' || key === 'arrowdown' || key === 'enter') {
-        if (!GameState.running || GameState.gameOver) {
+        if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+            GameState.currentNickname = 'PILOT';
             playPreGameAdThenStart('PILOT', () => startNewGame());
             return;
         }
         chargePlunger();
     } else if (key === 'w' || key === 'arrowup') {
-        nudgeTable();
+        if (!GameState.isDemo && GameState.running && !GameState.gameOver) {
+            nudgeTable();
+        }
     }
 });
 
 window.addEventListener('keyup', (e) => {
+    if (GameState.adPlaying || GameState.isDemo) return;
     const key = e.key.toLowerCase();
     if (['arrowleft', 'a', 'z'].includes(key)) {
         activateFlipper('left', false);
@@ -1703,24 +1964,18 @@ window.addEventListener('keyup', (e) => {
 });
 
 mainScreen.addEventListener('click', () => {
+    if (GameState.adPlaying) return;
     audio.init();
-    if (!GameState.running || GameState.gameOver) {
+    if (GameState.isDemo || !GameState.running || GameState.gameOver) {
+        GameState.currentNickname = 'PILOT';
         playPreGameAdThenStart('PILOT', () => startNewGame());
     }
 });
 
-if (waitingOverlay) {
-    waitingOverlay.addEventListener('click', () => {
-        audio.init();
-        if (!GameState.running || GameState.gameOver) {
-            playPreGameAdThenStart('PILOT', () => startNewGame());
-        }
-    });
-}
-
 if (audioToggleBtn) {
     audioToggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (GameState.adPlaying) return;
         audio.toggle();
     });
 }
@@ -1797,11 +2052,11 @@ function updateQrCode() {
 
     new QRCode(qrContainer, {
         text: finalUrl,
-        width: 160,
-        height: 160,
+        width: 200,
+        height: 200,
         colorDark: "#000000",
         colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
+        correctLevel: QRCode.CorrectLevel.L
     });
 
     if (roomSpan) roomSpan.textContent = `ID: ${GameState.roomId}`;
@@ -2004,20 +2259,33 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -2058,12 +2326,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             // Reanudar reproductor lateral
             if (window.parent && window.parent !== window) {
@@ -2129,14 +2400,14 @@ function handleControllerDisconnect(playerId) {
     }
     peerConnections.delete(playerId);
     dataChannels.delete(playerId);
-    if (dataChannels.size === 0 && !GameState.running) {
-        waitingOverlay.classList.remove('hidden');
+    if (peerConnections.size === 0) {
+        startAttractMode();
     }
 }
 
 function setupDataChannel(dc, senderId) {
     dc.onopen = () => {
-        waitingOverlay.classList.add('hidden');
+        if (waitingOverlay) waitingOverlay.classList.add('hidden');
     };
 
     dc.onclose = () => {
@@ -2148,11 +2419,14 @@ function setupDataChannel(dc, senderId) {
             const data = JSON.parse(event.data);
             if (data.type === 'join' || data.type === 'nickname') {
                 GameState.currentNickname = data.nickname || data.value || 'Player';
-                playerNickElement.textContent = `PLAYER: ${GameState.currentNickname.toUpperCase()}`;
+                updateUI();
                 playPreGameAdThenStart(GameState.currentNickname, () => {
                     startNewGame();
                 });
-            } else if (data.action === 'FLIPPER_LEFT_DOWN') {
+                return;
+            }
+            if (GameState.adPlaying || GameState.paused || GameState.isDemo) return;
+            if (data.action === 'FLIPPER_LEFT_DOWN') {
                 activateFlipper('left', true);
             } else if (data.action === 'FLIPPER_LEFT_UP') {
                 activateFlipper('left', false);
@@ -2174,32 +2448,96 @@ function setupDataChannel(dc, senderId) {
 // ==========================================
 // 📐 AutoScale Multi-Stage Engine
 // ==========================================
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
+
 function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 480;
-    const naturalH = container.offsetHeight || 440;
+    // offsetWidth / offsetHeight devuelven siempre las dimensiones sin transform
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
+    const availableW = window.innerWidth || document.documentElement.clientWidth;
+    const availableH = window.innerHeight || document.documentElement.clientHeight;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
-    const winW = window.innerWidth;
-    const winH = window.innerHeight;
-
-    const scaleX = (winW * 0.96) / naturalW;
-    const scaleY = (winH * 0.96) / naturalH;
-    const scale = Math.min(scaleX, scaleY, 2.8);
+    const padding = 8;
+    const scaleX = (availableW - padding) / naturalW;
+    const scaleY = (availableH - padding) / naturalH;
+    const scale = Math.max(0.1, Math.min(scaleX, scaleY));
 
     container.style.transform = `scale(${scale})`;
 }
 
+function initDomAndAttract() {
+    updateQrCode();
+    autoScale();
+    loadRanking();
+    if (!GameState.isDemo && !GameState.running && !GameState.adPlaying) {
+        startAttractMode();
+    }
+
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel && !qrPanel._boundClick) {
+        qrPanel._boundClick = true;
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            GameState.currentNickname = 'PILOT';
+            playPreGameAdThenStart('PILOT', () => startNewGame());
+        });
+    }
+}
+
+// ==========================================
+// 🚀 Lanzamiento Inicial
+// ==========================================
+initTableElements();
+startAttractMode();
+loadRanking();
+updateUI();
+updateQrCode();
+autoScale();
+render();
+requestAnimationFrame(gameLoop);
+connectSignaling();
+requestAdVideo();
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
+
 window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
 window.addEventListener('load', () => {
     updateQrCode();
     autoScale();
+    if (!GameState.running && !GameState.isDemo && !GameState.adPlaying) {
+        startAttractMode();
+    }
 });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoScale);
-if (window.ResizeObserver) new ResizeObserver(() => autoScale()).observe(document.body);
-[0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+        autoScale();
+    });
+}
+if (window.ResizeObserver) {
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
+    ro.observe(document.body);
+}
 
 window.addEventListener('message', (e) => {
     if (!e.data) return;
@@ -2207,15 +2545,4 @@ window.addEventListener('message', (e) => {
     if (e.data.type === 'GET_RANKING') loadRanking();
 });
 
-// ==========================================
-// 🚀 Lanzamiento Inicial
-// ==========================================
-initTableElements();
-spawnBallInPlunger();
-loadRanking();
-requestAdVideo();
-updateUI();
-updateQrCode();
-autoScale();
-requestAnimationFrame(gameLoop);
-connectSignaling();
+[0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));

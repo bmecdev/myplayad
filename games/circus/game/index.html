@@ -6,7 +6,7 @@
     <title>Circus Charlie - Retro Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
     <div class="container">
@@ -53,9 +53,9 @@
 
                 <!-- Pre-Game Video Ad Overlay -->
                 <div id="ad-video-overlay" class="hidden">
-                    <video id="ad-video-player" playsinline webkit-playsinline></video>
+                    <video id="ad-video-player" playsinline preload="auto"></video>
                     <div class="ad-hud-header">
-                        <div class="ad-badge">PUBLICIDAD</div>
+                        <div class="ad-badge">📺 PUBLICIDAD</div>
                         <div id="ad-countdown" class="ad-countdown">INICIANDO...</div>
                     </div>
                     <div class="ad-hud-footer">
@@ -64,34 +64,18 @@
                     </div>
                 </div>
 
-                <!-- Overlay de Espera / Escaneo QR y Hall of Fame (Modo Atracción) -->
+                <!-- Overlay de Modo Atracción & QR en Esquina -->
                 <div id="waiting-overlay">
-                    <div class="overlay-content" id="waiting-qr-panel">
-                        <h2 class="arcade-title">CIRCUS <span>CHARLIE</span></h2>
-                        <p class="pulse-text">¡ESCANEA EL QR PARA MONTAR AL LEÓN!</p>
-                        <div class="qr-wrapper">
-                            <div id="qrcode"></div>
-                        </div>
-                        <p class="status-text">ESPERANDO DOMADOR...</p>
-                        <div class="arcade-banner-hint">
-                            <span>◀ FRENAR</span> • <span>ACELERAR ▶</span> • <span>▲ SALTO</span>
-                        </div>
-                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                            <button id="instant-play-btn" class="instant-btn">▶ PROBAR CON TECLADO</button>
-                            <button id="toggle-hall-btn" class="instant-btn" style="background: rgba(255, 183, 3, 0.15); border-color: #ffb703; color: #ffb703;">🏆 VER RANKING</button>
-                        </div>
+                    <!-- Banner Superior de Modo Demostración -->
+                    <div class="attract-banner">
+                        <span class="attract-live-dot">●</span>
+                        <span class="attract-text">ESCANEA Y JUEGA <span class="highlight">GRATIS</span></span>
                     </div>
 
-                    <div class="overlay-content hidden" id="waiting-ranking-panel">
-                        <h2 class="arcade-title" style="color: #ffb703; text-shadow: 0 0 10px rgba(255,183,3,0.7);">🏆 HALL OF FAME</h2>
-                        <p class="pulse-text" style="color: #3dff8a;">MEJORES DOMADORES</p>
-                        <div id="standby-ranking-container" style="width: 85%; max-width: 320px; margin: 6px auto;">
-                            <ul id="standby-ranking-list" class="ranking-list" style="list-style: none; padding: 0; margin: 0; font-family: 'Press Start 2P', monospace; font-size: 8px;"></ul>
-                        </div>
-                        <p class="status-text" style="color: #ffb703; font-size: 8px;">¡ESCANEA EL QR PARA ENTRAR AL RANKING!</p>
-                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
-                            <button id="back-to-qr-btn" class="instant-btn" style="background: rgba(61, 255, 138, 0.2); border-color: #3dff8a; color: #3dff8a;">📱 VER CÓDIGO QR</button>
-                            <button id="instant-play-btn-2" class="instant-btn">▶ JUGAR AHORA</button>
+                    <!-- Solo Código QR en la Esquina -->
+                    <div class="corner-qr-card" id="waiting-qr-panel" title="Escanea para jugar o haz clic aquí">
+                        <div class="corner-qr-wrapper">
+                            <div id="qrcode"></div>
                         </div>
                     </div>
                 </div>
@@ -99,19 +83,15 @@
 
             <!-- Grille inferior de la cabina arcade -->
             <div class="console-footer">
-                <div class="speaker-grill">
-                    <span></span><span></span><span></span><span></span><span></span>
-                </div>
-                <div class="brand-text">MYPLAYAD ARCADE SYSTEM • CIRCUS CHARLIE</div>
-                <div class="speaker-grill">
-                    <span></span><span></span><span></span><span></span><span></span>
-                </div>
+                <div class="speaker-grille"></div>
+                <div class="model-number">CIRCUS-CHARLIE-X9</div>
+                <div class="speaker-grille"></div>
             </div>
         </div>
     </div>
 
     <script src="qrcode.min.js"></script>
-    <script src="config.js?v=1"></script>
-    <script src="script.js?v=1"></script>
+    <script src="config.js?v=2"></script>
+    <script src="script.js?v=2"></script>
 </body>
 </html>

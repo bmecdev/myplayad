@@ -35,12 +35,14 @@ class CircusAudio {
         this.ctx = null;
         this.masterGain = null;
         this.muted = false;
+        this.adMuted = false;
         this.isPlayingMusic = false;
         this.musicTimer = null;
         this.noteIndex = 0;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -54,26 +56,50 @@ class CircusAudio {
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().catch(() => {});
         }
-        if (!this.isPlayingMusic && !this.muted && !GameState.adPlaying && GameState.running) {
+        if (!this.isPlayingMusic && !this.muted && !this.adMuted && !GameState.adPlaying && !GameState.isDemo && GameState.running) {
             this.startMusic();
         }
+    }
+
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (this.adMuted) {
+            this.stopMusic();
+        }
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime((this.adMuted || this.muted) ? 0 : 0.3, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+            }
+        } catch (_) {}
     }
 
     toggleMute() {
         this.init();
         this.muted = !this.muted;
         if (this.masterGain && this.ctx) {
-            this.masterGain.gain.setValueAtTime(this.muted ? 0 : 0.3, this.ctx.currentTime);
+            this.masterGain.gain.setValueAtTime((this.muted || this.adMuted) ? 0 : 0.3, this.ctx.currentTime);
         }
         if (audioToggleBtn) {
             audioToggleBtn.classList.toggle('muted', this.muted);
-            audioToggleBtn.textContent = this.muted ? '🔇 MUTED' : '🔊 AUDIO';
+            audioToggleBtn.textContent = this.muted ? '🔇' : '🔊';
         }
     }
 
     // Melodía clásica de circo alegre de Circus Charlie
     startMusic() {
-        if (this.isPlayingMusic || !this.ctx || GameState.adPlaying || !GameState.running) return;
+        if (this.isPlayingMusic || !this.ctx || this.adMuted || GameState.adPlaying || GameState.isDemo || !GameState.running) return;
         this.isPlayingMusic = true;
 
         // Frecuencias de la melodía circense alegre
@@ -90,7 +116,11 @@ class CircusAudio {
 
         let idx = 0;
         const playNextNote = () => {
-            if (!this.isPlayingMusic || !this.ctx || this.muted) {
+            if (!this.isPlayingMusic || !this.ctx || this.adMuted || GameState.adPlaying || GameState.isDemo) {
+                this.stopMusic();
+                return;
+            }
+            if (this.muted) {
                 this.musicTimer = setTimeout(playNextNote, 200);
                 return;
             }
@@ -132,6 +162,7 @@ class CircusAudio {
     }
 
     playJump() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx || this.muted) return;
         try {
             const t = this.ctx.currentTime;
@@ -150,6 +181,7 @@ class CircusAudio {
     }
 
     playBounce() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx || this.muted) return;
         try {
             const t = this.ctx.currentTime;
@@ -168,6 +200,7 @@ class CircusAudio {
     }
 
     playScore() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx || this.muted) return;
         try {
             const t = this.ctx.currentTime;
@@ -186,6 +219,7 @@ class CircusAudio {
     }
 
     playMoneyBag() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx || this.muted) return;
         try {
             const t = this.ctx.currentTime;
@@ -205,6 +239,7 @@ class CircusAudio {
     }
 
     playCrash() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx || this.muted) return;
         try {
             const t = this.ctx.currentTime;
@@ -223,6 +258,7 @@ class CircusAudio {
     }
 
     playVictory() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         if (!this.ctx || this.muted) return;
         try {
             const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
@@ -370,6 +406,8 @@ function getHoopConfigForLane(lane) {
 
 const GameState = {
     running: false,
+    isDemo: false,
+    paused: false,
     gameOver: false,
     adPlaying: false,
     victory: false,
@@ -485,7 +523,7 @@ function initStage(level = 1) {
         // Generar obstáculos a lo largo de los 100 metros (Monitos de circo corredores y vasijas con fuego)
         const speedMult = 1.0 + (level - 1) * 0.18;
 
-        let nextMeter = 92;
+        let nextMeter = 95;
         while (nextMeter > 6) {
             const rand = Math.random();
             // 80% de los obstáculos en la línea de suelo principal (FLOOR_Y = 138) donde galopa Charlie
@@ -713,25 +751,8 @@ function clearGameOverTimers() {
 
 function returnToQrCode() {
     clearGameOverTimers();
-    stopAttractMode();
-
-    GameState.running = false;
-    GameState.gameOver = false;
-    GameState.victory = false;
-    GameState.score = 0;
-    GameState.lives = 3;
-    GameState.level = 1;
-    GameState.currentNickname = 'CHARLIE';
 
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
-    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
-
-    const qrPanel = document.getElementById('waiting-qr-panel');
-    const rankingPanel = document.getElementById('waiting-ranking-panel');
-    if (qrPanel) qrPanel.classList.remove('hidden');
-    if (rankingPanel) rankingPanel.classList.add('hidden');
-    attractModeState = 'qr';
-    startAttractMode();
 
     try {
         dataChannels.forEach(dc => {
@@ -760,29 +781,35 @@ function returnToQrCode() {
         } catch (_) {}
     }
 
-    initStage(1);
-    updateUI();
-    renderHallOfFame();
+    startAttractMode();
 }
 
 function startNewGame() {
     clearGameOverTimers();
     stopAttractMode();
 
+    GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
     GameState.running = true;
     GameState.gameOver = false;
     GameState.victory = false;
     GameState.score = 0;
     GameState.lives = 3;
     GameState.level = 1;
+    inputKeys.left = inputKeys.right = inputKeys.up = inputKeys.down = inputKeys.jump = false;
+
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
 
     audio.init();
     audio.startMusic();
 
     initStage(1);
 
-    waitingOverlay.classList.add('hidden');
-    gameOverOverlay.classList.add('hidden');
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     updateUI();
 }
 
@@ -845,6 +872,7 @@ function endGame(isVictory = false) {
 }
 
 function broadcastSFX(soundName) {
+    if (GameState.adPlaying || GameState.isDemo) return;
     dataChannels.forEach(ch => {
         if (ch && ch.readyState === 'open') {
             try {
@@ -859,6 +887,15 @@ function updateUI() {
     if (highScoreElement) highScoreElement.textContent = `HI-${GameState.highScore.toString().padStart(6, '0')}`;
     if (stageDisplayElement) stageDisplayElement.textContent = `STAGE-${GameState.level.toString().padStart(2, '0')}`;
     if (bonusDisplayElement) bonusDisplayElement.textContent = `BONUS-${Math.floor(GameState.bonus).toString().padStart(4, '0')}`;
+    if (playerNickElement) {
+        if (GameState.isDemo) {
+            playerNickElement.textContent = 'PLAYER: DEMO';
+            playerNickElement.style.color = '#ffb703';
+        } else {
+            playerNickElement.textContent = `PLAYER: ${(GameState.currentNickname || 'CHARLIE').toUpperCase()}`;
+            playerNickElement.style.color = '#00f8f8';
+        }
+    }
 
     // Iconos de payasito oficiales estilo Konami Circus Charlie para las vidas
     const clownSvg = `<svg width="9" height="9" viewBox="0 0 9 9" style="image-rendering:pixelated;vertical-align:middle;display:inline-block;margin-right:2px;"><rect x="3" y="0" width="3" height="3" fill="#00f8f8"/><rect x="4" y="0" width="1" height="1" fill="#f8fcf8"/><rect x="2" y="3" width="5" height="5" fill="#f8d0b0"/><rect x="4" y="5" width="1" height="1" fill="#f82000"/><rect x="1" y="4" width="1" height="3" fill="#f82000"/><rect x="7" y="4" width="1" height="3" fill="#f82000"/><rect x="3" y="4" width="1" height="1" fill="#000000"/><rect x="5" y="4" width="1" height="1" fill="#000000"/></svg>`;
@@ -1267,10 +1304,74 @@ function updateTrapezePhysics(dt) {
 }
 
 // ==========================================
+// 🤖 IA Auténtica de Modo Demostración (Attract Mode)
+// ==========================================
+function updateDemoAI(dt) {
+    const p = GameState.player;
+    if (p.isVictoryPodium) return;
+
+    inputKeys.left = false;
+    inputKeys.right = false;
+    inputKeys.up = false;
+    inputKeys.down = false;
+    inputKeys.jump = false;
+
+    // Mantener a Charlie galopando en la pista principal inferior
+    if (p.baseY < FLOOR_Y - 2) {
+        inputKeys.down = true;
+    }
+
+    // Buscar el obstáculo más cercano al frente en la misma línea
+    let closestPotDx = Infinity;
+    let closestEnemyDx = Infinity;
+
+    GameState.firePots.forEach(fp => {
+        if (Math.abs(p.baseY - (fp.baseY || FLOOR_Y)) < 14) {
+            const dx = getScreenXFromMeter(fp.meter) - p.screenX;
+            if (dx > -4 && dx < closestPotDx) {
+                closestPotDx = dx;
+            }
+        }
+    });
+
+    GameState.enemies.forEach(e => {
+        if (Math.abs(p.baseY - (e.baseY || FLOOR_Y)) < 14) {
+            const dx = getScreenXFromMeter(e.meter) - p.screenX;
+            if (dx > -4 && dx < closestEnemyDx) {
+                closestEnemyDx = dx;
+            }
+        }
+    });
+
+    const nearestThreat = Math.min(closestPotDx, closestEnemyDx);
+
+    // Acelerar suavemente cuando hay espacio libre; frenar levemente justo antes de saltar si hay 2 juntos
+    if (nearestThreat > 55) {
+        inputKeys.right = true;
+    } else if (nearestThreat > 20) {
+        // Velocidad crucero estable para salto limpio
+        inputKeys.right = true;
+    }
+
+    // Sincronizar salto limpio sobre vasijas de fuego y monitos corredores
+    if (p.onGround) {
+        if (closestPotDx <= 34 && closestPotDx >= 4) {
+            performJump();
+        } else if (closestEnemyDx <= 44 && closestEnemyDx >= 6) {
+            performJump();
+        }
+    }
+}
+
+// ==========================================
 // ⚙️ Motor de Física y Colisiones
 // ==========================================
 function updatePhysics(dt) {
-    if (!GameState.running || GameState.gameOver) return;
+    if (!GameState.running || GameState.gameOver || GameState.adPlaying || GameState.paused) return;
+
+    if (GameState.isDemo) {
+        updateDemoAI(dt);
+    }
 
     if (GameState.stageIntroTimer > 0) {
         GameState.stageIntroTimer -= dt;
@@ -1282,10 +1383,16 @@ function updatePhysics(dt) {
         if (GameState.bonusTimer >= 0.1) {
             GameState.bonus = Math.max(0, GameState.bonus - 10);
             GameState.bonusTimer = 0;
-            bonusDisplayElement.textContent = `BONUS: ${Math.floor(GameState.bonus).toString().padStart(4, '0')}`;
+            if (bonusDisplayElement) {
+                bonusDisplayElement.textContent = `BONUS-${Math.floor(GameState.bonus).toString().padStart(4, '0')}`;
+            }
             if (GameState.bonus === 0) {
-                handleLifeLost();
-                return;
+                if (GameState.isDemo) {
+                    GameState.bonus = 5000;
+                } else {
+                    handleLifeLost();
+                    return;
+                }
             }
         }
     }
@@ -1542,6 +1649,18 @@ function createSparks(x, y, color = '#facc15', count = 8) {
 }
 
 function handleLifeLost() {
+    if (GameState.isDemo) {
+        // En modo demostración reiniciar ronda silenciosamente (nunca Game Over ni guardar score)
+        initStage(1);
+        GameState.stageIntroTimer = 0;
+        GameState.player.invulnTimer = 0;
+        GameState.score = 0;
+        GameState.lives = 3;
+        GameState.currentNickname = 'DEMO';
+        updateUI();
+        return;
+    }
+
     GameState.lives--;
     updateUI();
     audio.playCrash();
@@ -1612,6 +1731,17 @@ function handleLifeLost() {
 }
 
 function triggerVictorySequence() {
+    if (GameState.isDemo) {
+        // En modo demostración reiniciar circuito de forma continua y silenciosa
+        initStage(1);
+        GameState.stageIntroTimer = 0;
+        GameState.player.invulnTimer = 0;
+        GameState.score = 0;
+        GameState.lives = 3;
+        GameState.currentNickname = 'DEMO';
+        updateUI();
+        return;
+    }
     if (GameState.player.isVictoryPodium) return;
 
     const p = GameState.player;
@@ -3006,18 +3136,19 @@ function gameLoop(timestamp) {
 // ⌨️ Controles de Teclado (Fase 5 Obligatoria)
 // ==========================================
 window.addEventListener('keydown', (e) => {
-    audio.init();
     const key = e.key.toLowerCase();
 
-    // Saltar publicidad durante pruebas de teclado si está activa
+    // Bloquear todo excepto salto de publicidad durante anuncio pre-juego
     if (GameState.adPlaying) {
         if ([' ', 'enter', 'escape'].includes(key) || e.code === 'Space') {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
     }
+
+    audio.init();
 
     // Retorno instantáneo al QR si está en pantalla de Game Over
     if (GameState.gameOver) {
@@ -3028,8 +3159,8 @@ window.addEventListener('keydown', (e) => {
         }
     }
 
-    // Arranque instantáneo / bypass local si está en pantalla de espera
-    if (!GameState.running) {
+    // Arranque instantáneo / bypass local si está en modo demo o en espera
+    if (GameState.isDemo || !GameState.running) {
         if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'space', 'enter', 'z', 'x'].includes(key) || e.code === 'Space') {
             e.preventDefault();
             playPreGameAdThenStart('CHARLIE', () => startNewGame());
@@ -3102,21 +3233,20 @@ window.addEventListener('keyup', (e) => {
 });
 
 // Clic directo en pantalla para volver al QR o iniciar partida local con video pre-juego
-[mainScreen, waitingOverlay].forEach(el => {
-    if (el) {
-        el.addEventListener('click', () => {
-            audio.init();
-            if (GameState.gameOver) {
-                returnToQrCode();
-            } else if (!GameState.running) {
-                stopAttractMode();
-                playPreGameAdThenStart('CHARLIE', () => startNewGame());
-            }
-        });
-    }
-});
+if (mainScreen) {
+    mainScreen.addEventListener('click', () => {
+        if (GameState.adPlaying) return;
+        audio.init();
+        if (GameState.gameOver) {
+            returnToQrCode();
+        } else if (GameState.isDemo || !GameState.running) {
+            playPreGameAdThenStart('CHARLIE', () => startNewGame());
+        }
+    });
+}
 if (gameOverOverlay) {
     gameOverOverlay.addEventListener('click', () => {
+        if (GameState.adPlaying) return;
         audio.init();
         if (GameState.gameOver) returnToQrCode();
     });
@@ -3341,30 +3471,38 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
-    if (typeof audio !== 'undefined' && audio.stopMusic) {
-        audio.stopMusic();
-    }
+    // Congelar inmediatamente la simulación y silenciar todo audio del juego
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+    inputKeys.left = inputKeys.right = inputKeys.up = inputKeys.down = inputKeys.jump = false;
 
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
-        if (typeof audio !== 'undefined' && audio.stopMusic) {
-            audio.stopMusic();
-        }
+        audio.setMutedForAd(true);
 
         // SOLO avisar al celular si REALMENTE hay un video publicitario válido para reproducir
         broadcastToControllers({ type: 'ad_playing', nickname: nickname });
@@ -3402,12 +3540,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             if (window.parent && window.parent !== window) {
                 try { window.parent.postMessage({ type: 'GAME_AD_END' }, '*'); } catch (_) {}
@@ -3445,7 +3586,7 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
             });
         }
 
-        safetyTimer = setTimeout(finishAd, 35000);
+        safetyTimer = setTimeout(finishAd, 65000);
     };
 
     requestAdVideo().then((videoUrl) => {
@@ -3455,20 +3596,24 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
 function setupDataChannel(channel, playerId) {
     channel.onopen = () => {
-        waitingOverlay.classList.add('hidden');
+        if (waitingOverlay) waitingOverlay.classList.add('hidden');
         if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     };
 
     channel.onmessage = (e) => {
         try {
             const msg = JSON.parse(e.data);
-            if (msg.type === 'join') {
+            if (msg.type === 'join' || msg.type === 'nickname') {
                 GameState.currentNickname = (msg.nickname || msg.value || 'CHARLIE').toUpperCase().substring(0, 10);
-                if (playerNickElement) playerNickElement.textContent = `CHARLIE: ${GameState.currentNickname}`;
+                if (playerNickElement) {
+                    playerNickElement.textContent = `PLAYER: ${GameState.currentNickname}`;
+                    playerNickElement.style.color = '#00f8f8';
+                }
                 playPreGameAdThenStart(GameState.currentNickname, () => {
                     startNewGame();
                 });
             } else if (msg.type === 'control') {
+                if (GameState.adPlaying || GameState.isDemo || !GameState.running) return;
                 if (msg.cmd === 'left') inputKeys.left = !!msg.val;
                 if (msg.cmd === 'right') inputKeys.right = !!msg.val;
                 if (msg.cmd === 'up') inputKeys.up = !!msg.val;
@@ -3478,6 +3623,7 @@ function setupDataChannel(channel, playerId) {
                     if (msg.val) performJump();
                 }
             } else if (msg.type === 'joystick') {
+                if (GameState.adPlaying || GameState.isDemo || !GameState.running) return;
                 inputKeys.left = msg.x < -0.22;
                 inputKeys.right = msg.x > 0.22;
                 inputKeys.up = msg.y < -0.25;
@@ -3521,16 +3667,19 @@ function updateQrCode() {
 
     const sId = new URLSearchParams(window.location.search).get('screenId');
     const screenParam = sId ? `&screenId=${encodeURIComponent(sId)}` : '';
-    const controlUrl = `${CONFIG.CONTROL_URL}/?room=${GameState.roomId}${screenParam}`;
+    const baseControlUrl = (typeof CONFIG !== 'undefined' && CONFIG.CONTROL_URL)
+        ? CONFIG.CONTROL_URL
+        : 'https://controllers.myplayad.com/circus';
+    const controlUrl = `${baseControlUrl}/?room=${GameState.roomId}${screenParam}`;
 
     if (typeof QRCode !== 'undefined') {
         new QRCode(qrContainer, {
             text: controlUrl,
-            width: 140,
-            height: 140,
+            width: 200,
+            height: 200,
             colorDark: '#000000',
             colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.M
+            correctLevel: QRCode.CorrectLevel.L
         });
     }
 }
@@ -3597,43 +3746,47 @@ function renderHallOfFame() {
     } catch (_) {}
 }
 
-let attractModeInterval = null;
-let attractModeState = 'qr'; // 'qr' o 'ranking'
-
 function startAttractMode() {
     stopAttractMode();
     const qrPanel = document.getElementById('waiting-qr-panel');
-    const rankingPanel = document.getElementById('waiting-ranking-panel');
-    if (!qrPanel || !rankingPanel) return;
 
+    audio.stopMusic();
     renderHallOfFame();
     broadcastRankingUpdate();
 
-    attractModeInterval = setInterval(() => {
-        if (!waitingOverlay || waitingOverlay.classList.contains('hidden')) {
-            stopAttractMode();
-            return;
-        }
+    // Activar Demo Gameplay en Canvas (100% silencioso)
+    GameState.isDemo = true;
+    GameState.adPlaying = false;
+    GameState.paused = false;
+    GameState.running = true;
+    GameState.gameOver = false;
+    GameState.victory = false;
+    GameState.score = 0;
+    GameState.lives = 3;
+    GameState.currentNickname = 'DEMO';
 
-        if (attractModeState === 'qr') {
-            attractModeState = 'ranking';
-            qrPanel.classList.add('hidden');
-            rankingPanel.classList.remove('hidden');
-            renderHallOfFame();
-        } else {
-            attractModeState = 'qr';
-            rankingPanel.classList.add('hidden');
-            qrPanel.classList.remove('hidden');
-        }
-    }, 10000);
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
+
+    initStage(1);
+    GameState.stageIntroTimer = 0; // Mostrar acción inmediata sin cartel opaco en demo
+    GameState.player.invulnTimer = 0; // Sin parpadeo de invisibilidad en modo demo
+    updateUI();
+
+    if (waitingOverlay) waitingOverlay.classList.remove('hidden');
+    if (qrPanel) qrPanel.classList.remove('hidden');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 }
 
 function stopAttractMode() {
-    if (attractModeInterval) {
-        clearInterval(attractModeInterval);
-        attractModeInterval = null;
-    }
+    GameState.isDemo = false;
+    if (waitingOverlay) waitingOverlay.classList.add('hidden');
 }
+
+// Dimensiones de referencia de la consola arcade (fallback si aún no hay layout)
+const ARCADE_NATURAL_W = 534;
+const ARCADE_NATURAL_H = 488;
 
 // ==========================================
 // 📐 Escalado Reactivo autoScale()
@@ -3642,15 +3795,14 @@ function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-    const naturalW = container.offsetWidth || 440;
-    const naturalH = container.offsetHeight || 440;
-
+    // offsetWidth / offsetHeight devuelven siempre las dimensiones sin transform
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
-    const padding = 20;
+    const padding = 8;
     const scaleX = (availableW - padding) / naturalW;
     const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
@@ -3661,79 +3813,80 @@ function autoScale() {
 // ==========================================
 // 🚀 Arranque Inicial
 // ==========================================
-window.addEventListener('DOMContentLoaded', () => {
-    initStage(1);
-    renderHallOfFame();
-    startAttractMode();
+if (!GameState.roomId || GameState.roomId === '----') {
+    GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+    if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
+}
 
-    if (!GameState.roomId || GameState.roomId === '----') {
-        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-        if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
-    }
+startAttractMode();
+updateUI();
+renderHallOfFame();
+updateQrCode();
+autoScale();
+render();
+requestAnimationFrame(gameLoop);
+setTimeout(initSignaling, 30);
+requestAdVideo();
+
+function initDomAndAttract() {
     updateQrCode();
-
-    const instantPlayBtn = document.getElementById('instant-play-btn');
-    const instantPlayBtn2 = document.getElementById('instant-play-btn-2');
-    const toggleHallBtn = document.getElementById('toggle-hall-btn');
-    const backToQrBtn = document.getElementById('back-to-qr-btn');
-    const qrPanel = document.getElementById('waiting-qr-panel');
-    const rankingPanel = document.getElementById('waiting-ranking-panel');
-
-    if (instantPlayBtn) {
-        instantPlayBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            stopAttractMode();
-            audio.init();
-            playPreGameAdThenStart('CHARLIE', () => startNewGame());
-        });
-    }
-
-    if (instantPlayBtn2) {
-        instantPlayBtn2.addEventListener('click', (e) => {
-            e.stopPropagation();
-            stopAttractMode();
-            audio.init();
-            playPreGameAdThenStart('CHARLIE', () => startNewGame());
-        });
-    }
-
-    if (toggleHallBtn) {
-        toggleHallBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (qrPanel && rankingPanel) {
-                attractModeState = 'ranking';
-                qrPanel.classList.add('hidden');
-                rankingPanel.classList.remove('hidden');
-                renderHallOfFame();
-            }
-        });
-    }
-
-    if (backToQrBtn) {
-        backToQrBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (qrPanel && rankingPanel) {
-                attractModeState = 'qr';
-                rankingPanel.classList.add('hidden');
-                qrPanel.classList.remove('hidden');
-            }
-        });
-    }
-
-    requestAdVideo();
     autoScale();
-    setTimeout(initSignaling, 30);
-    requestAnimationFrame(gameLoop);
-});
+    renderHallOfFame();
+    if (!GameState.isDemo && !GameState.running) {
+        startAttractMode();
+    }
 
+    const qrPanel = document.getElementById('waiting-qr-panel');
+    if (qrPanel && !qrPanel._clickBound) {
+        qrPanel._clickBound = true;
+        qrPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (GameState.adPlaying) return;
+            audio.init();
+            playPreGameAdThenStart('CHARLIE', () => startNewGame());
+        });
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDomAndAttract);
+} else {
+    initDomAndAttract();
+}
+
+window.addEventListener('resize', autoScale);
+document.addEventListener('fullscreenchange', autoScale);
+document.addEventListener('webkitfullscreenchange', autoScale);
+window.addEventListener('load', () => {
+    updateQrCode();
+    autoScale();
+    if (!GameState.running && !GameState.isDemo) {
+        startAttractMode();
+    }
+});
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+        autoScale();
+    });
+}
+if (window.ResizeObserver) {
+    let resizeTimer = null;
+    const ro = new ResizeObserver(() => {
+        if (!resizeTimer) {
+            resizeTimer = requestAnimationFrame(() => {
+                autoScale();
+                resizeTimer = null;
+            });
+        }
+    });
+    ro.observe(document.body);
+}
 window.addEventListener('message', (e) => {
     if (!e.data) return;
-    if (e.data.type === 'GET_RANKING') {
+    if (e.data.type === 'RESCALE') {
+        autoScale();
+    } else if (e.data.type === 'GET_RANKING') {
         broadcastRankingUpdate();
     }
 });
-
-window.addEventListener('resize', autoScale);
-window.addEventListener('load', () => { updateQrCode(); autoScale(); });
-if (window.ResizeObserver) new ResizeObserver(autoScale).observe(document.body);
 [0, 50, 150, 300, 600, 1200].forEach(d => setTimeout(autoScale, d));

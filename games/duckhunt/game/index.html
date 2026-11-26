@@ -6,7 +6,7 @@
     <title>Duck Hunt - Retro Arcade NES</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
     <div class="container">
@@ -71,16 +71,19 @@
                     </div>
                 </div>
 
-                <!-- Overlay de Conexión -->
+                <!-- Overlay de Modo Atracción & QR en Esquina -->
                 <div id="waiting-overlay">
-                    <div class="overlay-content">
-                        <h2 class="arcade-title">DUCK <span>HUNT</span></h2>
-                        <p class="pulse-text">ESCANEA PARA DISPARAR !!</p>
-                        <div class="qr-wrapper">
+                    <!-- Banner Superior de Modo Demostración -->
+                    <div class="attract-banner">
+                        <span class="attract-live-dot">●</span>
+                        <span class="attract-text">ESCANEA Y JUEGA <span class="highlight">GRATIS</span></span>
+                    </div>
+
+                    <!-- Solo Código QR en la Esquina -->
+                    <div class="corner-qr-card" id="waiting-qr-panel" title="Escanea para jugar o haz clic aquí">
+                        <div class="corner-qr-wrapper">
                             <div id="qrcode"></div>
                         </div>
-                        <p class="status-text">ESPERANDO ZAPPER MÓVIL...</p>
-                        <p class="keyboard-hint">CLICK O [ESPACIO] PARA JUGAR CON RATÓN / TECLADO</p>
                     </div>
                 </div>
 
@@ -96,7 +99,7 @@
     <!-- Scripts -->
     <script src="qrcode.min.js"></script>
     <script src="config.js?v=2"></script>
-    <script src="script.js?v=2"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>
 

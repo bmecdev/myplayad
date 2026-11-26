@@ -29,6 +29,7 @@ let nickname = 'DRIVER';
 let selectedDifficulty = 'normal';
 let pendingCandidates = [];
 let hasStarted = false;
+let isAdPlaying = false;
 
 // Botones de Selector de Dificultad Móvil
 const mDiffEasy = document.getElementById('m-diff-easy');
@@ -416,6 +417,7 @@ async function startWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '';
                 roomSelection.style.display = 'none';
                 if (rotateScreen) rotateScreen.style.display = 'none';
@@ -427,6 +429,7 @@ async function startWebRTC() {
                 }
                 if (controllerContainer) controllerContainer.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = 'EN PISTA';
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -434,6 +437,7 @@ async function startWebRTC() {
                 updateOrientationView();
                 vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 showThanks(data.score, data.checkpoints, data.won, data.goal);
             } else if (data.type === 'difficulty_changed') {
                 if (data.difficulty) {
@@ -445,6 +449,7 @@ async function startWebRTC() {
                     });
                 }
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 mobileAudio.play(data.sound, data.param);
             }
         } catch (err) {}
@@ -579,8 +584,8 @@ function updateOrientationView() {
         return;
     }
 
-    const isAdPlaying = adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block');
-    if (isAdPlaying) {
+    const isAdWaiting = isAdPlaying || (adWaitingScreen && (adWaitingScreen.style.display === 'flex' || adWaitingScreen.style.display === 'block'));
+    if (isAdWaiting) {
         if (rotateScreen) rotateScreen.style.display = 'none';
         return;
     }
