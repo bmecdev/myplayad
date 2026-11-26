@@ -27,9 +27,11 @@ class ArkanoidAudio {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
+        this.adMuted = false;
     }
 
     init() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (!this.ctx) {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -45,7 +47,29 @@ class ArkanoidAudio {
         this.resume();
     }
 
+    setMutedForAd(muted) {
+        this.adMuted = Boolean(muted);
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            if (this.masterGain) {
+                this.masterGain.gain.cancelScheduledValues(now);
+                this.masterGain.gain.setValueAtTime(this.adMuted ? 0 : 0.45, now);
+            }
+            if (this.adMuted) {
+                if (this.ctx.state === 'running') {
+                    this.ctx.suspend().catch(() => {});
+                }
+            } else {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().then(() => this.updateUI()).catch(() => {});
+                }
+            }
+        } catch (e) {}
+    }
+
     resume() {
+        if (this.adMuted || (typeof GameState !== 'undefined' && GameState.adPlaying)) return;
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => this.updateUI()).catch(() => {});
         } else if (this.ctx && this.ctx.state === 'running') {
@@ -66,6 +90,7 @@ class ArkanoidAudio {
     }
 
     playBeep() {
+        if (this.adMuted || GameState.adPlaying) return;
         if (!this.ctx) return;
         try {
             const t = this.ctx.currentTime;
@@ -83,7 +108,7 @@ class ArkanoidAudio {
     }
 
     playPaddle() {
-        if (GameState.isDemo) return;
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('paddle');
         if (!this.ctx) return;
         this.resume();
@@ -104,7 +129,7 @@ class ArkanoidAudio {
     }
 
     playWall() {
-        if (GameState.isDemo) return;
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('wall');
         if (!this.ctx) return;
         this.resume();
@@ -124,7 +149,7 @@ class ArkanoidAudio {
     }
 
     playBrick(row) {
-        if (GameState.isDemo) return;
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('brick', row);
         if (!this.ctx) return;
         this.resume();
@@ -147,7 +172,7 @@ class ArkanoidAudio {
     }
 
     playLaunch() {
-        if (GameState.isDemo) return;
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('launch');
         if (!this.ctx) return;
         this.resume();
@@ -168,6 +193,7 @@ class ArkanoidAudio {
     }
 
     playLifeLost() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('lifeLost');
         if (!this.ctx) return;
         this.resume();
@@ -188,6 +214,7 @@ class ArkanoidAudio {
     }
 
     playLevelClear() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('levelClear');
         if (!this.ctx) return;
         this.resume();
@@ -208,6 +235,7 @@ class ArkanoidAudio {
     }
 
     playStart() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('start');
         if (!this.ctx) return;
         this.resume();
@@ -228,6 +256,7 @@ class ArkanoidAudio {
     }
 
     playGameOver() {
+        if (this.adMuted || GameState.adPlaying || GameState.isDemo) return;
         broadcastSFX('gameover');
         if (!this.ctx) return;
         this.resume();
@@ -250,6 +279,7 @@ class ArkanoidAudio {
 const audio = new ArkanoidAudio();
 
 function broadcastSFX(sound, param = null) {
+    if (typeof GameState !== 'undefined' && (GameState.adPlaying || GameState.isDemo)) return;
     if (typeof dataChannels === 'undefined') return;
     const payload = JSON.stringify({ type: 'sfx', sound, param });
     dataChannels.forEach(ch => {
@@ -262,6 +292,7 @@ function broadcastSFX(sound, param = null) {
 // Desbloqueo y gestión global de audio en cualquier interacción
 ['pointerdown', 'click', 'keydown', 'touchstart'].forEach(evt => {
     window.addEventListener(evt, () => {
+        if (typeof GameState !== 'undefined' && GameState.adPlaying) return;
         if (!audio.ctx) audio.init();
         else audio.resume();
     }, { passive: true });
@@ -643,20 +674,33 @@ window.addEventListener('message', (event) => {
 function playPreGameAdThenStart(nickname, startGameCallback) {
     if (GameState.adPlaying) return;
 
+    // Congelar inmediatamente el juego y silenciar todo audio del juego para no mezclarse con la publicidad
+    GameState.adPlaying = true;
+    GameState.isDemo = false;
+    GameState.running = false;
+    GameState.paused = true;
+    audio.setMutedForAd(true);
+
     if (waitingOverlay) waitingOverlay.classList.add('hidden');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
 
-    if (!adVideoOverlay || !adVideoPlayer) {
+    const startDirectlyWithoutAd = () => {
+        GameState.adPlaying = false;
+        GameState.paused = false;
+        audio.setMutedForAd(false);
         broadcastToControllers({ type: 'game_start' });
         startGameCallback();
+    };
+
+    if (!adVideoOverlay || !adVideoPlayer) {
+        startDirectlyWithoutAd();
         return;
     }
 
     const startAdPlayback = (videoUrl) => {
         if (!videoUrl) {
             console.log('[ad] No hay video publicitario configurado. Arrancando partida de una.');
-            broadcastToControllers({ type: 'game_start' });
-            startGameCallback();
+            startDirectlyWithoutAd();
             return;
         }
 
@@ -697,12 +741,15 @@ function playPreGameAdThenStart(nickname, startGameCallback) {
 
             try {
                 adVideoPlayer.pause();
+                adVideoPlayer.muted = true;
                 adVideoPlayer.removeAttribute('src');
                 adVideoPlayer.load();
             } catch (_) {}
 
             adVideoOverlay.classList.add('hidden');
             GameState.adPlaying = false;
+            GameState.paused = false;
+            audio.setMutedForAd(false);
 
             // Reanudar reproductor lateral
             if (window.parent && window.parent !== window) {
@@ -859,6 +906,7 @@ async function handleOffer(data) {
 }
 
 function handleJoystickInput(input) {
+    if (GameState.adPlaying) return;
     if (input.fire) {
         if (!GameState.ball.launched && GameState.running && !GameState.gameOver) {
             GameState.ball.launched = true;
@@ -906,8 +954,14 @@ function resetBall() {
 
 function resetGame() {
     stopAttractMode();
-    audio.playStart();
     GameState.isDemo = false;
+    GameState.adPlaying = false;
+    GameState.paused = false;
+    audio.setMutedForAd(false);
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_START' }, '*'); } catch (_) {}
+    }
+    audio.playStart();
     GameState.score = 0;
     GameState.lives = 3;
     GameState.gameOver = false;
@@ -1121,7 +1175,7 @@ function updateStep(dt) {
 }
 
 function update(dt) {
-    if (!GameState.running || GameState.paused || GameState.gameOver) return;
+    if (!GameState.running || GameState.paused || GameState.gameOver || GameState.adPlaying) return;
 
     // Sub-stepping de 2 pasos para física 100% precisa y libre de túneles a alta velocidad en RPi
     const steps = 2;
@@ -1403,7 +1457,11 @@ function startAttractMode() {
 
     // Activar Demo Gameplay en Canvas
     GameState.isDemo = true;
+    GameState.adPlaying = false;
     GameState.running = true;
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ type: 'GAME_PLAY_END' }, '*'); } catch (_) {}
+    }
     GameState.gameOver = false;
     GameState.paused = false;
     GameState.score = 0;
@@ -1582,7 +1640,6 @@ function initDomAndAttract() {
     if (qrPanel) {
         qrPanel.addEventListener('click', (e) => {
             e.stopPropagation();
-            stopAttractMode();
             audio.init();
             playPreGameAdThenStart('PILOT', () => resetGame());
         });
@@ -1642,16 +1699,16 @@ window.addEventListener('message', (event) => {
 
 // Controles de teclado para pruebas en navegador
 window.addEventListener('keydown', (e) => {
-    audio.init();
-
     if (GameState.adPlaying) {
         if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
             if (typeof window._finishCurrentAd === 'function') {
                 window._finishCurrentAd();
             }
-            return;
         }
+        return;
     }
+
+    audio.init();
 
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
         GameState.paddle.targetX = undefined;
@@ -1676,6 +1733,7 @@ window.addEventListener('keyup', (e) => {
 });
 
 mainScreen.addEventListener('click', () => {
+    if (GameState.adPlaying) return;
     audio.init();
     if (GameState.isDemo || !GameState.running || GameState.gameOver) {
         playPreGameAdThenStart('PILOT', () => resetGame());

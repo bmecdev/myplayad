@@ -18,6 +18,7 @@ let currentRoomId = null;
 let currentScreenId = null;
 let nickname = 'Player';
 let pendingCandidates = [];
+let isAdPlaying = false;
 
 // Función para obtener configuración ICE dinámica con TURN
 function getIceConfig() {
@@ -380,6 +381,7 @@ async function startWebRTC() {
                 return;
             }
             if (data.type === 'ad_playing') {
+                isAdPlaying = true;
                 status.textContent = '📺 MIRA LA PANTALLA';
                 status.style.color = '#ffb703';
                 roomSelection.style.display = 'none';
@@ -391,6 +393,7 @@ async function startWebRTC() {
                 }
                 container.style.display = 'none';
             } else if (data.type === 'game_start') {
+                isAdPlaying = false;
                 status.textContent = '¡Listo!';
                 status.style.color = '#3dff8a';
                 if (adWaitingScreen) adWaitingScreen.style.display = 'none';
@@ -399,10 +402,12 @@ async function startWebRTC() {
                 updateTrackpadDimensions();
                 if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
             } else if (data.type === 'game_over') {
+                isAdPlaying = false;
                 mobileAudio.play('gameover');
                 if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
                 showThanks(data.score);
             } else if (data.type === 'sfx') {
+                if (isAdPlaying) return;
                 mobileAudio.play(data.sound, data.param);
                 if (data.sound === 'paddle' && navigator.vibrate) navigator.vibrate(20);
                 else if (data.sound === 'brick' && navigator.vibrate) navigator.vibrate(15);

@@ -198,6 +198,13 @@ export default function VirtualKioskPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const rankingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isGameAdPlayingRef = useRef<boolean>(false);
+  const isGameSessionActiveRef = useRef<boolean>(false);
+  const isMutedRef = useRef<boolean>(isMuted);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
 
@@ -387,15 +394,34 @@ export default function VirtualKioskPage() {
 
       // 2. El minijuego comenzó a reproducir el video publicitario pre-juego en su pantalla
       if (event.data.type === 'GAME_AD_START') {
-        if (videoRef.current && !videoRef.current.paused) {
+        isGameAdPlayingRef.current = true;
+        if (videoRef.current) {
           videoRef.current.pause();
+          videoRef.current.muted = true;
         }
       }
 
       // 3. El minijuego terminó el video publicitario pre-juego y arrancó la partida
       if (event.data.type === 'GAME_AD_END') {
+        isGameAdPlayingRef.current = false;
         if (videoRef.current) {
+          videoRef.current.muted = isGameSessionActiveRef.current ? true : isMutedRef.current;
           videoRef.current.play().catch(() => {});
+        }
+      }
+
+      // 3b. Evitar mezcla de audio entre la TV lateral y una partida activa
+      if (event.data.type === 'GAME_PLAY_START') {
+        isGameSessionActiveRef.current = true;
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+        }
+      }
+
+      if (event.data.type === 'GAME_PLAY_END') {
+        isGameSessionActiveRef.current = false;
+        if (videoRef.current && !isGameAdPlayingRef.current) {
+          videoRef.current.muted = isMutedRef.current;
         }
       }
 
@@ -423,7 +449,12 @@ export default function VirtualKioskPage() {
   // Asegurar autoplay y volumen en el elemento de video
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.muted = isMuted;
+      if (isGameAdPlayingRef.current) {
+        videoRef.current.pause();
+        videoRef.current.muted = true;
+        return;
+      }
+      videoRef.current.muted = isGameSessionActiveRef.current ? true : isMuted;
       videoRef.current.play().catch((err) => {
         console.warn('Autoplay bloqueado por navegador:', err);
       });
@@ -462,6 +493,8 @@ export default function VirtualKioskPage() {
 
   // Al cambiar de juego, reiniciar rankingData y solicitar ranking actualizado al iframe
   useEffect(() => {
+    isGameAdPlayingRef.current = false;
+    isGameSessionActiveRef.current = false;
     setRankingData([]);
     const timer = setTimeout(() => {
       if (iframeRef.current?.contentWindow) {
@@ -493,7 +526,7 @@ export default function VirtualKioskPage() {
       setIsVideoRankingVisible(false);
       if (selectedVideoSource === 'playlist' && videos.length > 1) {
         setCurrentVideoIdx((prev) => (prev + 1) % videos.length);
-      } else if (videoRef.current) {
+      } else if (videoRef.current && !isGameAdPlayingRef.current) {
         videoRef.current.currentTime = 0;
         videoRef.current.play().catch(() => {});
       }
@@ -502,6 +535,8 @@ export default function VirtualKioskPage() {
 
   const reloadSimulator = () => {
     if (rankingTimeoutRef.current) clearTimeout(rankingTimeoutRef.current);
+    isGameAdPlayingRef.current = false;
+    isGameSessionActiveRef.current = false;
     setIsVideoRankingVisible(false);
     setIsGameLoading(true);
     setReloadKey((prev) => prev + 1);
@@ -521,7 +556,7 @@ export default function VirtualKioskPage() {
 
   const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
   const gameBaseUrl = getGameUrl(selectedGameSlug, screenIdForGame);
-  const gameIframeSrc = `${gameBaseUrl}&v=38`;
+  const gameIframeSrc = `${gameBaseUrl}&v=39`;
 
   return (
     <div className="space-y-6 pb-12">
