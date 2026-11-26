@@ -27,8 +27,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     transform-origin: center center;
-    transition: transform 0.05s ease-out;
 }
 
 /* Consola Bezel */
@@ -174,15 +174,14 @@ body {
 }
 
 .canvas-wrapper {
-    flex-grow: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     padding: 0;
     width: 100%;
-    height: 380px;
-    max-height: 100%;
     position: relative;
     z-index: 2;
     overflow: hidden;
@@ -193,8 +192,8 @@ body {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 475px;
-    height: 380px;
+    width: auto;
+    height: 100%;
     max-width: 100%;
     max-height: 100%;
     aspect-ratio: 5 / 4;

@@ -521,7 +521,7 @@ export default function VirtualKioskPage() {
 
   const screenIdForGame = selectedScreen?.id || 'VIRTUAL';
   const gameBaseUrl = getGameUrl(selectedGameSlug, screenIdForGame);
-  const gameIframeSrc = `${gameBaseUrl}&v=37`;
+  const gameIframeSrc = `${gameBaseUrl}&v=38`;
 
   return (
     <div className="space-y-6 pb-12">
@@ -805,7 +805,7 @@ export default function VirtualKioskPage() {
         >
           {/* SECCIÓN JUEGO ARCADE (IFRAME RETRO CONSOLA) */}
           <div
-            className={`relative flex items-center justify-center w-full h-full ${
+            className={`relative flex items-center justify-center w-full h-full overflow-hidden ${
               orientation === 'LANDSCAPE'
                 ? isFullscreen
                   ? 'flex-1 min-w-0 min-h-0 w-1/2'
@@ -854,6 +854,9 @@ export default function VirtualKioskPage() {
                       },
                       '*'
                     );
+                  }
+                  if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage({ type: 'RESCALE' }, '*');
                   }
                 }}
                 className="w-full h-full rounded-2xl border-0 shadow-2xl bg-[#0a0f0d]"

@@ -1525,18 +1525,7 @@ async function fetchUpcomingSchedules() {
     }
 }
 
-// Inicialización inmediata y arranque de modo demostración
-initBricks();
-startAttractMode();
-updateUI();
-fetchRanking();
-updateQrCode();
-autoScale();
-setInterval(fetchRanking, 30000);
-requestAnimationFrame(gameLoop);
-connectSignalingServer();
-
-// Dimensiones de referencia de la consola arcade (Ancho 500px + 28px padding/bordes, Alto 426px + 62px header/footer/dots)
+// Dimensiones de referencia de la consola arcade (fallback si aún no hay layout)
 const ARCADE_NATURAL_W = 534;
 const ARCADE_NATURAL_H = 488;
 
@@ -1545,19 +1534,32 @@ function autoScale() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    container.style.transform = 'none';
-
+    // offsetWidth / offsetHeight devuelven siempre las dimensiones sin transform
+    const naturalW = container.offsetWidth || ARCADE_NATURAL_W;
+    const naturalH = container.offsetHeight || ARCADE_NATURAL_H;
     const availableW = window.innerWidth || document.documentElement.clientWidth;
     const availableH = window.innerHeight || document.documentElement.clientHeight;
-    if (!availableW || !availableH) return;
+    if (!availableW || !availableH || !naturalW || !naturalH) return;
 
     const padding = 8;
-    const scaleX = (availableW - padding) / ARCADE_NATURAL_W;
-    const scaleY = (availableH - padding) / ARCADE_NATURAL_H;
+    const scaleX = (availableW - padding) / naturalW;
+    const scaleY = (availableH - padding) / naturalH;
     const scale = Math.max(0.1, Math.min(scaleX, scaleY));
 
     container.style.transform = `scale(${scale})`;
 }
+
+// Inicialización inmediata y arranque de modo demostración
+initBricks();
+startAttractMode();
+updateUI();
+fetchRanking();
+updateQrCode();
+autoScale();
+draw();
+setInterval(fetchRanking, 30000);
+requestAnimationFrame(gameLoop);
+connectSignalingServer();
 
 function initDomAndAttract() {
     updateQrCode();
