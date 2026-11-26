@@ -1295,7 +1295,7 @@ function endGame() {
         }
         setTimeout(() => {
             if (!GameState.running) videoOverlay.classList.add('hidden');
-        }, 5000);
+        }, 3000);
     }
 
     if (GameState._gameOverTimeout) clearTimeout(GameState._gameOverTimeout);
@@ -1316,7 +1316,7 @@ function endGame() {
             } catch (_) {}
         }
         startAttractMode();
-    }, 15000);
+    }, 3000);
 }
 
 // ==========================================

@@ -2035,11 +2035,12 @@ function gameOver() {
 
     if (gameOverOverlay) gameOverOverlay.classList.remove('hidden');
 
+    if (window.resetTimeout) clearTimeout(window.resetTimeout);
     window.resetTimeout = setTimeout(() => {
         if (!GameState.gameRunning && !GameState.adPlaying) {
             resetSignaling();
         }
-    }, 6000);
+    }, 3000);
 }
 
 function startGame() {

@@ -1313,8 +1313,11 @@ function endGame() {
     dataChannels.clear();
     peerConnections.clear();
     
-    // Show QR code again after a delay
-    setTimeout(() => {
+    // Show QR code again after 3 seconds
+    if (GameState._gameOverTimeout) clearTimeout(GameState._gameOverTimeout);
+    GameState._gameOverTimeout = setTimeout(() => {
+        GameState._gameOverTimeout = null;
+        if (GameState.running || GameState.adPlaying) return;
         gameOverOverlay.classList.add('hidden');
         waitingOverlay.classList.remove('hidden');
         const qrPanel = document.getElementById('waiting-qr-panel');
@@ -1328,13 +1331,15 @@ function endGame() {
         document.getElementById('room-id').textContent = `ROOM: ${GameState.roomId}`;
         updateQrCode();
         
-        socket.send(JSON.stringify({ 
-            type: 'register', 
-            role: 'host', 
-            roomId: GameState.roomId,
-            maxPlayers: CONFIG.MAX_PLAYERS 
-        }));
-    }, 15000); // 15 seconds to view hall of fame
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ 
+                type: 'register', 
+                role: 'host', 
+                roomId: GameState.roomId,
+                maxPlayers: CONFIG.MAX_PLAYERS 
+            }));
+        }
+    }, 3000); // 3 seconds to view game over / hall of fame
 }
 
 function updateUI() {

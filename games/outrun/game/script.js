@@ -2267,22 +2267,34 @@ function endGame(won = false, goal = null) {
     dataChannels.clear();
     peerConnections.clear();
 
-    GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-    if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
-    updateQrCode();
-
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-            type: 'register',
-            role: 'host',
-            roomId: GameState.roomId,
-            maxPlayers: CONFIG.MAX_PLAYERS || 1
-        }));
+    const gameOverTitleEl = document.getElementById('game-over-title');
+    if (gameOverTitleEl) {
+        gameOverTitleEl.textContent = won ? '¡GANASTE!' : 'GAME OVER';
+        gameOverTitleEl.style.color = won ? '#3dff8a' : '';
     }
+    if (gameOverOverlay) gameOverOverlay.classList.remove('hidden');
 
-    // Vuelve inmediatamente al modo demostración en vivo con el QR
-    gameOverOverlay.classList.add('hidden');
-    startAttractMode();
+    // Volver al modo demostración en vivo con el QR tras 3 segundos
+    if (GameState._gameOverTimeout) clearTimeout(GameState._gameOverTimeout);
+    GameState._gameOverTimeout = setTimeout(() => {
+        GameState._gameOverTimeout = null;
+        if (GameState.running || GameState.adPlaying) return;
+        GameState.roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        if (roomIdElement) roomIdElement.textContent = `ID: ${GameState.roomId}`;
+        updateQrCode();
+
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'register',
+                role: 'host',
+                roomId: GameState.roomId,
+                maxPlayers: CONFIG.MAX_PLAYERS || 1
+            }));
+        }
+
+        if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
+        startAttractMode();
+    }, 3000);
 }
 
 // IA de Conducción Automática para Modo Demostración (Attract Mode)
@@ -2623,11 +2635,8 @@ function update(dt) {
             GameState.score += (timeBonus + goalBonus);
             
             audio.playVictory();
-            showBanner(`¡GOAL ${goalLetter} CLEARED!`, `COURSE CLEAR! +${timeBonus + goalBonus} PTS`, '#ffeaa7', 3.5);
-
-            setTimeout(() => {
-                endGame(true, goalLetter);
-            }, 3500);
+            showBanner(`¡GOAL ${goalLetter} CLEARED!`, `COURSE CLEAR! +${timeBonus + goalBonus} PTS`, '#ffeaa7', 3.0);
+            endGame(true, goalLetter);
         }
     }
 

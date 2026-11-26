@@ -1968,13 +1968,13 @@ function endGame() {
         }
     });
 
-    // Auto-restart countdown (15s Hall of Fame display)
+    // Auto-restart countdown (3s Game Over display)
     if (gameOverRestartTimer) clearTimeout(gameOverRestartTimer);
     gameOverRestartTimer = setTimeout(() => {
         if (!GameState.running && !GameState.adPlaying) {
             resetSignalingAndRoom();
         }
-    }, 15000);
+    }, 3000);
 }
 
 function updateUI() {

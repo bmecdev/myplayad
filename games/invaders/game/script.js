@@ -1614,14 +1614,14 @@ function endGame(message) {
         }
         setTimeout(() => {
             if (!GameState.running) videoOverlay.classList.add('hidden');
-        }, 5000);
+        }, 3000);
     }
 
     gameOverReturnTimer = setTimeout(() => {
         if (!GameState.running && GameState.gameOver && !GameState.adPlaying) {
             resetSignaling();
         }
-    }, 5000);
+    }, 3000);
 }
 
 function resolveCollisions() {

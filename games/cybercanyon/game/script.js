@@ -1870,7 +1870,7 @@ function endGame() {
             }
             startAttractMode();
         }
-    }, 10000);
+    }, 3000);
 }
 
 function updateUI() {

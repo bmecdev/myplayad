@@ -783,7 +783,20 @@ function triggerVictory() {
         localStorage.setItem('starwars_highscore', GameState.highScore);
     }
 
+    dataChannels.forEach(dc => {
+        try {
+            dc.send(JSON.stringify({ type: 'game_over', score: GameState.score, victory: true }));
+        } catch (_) {}
+    });
+
     submitScore(GameState.currentNickname, GameState.score);
+
+    if (gameOverTimeout) clearTimeout(gameOverTimeout);
+    gameOverTimeout = setTimeout(() => {
+        if ((GameState.victory || GameState.gameOver) && !GameState.running && !GameState.adPlaying) {
+            resetSignalingAndRoom();
+        }
+    }, 3000);
 }
 
 // Spawners de enemigos, asteroides y powerups
@@ -3242,10 +3255,10 @@ function triggerGameOver() {
     if (gameOverTimeout) clearTimeout(gameOverTimeout);
     gameOverTimeout = setTimeout(() => {
         // Solo restaurar la sala si la partida no se ha reanudado
-        if (GameState.gameOver && !GameState.running) {
+        if (GameState.gameOver && !GameState.running && !GameState.adPlaying) {
             resetSignalingAndRoom();
         }
-    }, 15000);
+    }, 3000);
 }
 
 // ==============================================================================

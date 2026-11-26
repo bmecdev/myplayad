@@ -2600,7 +2600,7 @@ function triggerGameOver() {
     if (gameOverTimeout) clearTimeout(gameOverTimeout);
     gameOverTimeout = setTimeout(() => {
         resetSignalingAndRoom();
-    }, 4000);
+    }, 3000);
 }
 
 function triggerVictory() {
@@ -2638,7 +2638,7 @@ function triggerVictory() {
     if (gameOverTimeout) clearTimeout(gameOverTimeout);
     gameOverTimeout = setTimeout(() => {
         resetSignalingAndRoom();
-    }, 6000);
+    }, 3000);
 }
 
 // ==============================================================================

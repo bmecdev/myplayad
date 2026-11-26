@@ -1082,10 +1082,10 @@ function endGame(isVictory = false) {
         }
     }, 1000);
 
-    // Retorno automático rápido al QR tras 3.5 segundos
+    // Retorno automático rápido al QR tras 3 segundos
     gameOverTimer = setTimeout(() => {
         returnToQrCode();
-    }, 3500);
+    }, 3000);
 
     // Notificar a los mandos móviles
     dataChannels.forEach(ch => {

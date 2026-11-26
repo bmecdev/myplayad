@@ -778,7 +778,7 @@ function endGame() {
             } catch (_) {}
         }
         startAttractMode();
-    }, 15000);
+    }, 3000);
 }
 
 function broadcastSFX(soundName) {

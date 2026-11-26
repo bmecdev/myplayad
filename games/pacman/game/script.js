@@ -1399,14 +1399,16 @@ function endGame() {
         }
         setTimeout(() => {
             if (!GameState.running) videoOverlay.classList.add('hidden');
-        }, 5000);
+        }, 3000);
     }
 
-    setTimeout(() => {
-        if (!GameState.running) {
+    if (GameState._gameOverTimeout) clearTimeout(GameState._gameOverTimeout);
+    GameState._gameOverTimeout = setTimeout(() => {
+        GameState._gameOverTimeout = null;
+        if (!GameState.running && !GameState.adPlaying) {
             resetSignalingAndRoom();
         }
-    }, 15000);
+    }, 3000);
 }
 
 function updateUI() {

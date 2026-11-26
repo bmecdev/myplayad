@@ -840,8 +840,8 @@ function endGame(isVictory = false) {
 
     gameOverOverlay.classList.remove('hidden');
 
-    // Cuenta regresiva visible de 10s para visualización del Hall of Fame
-    let secondsLeft = 10;
+    // Cuenta regresiva visible de 3s para visualización de Game Over / Victoria
+    let secondsLeft = 3;
     const cdEl = document.getElementById('return-countdown');
     if (cdEl) cdEl.textContent = secondsLeft;
 
@@ -856,10 +856,10 @@ function endGame(isVictory = false) {
         }
     }, 1000);
 
-    // Retorno automático tras 10 segundos
+    // Retorno automático tras 3 segundos
     gameOverTimer = setTimeout(() => {
         returnToQrCode();
-    }, 10000);
+    }, 3000);
 
     // Notificar a los teléfonos
     dataChannels.forEach(ch => {
