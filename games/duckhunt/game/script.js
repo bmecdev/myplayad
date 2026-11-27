@@ -4,7 +4,7 @@
 // ==============================================================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -1472,11 +1472,12 @@ function drawDog() {
         if (Dog.caughtDucksCount >= 3) {
             const pulse = Math.sin(Date.now() * 0.02) * 1.5;
             ctx.save();
-            ctx.fillStyle = '#fde047';
             ctx.font = '8px "Press Start 2P", monospace';
             ctx.textAlign = 'center';
-            ctx.shadowColor = '#000000';
-            ctx.shadowBlur = 4;
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#000000';
+            ctx.strokeText(`x${Dog.caughtDucksCount}`, 0, -44 + pulse);
+            ctx.fillStyle = '#fde047';
             ctx.fillText(`x${Dog.caughtDucksCount}`, 0, -44 + pulse);
             ctx.restore();
         }
@@ -1489,23 +1490,49 @@ function drawDog() {
 // AMBIENTE Y ESCENARIO RETRO NES (FONDO, LAGO, ÁRBOL Y PRIMER PLANO)
 // ==============================================================================
 
+// Caché de degradados estáticos (evita recrear objetos CanvasGradient en cada frame en RPi)
+let cachedSkyGradDay = null;
+let cachedSkyGradSunset = null;
+let cachedSunHaloGrad = null;
+let cachedLakeGrad = null;
+let cachedBeamGrad = null;
+
+function ensureEnvGradients() {
+    if (cachedSkyGradDay) return;
+
+    cachedSkyGradDay = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    cachedSkyGradDay.addColorStop(0.0, '#1e40af'); // Azul arcade profundo
+    cachedSkyGradDay.addColorStop(0.28, '#38bdf8'); // Celeste nítido
+    cachedSkyGradDay.addColorStop(0.75, '#7dd3fc'); // Neblina celeste
+    cachedSkyGradDay.addColorStop(1.0, '#fef9c3'); // Calidez dorada del horizonte matutino
+
+    cachedSkyGradSunset = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    cachedSkyGradSunset.addColorStop(0.0, '#3b0764'); // Violeta cósmico
+    cachedSkyGradSunset.addColorStop(0.35, '#9d174d'); // Rosa oscuro
+    cachedSkyGradSunset.addColorStop(0.70, '#ea580c'); // Naranja atardecer
+    cachedSkyGradSunset.addColorStop(1.0, '#fef08a'); // Amarillo horizonte cálido
+
+    cachedSunHaloGrad = ctx.createRadialGradient(305, 44, 4, 305, 44, 42);
+    cachedSunHaloGrad.addColorStop(0, 'rgba(254, 240, 138, 0.48)');
+    cachedSunHaloGrad.addColorStop(0.5, 'rgba(253, 224, 71, 0.16)');
+    cachedSunHaloGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+
+    cachedLakeGrad = ctx.createLinearGradient(0, 216, 0, GROUND_Y);
+    cachedLakeGrad.addColorStop(0, '#0284c7');
+    cachedLakeGrad.addColorStop(0.5, '#0369a1');
+    cachedLakeGrad.addColorStop(1, '#0f766e');
+
+    cachedBeamGrad = ctx.createLinearGradient(300, 40, 160, GROUND_Y);
+    cachedBeamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.16)');
+    cachedBeamGrad.addColorStop(0.5, 'rgba(253, 224, 71, 0.06)');
+    cachedBeamGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+}
+
 function drawBackgroundEnvironment() {
-    // 1. Cielo con degradado atmosférico dinámico celestial
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-    if (GameState.targetSkyColor === '#ff8ea3') {
-        // Atardecer crepuscular dramático al escapar el pato
-        skyGrad.addColorStop(0.0, '#3b0764'); // Violeta cósmico
-        skyGrad.addColorStop(0.35, '#9d174d'); // Rosa oscuro
-        skyGrad.addColorStop(0.70, '#ea580c'); // Naranja atardecer
-        skyGrad.addColorStop(1.0, '#fef08a'); // Amarillo horizonte cálido
-    } else {
-        // Día soleado retro arcade luminoso
-        skyGrad.addColorStop(0.0, '#1e40af'); // Azul arcade profundo
-        skyGrad.addColorStop(0.28, '#38bdf8'); // Celeste nítido
-        skyGrad.addColorStop(0.75, '#7dd3fc'); // Neblina celeste
-        skyGrad.addColorStop(1.0, '#fef9c3'); // Calidez dorada del horizonte matutino
-    }
-    ctx.fillStyle = skyGrad;
+    ensureEnvGradients();
+
+    // 1. Cielo con degradado atmosférico dinámico celestial (cacheado)
+    ctx.fillStyle = (GameState.targetSkyColor === '#ff8ea3') ? cachedSkyGradSunset : cachedSkyGradDay;
     ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
 
     // 2. Sol radiante con halo y destellos (durante el día)
@@ -1513,12 +1540,8 @@ function drawBackgroundEnvironment() {
         const sunX = 305;
         const sunY = 44;
 
-        // Halo difuso
-        const halo = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 42);
-        halo.addColorStop(0, 'rgba(254, 240, 138, 0.48)');
-        halo.addColorStop(0.5, 'rgba(253, 224, 71, 0.16)');
-        halo.addColorStop(1, 'rgba(253, 224, 71, 0)');
-        ctx.fillStyle = halo;
+        // Halo difuso (cacheado)
+        ctx.fillStyle = cachedSunHaloGrad;
         ctx.beginPath();
         ctx.arc(sunX, sunY, 42, 0, Math.PI * 2);
         ctx.fill();
@@ -1583,11 +1606,7 @@ function drawBackgroundEnvironment() {
     // 5. Lago / Humedal natural en el fondo con nenúfares y reflejos
     const lakeY = 216;
     const lakeH = GROUND_Y - lakeY;
-    const lakeGrad = ctx.createLinearGradient(0, lakeY, 0, GROUND_Y);
-    lakeGrad.addColorStop(0, '#0284c7');
-    lakeGrad.addColorStop(0.5, '#0369a1');
-    lakeGrad.addColorStop(1, '#0f766e');
-    ctx.fillStyle = lakeGrad;
+    ctx.fillStyle = cachedLakeGrad;
     ctx.fillRect(80, lakeY, CANVAS_WIDTH - 80, lakeH);
 
     // Ondas y reflejos en el agua
@@ -1806,14 +1825,10 @@ function drawBackgroundEnvironment() {
 
 function drawSunbeams() {
     if (GameState.targetSkyColor === '#ff8ea3') return;
+    ensureEnvGradients();
     ctx.save();
-    // Rayos crepusculares / haces de luz solar diagonales atravesando el cielo
-    const beamGrad = ctx.createLinearGradient(300, 40, 160, GROUND_Y);
-    beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.16)');
-    beamGrad.addColorStop(0.5, 'rgba(253, 224, 71, 0.06)');
-    beamGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
-
-    ctx.fillStyle = beamGrad;
+    // Rayos crepusculares / haces de luz solar diagonales atravesando el cielo (cacheado)
+    ctx.fillStyle = cachedBeamGrad;
     // Haz 1
     ctx.beginPath();
     ctx.moveTo(290, 42); ctx.lineTo(315, 42); ctx.lineTo(210, GROUND_Y); ctx.lineTo(160, GROUND_Y);
@@ -2098,6 +2113,10 @@ function drawReticle() {
     ctx.restore();
 }
 
+const MAX_FEATHERS = 40;
+const MAX_GUN_SMOKES = 12;
+const MAX_FLOATING_SCORES = 16;
+
 function createFeathers(x, y, count = 12) {
     for (let i = 0; i < count; i++) {
         feathers.push({
@@ -2112,6 +2131,9 @@ function createFeathers(x, y, count = 12) {
             swayOffset: Math.random() * Math.PI * 2,
             swaySpeed: 4 + Math.random() * 4
         });
+    }
+    if (feathers.length > MAX_FEATHERS) {
+        feathers.splice(0, feathers.length - MAX_FEATHERS);
     }
 }
 
@@ -2141,6 +2163,9 @@ function drawFeathers() {
 }
 
 function addFloatingScore(text, x, y, color = '#facc15') {
+    if (floatingScores.length >= MAX_FLOATING_SCORES) {
+        floatingScores.shift();
+    }
     floatingScores.push({
         text,
         x,
@@ -2161,13 +2186,16 @@ function updateAndDrawFloatingScores(dt) {
             continue;
         }
 
+        const fx = Math.round(fs.x);
+        const fy = Math.round(fs.y);
         ctx.save();
         ctx.font = '8px "Press Start 2P", monospace';
-        ctx.fillStyle = fs.color;
         ctx.textAlign = 'center';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 4;
-        ctx.fillText(fs.text, Math.round(fs.x), Math.round(fs.y));
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeText(fs.text, fx, fy);
+        ctx.fillStyle = fs.color;
+        ctx.fillText(fs.text, fx, fy);
         ctx.restore();
     }
 }
@@ -2333,7 +2361,10 @@ function fireShot(aimX, aimY) {
     Reticle.flashTimer = 0.15; // Destello Zapper arcade retícula
     screenShakeTimer = 0.08; // Retroceso / sacudida contundente de pantalla
 
-    // Humo de pólvora saliendo del impacto de la Zapper
+    // Humo de pólvora saliendo del impacto de la Zapper (tope para RPi)
+    if (gunSmokes.length >= MAX_GUN_SMOKES) {
+        gunSmokes.shift();
+    }
     gunSmokes.push({
         x: aimX + (Math.random() - 0.5) * 8,
         y: aimY + (Math.random() - 0.5) * 8,
@@ -2824,7 +2855,9 @@ function update(dt) {
 }
 
 function draw(dt = 0) {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    // Fondo opaco garantizado en todo el canvas (compatible con alpha: false incluso con screenShake)
+    ctx.fillStyle = '#0d0e15';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Guardar contexto para Screen Shake / Retroceso de la Zapper
     ctx.save();
@@ -2884,8 +2917,21 @@ function draw(dt = 0) {
 }
 
 function gameLoop(time) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = time;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = time;
-    const dt = Math.min((time - GameState.lastTime) / 1000, 0.1);
+    const elapsedMs = time - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = time;
 
     try {
@@ -2899,8 +2945,6 @@ function gameLoop(time) {
     } catch (err) {
         console.error('[DuckHunt] draw error:', err);
     }
-
-    requestAnimationFrame(gameLoop);
 }
 
 // ==============================================================================

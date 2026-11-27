@@ -2,7 +2,7 @@
 // El Comecocos en el Laberinto vs Los 4 Fantasmas (Canvas 200x160)
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -1350,11 +1350,24 @@ function stopAttractMode() {
 // 🔁 Game Loop & Lifecycle
 // ==========================================
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.05);
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
-    if (GameState.running && !GameState.gameOver && !GameState.paused && !GameState.adPlaying) {
+    if (GameState.running && !GameState.gameOver && !GameState.paused) {
         if (GameState.stageIntroTimer > 0) {
             GameState.stageIntroTimer -= dt;
         } else {
@@ -1366,8 +1379,6 @@ function gameLoop(timestamp) {
         }
     }
     render();
-
-    requestAnimationFrame(gameLoop);
 }
 
 function endGame() {

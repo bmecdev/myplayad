@@ -214,7 +214,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         const isDevEnv = reqHost.includes('dev') || reqHost.includes('staging') || reqHost.includes('localhost');
         const gamesBase = isDevEnv ? 'https://dev.myplayad.com' : 'https://games.myplayad.com';
         responseData.type = 'game';
-        responseData.url = `${gamesBase}/${currentSchedule.game.slug}/?screenId=${screenId}&v=42`;
+        responseData.url = `${gamesBase}/${currentSchedule.game.slug}/?screenId=${screenId}&v=43`;
         if (currentSchedule.rewardEnabled && currentSchedule.rewardTitle) {
           responseData.reward = {
             enabled: true,

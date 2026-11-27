@@ -1,6 +1,6 @@
 // OutRun Retro Arcade - Motor Pseudo-3D y Lógica de Juego en Pantalla
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
@@ -30,10 +30,10 @@ const peerConnections = new Map();
 const dataChannels = new Map();
 let socket;
 
-// Dimensiones de renderizado fluido y nítido de alta definición (2x HiDPI sobre 400x320 lógico)
+// Dimensiones de renderizado optimizadas para Raspberry Pi 5 1GB (1x nativo 400x320 = 4x menos píxeles y RAM)
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
-const RENDER_SCALE = 2;
+const RENDER_SCALE = 1;
 if (canvas) {
     canvas.width = CANVAS_WIDTH * RENDER_SCALE;
     canvas.height = CANVAS_HEIGHT * RENDER_SCALE;
@@ -1609,10 +1609,12 @@ function getCarEffectiveRoadX(car, carSeg) {
     return car.offset;
 }
 
-// Sistema de Partículas de Humo de Neumáticos, Derrapes y Chispas
+// Sistema de Partículas de Humo de Neumáticos, Derrapes y Chispas (Capped <= 24 para RPi 5)
+const MAX_SMOKE_PARTICLES = 24;
 function createTireSmoke(x, y, count = 1, isCrash = false, customColor = null) {
-    if (GameState.smokeParticles.length > 50) return;
-    for (let i = 0; i < count; i++) {
+    if (GameState.smokeParticles.length >= MAX_SMOKE_PARTICLES) return;
+    const spawnCount = Math.min(count, MAX_SMOKE_PARTICLES - GameState.smokeParticles.length);
+    for (let i = 0; i < spawnCount; i++) {
         GameState.smokeParticles.push({
             x: x + (Math.random() - 0.5) * 8,
             y: y + (Math.random() - 0.5) * 4,
@@ -2887,7 +2889,19 @@ function update(dt) {
     updateHUD();
 }
 
-// Renderizado Gráfico HD (800x640 interno sobre 400x320 lógico) con Atmósfera Multi-capa y Detalles Arcade
+// Caché de gradientes estáticos por etapa (evita decenas de createLinearGradient/createRadialGradient por frame en RPi)
+const _gradCache = new Map();
+function getCachedGradient(key, factory) {
+    let grad = _gradCache.get(key);
+    if (!grad) {
+        if (_gradCache.size > 64) _gradCache.clear();
+        grad = factory();
+        _gradCache.set(key, grad);
+    }
+    return grad;
+}
+
+// Renderizado Gráfico Optimizado (400x320 nativo) con Atmósfera Multi-capa y Caché de Gradientes
 function drawAtmosphere(env, stage) {
     const horizonY = CANVAS_HEIGHT / 2;
     const now = Date.now();
@@ -2903,11 +2917,16 @@ function drawAtmosphere(env, stage) {
     );
     const isAlpine = (stage.id === 'alpine_valley' || stage.id === 'winding_vineyards' || stage.id === 'goal_c');
 
-    // 1. Cielo Gradiente Atmosférico Multi-stop
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
-    skyGrad.addColorStop(0, env.skyTop || stage.skyTop);
-    skyGrad.addColorStop(0.68, env.skyBottom || stage.skyBottom);
-    skyGrad.addColorStop(1, isNight ? '#ff2a85' : '#ffd29d');
+    // 1. Cielo Gradiente Atmosférico Multi-stop (Cacheado por etapa)
+    const skyTopCol = env.skyTop || stage.skyTop;
+    const skyBotCol = env.skyBottom || stage.skyBottom;
+    const skyGrad = getCachedGradient(`sky|${skyTopCol}|${skyBotCol}|${isNight ? 1 : 0}`, () => {
+        const g = ctx.createLinearGradient(0, 0, 0, horizonY);
+        g.addColorStop(0, skyTopCol);
+        g.addColorStop(0.68, skyBotCol);
+        g.addColorStop(1, isNight ? '#ff2a85' : '#ffd29d');
+        return g;
+    });
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, horizonY);
 
@@ -2928,44 +2947,55 @@ function drawAtmosphere(env, stage) {
     const sunX = Math.round(CANVAS_WIDTH * 0.72 - Math.sin(GameState.skyOffset * 0.22) * 38);
     const sunY = isNight ? 60 : 54;
     const sunR = isNight ? 32 : 28;
+    const sunCol = env.sunColor || stage.sunColor || '#fff0aa';
 
-    // 3. Aura Solar Atmosférica y Destello
-    const sunAura = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 3.1);
-    if (isNight) {
-        sunAura.addColorStop(0, 'rgba(255, 80, 170, 0.85)');
-        sunAura.addColorStop(0.45, 'rgba(255, 0, 128, 0.32)');
-        sunAura.addColorStop(1, 'rgba(80, 0, 120, 0)');
-    } else {
-        sunAura.addColorStop(0, 'rgba(255, 248, 210, 0.92)');
-        sunAura.addColorStop(0.35, 'rgba(255, 185, 85, 0.48)');
-        sunAura.addColorStop(0.7, 'rgba(255, 100, 115, 0.16)');
-        sunAura.addColorStop(1, 'rgba(255, 77, 109, 0)');
-    }
+    // 3. Aura Solar Atmosférica y Disco Solar (Cacheados en origen local 0,0)
+    const sunAura = getCachedGradient(`sunAura|${isNight ? 1 : 0}`, () => {
+        const g = ctx.createRadialGradient(0, 0, sunR * 0.2, 0, 0, sunR * 3.1);
+        if (isNight) {
+            g.addColorStop(0, 'rgba(255, 80, 170, 0.85)');
+            g.addColorStop(0.45, 'rgba(255, 0, 128, 0.32)');
+            g.addColorStop(1, 'rgba(80, 0, 120, 0)');
+        } else {
+            g.addColorStop(0, 'rgba(255, 248, 210, 0.92)');
+            g.addColorStop(0.35, 'rgba(255, 185, 85, 0.48)');
+            g.addColorStop(0.7, 'rgba(255, 100, 115, 0.16)');
+            g.addColorStop(1, 'rgba(255, 77, 109, 0)');
+        }
+        return g;
+    });
+
+    const sunGrad = getCachedGradient(`sunGrad|${isNight ? 1 : 0}|${sunCol}`, () => {
+        const g = ctx.createRadialGradient(0, -5, 2, 0, 0, sunR);
+        if (isNight) {
+            g.addColorStop(0, '#ffe66d');
+            g.addColorStop(0.45, '#ff4d94');
+            g.addColorStop(1, '#7209b7');
+        } else {
+            g.addColorStop(0, '#ffffff');
+            g.addColorStop(0.48, sunCol);
+            g.addColorStop(0.88, '#ffa94d');
+            g.addColorStop(1, '#ff6b6b');
+        }
+        return g;
+    });
+
+    ctx.save();
+    ctx.translate(sunX, sunY);
     ctx.fillStyle = sunAura;
     ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR * 3.1, 0, Math.PI * 2);
+    ctx.arc(0, 0, sunR * 3.1, 0, Math.PI * 2);
     ctx.fill();
 
-    // Disco Solar con Degradado Suave
-    const sunGrad = ctx.createRadialGradient(sunX, sunY - 5, 2, sunX, sunY, sunR);
-    if (isNight) {
-        sunGrad.addColorStop(0, '#ffe66d');
-        sunGrad.addColorStop(0.45, '#ff4d94');
-        sunGrad.addColorStop(1, '#7209b7');
-    } else {
-        sunGrad.addColorStop(0, '#ffffff');
-        sunGrad.addColorStop(0.48, env.sunColor || stage.sunColor || '#fff0aa');
-        sunGrad.addColorStop(0.88, '#ffa94d');
-        sunGrad.addColorStop(1, '#ff6b6b');
-    }
     ctx.fillStyle = sunGrad;
     ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.arc(0, 0, sunR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     // Franjas sutiles Synthwave únicamente en el horizonte nocturno
     if (isNight) {
-        ctx.fillStyle = env.skyBottom || '#511845';
+        ctx.fillStyle = skyBotCol || '#511845';
         for (let b = 0; b < 4; b++) {
             const by = sunY + 4 + b * 6;
             const bh = 1.2 + b * 0.6;
@@ -2973,7 +3003,7 @@ function drawAtmosphere(env, stage) {
         }
     }
 
-    // Nubes suaves en paralaje para etapas diurnas/atardecer
+    // Nubes suaves en paralaje para etapas diurnas/atardecer (Gradiente cacheado por banda Y)
     if (!isNight) {
         const cloudDrift = now * 0.0045;
         for (let c = 0; c < 5; c++) {
@@ -2981,9 +3011,12 @@ function drawAtmosphere(env, stage) {
             const cx = (((c * 105 + cloudDrift - GameState.skyOffset * (32 + (c % 2) * 24)) % span) + span) % span - 70;
             const cy = 22 + (c % 3) * 16;
             const cw = 32 + (c % 3) * 12;
-            const cGrad = ctx.createLinearGradient(cx, cy - 10, cx, cy + 8);
-            cGrad.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
-            cGrad.addColorStop(1, 'rgba(255, 210, 175, 0.25)');
+            const cGrad = getCachedGradient(`cloud|${cy}`, () => {
+                const g = ctx.createLinearGradient(0, cy - 10, 0, cy + 8);
+                g.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
+                g.addColorStop(1, 'rgba(255, 210, 175, 0.25)');
+                return g;
+            });
             ctx.fillStyle = cGrad;
             ctx.beginPath();
             ctx.ellipse(cx, cy, cw * 0.52, 6.5, 0, 0, Math.PI * 2);
@@ -2993,14 +3026,17 @@ function drawAtmosphere(env, stage) {
         }
     }
 
-    // 4. Horizonte de Océano / Lago Costero con Veleros y Reflejos
+    // 4. Horizonte de Océano / Lago Costero con Veleros y Reflejos (Gradiente cacheado)
     const seaColor = env.seaColor || stage.seaColor;
     if (seaColor && !isUrban) {
         const seaTop = horizonY - 24;
         const seaH = 24;
-        const seaGrad = ctx.createLinearGradient(0, seaTop, 0, seaTop + seaH);
-        seaGrad.addColorStop(0, seaColor);
-        seaGrad.addColorStop(1, '#0c3554');
+        const seaGrad = getCachedGradient(`sea|${seaColor}`, () => {
+            const g = ctx.createLinearGradient(0, seaTop, 0, seaTop + seaH);
+            g.addColorStop(0, seaColor);
+            g.addColorStop(1, '#0c3554');
+            return g;
+        });
         ctx.fillStyle = seaGrad;
         ctx.fillRect(0, seaTop, CANVAS_WIDTH, seaH);
 
@@ -3074,10 +3110,14 @@ function drawAtmosphere(env, stage) {
     ctx.closePath();
     ctx.fill();
 
-    // Capa 2: Relieve montañoso cercano con gradiente y perfil de cumbre
-    const mtnGrad = ctx.createLinearGradient(0, mountainBaseY - 48, 0, mountainBaseY);
-    mtnGrad.addColorStop(0, env.mountains || stage.mountains);
-    mtnGrad.addColorStop(1, 'rgba(12, 18, 16, 0.96)');
+    // Capa 2: Relieve montañoso cercano con gradiente cacheado y perfil de cumbre
+    const mtnColor = env.mountains || stage.mountains;
+    const mtnGrad = getCachedGradient(`mtn|${mtnColor}`, () => {
+        const g = ctx.createLinearGradient(0, mountainBaseY - 48, 0, mountainBaseY);
+        g.addColorStop(0, mtnColor);
+        g.addColorStop(1, 'rgba(12, 18, 16, 0.96)');
+        return g;
+    });
     ctx.fillStyle = mtnGrad;
     ctx.beginPath();
     ctx.moveTo(0, mountainBaseY);
@@ -3182,8 +3222,6 @@ function drawRoadStripWithDetails(x1L, x1R, y1, x2L, x2R, y2, w1, w2, seg, showC
 
 function draw() {
     ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     const baseSegmentIndex = Math.floor(GameState.playerZ / SEGMENT_LENGTH);
@@ -3458,12 +3496,16 @@ function draw() {
         maxY = Math.min(maxY, seg.p2.screen.y);
     }
 
-    // Bruma atmosférica sutil en la línea del horizonte para profundidad natural
+    // Bruma atmosférica sutil en la línea del horizonte (Gradiente cacheado por etapa)
     const horizonMistY = CANVAS_HEIGHT / 2;
-    const fogCol = parseColor(env.skyBottom || stage.skyBottom);
-    const mistGrad = ctx.createLinearGradient(0, horizonMistY - 1, 0, horizonMistY + 18);
-    mistGrad.addColorStop(0, `rgba(${fogCol.r},${fogCol.g},${fogCol.b},0.35)`);
-    mistGrad.addColorStop(1, `rgba(${fogCol.r},${fogCol.g},${fogCol.b},0)`);
+    const mistKeyColor = env.skyBottom || stage.skyBottom;
+    const mistGrad = getCachedGradient(`mist|${mistKeyColor}`, () => {
+        const fogCol = parseColor(mistKeyColor);
+        const g = ctx.createLinearGradient(0, horizonMistY - 1, 0, horizonMistY + 18);
+        g.addColorStop(0, `rgba(${fogCol.r},${fogCol.g},${fogCol.b},0.35)`);
+        g.addColorStop(1, `rgba(${fogCol.r},${fogCol.g},${fogCol.b},0)`);
+        return g;
+    });
     ctx.fillStyle = mistGrad;
     ctx.fillRect(0, horizonMistY - 1, CANVAS_WIDTH, 19);
 
@@ -3581,19 +3623,21 @@ function draw() {
         }
     });
 
-    // Partículas de humo suaves y realistas (Con degradado radial difuminado)
+    // Partículas de humo suaves sin crear gradientes radiales por partícula (Optimizado RPi 5)
     if (GameState.smokeParticles && GameState.smokeParticles.length > 0) {
-        GameState.smokeParticles.forEach(p => {
-            const radGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, Math.max(1, p.size));
-            radGrad.addColorStop(0, p.color);
-            radGrad.addColorStop(0.5, p.color);
-            radGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            ctx.fillStyle = radGrad;
-            ctx.globalAlpha = p.alpha;
+        for (let i = 0; i < GameState.smokeParticles.length; i++) {
+            const p = GameState.smokeParticles[i];
+            const r = Math.max(1, p.size);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.alpha * 0.35;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(1, p.size), 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
             ctx.fill();
-        });
+            ctx.globalAlpha = p.alpha * 0.72;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+        }
         ctx.globalAlpha = 1.0;
     }
 
@@ -3789,13 +3833,16 @@ function drawWorldSprite(spriteObj, x, y, scale, roadHalfW = 0) {
             ctx.ellipse(0, 0, size * 0.28, size * 0.06, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Tronco curvado fibroso con luz cálida lateral y textura
-            const trunkGrad = ctx.createLinearGradient(-size * 0.06, 0, size * 0.05, 0);
-            trunkGrad.addColorStop(0, '#3e2310');
-            trunkGrad.addColorStop(0.55, '#8c582b');
-            trunkGrad.addColorStop(1, '#2b1608');
-
-            ctx.fillStyle = trunkGrad;
+            // Tronco curvado fibroso con luz cálida lateral (gradiente solo en primer plano)
+            if (size >= 28) {
+                const trunkGrad = ctx.createLinearGradient(-size * 0.06, 0, size * 0.05, 0);
+                trunkGrad.addColorStop(0, '#3e2310');
+                trunkGrad.addColorStop(0.55, '#8c582b');
+                trunkGrad.addColorStop(1, '#2b1608');
+                ctx.fillStyle = trunkGrad;
+            } else {
+                ctx.fillStyle = '#6b4226';
+            }
             ctx.beginPath();
             ctx.moveTo(-size * 0.052, 0);
             ctx.quadraticCurveTo(-size * 0.075, -size * 0.5, -size * 0.024, -size);
@@ -3830,19 +3877,25 @@ function drawWorldSprite(spriteObj, x, y, scale, roadHalfW = 0) {
                 ctx.fill();
             });
 
-            // Cocos con brillo
-            const drawCoconut = (cx, cy) => {
-                const cGrad = ctx.createRadialGradient(cx - 1, cy - 1, 0.5, cx, cy, Math.max(1, size * 0.042));
-                cGrad.addColorStop(0, '#8d6e63');
-                cGrad.addColorStop(1, '#2d1810');
-                ctx.fillStyle = cGrad;
-                ctx.beginPath();
-                ctx.arc(cx, cy, size * 0.042, 0, Math.PI * 2);
-                ctx.fill();
-            };
-            drawCoconut(-size * 0.04, -size + size * 0.03);
-            drawCoconut(size * 0.04, -size + size * 0.03);
-            drawCoconut(0, -size + size * 0.052);
+            // Cocos con brillo ligero (sin gradientes radiales por coco)
+            if (size >= 14) {
+                const cocoR = Math.max(1, size * 0.042);
+                const drawCoconut = (cx, cy) => {
+                    ctx.fillStyle = '#4e342e';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, cocoR, 0, Math.PI * 2);
+                    ctx.fill();
+                    if (cocoR >= 2) {
+                        ctx.fillStyle = '#8d6e63';
+                        ctx.beginPath();
+                        ctx.arc(cx - cocoR * 0.25, cy - cocoR * 0.25, cocoR * 0.4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                };
+                drawCoconut(-size * 0.04, -size + size * 0.03);
+                drawCoconut(size * 0.04, -size + size * 0.03);
+                drawCoconut(0, -size + size * 0.052);
+            }
 
             // Frondas superiores plumosas con brillo tropical
             const frontFronds = [-150, -120, -90, -60, -30, -105, -75];
@@ -3879,13 +3932,16 @@ function drawWorldSprite(spriteObj, x, y, scale, roadHalfW = 0) {
             ctx.ellipse(0, 0, size * 0.22, size * 0.05, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            const cGrad = ctx.createLinearGradient(-size * 0.07, 0, size * 0.07, 0);
-            cGrad.addColorStop(0, '#0f5132');
-            cGrad.addColorStop(0.35, '#2dd4bf');
-            cGrad.addColorStop(0.75, '#0d9488');
-            cGrad.addColorStop(1, '#115e59');
-
-            ctx.fillStyle = cGrad;
+            if (size >= 26) {
+                const cGrad = ctx.createLinearGradient(-size * 0.07, 0, size * 0.07, 0);
+                cGrad.addColorStop(0, '#0f5132');
+                cGrad.addColorStop(0.35, '#2dd4bf');
+                cGrad.addColorStop(0.75, '#0d9488');
+                cGrad.addColorStop(1, '#115e59');
+                ctx.fillStyle = cGrad;
+            } else {
+                ctx.fillStyle = '#0d9488';
+            }
             ctx.beginPath();
             ctx.roundRect(-size * 0.07, -size * 0.85, size * 0.14, size * 0.85, [size * 0.07, size * 0.07, 0, 0]);
             ctx.fill();
@@ -3934,11 +3990,15 @@ function drawWorldSprite(spriteObj, x, y, scale, roadHalfW = 0) {
             ctx.fill();
 
             const drawPineTier = (tierY, w, h, col1, col2, snowDepth) => {
-                const pGrad = ctx.createLinearGradient(-w / 2, tierY - h, w / 2, tierY);
-                pGrad.addColorStop(0, col1);
-                pGrad.addColorStop(0.6, col2);
-                pGrad.addColorStop(1, '#022c22');
-                ctx.fillStyle = pGrad;
+                if (size >= 26) {
+                    const pGrad = ctx.createLinearGradient(-w / 2, tierY - h, w / 2, tierY);
+                    pGrad.addColorStop(0, col1);
+                    pGrad.addColorStop(0.6, col2);
+                    pGrad.addColorStop(1, '#022c22');
+                    ctx.fillStyle = pGrad;
+                } else {
+                    ctx.fillStyle = col2;
+                }
                 ctx.beginPath();
                 ctx.moveTo(-w / 2, tierY);
                 ctx.quadraticCurveTo(-w * 0.18, tierY - h * 0.55, 0, tierY - h);
@@ -3968,11 +4028,15 @@ function drawWorldSprite(spriteObj, x, y, scale, roadHalfW = 0) {
             ctx.fill();
 
             // Meseta estratificada de arenisca roja (Grand Canyon)
-            const rGrad = ctx.createLinearGradient(-size * 0.35, -size * 0.62, size * 0.35, 0);
-            rGrad.addColorStop(0, '#d97706');
-            rGrad.addColorStop(0.5, '#9a3412');
-            rGrad.addColorStop(1, '#451a03');
-            ctx.fillStyle = rGrad;
+            if (size >= 26) {
+                const rGrad = ctx.createLinearGradient(-size * 0.35, -size * 0.62, size * 0.35, 0);
+                rGrad.addColorStop(0, '#d97706');
+                rGrad.addColorStop(0.5, '#9a3412');
+                rGrad.addColorStop(1, '#451a03');
+                ctx.fillStyle = rGrad;
+            } else {
+                ctx.fillStyle = '#9a3412';
+            }
             ctx.beginPath();
             ctx.moveTo(-size * 0.36, 0);
             ctx.lineTo(-size * 0.28, -size * 0.42);
@@ -5605,8 +5669,19 @@ function stopAttractMode() {
 function gameLoop(timestamp) {
     requestAnimationFrame(gameLoop);
 
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.1);
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
     try {

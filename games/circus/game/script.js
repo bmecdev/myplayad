@@ -3,7 +3,7 @@
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 160;
@@ -1801,7 +1801,8 @@ function triggerVictorySequence() {
 // 🎨 Renderizado Canvas Pixel Art Retro
 // ==========================================
 function render() {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     if (GameState.subgame === 'trampoline') {
         renderTrampolineStage();
@@ -2425,16 +2426,19 @@ function renderTrapezeStage() {
     renderCharlieTrapeze();
 
     // 9. Rótulos Emergentes de Puntuación (ej: '500')
-    GameState.popups.forEach(pop => {
+    if (GameState.popups.length > 0) {
         ctx.save();
         ctx.font = '6px "Press Start 2P"';
-        ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 3;
-        ctx.fillText(pop.text, pop.x, pop.y);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#000000';
+        ctx.fillStyle = '#ffffff';
+        GameState.popups.forEach(pop => {
+            ctx.strokeText(pop.text, pop.x, pop.y);
+            ctx.fillText(pop.text, pop.x, pop.y);
+        });
         ctx.restore();
-    });
+    }
 }
 
 function drawCandyStripedRope(x1, y1, x2, y2) {
@@ -3122,14 +3126,25 @@ function renderDistanceMeter() {
 // ==========================================
 let lastTime = 0;
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        lastTime = timestamp;
+        return;
+    }
+
     if (!lastTime) lastTime = timestamp;
-    const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+    const elapsedMs = timestamp - lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     lastTime = timestamp;
 
     updatePhysics(dt);
     render();
-
-    requestAnimationFrame(gameLoop);
 }
 
 // ==========================================

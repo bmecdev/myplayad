@@ -2,7 +2,7 @@
 // Canvas base: 200 x 160 px, CRT Scanlines, WebRTC Host, Web Audio API Synthesizer
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -1268,11 +1268,22 @@ function killPlayer() {
     }
 }
 
+const MAX_EXPLOSION_PARTICLES = 40;
+const MAX_SCORE_POPUPS = 12;
+
 function addExplosion(x, y, isBoss = false) {
     const colors = isBoss 
         ? ['#ffffff', '#ffea00', '#ff0055', '#00f3ff', '#ff7700'] 
         : ['#ffffff', '#ffea00', '#ff3344', '#ff7700'];
-    const pCount = isBoss ? 28 : 16;
+    const pCount = isBoss ? 18 : 10;
+
+    // Mantener el total global de partículas de explosión <= 40 para RPi 5 1GB
+    let activeParticles = GameState.explosions.reduce((sum, e) => sum + e.particles.length, 0);
+    while (GameState.explosions.length > 0 && activeParticles + pCount > MAX_EXPLOSION_PARTICLES) {
+        const removed = GameState.explosions.shift();
+        activeParticles -= removed.particles.length;
+    }
+
     const particles = [];
 
     for (let i = 0; i < pCount; i++) {
@@ -1336,6 +1347,9 @@ function drawExplosionFX(exp) {
 }
 
 function addScorePopup(x, y, points) {
+    if (GameState.scorePopups.length >= MAX_SCORE_POPUPS) {
+        GameState.scorePopups.shift();
+    }
     GameState.scorePopups.push({
         x: x,
         y: y,
@@ -1364,8 +1378,9 @@ function render() {
 
     // 1. Deep Space Multi-Layer Starfield
     const isWarp = GameState.stageIntroTimer > 0;
+    const now = performance.now();
     GameState.stars.forEach(star => {
-        const twinkle = Math.sin(performance.now() * 0.003 * star.twinkleSpeed) * 0.3;
+        const twinkle = Math.sin(now * 0.003 * star.twinkleSpeed) * 0.3;
         const alpha = Math.max(0.15, Math.min(1.0, star.alpha + twinkle));
         ctx.fillStyle = star.color;
         ctx.globalAlpha = alpha;
@@ -1485,19 +1500,26 @@ function render() {
     ctx.restore();
 }
 
-// 🌀 Authentic Galaga Tractor Beam Visual FX
+// 🌀 Authentic Galaga Tractor Beam Visual FX (gradiente cacheado por altura)
+let cachedTractorBeamGrad = null;
+let cachedTractorBeamTopY = null;
+
 function drawTractorBeamFX(tb) {
     ctx.save();
     const topY = tb.y;
     const botY = tb.bottomY;
     const halfW = tb.width;
 
-    // Volumetric gradient cone
-    const grad = ctx.createLinearGradient(tb.x, topY, tb.x, botY);
-    grad.addColorStop(0, 'rgba(0, 243, 255, 0.35)');
-    grad.addColorStop(0.5, 'rgba(61, 255, 138, 0.22)');
-    grad.addColorStop(1, 'rgba(0, 180, 216, 0.12)');
-    ctx.fillStyle = grad;
+    // Volumetric gradient cone (cacheado mientras el Boss mantiene su altura)
+    const roundedTopY = Math.round(topY);
+    if (!cachedTractorBeamGrad || cachedTractorBeamTopY !== roundedTopY) {
+        cachedTractorBeamGrad = ctx.createLinearGradient(0, roundedTopY, 0, botY);
+        cachedTractorBeamGrad.addColorStop(0, 'rgba(0, 243, 255, 0.35)');
+        cachedTractorBeamGrad.addColorStop(0.5, 'rgba(61, 255, 138, 0.22)');
+        cachedTractorBeamGrad.addColorStop(1, 'rgba(0, 180, 216, 0.12)');
+        cachedTractorBeamTopY = roundedTopY;
+    }
+    ctx.fillStyle = cachedTractorBeamGrad;
 
     ctx.beginPath();
     ctx.moveTo(tb.x - 3, topY);
@@ -1868,8 +1890,21 @@ function drawBeeSprite(frame) {
 // 🔁 Game Loop & Lifecycle
 // ==========================================
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.05);
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
     try {
@@ -1883,8 +1918,6 @@ function gameLoop(timestamp) {
     } catch (err) {
         console.error('[Galaga] render error:', err);
     }
-
-    requestAnimationFrame(gameLoop);
 }
 
 function startAttractMode() {

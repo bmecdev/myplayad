@@ -4,7 +4,7 @@
 // Single-Click Jump (No Auto-Jump/Bunnyhopping), Jump Strictly on Solid Track (No Jumping in Holes), Progressive Difficulty Curve
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -1198,11 +1198,11 @@ function handleShipCrash(reason = '¡CAÍDA AL VACÍO!') {
     const env = getStageEnv(GameState.stage);
     const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
 
-    // Create explosion debris particles
-    for (let i = 0; i < 35; i++) {
+    // Create explosion debris particles (capped <= MAX_PARTICLES)
+    for (let i = 0; i < 28; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 20 + Math.random() * 80;
-        GameState.particles.push({
+        pushParticle({
             x: shipWorldX,
             y: ship.y + 4,
             z: ship.z,
@@ -1377,14 +1377,22 @@ function performJump() {
     createJumpSparks();
 }
 
+const MAX_PARTICLES = 35;
+function pushParticle(p) {
+    if (GameState.particles.length >= MAX_PARTICLES) {
+        GameState.particles.shift();
+    }
+    GameState.particles.push(p);
+}
+
 function createJumpSparks() {
     const ship = GameState.ship;
     const env = getStageEnv(GameState.stage);
     const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 12; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 15 + Math.random() * 35;
-        GameState.particles.push({
+        pushParticle({
             x: shipWorldX + (Math.random() - 0.5) * 6,
             y: 0.5,
             z: ship.z - 2,
@@ -1630,7 +1638,7 @@ function createExhaustParticles() {
     const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
 
     for (let i = 0; i < 2; i++) {
-        GameState.particles.push({
+        pushParticle({
             x: shipWorldX + (Math.random() - 0.5) * 4,
             y: ship.y + 2 + ship.hoverOffset,
             z: ship.z - 4,
@@ -1651,7 +1659,7 @@ function createWingtipTrails() {
         const env = getStageEnv(GameState.stage);
         const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
         const tipX = ship.vx > 0 ? -12 : 12; // Outer wingtip streamer
-        GameState.particles.push({
+        pushParticle({
             x: shipWorldX + tipX,
             y: ship.y + 1 + ship.hoverOffset,
             z: ship.z - 3,
@@ -1669,9 +1677,9 @@ function createLandingSparks() {
     const ship = GameState.ship;
     const env = getStageEnv(GameState.stage);
     const shipWorldX = getTrackCenterAtZ(ship.z) + ship.x;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 10; i++) {
         const ang = Math.random() * Math.PI * 2;
-        GameState.particles.push({
+        pushParticle({
             x: shipWorldX,
             y: 0.5,
             z: ship.z,
@@ -1686,10 +1694,10 @@ function createLandingSparks() {
 }
 
 function createJumpPadSparks(x, y, z) {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 16; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 20 + Math.random() * 45;
-        GameState.particles.push({
+        pushParticle({
             x: x + (Math.random() - 0.5) * 10,
             y: y + 2,
             z: z + (Math.random() - 0.5) * 8,
@@ -1704,10 +1712,10 @@ function createJumpPadSparks(x, y, z) {
 }
 
 function createRingCollectSparks(x, y, z) {
-    for (let i = 0; i < 24; i++) {
-        const ang = (i / 24) * Math.PI * 2;
+    for (let i = 0; i < 18; i++) {
+        const ang = (i / 18) * Math.PI * 2;
         const spd = 25 + Math.random() * 35;
-        GameState.particles.push({
+        pushParticle({
             x: x + Math.cos(ang) * 12,
             y: y + Math.sin(ang) * 12,
             z: z,
@@ -1969,13 +1977,24 @@ function render() {
     renderHUD(env);
 }
 
+// Cached static sky & sun gradients (avoid per-frame gradient allocations)
+const cachedSkyGradients = {};
+let cachedSunGradient = null;
+
+function getSkyGradient(env) {
+    if (!cachedSkyGradients[env.theme]) {
+        const grad = ctx.createLinearGradient(0, 0, 0, HORIZON_Y + 15);
+        grad.addColorStop(0, env.skyTop);
+        grad.addColorStop(0.65, env.skyMid);
+        grad.addColorStop(1, env.skyBottom);
+        cachedSkyGradients[env.theme] = grad;
+    }
+    return cachedSkyGradients[env.theme];
+}
+
 // Draw Distinct Celestial Objects & Sky by Environment
 function renderSkyAndCelestial(env) {
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, HORIZON_Y + 15);
-    skyGrad.addColorStop(0, env.skyTop);
-    skyGrad.addColorStop(0.65, env.skyMid);
-    skyGrad.addColorStop(1, env.skyBottom);
-    ctx.fillStyle = skyGrad;
+    ctx.fillStyle = getSkyGradient(env);
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     const camParallaxX = -((GameState.camera.x || 0) * 0.08);
@@ -2060,10 +2079,12 @@ function renderSkyAndCelestial(env) {
         const sunY = 48;
         const sunR = 22;
 
-        const sunGrad = ctx.createLinearGradient(0, sunY - sunR, 0, sunY + sunR);
-        sunGrad.addColorStop(0, '#ffe600');
-        sunGrad.addColorStop(1, '#ff007f');
-        ctx.fillStyle = sunGrad;
+        if (!cachedSunGradient) {
+            cachedSunGradient = ctx.createLinearGradient(0, sunY - sunR, 0, sunY + sunR);
+            cachedSunGradient.addColorStop(0, '#ffe600');
+            cachedSunGradient.addColorStop(1, '#ff007f');
+        }
+        ctx.fillStyle = cachedSunGradient;
         ctx.beginPath();
         ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
         ctx.fill();
@@ -2230,18 +2251,17 @@ function drawFloatingRing(seg, cam) {
         ctx.fill();
     }
 
-    // 5. Etiqueta de puntos flotante en el centro del aro
+    // 5. Etiqueta de puntos flotante en el centro del aro (sombra 1px rápida sin shadowBlur)
     if (scale > 0.35 && scale < 2.5) {
         const ptsText = `+${ring.points || 500}`;
         const fontSize = Math.max(5, Math.min(8, Math.round(5 * scale)));
         ctx.font = `${fontSize}px 'Press Start 2P', monospace`;
-        ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 3;
+        ctx.fillStyle = '#000000';
+        ctx.fillText(ptsText, pCenter.x + 1, pCenter.y + 1);
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(ptsText, pCenter.x, pCenter.y);
-        ctx.shadowBlur = 0;
     }
 }
 
@@ -2470,14 +2490,25 @@ function updateUI() {
 // 🔁 Game Loop & Lifecycle
 // ==========================================
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.05);
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
     update(dt);
     render();
-
-    requestAnimationFrame(gameLoop);
 }
 
 // ==========================================

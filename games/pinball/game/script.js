@@ -3,7 +3,7 @@
 // Preserves CRT Neon Cyberpunk graphics & Full Pure Arcade standard
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 160;
@@ -1433,8 +1433,13 @@ function collideBallWithSegment(ball, x1, y1, x2, y2, restitution = 0.8, isSling
     return false;
 }
 
+const MAX_PARTICLES = 35;
+
 function createSparks(x, y, color = '#3dff8a', count = 8) {
     for (let i = 0; i < count; i++) {
+        if (GameState.particles.length >= MAX_PARTICLES) {
+            GameState.particles.shift();
+        }
         const ang = Math.random() * Math.PI * 2;
         const spd = 20 + Math.random() * 55;
         GameState.particles.push({
@@ -1453,31 +1458,27 @@ function createSparks(x, y, color = '#3dff8a', count = 8) {
 // 🎨 Renderizado de la Mesa NES en Canvas
 // ==========================================
 function render() {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    // Fondo opaco garantizado en todo el viewport (requerido con alpha: false y durante shake)
+    ctx.fillStyle = '#08100d';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     ctx.save();
     // Aplicar temblor de tilt y desplazamiento de cámara vertical
     ctx.translate(GameState.shakeX, -Math.round(GameState.camY) + GameState.shakeY);
 
-    // 1. Fondo de la Mesa Arcade
-    ctx.fillStyle = '#08100d';
-    ctx.fillRect(0, 0, TABLE_WIDTH, TABLE_HEIGHT);
-
-    // Cuadrícula retro sutil
+    // 1. Cuadrícula retro sutil (1 sola llamada stroke por frame)
     ctx.strokeStyle = 'rgba(61, 255, 138, 0.04)';
     ctx.lineWidth = 0.5;
+    ctx.beginPath();
     for (let x = 26; x <= 174; x += 16) {
-        ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, TABLE_HEIGHT);
-        ctx.stroke();
     }
     for (let y = 0; y <= TABLE_HEIGHT; y += 16) {
-        ctx.beginPath();
         ctx.moveTo(26, y);
         ctx.lineTo(174, y);
-        ctx.stroke();
     }
+    ctx.stroke();
 
     // 2. Línea divisoria decorativa entre Pantalla Superior e Inferior (y = 160)
     ctx.strokeStyle = 'rgba(0, 245, 212, 0.2)';
@@ -1508,22 +1509,26 @@ function render() {
     ctx.stroke();
 
     // 4. Puerta antirretorno del Plunger (One-way gate en la curva superior)
-    ctx.save();
     const gate = GameState.oneWayGate;
     const swingOffset = gate.swing * 7; // Se abre hacia arriba cuando la bola sale propulsada
 
+    ctx.lineCap = 'round';
     if (gate.lit > 0) {
-        ctx.shadowColor = '#ffea00';
-        ctx.shadowBlur = 8 * gate.lit;
+        ctx.strokeStyle = `rgba(255, 234, 0, ${0.35 * gate.lit})`;
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.moveTo(gate.p1.x, gate.p1.y);
+        ctx.lineTo(gate.p2.x, gate.p2.y - swingOffset);
+        ctx.stroke();
     }
 
     ctx.strokeStyle = '#ffea00';
     ctx.lineWidth = 1.8;
-    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(gate.p1.x, gate.p1.y);
     ctx.lineTo(gate.p2.x, gate.p2.y - swingOffset);
     ctx.stroke();
+    ctx.lineCap = 'butt';
 
     // Pernos metálicos en los extremos de la compuerta
     ctx.fillStyle = '#ffffff';
@@ -1531,7 +1536,6 @@ function render() {
     ctx.arc(gate.p1.x, gate.p1.y, 1.4, 0, Math.PI * 2);
     ctx.arc(gate.p2.x, gate.p2.y - swingOffset, 1.4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 
     // ==========================================
     // PANTALLA SUPERIOR (Mesa 1: y = 0..160)
@@ -1621,12 +1625,14 @@ function render() {
         ctx.fillRect(168, ry, 5, 2);
     }
 
-    // D. Pop Bumpers (Superiores e Inferiores)
+    // D. Pop Bumpers (Superiores e Inferiores - halo ligero sin shadowBlur)
     GameState.bumpers.forEach(b => {
-        ctx.save();
-        const glow = b.lit > 0 ? 12 : 3;
-        ctx.shadowColor = b.color;
-        ctx.shadowBlur = glow;
+        ctx.fillStyle = b.color;
+        ctx.globalAlpha = b.lit > 0 ? 0.35 : 0.16;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius + (b.lit > 0 ? 3.5 : 1.5), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
 
         ctx.fillStyle = b.lit > 0 ? '#ffffff' : b.color;
         ctx.beginPath();
@@ -1642,8 +1648,6 @@ function render() {
         ctx.fillStyle = b.color;
         ctx.textAlign = 'center';
         ctx.fillText(b.label, b.x, b.y + 2);
-
-        ctx.restore();
     });
 
     // E. Kickers Redondos Laterales (Brown Bumpers NES)
@@ -1671,19 +1675,24 @@ function render() {
         ctx.stroke();
     });
 
-    // G. Flippers Superiores e Inferiores
+    // G. Flippers Superiores e Inferiores (doble trazo ligero sin shadowBlur)
     const renderFlipper = (f, isLeft) => {
         const tipX = f.pivotX + Math.cos(f.angle) * f.length;
         const tipY = f.pivotY + Math.sin(f.angle) * f.length;
 
-        ctx.save();
         const color = isLeft ? '#00f5d4' : '#3dff8a';
-        ctx.shadowColor = color;
-        ctx.shadowBlur = f.active ? 8 : 2;
+        ctx.lineCap = 'round';
+
+        // Halo neón ligero
+        ctx.strokeStyle = isLeft ? 'rgba(0, 245, 212, 0.28)' : 'rgba(61, 255, 138, 0.28)';
+        ctx.lineWidth = f.width + (f.active ? 3.5 : 1.5);
+        ctx.beginPath();
+        ctx.moveTo(f.pivotX, f.pivotY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
 
         ctx.strokeStyle = color;
         ctx.lineWidth = f.width;
-        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(f.pivotX, f.pivotY);
         ctx.lineTo(tipX, tipY);
@@ -1696,14 +1705,13 @@ function render() {
         ctx.moveTo(f.pivotX, f.pivotY);
         ctx.lineTo(tipX, tipY);
         ctx.stroke();
+        ctx.lineCap = 'butt';
 
         // Pivote
         ctx.fillStyle = '#ffea00';
         ctx.beginPath();
         ctx.arc(f.pivotX, f.pivotY, 2.5, 0, Math.PI * 2);
         ctx.fill();
-
-        ctx.restore();
     };
 
     renderFlipper(GameState.flippers.upperLeft, true);
@@ -1711,12 +1719,14 @@ function render() {
     renderFlipper(GameState.flippers.lowerLeft, true);
     renderFlipper(GameState.flippers.lowerRight, false);
 
-    // H. Tapón Salvavidas NES (Stop Plug en drenaje inferior)
+    // H. Tapón Salvavidas NES (Stop Plug en drenaje inferior - halo ligero sin shadowBlur)
     if (GameState.stopPlug.active) {
         const sp = GameState.stopPlug;
-        ctx.save();
-        ctx.shadowColor = '#ffea00';
-        ctx.shadowBlur = 8;
+        ctx.fillStyle = 'rgba(255, 234, 0, 0.32)';
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, sp.radius + 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.fillStyle = '#ffea00';
         ctx.beginPath();
         ctx.arc(sp.x, sp.y, sp.radius, 0, Math.PI * 2);
@@ -1725,7 +1735,6 @@ function render() {
         ctx.beginPath();
         ctx.arc(sp.x, sp.y, sp.radius * 0.45, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
     }
 
     // I. Plunger / Resorte Lanzador (Fondo mesa inferior)
@@ -1741,26 +1750,27 @@ function render() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(p.x - 4, springY - 2, 8, 3);
 
-    // J. Bolas de Pinball Cromadas
+    // J. Bolas de Pinball Cromadas (halo + capas sólidas sin shadowBlur ni gradiente por frame)
     GameState.balls.forEach(ball => {
-        ctx.save();
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 5;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.24)';
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius + 1.4, 0, Math.PI * 2);
+        ctx.fill();
 
-        const grad = ctx.createRadialGradient(
-            ball.x - 1, ball.y - 1, 0.5,
-            ball.x, ball.y, ball.radius
-        );
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.4, '#d8e6df');
-        grad.addColorStop(1, '#688c7b');
-
-        ctx.fillStyle = grad;
+        ctx.fillStyle = '#7b9c8c';
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.restore();
+        ctx.fillStyle = '#d8e6df';
+        ctx.beginPath();
+        ctx.arc(ball.x - 0.5, ball.y - 0.5, ball.radius * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(ball.x - 1, ball.y - 1, ball.radius * 0.35, 0, Math.PI * 2);
+        ctx.fill();
     });
 
     // K. Partículas
@@ -1819,14 +1829,25 @@ function updateUI() {
 // 🔁 Game Loop & Lifecycle
 // ==========================================
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.04);
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
     updatePhysics(dt);
     render();
-
-    requestAnimationFrame(gameLoop);
 }
 
 // ==========================================

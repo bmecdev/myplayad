@@ -1,5 +1,5 @@
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -1341,13 +1341,22 @@ function updateHud() {
     }
 }
 
+const MAX_EXPLOSIONS = 40;
+
+function pushExplosion(item) {
+    if (GameState.explosions.length >= MAX_EXPLOSIONS) {
+        GameState.explosions.shift();
+    }
+    GameState.explosions.push(item);
+}
+
 function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
     if (typeOrLife === 8 || typeOrLife === 'spark' || typeOrLife === 'shield') {
         const sparkColor = color || (typeOrLife === 'shield' ? '#3dff8a' : '#ffe600');
         for (let i = 0; i < 5; i++) {
             const angle = Math.random() * Math.PI * 2;
             const spd = 15 + Math.random() * 25;
-            GameState.explosions.push({
+            pushExplosion({
                 type: 'particle',
                 x, y,
                 vx: Math.cos(angle) * spd,
@@ -1366,7 +1375,7 @@ function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
         for (let i = 0; i < 24; i++) {
             const angle = Math.random() * Math.PI * 2;
             const spd = 25 + Math.random() * 65;
-            GameState.explosions.push({
+            pushExplosion({
                 type: 'particle',
                 x, y,
                 vx: Math.cos(angle) * spd,
@@ -1385,7 +1394,7 @@ function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
         for (let i = 0; i < 18; i++) {
             const angle = Math.random() * Math.PI * 2;
             const spd = 20 + Math.random() * 50;
-            GameState.explosions.push({
+            pushExplosion({
                 type: 'particle',
                 x, y,
                 vx: Math.cos(angle) * spd,
@@ -1397,7 +1406,7 @@ function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
             });
         }
         if (points) {
-            GameState.explosions.push({
+            pushExplosion({
                 type: 'score',
                 x,
                 y: y - 2,
@@ -1416,7 +1425,7 @@ function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
     for (let i = 0; i < 12; i++) {
         const angle = (i / 12) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
         const spd = 18 + Math.random() * 38;
-        GameState.explosions.push({
+        pushExplosion({
             type: 'particle',
             x, y,
             vx: Math.cos(angle) * spd,
@@ -1429,7 +1438,7 @@ function addExplosion(x, y, typeOrLife = 'alien', points = null, color = null) {
     }
 
     if (points) {
-        GameState.explosions.push({
+        pushExplosion({
             type: 'score',
             x,
             y: y - 2,
@@ -1787,26 +1796,23 @@ function resolveCollisions() {
 }
 
 function updateExplosions(dt) {
-    GameState.explosions = GameState.explosions
-        .map((exp) => {
-            if (exp.type === 'particle') {
-                return {
-                    ...exp,
-                    x: exp.x + exp.vx * dt,
-                    y: exp.y + exp.vy * dt,
-                    life: exp.life - dt
-                };
-            } else if (exp.type === 'score') {
-                return {
-                    ...exp,
-                    y: exp.y - 14 * dt,
-                    life: exp.life - dt
-                };
-            } else {
-                return { ...exp, life: exp.life - dt * 60 };
-            }
-        })
-        .filter((exp) => exp.life > 0);
+    const explosions = GameState.explosions;
+    for (let i = explosions.length - 1; i >= 0; i--) {
+        const exp = explosions[i];
+        if (exp.type === 'particle') {
+            exp.x += exp.vx * dt;
+            exp.y += exp.vy * dt;
+            exp.life -= dt;
+        } else if (exp.type === 'score') {
+            exp.y -= 14 * dt;
+            exp.life -= dt;
+        } else {
+            exp.life -= dt * 60;
+        }
+        if (exp.life <= 0) {
+            explosions.splice(i, 1);
+        }
+    }
 }
 
 function updateUfo(dt) {
@@ -1888,13 +1894,17 @@ function updateStatus(dt) {
     }
 }
 
+let cachedBgGrad = null;
+
 function drawBackground() {
-    // 1. Fondo cósmico espacial con degradado de profundidad
-    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-    grad.addColorStop(0, '#03050c');
-    grad.addColorStop(0.55, '#050c18');
-    grad.addColorStop(1, '#071614');
-    ctx.fillStyle = grad;
+    // 1. Fondo cósmico espacial con degradado cacheado (evita recrear LinearGradient cada frame en RPi)
+    if (!cachedBgGrad) {
+        cachedBgGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+        cachedBgGrad.addColorStop(0, '#03050c');
+        cachedBgGrad.addColorStop(0.55, '#050c18');
+        cachedBgGrad.addColorStop(1, '#071614');
+    }
+    ctx.fillStyle = cachedBgGrad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // 2. Borde arcade CRT sutil
@@ -2323,16 +2333,25 @@ function update(dt) {
 }
 
 function loop(timestamp) {
-    if (!GameState.lastTime) {
+    requestAnimationFrame(loop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
         GameState.lastTime = timestamp;
+        return;
     }
 
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.05);
+    if (!GameState.lastTime) GameState.lastTime = timestamp;
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
     update(dt);
     draw();
-    requestAnimationFrame(loop);
 }
 
 function startGame() {

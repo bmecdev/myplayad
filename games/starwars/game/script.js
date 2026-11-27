@@ -5,7 +5,7 @@
 // ==============================================================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -32,6 +32,77 @@ const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 320;
 const HORIZON_Y = 135;
 const FOV = 230;
+const MAX_STARS = 60;
+const MAX_PARTICLES = 45;
+const MAX_WING_DEBRIS = 10;
+const MAX_DUST_PUFFS = 18;
+
+// Cache de gradientes estáticos (0 asignaciones de gradiente por frame en RPi 5 1GB)
+let _cachedGradients = null;
+function getStaticGradients() {
+    if (_cachedGradients) return _cachedGradients;
+
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
+    skyGrad.addColorStop(0, '#1a0d24');
+    skyGrad.addColorStop(0.35, '#481532');
+    skyGrad.addColorStop(0.68, '#7e2a14');
+    skyGrad.addColorStop(0.88, '#c2410c');
+    skyGrad.addColorStop(1, '#f59e0b');
+
+    const sun1X = CANVAS_WIDTH * 0.65;
+    const sun1Y = HORIZON_Y - 50;
+    const corona1 = ctx.createRadialGradient(sun1X, sun1Y, 3, sun1X, sun1Y, 42);
+    corona1.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    corona1.addColorStop(0.25, 'rgba(254, 240, 138, 0.85)');
+    corona1.addColorStop(0.65, 'rgba(249, 115, 22, 0.35)');
+    corona1.addColorStop(1, 'transparent');
+
+    const sun2X = CANVAS_WIDTH * 0.76;
+    const sun2Y = HORIZON_Y - 36;
+    const corona2 = ctx.createRadialGradient(sun2X, sun2Y, 2, sun2X, sun2Y, 22);
+    corona2.addColorStop(0, '#fed7aa');
+    corona2.addColorStop(0.5, 'rgba(234, 88, 12, 0.6)');
+    corona2.addColorStop(1, 'transparent');
+
+    const desertGrad = ctx.createLinearGradient(0, HORIZON_Y, 0, CANVAS_HEIGHT);
+    desertGrad.addColorStop(0, '#9a3412');
+    desertGrad.addColorStop(0.35, '#c2410c');
+    desertGrad.addColorStop(0.80, '#ea580c');
+    desertGrad.addColorStop(1, '#f97316');
+
+    const neb1 = ctx.createRadialGradient(CANVAS_WIDTH * 0.30, HORIZON_Y * 0.6, 8, CANVAS_WIDTH * 0.30, HORIZON_Y * 0.6, 160);
+    neb1.addColorStop(0, 'rgba(6, 182, 212, 0.25)');
+    neb1.addColorStop(0.5, 'rgba(139, 92, 246, 0.16)');
+    neb1.addColorStop(1, 'transparent');
+
+    const neb2 = ctx.createRadialGradient(CANVAS_WIDTH * 0.75, HORIZON_Y * 0.9, 5, CANVAS_WIDTH * 0.75, HORIZON_Y * 0.9, 130);
+    neb2.addColorStop(0, 'rgba(236, 72, 153, 0.18)');
+    neb2.addColorStop(0.6, 'rgba(59, 130, 246, 0.10)');
+    neb2.addColorStop(1, 'transparent');
+
+    const planetR = 28;
+    const planetGrad = ctx.createLinearGradient(-planetR, -planetR, planetR, planetR);
+    planetGrad.addColorStop(0, '#38bdf8');
+    planetGrad.addColorStop(0.4, '#0369a1');
+    planetGrad.addColorStop(0.75, '#082f49');
+    planetGrad.addColorStop(1, '#020617');
+
+    const barW = 220;
+    const barX = (CANVAS_WIDTH - barW) / 2;
+    const bossBarNormal = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    bossBarNormal.addColorStop(0, '#f59e0b');
+    bossBarNormal.addColorStop(1, '#ef4444');
+
+    const bossBarLow = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    bossBarLow.addColorStop(0, '#ef4444');
+    bossBarLow.addColorStop(1, '#b91c1c');
+
+    _cachedGradients = {
+        skyGrad, corona1, corona2, desertGrad,
+        neb1, neb2, planetGrad, bossBarNormal, bossBarLow
+    };
+    return _cachedGradients;
+}
 
 // Estado Global
 const GameState = {
@@ -469,10 +540,10 @@ let bossWarningText = '';
 let bossProjectiles = []; // Torpedos de protones y misiles de los jefes
 let lifeSpawnTimer = 8;     // Temporizador para que aparezcan vidas periódicamente en cada nivel
 
-// Inicializar estrellas del espacio profundo
+// Inicializar estrellas del espacio profundo (compacto <= 65 estrellas para RPi 5 1GB)
 function initStars() {
     stars = [];
-    for (let i = 0; i < 140; i++) {
+    for (let i = 0; i < MAX_STARS; i++) {
         stars.push({
             x: (Math.random() - 0.5) * 640,
             y: (Math.random() - 0.5) * 480,
@@ -503,7 +574,7 @@ function initCanyonRocks() {
 
     // Inicializar motas de polvo ambiental del desierto
     ambientDust = [];
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 20; i++) {
         ambientDust.push({
             x: Math.random() * CANVAS_WIDTH,
             y: HORIZON_Y + Math.random() * (CANVAS_HEIGHT - HORIZON_Y),
@@ -516,7 +587,7 @@ function initCanyonRocks() {
 
     // Guijarros y gravilla del suelo en perspectiva 3D
     groundPebbles = [];
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 24; i++) {
         groundPebbles.push({
             x: (Math.random() - 0.5) * 460,
             y: 44 + Math.random() * 12,
@@ -887,21 +958,30 @@ function createExplosion(x, y, z, count = 28, isBig = false) {
     audio.playExplosion(isBig);
     GameState.screenShake = isBig ? 9 : 4.5;
 
+    const sparkCount = Math.min(count, isBig ? 16 : 9);
+    const totalNeeded = sparkCount + 1;
+    if (particles.length + totalNeeded > MAX_PARTICLES) {
+        particles.splice(0, Math.min(particles.length, (particles.length + totalNeeded) - MAX_PARTICLES));
+    }
+
     // Onda de choque circular expansiva
-    particles.push({
-        type: 'shockwave',
-        x: x,
-        y: y,
-        z: z,
-        radius: 6,
-        maxRadius: isBig ? 65 : 42,
-        life: 0.35,
-        maxLife: 0.35,
-        color: '#fef08a'
-    });
+    if (particles.length < MAX_PARTICLES) {
+        particles.push({
+            type: 'shockwave',
+            x: x,
+            y: y,
+            z: z,
+            radius: 6,
+            maxRadius: isBig ? 65 : 42,
+            life: 0.35,
+            maxLife: 0.35,
+            color: '#fef08a'
+        });
+    }
 
     // Fragmentos de paneles solares hexagonales del TIE que giran al destruirse
     for (let w = 0; w < 2; w++) {
+        if (wingDebris.length >= MAX_WING_DEBRIS) wingDebris.shift();
         wingDebris.push({
             x: x + (w === 0 ? -15 : 15),
             y: y,
@@ -917,12 +997,12 @@ function createExplosion(x, y, z, count = 28, isBig = false) {
         });
     }
 
-    // Chispas de fuego ardientes
-    for (let i = 0; i < count; i++) {
+    // Chispas de fuego ardientes (limitadas a MAX_PARTICLES <= 45)
+    const colors = ['#ffffff', '#fef08a', '#f59e0b', '#ef4444', '#b91c1c', '#38bdf8'];
+    for (let i = 0; i < sparkCount && particles.length < MAX_PARTICLES; i++) {
         const speed = Math.random() * 140 + 40;
         const angle = Math.random() * Math.PI * 2;
         const vz = (Math.random() - 0.5) * 90;
-        const colors = ['#ffffff', '#fef08a', '#f59e0b', '#ef4444', '#b91c1c', '#38bdf8'];
         particles.push({
             type: 'spark',
             x: x,
@@ -985,11 +1065,13 @@ function renderSuperStarWarsHUD() {
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(saberX + hiltW - 2, saberY - 1, 2, hiltH + 2);
 
-    // Hoja de plasma del sable de luz con pulsación de energía
+    // Hoja de plasma del sable de luz (halo translúcido ligero, 0 shadowBlur)
     if (currentBladeW > 0) {
-        ctx.save();
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 10;
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.28)';
+        ctx.beginPath();
+        ctx.roundRect(saberX + hiltW, saberY - 1, currentBladeW + 2, hiltH + 2, [0, 5, 5, 0]);
+        ctx.fill();
+
         ctx.fillStyle = '#0284c7';
         ctx.beginPath();
         ctx.roundRect(saberX + hiltW, saberY + 1, currentBladeW, hiltH - 2, [0, 4, 4, 0]);
@@ -1000,7 +1082,6 @@ function renderSuperStarWarsHUD() {
         ctx.beginPath();
         ctx.roundRect(saberX + hiltW + 1, saberY + 2, currentBladeW - 2, hiltH - 4, [0, 3, 3, 0]);
         ctx.fill();
-        ctx.restore();
     }
 
     // Texto de Vidas / Escudos
@@ -1020,18 +1101,13 @@ function renderSuperStarWarsHUD() {
 function renderEnvironment(dt) {
     const currentSpeed = GameState.boost ? GameState.speed * 2.3 : GameState.speed;
     GameState.worldScroll += (GameState.boost ? 580 : 280) * dt;
+    const grads = getStaticGradients();
 
     if (GameState.stage === 1) {
         // --- ETAPA 1: DESIERTO Y CAÑÓN DE TATOOINE (SUPER STAR WARS STYLE) ---
 
-        // 1. Cielo crepuscular con gradiente cálido atmosférico multicapa
-        const skyGrad = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
-        skyGrad.addColorStop(0, '#1a0d24');    // Noche violeta espacial
-        skyGrad.addColorStop(0.35, '#481532'); // Terracota vino
-        skyGrad.addColorStop(0.68, '#7e2a14'); // Óxido ámbar
-        skyGrad.addColorStop(0.88, '#c2410c'); // Naranja atardecer
-        skyGrad.addColorStop(1, '#f59e0b');    // Calima dorada del horizonte
-        ctx.fillStyle = skyGrad;
+        // 1. Cielo crepuscular con gradiente cacheado
+        ctx.fillStyle = grads.skyGrad;
         ctx.fillRect(0, 0, CANVAS_WIDTH, HORIZON_Y);
 
         // Estrellas ténues en la alta estratosfera
@@ -1041,7 +1117,7 @@ function renderEnvironment(dt) {
             { x: 215, y: 26 }, { x: 288, y: 16 }, { x: 345, y: 28 }
         ].forEach(st => ctx.fillRect(st.x, st.y, 1.2, 1.2));
 
-        // 2. Soles gemelos de Tatooine con corona radiante y destello anamórfico
+        // 2. Soles gemelos de Tatooine con coronas cacheadas
         const sun1X = CANVAS_WIDTH * 0.65;
         const sun1Y = HORIZON_Y - 50;
 
@@ -1050,12 +1126,7 @@ function renderEnvironment(dt) {
         ctx.fillRect(0, sun1Y - 1, CANVAS_WIDTH, 2);
 
         // Tatoo I (Sol Principal Dorado)
-        const coronaGrad = ctx.createRadialGradient(sun1X, sun1Y, 3, sun1X, sun1Y, 42);
-        coronaGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-        coronaGrad.addColorStop(0.25, 'rgba(254, 240, 138, 0.85)');
-        coronaGrad.addColorStop(0.65, 'rgba(249, 115, 22, 0.35)');
-        coronaGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = coronaGrad;
+        ctx.fillStyle = grads.corona1;
         ctx.beginPath();
         ctx.arc(sun1X, sun1Y, 42, 0, Math.PI * 2);
         ctx.fill();
@@ -1072,11 +1143,7 @@ function renderEnvironment(dt) {
         // Tatoo II (Sol Secundario de Cobre)
         const sun2X = CANVAS_WIDTH * 0.76;
         const sun2Y = HORIZON_Y - 36;
-        const corona2 = ctx.createRadialGradient(sun2X, sun2Y, 2, sun2X, sun2Y, 22);
-        corona2.addColorStop(0, '#fed7aa');
-        corona2.addColorStop(0.5, 'rgba(234, 88, 12, 0.6)');
-        corona2.addColorStop(1, 'transparent');
-        ctx.fillStyle = corona2;
+        ctx.fillStyle = grads.corona2;
         ctx.beginPath();
         ctx.arc(sun2X, sun2Y, 22, 0, Math.PI * 2);
         ctx.fill();
@@ -1180,14 +1247,9 @@ function renderEnvironment(dt) {
         ctx.fillStyle = '#f97316';
         ctx.fillRect(crawlerX - 14, crawlerY + 6, 4, 1.5);
 
-        // 6. Suelo del desierto estilo Mode 7 con dunas ondulantes y huellas
+        // 6. Suelo del desierto estilo Mode 7 con gradiente cacheado
         const groundH = CANVAS_HEIGHT - HORIZON_Y;
-        const desertGrad = ctx.createLinearGradient(0, HORIZON_Y, 0, CANVAS_HEIGHT);
-        desertGrad.addColorStop(0, '#9a3412');
-        desertGrad.addColorStop(0.35, '#c2410c');
-        desertGrad.addColorStop(0.80, '#ea580c');
-        desertGrad.addColorStop(1, '#f97316');
-        ctx.fillStyle = desertGrad;
+        ctx.fillStyle = grads.desertGrad;
         ctx.fillRect(0, HORIZON_Y, CANVAS_WIDTH, groundH);
 
         // Ondulaciones y bandas de dunas en perspectiva
@@ -1308,44 +1370,29 @@ function renderEnvironment(dt) {
         ctx.fillStyle = '#020409';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Nebulosas cósmicas volumétricas en capas multicromáticas
-        const neb1 = ctx.createRadialGradient(CANVAS_WIDTH * 0.30, HORIZON_Y * 0.6, 8, CANVAS_WIDTH * 0.30, HORIZON_Y * 0.6, 160);
-        neb1.addColorStop(0, 'rgba(6, 182, 212, 0.25)'); // Cyan estelar
-        neb1.addColorStop(0.5, 'rgba(139, 92, 246, 0.16)'); // Violeta cósmico
-        neb1.addColorStop(1, 'transparent');
-        ctx.fillStyle = neb1;
+        // Nebulosas cósmicas cacheadas (0 allocaciones por frame)
+        ctx.fillStyle = grads.neb1;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        const neb2 = ctx.createRadialGradient(CANVAS_WIDTH * 0.75, HORIZON_Y * 0.9, 5, CANVAS_WIDTH * 0.75, HORIZON_Y * 0.9, 130);
-        neb2.addColorStop(0, 'rgba(236, 72, 153, 0.18)'); // Magenta galáctico
-        neb2.addColorStop(0.6, 'rgba(59, 130, 246, 0.10)');
-        neb2.addColorStop(1, 'transparent');
-        ctx.fillStyle = neb2;
+        ctx.fillStyle = grads.neb2;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Planeta gigante gaseoso / Tatooine en órbita lejana
+        // Planeta gigante gaseoso en órbita lejana
         const planetX = CANVAS_WIDTH * 0.82 - Player.x * 0.04;
         const planetY = 58;
         const planetR = 28;
 
-        // Atmósfera exterior
+        // Halo atmosférico ligero (sin shadowBlur) + gradiente superficial cacheado
         ctx.save();
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 12;
-        ctx.fillStyle = '#0f172a';
+        ctx.translate(planetX, planetY);
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
         ctx.beginPath();
-        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
+        ctx.arc(0, 0, planetR + 5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Gradiente superficial del planeta con media luna
-        const planetGrad = ctx.createLinearGradient(planetX - planetR, planetY - planetR, planetX + planetR, planetY + planetR);
-        planetGrad.addColorStop(0, '#38bdf8');
-        planetGrad.addColorStop(0.4, '#0369a1');
-        planetGrad.addColorStop(0.75, '#082f49');
-        planetGrad.addColorStop(1, '#020617');
-        ctx.fillStyle = planetGrad;
+        ctx.fillStyle = grads.planetGrad;
         ctx.beginPath();
-        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
+        ctx.arc(0, 0, planetR, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
 
@@ -1374,11 +1421,13 @@ function renderEnvironment(dt) {
         ctx.fillRect(isdX - 10, isdY + 6, 4, 3);
         ctx.fillRect(isdX + 6, isdY + 6, 4, 3);
 
-        // Toberas de los 3 motores de iones cyan brillantes
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = '#00f0ff';
+        // Toberas de los 3 motores de iones cyan (halo translúcido ligero, sin shadowBlur)
         [-8, 0, 8].forEach(ex => {
+            ctx.fillStyle = 'rgba(0, 240, 255, 0.30)';
+            ctx.beginPath();
+            ctx.arc(isdX + ex, isdY + 20, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#00f0ff';
             ctx.beginPath();
             ctx.arc(isdX + ex, isdY + 20, 2, 0, Math.PI * 2);
             ctx.fill();
@@ -1476,26 +1525,30 @@ function renderEnvironment(dt) {
         ctx.fillRect(CANVAS_WIDTH * 0.83, HORIZON_Y + 73, 8, 2.5);
     }
 
-    // Estrellas volando hacia el jugador con efecto warp durante el hiperespacio (Turbo)
+    // Estrellas volando hacia el jugador con efecto warp durante el hiperespacio (sin shadowBlur)
     stars.forEach(s => {
         const p = project3D(s.x, s.y, s.z);
         if (p) {
-            ctx.fillStyle = s.color;
             if (GameState.boost) {
                 const pPrev = project3D(s.x, s.y, s.z + 85);
                 if (pPrev) {
-                    ctx.save();
-                    ctx.strokeStyle = '#38bdf8';
-                    ctx.shadowColor = '#00f0ff';
-                    ctx.shadowBlur = 8;
-                    ctx.lineWidth = Math.max(1.5, p.scale * 2.8);
+                    const lw = Math.max(1.5, p.scale * 2.8);
+                    ctx.strokeStyle = 'rgba(0, 240, 255, 0.30)';
+                    ctx.lineWidth = lw * 2.2;
                     ctx.beginPath();
                     ctx.moveTo(pPrev.x, pPrev.y);
                     ctx.lineTo(p.x, p.y);
                     ctx.stroke();
-                    ctx.restore();
+
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = lw;
+                    ctx.beginPath();
+                    ctx.moveTo(pPrev.x, pPrev.y);
+                    ctx.lineTo(p.x, p.y);
+                    ctx.stroke();
                 }
             } else {
+                ctx.fillStyle = s.color;
                 const r = Math.max(0.7, s.size * p.scale * 1.6);
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
@@ -1527,7 +1580,7 @@ function renderMillenniumFalcon(dt) {
         // Ráfagas de polvo del motor cuando vuela rasante cerca del suelo
         if (altitudeFactor < 0.35) {
             Player.thrusterFlicker += dt * 30;
-            if (Math.random() < 0.45 * (1 - altitudeFactor / 0.35)) {
+            if (dustPuffs.length < MAX_DUST_PUFFS && Math.random() < 0.45 * (1 - altitudeFactor / 0.35)) {
                 dustPuffs.push({
                     x: cx + (Math.random() - 0.5) * 55,
                     y: shadowY + (Math.random() - 0.5) * 6,
@@ -1553,29 +1606,30 @@ function renderMillenniumFalcon(dt) {
         ctx.globalAlpha = 0.4;
     }
 
-    // Escudo holográfico
+    // Escudo holográfico (halo translúcido ligero, sin shadowBlur)
     if (Player.shieldFlash > 0 || GameState.boost) {
-        ctx.save();
-        ctx.strokeStyle = GameState.boost ? '#38bdf8' : '#ef4444';
-        ctx.lineWidth = 2.5;
-        ctx.shadowColor = ctx.strokeStyle;
-        ctx.shadowBlur = 14;
+        ctx.fillStyle = GameState.boost ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
         ctx.beginPath();
         ctx.ellipse(0, -2, 60, 42, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = GameState.boost ? 'rgba(56, 189, 248, 0.30)' : 'rgba(239, 68, 68, 0.30)';
+        ctx.lineWidth = 6.5;
         ctx.stroke();
 
-        ctx.fillStyle = GameState.boost ? 'rgba(56, 189, 248, 0.18)' : 'rgba(239, 68, 68, 0.18)';
-        ctx.fill();
-        ctx.restore();
+        ctx.strokeStyle = GameState.boost ? '#38bdf8' : '#ef4444';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
     }
 
-    // Motor subluz azul cyan (mayor resplandor al ascender o con turbo)
+    // Motor subluz azul cyan (halo translúcido ligero, sin shadowBlur)
     const isClimbing = Player.pitch < -0.05;
     const isBoost = GameState.boost;
-    const engineGlowRadius = isBoost ? 22 : (isClimbing ? 15 : 10);
-    ctx.save();
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = engineGlowRadius;
+    const haloPad = isBoost ? 6 : (isClimbing ? 4 : 3);
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.28)';
+    ctx.beginPath();
+    ctx.roundRect(-32 - haloPad, 16 - haloPad * 0.5, 64 + haloPad * 2, 6 + haloPad * 1.5, [0, 0, 6, 6]);
+    ctx.fill();
 
     ctx.fillStyle = '#06b6d4';
     ctx.beginPath();
@@ -1586,7 +1640,6 @@ function renderMillenniumFalcon(dt) {
     ctx.beginPath();
     ctx.roundRect(-26, 17, 52, 4, [0, 0, 3, 3]);
     ctx.fill();
-    ctx.restore();
 
     // Llamas de plasma
     const flameColor = isBoost ? '#67e8f9' : '#38bdf8';
@@ -1705,14 +1758,16 @@ function renderMillenniumFalcon(dt) {
     ctx.fillRect(-4, -19 + recoilOffset, 2.5, 10);
     ctx.fillRect(1.5, -19 + recoilOffset, 2.5, 10);
 
-    // Destello de disparo en la boca del cañón (Muzzle Flash)
+    // Destello de disparo en la boca del cañón (Muzzle Flash sin shadowBlur)
     if (Player.muzzleFlash > 0) {
-        ctx.save();
-        ctx.shadowColor = Player.spreadTimer > 0 ? '#38bdf8' : '#ef4444';
-        ctx.shadowBlur = 16;
-        ctx.fillStyle = '#ffffff';
+        const flashHalo = Player.spreadTimer > 0 ? 'rgba(56, 189, 248, 0.42)' : 'rgba(239, 68, 68, 0.42)';
         // Cañones de la torreta central
         [-2.75, 2.75].forEach(bx => {
+            ctx.fillStyle = flashHalo;
+            ctx.beginPath();
+            ctx.arc(bx, -20, 9.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
             ctx.beginPath();
             ctx.arc(bx, -20, 5, 0, Math.PI * 2);
             ctx.fill();
@@ -1720,12 +1775,16 @@ function renderMillenniumFalcon(dt) {
         if (Player.spreadTimer > 0) {
             // Mandíbulas exteriores en modo cuádruple
             [-18, 18].forEach(mx => {
+                ctx.fillStyle = flashHalo;
+                ctx.beginPath();
+                ctx.arc(mx, -42, 10.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
                 ctx.arc(mx, -42, 6, 0, Math.PI * 2);
                 ctx.fill();
             });
         }
-        ctx.restore();
     }
 
     ctx.restore();
@@ -1764,10 +1823,18 @@ function renderTargetingHUD() {
 
     const reticleColor = targetLocked ? '#ef4444' : 'rgba(56, 189, 248, 0.75)';
     ctx.save();
+
+    // Halo ligero de mira bloqueada (sin shadowBlur)
+    if (targetLocked) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.30)';
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.arc(crosshairX, crosshairY, 14, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
     ctx.strokeStyle = reticleColor;
     ctx.lineWidth = 1.5;
-    ctx.shadowColor = reticleColor;
-    ctx.shadowBlur = targetLocked ? 10 : 4;
 
     // Círculo de mira central
     ctx.beginPath();
@@ -1888,17 +1955,19 @@ function renderTIEFighter(e) {
         ctx.restore();
     });
 
-    // 3. Cabina Esférica de Mando Central (Command Pod) con volumen 3D
-    const podGrad = ctx.createRadialGradient(-ballRadius * 0.35, -ballRadius * 0.35, ballRadius * 0.1, 0, 0, ballRadius);
-    podGrad.addColorStop(0, '#e2e8f0');
-    podGrad.addColorStop(0.5, '#94a3b8');
-    podGrad.addColorStop(1, '#334155');
-    ctx.fillStyle = podGrad;
+    // 3. Cabina Esférica de Mando Central (Command Pod 16-bit, 0 gradientes por frame)
+    ctx.fillStyle = '#64748b';
     ctx.beginPath();
     ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.arc(-ballRadius * 0.25, -ballRadius * 0.25, ballRadius * 0.55, 0, Math.PI * 2);
+    ctx.fill();
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = Math.max(1, 1.2 * scale);
+    ctx.beginPath();
+    ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
     ctx.stroke();
 
     // 4. Ventanal de Transparisteel Octogonal (El icónico ojo del TIE Fighter)
@@ -1930,17 +1999,18 @@ function renderTIEFighter(e) {
     ctx.fillRect(-3 * scale, ballRadius * 0.75, 2 * scale, 3.5 * scale);
     ctx.fillRect(1 * scale, ballRadius * 0.75, 2 * scale, 3.5 * scale);
 
-    // Muzzle flash verde al disparar
+    // Muzzle flash verde al disparar (halo ligero sin shadowBlur)
     if (e.muzzleFlash > 0) {
-        ctx.save();
-        ctx.shadowColor = '#22c55e';
-        ctx.shadowBlur = 10;
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.40)';
+        ctx.beginPath();
+        ctx.arc(-2 * scale, ballRadius * 0.95, 6 * scale, 0, Math.PI * 2);
+        ctx.arc(2 * scale, ballRadius * 0.95, 6 * scale, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(-2 * scale, ballRadius * 0.95, 3.5 * scale, 0, Math.PI * 2);
         ctx.arc(2 * scale, ballRadius * 0.95, 3.5 * scale, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
     }
 
     ctx.restore();
@@ -2098,17 +2168,21 @@ function renderTIEAdvanced(b) {
     ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#334155';
     ctx.fillRect(-span, -3 * scale, span * 2, 6 * scale);
 
-    // 2. Cabina de mando esférica reforzada de Darth Vader
-    const podGrad = ctx.createRadialGradient(-ballR * 0.3, -ballR * 0.3, 2, 0, 0, ballR);
-    podGrad.addColorStop(0, '#f1f5f9');
-    podGrad.addColorStop(0.6, '#475569');
-    podGrad.addColorStop(1, '#0f172a');
-    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : podGrad;
+    // 2. Cabina de mando esférica reforzada de Darth Vader (0 gradientes por frame)
+    ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#475569';
     ctx.beginPath();
     ctx.arc(0, 0, ballR, 0, Math.PI * 2);
     ctx.fill();
+    if (b.hitFlash <= 0) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.arc(-ballR * 0.25, -ballR * 0.25, ballR * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+    }
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = Math.max(1, 1.6 * scale);
+    ctx.beginPath();
+    ctx.arc(0, 0, ballR, 0, Math.PI * 2);
     ctx.stroke();
 
     // Ventanal de transparisteel octogonal con mira roja de Vader
@@ -2121,17 +2195,17 @@ function renderTIEAdvanced(b) {
     ctx.arc(0, 0, Math.max(2, 3.5 * scale), 0, Math.PI * 2);
     ctx.fill();
 
-    // Toberas dobles de motor hiperespacial cyan
-    ctx.save();
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = '#00f0ff';
+    // Toberas dobles de motor hiperespacial cyan (halo ligero sin shadowBlur)
     [-4 * scale, 4 * scale].forEach(ex => {
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.32)';
+        ctx.beginPath();
+        ctx.arc(ex, ballR * 0.5, 5 * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#00f0ff';
         ctx.beginPath();
         ctx.arc(ex, ballR * 0.5, 2.5 * scale, 0, Math.PI * 2);
         ctx.fill();
     });
-    ctx.restore();
 
     // 3. Alas anguladas dobladas del TIE Advanced x1
     [-span, span].forEach(wx => {
@@ -2172,16 +2246,17 @@ function renderDeathStarCore(b) {
     const fortW = Math.max(30, 80 * scale);
     const fortH = Math.max(20, 50 * scale);
 
-    // Escudo deflector de energía pulsante
-    ctx.save();
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
-    ctx.lineWidth = Math.max(1.5, 2.5 * scale);
-    ctx.shadowColor = '#38bdf8';
-    ctx.shadowBlur = 12;
+    // Escudo deflector de energía pulsante (halo translúcido sin shadowBlur)
+    const shieldLW = Math.max(1.5, 2.5 * scale);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+    ctx.lineWidth = shieldLW * 2.5;
     ctx.beginPath();
     ctx.ellipse(0, 0, fortW * 0.7, fortH * 0.75, 0, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+    ctx.lineWidth = shieldLW;
+    ctx.stroke();
 
     // Bastión fortificado imperial
     ctx.fillStyle = b.hitFlash > 0 ? '#ffffff' : '#1e293b';
@@ -2200,11 +2275,12 @@ function renderDeathStarCore(b) {
         ctx.fillRect(tx - 2 * scale, -fortH * 0.5 - 8 * scale, 4 * scale, 8 * scale);
     });
 
-    // Puerto de Escape Térmico (Thermal Exhaust Port) radiante
+    // Puerto de Escape Térmico (Thermal Exhaust Port) radiante (sin shadowBlur)
     const portR = Math.max(5, 14 * scale);
-    ctx.save();
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 16;
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.32)';
+    ctx.beginPath();
+    ctx.arc(0, fortH * 0.25, portR * 1.45, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(0, fortH * 0.25, portR, 0, Math.PI * 2);
@@ -2213,7 +2289,6 @@ function renderDeathStarCore(b) {
     ctx.beginPath();
     ctx.arc(0, fortH * 0.25, portR * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 
     ctx.restore();
 }
@@ -2227,9 +2302,12 @@ function renderBossProjectile(bp) {
     ctx.save();
     ctx.translate(p.x, p.y);
 
-    // Resplandor del torpedo
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 12;
+    // Halo translúcido del torpedo (sin shadowBlur)
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.32)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2);
@@ -2280,21 +2358,19 @@ function renderBossHUD() {
         ctx.lineWidth = 1.2;
         ctx.strokeRect(barX - 3, barY - 3, barW + 6, barH + 6);
 
-        // Barra de energía
+        // Barra de energía (gradiente cacheado)
         const hpRatio = Math.max(0, currentBoss.hp / currentBoss.maxHp);
         const fillW = hpRatio * barW;
-        const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-        barGrad.addColorStop(0, hpRatio < 0.3 ? '#ef4444' : '#f59e0b');
-        barGrad.addColorStop(1, hpRatio < 0.3 ? '#b91c1c' : '#ef4444');
-        ctx.fillStyle = barGrad;
+        const grads = getStaticGradients();
+        ctx.fillStyle = hpRatio < 0.3 ? grads.bossBarLow : grads.bossBarNormal;
         ctx.fillRect(barX, barY, fillW, barH);
 
-        // Texto con nombre del Jefe
-        ctx.fillStyle = '#ffffff';
+        // Texto con nombre del Jefe (sombra 1px rápida, sin shadowBlur)
         ctx.font = '6px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 4;
+        ctx.fillStyle = '#000000';
+        ctx.fillText(currentBoss.name, CANVAS_WIDTH / 2 + 1, barY - 5);
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(currentBoss.name, CANVAS_WIDTH / 2, barY - 6);
         ctx.restore();
     }
@@ -2312,11 +2388,7 @@ function renderObstacle(o) {
     ctx.translate(p.x, p.y);
     ctx.rotate(o.rot);
 
-    const rockGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
-    rockGrad.addColorStop(0, '#64748b');
-    rockGrad.addColorStop(0.7, '#334155');
-    rockGrad.addColorStop(1, '#1e293b');
-    ctx.fillStyle = rockGrad;
+    ctx.fillStyle = '#475569';
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = Math.max(1, 1.6 * p.scale);
 
@@ -2373,12 +2445,17 @@ function renderPowerup(pu) {
         icon = '🚀';
     }
 
-    // Aura pulsante de energía
+    // Aura pulsante de energía (halo ligero sin shadowBlur)
     const pulse = Math.sin(Date.now() * 0.009) * 0.18 + 0.95;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.25;
+    ctx.beginPath();
+    ctx.arc(0, 0, (size + 4.5 * p.scale) * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(1.8, 2.6 * p.scale);
-    ctx.shadowColor = color;
-    ctx.shadowBlur = Math.max(8, 14 * p.scale);
     ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
     ctx.beginPath();
     ctx.arc(0, 0, size * pulse, 0, Math.PI * 2);
@@ -2394,7 +2471,6 @@ function renderPowerup(pu) {
     ctx.stroke();
     ctx.globalAlpha = 1.0;
 
-    ctx.shadowBlur = 0;
     ctx.font = `${Math.max(9, Math.floor(size * 1.15))}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2403,8 +2479,12 @@ function renderPowerup(pu) {
     ctx.restore();
 }
 
-// 8. RENDERIZADO DE LÁSERES RADIANTES
+// 8. RENDERIZADO DE LÁSERES RADIANTES (halo translúcido ultra-rápido, 0 shadowBlur)
 function renderLasers() {
+    const isSpread = Player.spreadTimer > 0;
+    const laserColor = isSpread ? '#38bdf8' : '#ef4444';
+    const laserHalo = isSpread ? 'rgba(56, 189, 248, 0.30)' : 'rgba(239, 68, 68, 0.30)';
+
     // Láseres del Halcón
     lasers.forEach(l => {
         const boltLen = Math.min(52, l.speed * 0.048);
@@ -2416,12 +2496,17 @@ function renderLasers() {
         );
 
         if (p1 && p2) {
-            const laserColor = Player.spreadTimer > 0 ? '#38bdf8' : '#ef4444';
-            ctx.save();
+            // Halo exterior translúcido
+            ctx.strokeStyle = laserHalo;
+            ctx.lineWidth = Math.max(4.5, 8.5 * p1.scale);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+
+            // Cuerpo principal del rayo
             ctx.strokeStyle = laserColor;
             ctx.lineWidth = Math.max(2.2, 4.5 * p1.scale);
-            ctx.shadowColor = laserColor;
-            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
@@ -2440,7 +2525,6 @@ function renderLasers() {
             ctx.beginPath();
             ctx.arc(p2.x, p2.y, Math.max(1.5, 2.6 * p2.scale), 0, Math.PI * 2);
             ctx.fill();
-            ctx.restore();
         }
     });
 
@@ -2456,11 +2540,16 @@ function renderLasers() {
         );
 
         if (p1 && p2) {
-            ctx.save();
+            // Halo verde exterior
+            ctx.strokeStyle = 'rgba(34, 197, 94, 0.30)';
+            ctx.lineWidth = Math.max(4.5, 8.0 * p1.scale);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+
             ctx.strokeStyle = '#22c55e';
             ctx.lineWidth = Math.max(2.2, 4.2 * p1.scale);
-            ctx.shadowColor = '#22c55e';
-            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
@@ -2473,36 +2562,40 @@ function renderLasers() {
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
 
-            // Cabeza frontal luminosa del proyectil avanzando hacia el Halcón
+            // Cabeza frontal luminosa del proyectil con halo verde
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.38)';
+            ctx.beginPath();
+            ctx.arc(p1.x, p1.y, Math.max(3.4, 5.8 * p1.scale), 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = '#4ade80';
-            ctx.shadowBlur = 12;
             ctx.beginPath();
             ctx.arc(p1.x, p1.y, Math.max(1.8, 3.2 * p1.scale), 0, Math.PI * 2);
             ctx.fill();
-
-            ctx.restore();
         }
     });
 }
 
-// 9. RENDERIZADO DE PARTÍCULAS, HUMO, ONDAS DE CHOQUE Y POLVO
+// 9. RENDERIZADO DE PARTÍCULAS, HUMO, ONDAS DE CHOQUE Y POLVO (0 shadowBlur)
 function renderParticles() {
     particles.forEach(pt => {
         const p = project3D(pt.x, pt.y, pt.z);
         if (p) {
             if (pt.type === 'shockwave') {
                 const r = pt.radius * p.scale;
-                ctx.save();
+                const alpha = Math.max(0.1, pt.life / pt.maxLife);
+                const lw = Math.max(1.5, 3 * p.scale);
                 ctx.strokeStyle = pt.color;
-                ctx.lineWidth = Math.max(1.5, 3 * p.scale);
-                ctx.globalAlpha = Math.max(0.1, pt.life / pt.maxLife);
-                ctx.shadowColor = pt.color;
-                ctx.shadowBlur = 10;
+                ctx.globalAlpha = alpha * 0.35;
+                ctx.lineWidth = lw * 2.2;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
                 ctx.stroke();
-                ctx.restore();
+
+                ctx.globalAlpha = alpha;
+                ctx.lineWidth = lw;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
             } else {
                 ctx.fillStyle = pt.color;
                 ctx.globalAlpha = Math.max(0.1, pt.life / pt.maxLife);
@@ -2523,15 +2616,16 @@ function renderParticles() {
         ctx.globalAlpha = 1.0;
     });
 
-    floatingScores.forEach(fs => {
-        ctx.fillStyle = fs.color;
+    if (floatingScores.length > 0) {
         ctx.font = '10px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 4;
-        ctx.fillText(fs.text, fs.x, fs.y);
-        ctx.shadowBlur = 0;
-    });
+        floatingScores.forEach(fs => {
+            ctx.fillStyle = '#000000';
+            ctx.fillText(fs.text, fs.x + 1, fs.y + 1);
+            ctx.fillStyle = fs.color;
+            ctx.fillText(fs.text, fs.x, fs.y);
+        });
+    }
 }
 
 // ==============================================================================
@@ -3266,7 +3360,9 @@ function triggerGameOver() {
 // ==============================================================================
 
 function draw(dt = 0) {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    // Fondo opaco obligatorio (canvas { alpha: false })
+    ctx.fillStyle = '#04060c';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     ctx.save();
     if (GameState.screenShake > 0) {
@@ -3307,17 +3403,28 @@ function draw(dt = 0) {
     ctx.restore();
 }
 
-function gameLoop(time) {
-    if (!GameState.lastTime) GameState.lastTime = time;
-    const dt = Math.min((time - GameState.lastTime) / 1000, 0.1);
-    GameState.lastTime = time;
+function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
 
-    if (!GameState.adPlaying && !GameState.paused) {
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
+    if (!GameState.lastTime) GameState.lastTime = timestamp;
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
+    GameState.lastTime = timestamp;
+
+    if (!GameState.paused) {
         update(dt);
         draw(dt);
     }
-
-    requestAnimationFrame(gameLoop);
 }
 
 function renderObstaclesAndEnemies() {

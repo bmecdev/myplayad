@@ -3,7 +3,7 @@
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 160;
@@ -1400,7 +1400,7 @@ function updatePhysics(dt) {
             const px = muzzleX + Math.cos(ang) * rad;
             const py = muzzleY + Math.sin(ang) * rad;
             const spd = 65 + Math.random() * 40;
-            GameState.particles.push({
+            pushParticle({
                 x: px,
                 y: py,
                 vx: -Math.cos(ang) * spd,
@@ -1994,7 +1994,7 @@ function defeatBoss() {
     for (let i = 0; i < 28; i++) {
         const ang = (i / 28) * Math.PI * 2;
         const spd = 40 + Math.random() * 80;
-        GameState.particles.push({
+        pushParticle({
             x: GameState.boss.x + GameState.boss.w / 2,
             y: GameState.boss.y + GameState.boss.h / 2,
             vx: Math.cos(ang) * spd,
@@ -2128,11 +2128,20 @@ function damagePlayer(amount) {
     }
 }
 
+const MAX_PARTICLES = 40;
+
+function pushParticle(pt) {
+    if (GameState.particles.length >= MAX_PARTICLES) {
+        GameState.particles.shift();
+    }
+    GameState.particles.push(pt);
+}
+
 function createSparks(x, y, color = '#ffea00', count = 5) {
     for (let i = 0; i < count; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = 25 + Math.random() * 65;
-        GameState.particles.push({
+        pushParticle({
             x: x,
             y: y,
             vx: Math.cos(ang) * spd,
@@ -2147,7 +2156,7 @@ function createSparks(x, y, color = '#ffea00', count = 5) {
 function createDustPuff(x, y) {
     for (let i = 0; i < 4; i++) {
         const dir = (i % 2 === 0 ? -1 : 1);
-        GameState.particles.push({
+        pushParticle({
             x: x + dir * (2 + Math.random() * 4),
             y: y - 1,
             vx: dir * (15 + Math.random() * 25),
@@ -2161,17 +2170,30 @@ function createDustPuff(x, y) {
     }
 }
 
+// Caché de gradientes verticales estáticos (evita recrear LinearGradient cada frame en RPi)
+const verticalGradientCache = Object.create(null);
+
+function getCachedVerticalGradient(key, y0, y1, stops) {
+    let grad = verticalGradientCache[key];
+    if (!grad) {
+        grad = ctx.createLinearGradient(0, y0, 0, y1);
+        for (let i = 0; i < stops.length; i++) {
+            grad.addColorStop(stops[i][0], stops[i][1]);
+        }
+        verticalGradientCache[key] = grad;
+    }
+    return grad;
+}
+
 // ==========================================
 // 🎨 Renderizado Pixel-Art Retro en Canvas
 // ==========================================
 function render() {
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
     ctx.save();
     // Desplazamiento por cámara horizontal
     ctx.translate(-Math.round(GameState.cameraX), 0);
 
-    // 1. Fondo industrial con parallax
+    // 1. Fondo industrial con parallax (relleno opaco completo cada frame)
     renderBackground();
 
     // 2. Plataformas y bloques del nivel
@@ -2228,42 +2250,44 @@ function renderBackground() {
     const cfg = GameState.stageConfig || getStageConfig(GameState.level || 1);
     const t = Date.now() / 1000;
 
-    // 1. Cielo con degradado atmosférico dinámico según el escenario (6 Temas)
-    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+    // 1. Cielo con degradado atmosférico cacheado según el escenario (6 Temas)
+    let grad;
     if (cfg.stageNum === 2) {
         // Stage 2 (Fire Man): Fundición Volcánica
-        grad.addColorStop(0, '#140303');
-        grad.addColorStop(0.5, '#300808');
-        grad.addColorStop(1, '#5c0f0f');
+        grad = getCachedVerticalGradient('sky_2', 0, CANVAS_HEIGHT, [
+            [0, '#140303'], [0.5, '#300808'], [1, '#5c0f0f']
+        ]);
     } else if (cfg.stageNum === 3) {
         // Stage 3 (Guts Man): Cantera y Mina Pesada
-        grad.addColorStop(0, '#020b05');
-        grad.addColorStop(0.5, '#0b1f11');
-        grad.addColorStop(1, '#15381f');
+        grad = getCachedVerticalGradient('sky_3', 0, CANVAS_HEIGHT, [
+            [0, '#020b05'], [0.5, '#0b1f11'], [1, '#15381f']
+        ]);
     } else if (cfg.stageNum === 4) {
         // Stage 4 (Elec Man): Planta Eléctrica de Alta Tensión
         const isFlash = Math.sin(t * 1.8) > 0.94;
-        grad.addColorStop(0, isFlash ? '#312e81' : '#0b071a');
-        grad.addColorStop(0.5, isFlash ? '#4338ca' : '#1e1b4b');
-        grad.addColorStop(1, isFlash ? '#6366f1' : '#2e1065');
+        grad = getCachedVerticalGradient(isFlash ? 'sky_4_flash' : 'sky_4', 0, CANVAS_HEIGHT,
+            isFlash
+                ? [[0, '#312e81'], [0.5, '#4338ca'], [1, '#6366f1']]
+                : [[0, '#0b071a'], [0.5, '#1e1b4b'], [1, '#2e1065']]
+        );
     } else if (cfg.stageNum === 5) {
         // Stage 5 (Ice Man): Glaciar Ártico Polar
-        grad.addColorStop(0, '#02131d');
-        grad.addColorStop(0.5, '#04283b');
-        grad.addColorStop(1, '#0b4668');
+        grad = getCachedVerticalGradient('sky_5', 0, CANVAS_HEIGHT, [
+            [0, '#02131d'], [0.5, '#04283b'], [1, '#0b4668']
+        ]);
     } else if (cfg.stageNum === 6) {
         // Stage 6 (Dr. Wily): Fortaleza Calavera
-        grad.addColorStop(0, '#090214');
-        grad.addColorStop(0.5, '#18042b');
-        grad.addColorStop(1, '#2c074d');
+        grad = getCachedVerticalGradient('sky_6', 0, CANVAS_HEIGHT, [
+            [0, '#090214'], [0.5, '#18042b'], [1, '#2c074d']
+        ]);
     } else {
         // Stage 1 (Cut Man): Ciudad Cyberpunk Neón
-        grad.addColorStop(0, '#020617');
-        grad.addColorStop(0.5, '#0a192f');
-        grad.addColorStop(1, '#112e4d');
+        grad = getCachedVerticalGradient('sky_1', 0, CANVAS_HEIGHT, [
+            [0, '#020617'], [0.5, '#0a192f'], [1, '#112e4d']
+        ]);
     }
     ctx.fillStyle = grad;
-    ctx.fillRect(GameState.cameraX, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillRect(Math.round(GameState.cameraX), 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // 2. Capas atmosféricas especiales según el escenario
     if (cfg.stageNum === 5) {
@@ -2519,17 +2543,17 @@ function renderBackground() {
         ctx.restore();
     }
 
-    // 5. Brillo inferior específico
+    // 5. Brillo inferior específico (cacheado)
     if (cfg.stageNum === 2) {
-        const heatGrad = ctx.createLinearGradient(0, 95, 0, 140);
-        heatGrad.addColorStop(0, 'rgba(239, 68, 68, 0)');
-        heatGrad.addColorStop(1, 'rgba(249, 115, 22, 0.35)');
+        const heatGrad = getCachedVerticalGradient('bg_heat', 95, 140, [
+            [0, 'rgba(239, 68, 68, 0)'], [1, 'rgba(249, 115, 22, 0.35)']
+        ]);
         ctx.fillStyle = heatGrad;
         ctx.fillRect(GameState.cameraX, 90, CANVAS_WIDTH, 50);
     } else if (cfg.stageNum === 6) {
-        const acidGlow = ctx.createLinearGradient(0, 110, 0, 140);
-        acidGlow.addColorStop(0, 'rgba(34, 197, 94, 0)');
-        acidGlow.addColorStop(1, 'rgba(34, 197, 94, 0.25)');
+        const acidGlow = getCachedVerticalGradient('bg_acid', 110, 140, [
+            [0, 'rgba(34, 197, 94, 0)'], [1, 'rgba(34, 197, 94, 0.25)']
+        ]);
         ctx.fillStyle = acidGlow;
         ctx.fillRect(GameState.cameraX, 105, CANVAS_WIDTH, 35);
     }
@@ -2565,10 +2589,9 @@ function renderPlatforms() {
             ctx.fillRect(plat.x + plat.w - 5, plat.y + 3, 2, 2);
         } else if (plat.type === 'ice') {
             // Plataforma de hielo cristalino para Stage 5
-            const iceGrad = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
-            iceGrad.addColorStop(0, '#7dd3fc');
-            iceGrad.addColorStop(0.5, '#0284c7');
-            iceGrad.addColorStop(1, '#0369a1');
+            const iceGrad = getCachedVerticalGradient(`ice_${plat.y}_${plat.h}`, plat.y, plat.y + plat.h, [
+                [0, '#7dd3fc'], [0.5, '#0284c7'], [1, '#0369a1']
+            ]);
             ctx.fillStyle = iceGrad;
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
@@ -2587,10 +2610,10 @@ function renderPlatforms() {
                 ctx.fill();
             }
         } else if (plat.type === 'ground' || plat.type === 'block') {
-            // Cuerpo base con gradiente vertical según escenario
-            const baseGrad = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
-            baseGrad.addColorStop(0, cfg.platformGround);
-            baseGrad.addColorStop(1, '#071018');
+            // Cuerpo base con gradiente vertical cacheado según escenario
+            const baseGrad = getCachedVerticalGradient(`base_${cfg.platformGround}_${plat.y}_${plat.h}`, plat.y, plat.y + plat.h, [
+                [0, cfg.platformGround], [1, '#071018']
+            ]);
             ctx.fillStyle = baseGrad;
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
@@ -2661,19 +2684,16 @@ function renderPlatforms() {
                 }
             }
         } else if (plat.type === 'pipe') {
-            // Tubería cilíndrica con gradiente metálico
-            const pipeGrad = ctx.createLinearGradient(0, plat.y, 0, plat.y + plat.h);
+            // Tubería cilíndrica con gradiente metálico cacheado
             const isLava = cfg.stageNum === 2;
             const isIce = cfg.stageNum === 5;
             const isElec = cfg.stageNum === 4;
             const colDark = isLava ? '#7f1d1d' : isIce ? '#0369a1' : isElec ? '#1e1b4b' : '#14532d';
             const colMid = isLava ? '#dc2626' : isIce ? '#38bdf8' : isElec ? '#4f46e5' : '#16a34a';
             const colLight = isLava ? '#fca5a5' : isIce ? '#e0f2fe' : isElec ? '#facc15' : '#86efac';
-
-            pipeGrad.addColorStop(0, colDark);
-            pipeGrad.addColorStop(0.3, colLight);
-            pipeGrad.addColorStop(0.6, colMid);
-            pipeGrad.addColorStop(1, colDark);
+            const pipeGrad = getCachedVerticalGradient(`pipe_${cfg.stageNum}_${plat.y}_${plat.h}`, plat.y, plat.y + plat.h, [
+                [0, colDark], [0.3, colLight], [0.6, colMid], [1, colDark]
+            ]);
 
             ctx.fillStyle = pipeGrad;
             ctx.beginPath();
@@ -2774,11 +2794,10 @@ function renderSpikes() {
 
     if (cfg.hazardType === 'lava') {
         GameState.spikes.forEach(sp => {
-            // Fondo de lava volcánica ardiente
-            const lavaGrad = ctx.createLinearGradient(0, sp.y, 0, sp.y + sp.h);
-            lavaGrad.addColorStop(0, '#f97316');
-            lavaGrad.addColorStop(0.3, '#dc2626');
-            lavaGrad.addColorStop(1, '#7f1d1d');
+            // Fondo de lava volcánica ardiente (cacheado)
+            const lavaGrad = getCachedVerticalGradient(`lava_${sp.y}_${sp.h}`, sp.y, sp.y + sp.h, [
+                [0, '#f97316'], [0.3, '#dc2626'], [1, '#7f1d1d']
+            ]);
             ctx.fillStyle = lavaGrad;
             ctx.fillRect(sp.x, sp.y, sp.w, sp.h);
 
@@ -2846,11 +2865,10 @@ function renderSpikes() {
         });
     } else if (cfg.hazardType === 'acid') {
         GameState.spikes.forEach(sp => {
-            // Ácido corrosivo verde tóxico de Dr. Wily
-            const acidGrad = ctx.createLinearGradient(0, sp.y, 0, sp.y + sp.h);
-            acidGrad.addColorStop(0, '#22c55e');
-            acidGrad.addColorStop(0.4, '#15803d');
-            acidGrad.addColorStop(1, '#14532d');
+            // Ácido corrosivo verde tóxico de Dr. Wily (cacheado)
+            const acidGrad = getCachedVerticalGradient(`acid_${sp.y}_${sp.h}`, sp.y, sp.y + sp.h, [
+                [0, '#22c55e'], [0.4, '#15803d'], [1, '#14532d']
+            ]);
             ctx.fillStyle = acidGrad;
             ctx.fillRect(sp.x, sp.y, sp.w, sp.h);
 
@@ -4093,14 +4111,25 @@ function renderHUD() {
 // ==========================================
 let lastTime = 0;
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        lastTime = timestamp;
+        return;
+    }
+
     if (!lastTime) lastTime = timestamp;
-    const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+    const elapsedMs = timestamp - lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     lastTime = timestamp;
 
     updatePhysics(dt);
     render();
-
-    requestAnimationFrame(gameLoop);
 }
 
 // ==========================================

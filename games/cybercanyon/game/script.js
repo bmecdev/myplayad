@@ -4,7 +4,7 @@
 // ==============================================================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }) || canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('high-score');
 const playerNickElement = document.getElementById('player-nick');
@@ -414,8 +414,13 @@ const PROJECTILES = [];
 // Disparos láser de la nave del jugador
 const PLAYER_LASERS = [];
 
-// Sistema de partículas de explosión vectorial CRT
+// Sistema de partículas de explosión vectorial CRT (capado a 35 para RPi 5 1GB)
 const PARTICLES = [];
+const MAX_PARTICLES = 35;
+
+// Vértices unitarios precalculados para compuertas hexagonales
+const HEX_COS = [0, 1, 2, 3, 4, 5].map(a => Math.cos(a * Math.PI / 3));
+const HEX_SIN = [0, 1, 2, 3, 4, 5].map(a => Math.sin(a * Math.PI / 3));
 
 function firePlayerLaser() {
     audio.playPlayerLaser();
@@ -449,7 +454,12 @@ function firePlayerLaser() {
 
 function spawnExplosion(x, y, z, color = '#3dff8a', count = 16) {
     audio.playExplosion();
-    for (let i = 0; i < count; i++) {
+    const spawnCount = Math.min(count, 14);
+    const overflow = (PARTICLES.length + spawnCount) - MAX_PARTICLES;
+    if (overflow > 0) {
+        PARTICLES.splice(0, overflow);
+    }
+    for (let i = 0; i < spawnCount; i++) {
         const angle = Math.random() * Math.PI * 2;
         const spd = 25 + Math.random() * 55;
         PARTICLES.push({
@@ -1646,63 +1656,59 @@ function draw() {
 
     ctx.lineWidth = 1.6;
 
-    // 1. DIBUJAR CORTES DEL CAÑÓN: SOLO LÍNEAS VERTICALES SUPERFICIALES EN LAS PAREDES
+    // 1. DIBUJAR CORTES DEL CAÑÓN: UN SOLO PATH POR REBANADA (suelo + pared izq + pared der)
     for (let s = 0; s < projectedSlices.length; s++) {
         const slice = projectedSlices[s];
-        const alpha = slice.alpha;
-        ctx.strokeStyle = `rgba(61, 255, 138, ${alpha})`;
-
-        // Línea del lecho/suelo transversal
+        ctx.strokeStyle = `rgba(61, 255, 138, ${slice.alpha.toFixed(2)})`;
         ctx.beginPath();
-        ctx.moveTo(slice.leftX, slice.floorY);
+        // Suelo transversal + pared izquierda + pared derecha agrupados
+        ctx.moveTo(slice.leftX, slice.rimY);
+        ctx.lineTo(slice.leftX, slice.floorY);
         ctx.lineTo(slice.rightX, slice.floorY);
-        ctx.stroke();
-
-        // PARED IZQUIERDA: ÚNICAMENTE LÍNEA VERTICAL SUPERFICIAL
-        ctx.beginPath();
-        ctx.moveTo(slice.leftX, slice.floorY);
-        ctx.lineTo(slice.leftX, slice.rimY);
-        ctx.stroke();
-
-        // PARED DERECHA: ÚNICAMENTE LÍNEA VERTICAL SUPERFICIAL
-        ctx.beginPath();
-        ctx.moveTo(slice.rightX, slice.floorY);
         ctx.lineTo(slice.rightX, slice.rimY);
         ctx.stroke();
     }
 
-    // 2. LÍNEAS LONGITUDINALES QUE VAN HACIA EL FONDO (Horizonte, lecho y crestas)
+    // 2. LÍNEAS LONGITUDINALES AGRUPADAS POR COLOR (Horizonte, lecho y crestas)
     if (projectedSlices.length > 2) {
-        // Líneas longitudinales del lecho del cañón (suelo enrejado que sube y baja)
-        const floorTracks = [-1, -0.5, 0, 0.5, 1];
-        floorTracks.forEach(r => {
-            ctx.beginPath();
-            ctx.strokeStyle = (Math.abs(r) === 1) 
-                ? 'rgba(61, 255, 138, 0.60)' 
-                : 'rgba(61, 255, 138, 0.22)';
+        // Bordes exteriores del lecho del cañón
+        ctx.strokeStyle = 'rgba(61, 255, 138, 0.60)';
+        ctx.beginPath();
+        for (let d = -1; d <= 1; d += 2) {
+            for (let i = 0; i < projectedSlices.length; i++) {
+                const sl = projectedSlices[i];
+                const x = sl.px + (sl.hw * d);
+                if (i === 0) ctx.moveTo(x, sl.floorY);
+                else ctx.lineTo(x, sl.floorY);
+            }
+        }
+        ctx.stroke();
+
+        // Carriles interiores del lecho del cañón
+        ctx.strokeStyle = 'rgba(61, 255, 138, 0.22)';
+        ctx.beginPath();
+        for (let r = -0.5; r <= 0.5; r += 0.5) {
             for (let i = 0; i < projectedSlices.length; i++) {
                 const sl = projectedSlices[i];
                 const x = sl.px + (sl.hw * r);
-                const y = sl.floorY;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+                if (i === 0) ctx.moveTo(x, sl.floorY);
+                else ctx.lineTo(x, sl.floorY);
             }
-            ctx.stroke();
-        });
+        }
+        ctx.stroke();
 
         // Líneas longitudinales en la cresta superior de las paredes
-        [-1, 1].forEach(dir => {
-            ctx.beginPath();
-            ctx.strokeStyle = 'rgba(61, 255, 138, 0.50)';
+        ctx.strokeStyle = 'rgba(61, 255, 138, 0.50)';
+        ctx.beginPath();
+        for (let dir = -1; dir <= 1; dir += 2) {
             for (let i = 0; i < projectedSlices.length; i++) {
                 const sl = projectedSlices[i];
                 const x = sl.px + (sl.hw * dir);
-                const y = sl.rimY;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+                if (i === 0) ctx.moveTo(x, sl.rimY);
+                else ctx.lineTo(x, sl.rimY);
             }
-            ctx.stroke();
-        });
+        }
+        ctx.stroke();
     }
 
     // 3. ANILLOS / COMPUERTAS CIBERNÉTICAS
@@ -1715,23 +1721,20 @@ function draw() {
             const gr = gate.radius * scale;
             const alpha = Math.max(0.2, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
-            ctx.save();
             ctx.lineWidth = Math.max(2, 3.5 * scale);
             ctx.strokeStyle = gate.passed 
-                ? `rgba(61, 255, 138, ${alpha * 0.35})` 
-                : `rgba(255, 183, 3, ${alpha})`;
+                ? `rgba(61, 255, 138, ${(alpha * 0.35).toFixed(2)})` 
+                : `rgba(255, 183, 3, ${alpha.toFixed(2)})`;
 
             ctx.beginPath();
             for (let a = 0; a < 6; a++) {
-                const angle = (a * Math.PI / 3);
-                const hx = gx + Math.cos(angle) * gr;
-                const hy = gy + Math.sin(angle) * gr;
+                const hx = gx + HEX_COS[a] * gr;
+                const hy = gy + HEX_SIN[a] * gr;
                 if (a === 0) ctx.moveTo(hx, hy);
                 else ctx.lineTo(hx, hy);
             }
             ctx.closePath();
             ctx.stroke();
-            ctx.restore();
         }
     }
 
@@ -1744,11 +1747,10 @@ function draw() {
             const oy = centerY + (obs.y - Player.y - Player.pitch * relZ) * scale;
             const alpha = Math.max(0.25, Math.min(1.0, 1.0 - Math.pow(relZ / maxZ, 1.2)));
 
-            ctx.save();
             if (obs.type === 'pillar') {
                 const pw = obs.width * scale;
                 const ph = obs.height * scale;
-                ctx.strokeStyle = `rgba(255, 183, 3, ${alpha})`; // Ámbar neón
+                ctx.strokeStyle = `rgba(255, 183, 3, ${alpha.toFixed(2)})`; // Ámbar neón
                 ctx.lineWidth = Math.max(1.5, 3.5 * scale);
                 ctx.strokeRect(ox - pw / 2, oy - ph / 2, pw, ph);
 
@@ -1762,7 +1764,7 @@ function draw() {
             } else if (obs.type === 'barrier') {
                 const bw = obs.width * scale;
                 const bh = obs.height * scale;
-                ctx.strokeStyle = `rgba(255, 77, 109, ${alpha})`; // Carmesí peligro
+                ctx.strokeStyle = `rgba(255, 77, 109, ${alpha.toFixed(2)})`; // Carmesí peligro
                 ctx.lineWidth = Math.max(2, 3.8 * scale);
 
                 // Viga horizontal láser y emisores verticales
@@ -1775,11 +1777,11 @@ function draw() {
                 ctx.lineTo(ox + bw / 2, oy + bh);
                 ctx.stroke();
             }
-            ctx.restore();
         }
     }
 
     // 5. ENEMIGOS ESTÁTICOS (Torretas Centinela Tron)
+    const enemyBlinkAmber = Math.floor(Date.now() / 120) % 2 === 0;
     for (const enemy of ENEMIES) {
         const relZ = enemy.z - Player.z;
         if (relZ > 5 && relZ < maxZ) {
@@ -1789,8 +1791,7 @@ function draw() {
             const er = enemy.radius * scale;
             const alpha = Math.max(0.25, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
-            ctx.save();
-            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha})`; // Carmesí neón
+            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha.toFixed(2)})`; // Carmesí neón
             ctx.lineWidth = Math.max(2, 3.5 * scale);
 
             // Diamante / Octaedro flotante
@@ -1803,14 +1804,12 @@ function draw() {
             ctx.stroke();
 
             // Núcleo / Ojo cañón del centinela (parpadea antes de disparar)
-            const eyeColor = (!enemy.hasShot && relZ <= 290) 
-                ? (Math.floor(Date.now() / 120) % 2 === 0 ? '#ffb703' : '#ff4d6d')
-                : `rgba(255, 77, 109, ${alpha * 0.7})`;
-            ctx.fillStyle = eyeColor;
+            ctx.fillStyle = (!enemy.hasShot && relZ <= 290) 
+                ? (enemyBlinkAmber ? '#ffb703' : '#ff4d6d')
+                : `rgba(255, 77, 109, ${(alpha * 0.7).toFixed(2)})`;
             ctx.beginPath();
             ctx.arc(ex, ey, Math.max(2.5, 4.5 * scale), 0, Math.PI * 2);
             ctx.fill();
-            ctx.restore();
         }
     }
 
@@ -1824,22 +1823,21 @@ function draw() {
             const pr = Math.max(3.5, proj.radius * scale);
             const alpha = Math.max(0.4, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
-            ctx.save();
             // Anillo / halo de radiación de plasma
-            ctx.strokeStyle = `rgba(255, 77, 109, ${alpha * 0.7})`;
+            ctx.strokeStyle = `rgba(255, 77, 109, ${(alpha * 0.7).toFixed(2)})`;
             ctx.lineWidth = Math.max(1.2, 2.5 * scale);
             ctx.beginPath();
             ctx.arc(px, py, pr * 1.35, 0, Math.PI * 2);
             ctx.stroke();
 
             // Esfera de energía de plasma principal (cuerpo redondo relleno)
-            ctx.fillStyle = `rgba(255, 60, 80, ${alpha * 0.85})`;
+            ctx.fillStyle = `rgba(255, 60, 80, ${(alpha * 0.85).toFixed(2)})`;
             ctx.beginPath();
             ctx.arc(px, py, pr, 0, Math.PI * 2);
             ctx.fill();
 
             // Borde corona de energía ámbar/fuego
-            ctx.strokeStyle = `rgba(255, 183, 3, ${alpha})`;
+            ctx.strokeStyle = `rgba(255, 183, 3, ${alpha.toFixed(2)})`;
             ctx.lineWidth = Math.max(1.2, 2.2 * scale);
             ctx.stroke();
 
@@ -1848,8 +1846,6 @@ function draw() {
             ctx.beginPath();
             ctx.arc(px, py, Math.max(1.5, pr * 0.45), 0, Math.PI * 2);
             ctx.fill();
-
-            ctx.restore();
         }
     }
 
@@ -1863,8 +1859,7 @@ function draw() {
             const lr = Math.max(2.5, laser.radius * scale);
             const alpha = Math.max(0.4, Math.min(1.0, 1.0 - (relZ / maxZ)));
 
-            ctx.save();
-            ctx.strokeStyle = `rgba(61, 255, 138, ${alpha})`; // Fósforo verde neón
+            ctx.strokeStyle = `rgba(61, 255, 138, ${alpha.toFixed(2)})`; // Fósforo verde neón
             ctx.fillStyle = '#ffffff';
             ctx.lineWidth = Math.max(2, 3.5 * scale);
 
@@ -1879,26 +1874,24 @@ function draw() {
             ctx.beginPath();
             ctx.arc(lx, ly, lr * 0.7, 0, Math.PI * 2);
             ctx.fill();
-            ctx.restore();
         }
     }
 
-    // 8. PARTÍCULAS DE EXPLOSIÓN VECTORIALES CRT
-    for (const p of PARTICLES) {
-        const relZ = p.z - Player.z;
-        if (relZ > 2 && relZ < maxZ) {
-            const scale = FOV / relZ;
-            const px = centerX + (p.x - Player.x - Player.yaw * relZ) * scale;
-            const py = centerY + (p.y - Player.y - Player.pitch * relZ) * scale;
-            const pSize = Math.max(1.8, p.size * scale);
-            const alpha = Math.max(0.1, p.life / p.maxLife);
-
-            ctx.save();
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = alpha;
-            ctx.fillRect(px - pSize / 2, py - pSize / 2, pSize, pSize);
-            ctx.restore();
+    // 8. PARTÍCULAS DE EXPLOSIÓN VECTORIALES CRT (sin save/restore por partícula)
+    if (PARTICLES.length > 0) {
+        for (const p of PARTICLES) {
+            const relZ = p.z - Player.z;
+            if (relZ > 2 && relZ < maxZ) {
+                const scale = FOV / relZ;
+                const px = centerX + (p.x - Player.x - Player.yaw * relZ) * scale;
+                const py = centerY + (p.y - Player.y - Player.pitch * relZ) * scale;
+                const pSize = Math.max(1.8, p.size * scale);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0.1, p.life / p.maxLife);
+                ctx.fillRect(px - pSize / 2, py - pSize / 2, pSize, pSize);
+            }
         }
+        ctx.globalAlpha = 1;
     }
 
     // 9. CABINA INMERSIVA DE VUELO (Rota con la nave y responde al cabeceo del piloto)
@@ -1954,14 +1947,25 @@ function draw() {
 }
 
 function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    // No gastar CPU/GPU dibujando canvas mientras se reproduce la publicidad pre-juego
+    if (GameState.adPlaying) {
+        GameState.lastTime = timestamp;
+        return;
+    }
+
     if (!GameState.lastTime) GameState.lastTime = timestamp;
-    const dt = Math.min((timestamp - GameState.lastTime) / 1000, 0.1);
+    const elapsedMs = timestamp - GameState.lastTime;
+
+    // En modo demostración (junto al video publicitario en RPi 5 1GB), limitar a ~24 FPS para fluidez del video
+    if (GameState.isDemo && elapsedMs < 41) return;
+
+    const dt = Math.min(elapsedMs / 1000, 0.05);
     GameState.lastTime = timestamp;
 
     update(dt);
     draw();
-
-    requestAnimationFrame(gameLoop);
 }
 
 function endGame() {

@@ -278,7 +278,7 @@ videoPlayer.onended = () => {
 function getTargetGameUrl(slug) {
     const s = slug || new URLSearchParams(window.location.search).get('game') || 'outrun';
     currentGameSlug = s;
-    return `/games/${s}/?screenId=${screenId || ''}&v=42`;
+    return `/games/${s}/?screenId=${screenId || ''}&v=43`;
 }
 
 function loadGame(slug) {
